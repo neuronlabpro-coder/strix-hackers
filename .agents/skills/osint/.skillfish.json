@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "osint",
+  "owner": "lev-os",
+  "repo": "agents",
+  "path": "skills-db/legal/osint",
+  "branch": "main",
+  "sha": "c40fb8ba4833643f98930de742bf0a6248e9ed2c",
+  "source": "manual"
+}

@@ -1,0 +1,52 @@
+[mcp_servers.dokploy-mcp]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "@dokploy/mcp",
+]
+
+[mcp_servers.dokploy-mcp.env]
+DOKPLOY_URL = "https://dokpanel01.shyntai.com/"
+DOKPLOY_API_KEY = "${DOKPLOY_API_TOKEN}"
+
+[mcp_servers.gitea]
+command = "gitea-mcp"
+args = [
+    "-t",
+    "stdio",
+    "--host",
+    "https://giteadm.shyntai.com",
+    "--token",
+    "${GITEA_API_TOKEN}",
+]
+
+[mcp_servers.n8n-mcp]
+command = "npx"
+args = ["n8n-mcp"]
+
+[mcp_servers.n8n-mcp.env]
+MCP_MODE = "stdio"
+LOG_LEVEL = "error"
+DISABLE_CONSOLE_OUTPUT = "true"
+N8N_API_URL = "https://ng-automation-llm.neuronguard.site"
+N8N_API_KEY = "${N8N_API_TOKEN}"
+WEBHOOK_SECURITY_MODE = "moderate"
+
+[mcp_servers.postgres]
+command = "npx"
+args = [
+    "-y",
+    "@modelcontextprotocol/server-postgres",
+    "${MINDGUARD_DATABASE_URL}",
+]
+
+[mcp_servers.qdrant-old]
+command = "uvx"
+args = ["mcp-server-qdrant"]
+
+[mcp_servers.qdrant-old.env]
+QDRANT_URL = "https://vectordatarag.shyntai.com"
+QDRANT_API_KEY = "${QDRANT_API_TOKEN}"
+QDRANT_READ_ONLY = "true"
