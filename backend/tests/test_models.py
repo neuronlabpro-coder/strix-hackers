@@ -58,3 +58,5 @@ def test_user_email_is_unique_and_indexed_and_starts_unverified() -> None:
     assert user_table.c.email_verified.server_default is not None
     assert "false" in str(user_table.c.email_verified.server_default).lower()
     assert "ix_users_email" in {index.name for index in user_table.indexes}
+    assert user_table.c.email_verification_token_hash.unique is True
+    assert user_table.c.email_verification_expires_at.nullable is True

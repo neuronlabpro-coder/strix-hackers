@@ -60,6 +60,16 @@ class OrganizationResponse(BaseModel):
 class RegisterResponse(BaseModel):
     user: UserResponse
     organization: OrganizationResponse
+    verification_required: bool
+    verification_token: str | None = None
+
+
+class EmailVerificationRequest(StrictSchema):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class EmailVerificationResponse(BaseModel):
+    verified: bool
 
 
 class OrganizationCreate(StrictSchema):

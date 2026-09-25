@@ -3,5 +3,6 @@
   "invalidCredentials": "The credentials are invalid.",
   "registrationFailed": "The account could not be created.",
   "sessionExpired": "Your session has expired. Please sign in again.",
-  "workspaceLoadFailed": "Workspaces could not be loaded."
+  "workspaceLoadFailed": "Workspaces could not be loaded.",
+  "invalidVerificationToken": "The verification token is invalid or has expired."
 }

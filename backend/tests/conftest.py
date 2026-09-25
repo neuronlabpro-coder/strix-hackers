@@ -3,22 +3,31 @@
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
-from sqlalchemy import delete, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.apps.organizations.models import Membership, Organization, User
 from backend.core.config import settings
-from backend.core.database import AsyncSessionLocal, engine
-from backend.core.rate_limit import enforce_login_rate_limit, enforce_register_rate_limit
+from backend.core.database import engine, get_db
+from backend.core.rate_limit import (
+    enforce_create_organization_rate_limit,
+    enforce_email_verification_rate_limit,
+    enforce_invitation_rate_limit,
+    enforce_login_rate_limit,
+    enforce_register_rate_limit,
+)
 from backend.main import app
-
-TEST_EMAIL_PREFIXES = ("alpha-", "beta-", "api-")
 
 
 def pytest_configure(config: pytest.Config) -> None:
     """Impide que una suite de pruebas pueda ejecutarse contra producción."""
 
-    if settings.environment == "production":
-        raise pytest.UsageError("La suite de pruebas está bloqueada en ENVIRONMENT=production")
+    if settings.environment not in {"development", "test"}:
+        raise pytest.UsageError(
+            "La suite de pruebas solo puede ejecutarse en ENVIRONMENT=development o test"
+        )
+    if settings.email_verification_delivery_mode != "development":
+        raise pytest.UsageError(
+            "Las pruebas no pueden ejecutar el delivery real de email; usa el modo development"
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -35,38 +44,37 @@ def override_auth_rate_limits() -> Iterator[None]:
 
     app.dependency_overrides[enforce_login_rate_limit] = lambda: None
     app.dependency_overrides[enforce_register_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_create_organization_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_email_verification_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_invitation_rate_limit] = lambda: None
     yield
     app.dependency_overrides.pop(enforce_login_rate_limit, None)
     app.dependency_overrides.pop(enforce_register_rate_limit, None)
+    app.dependency_overrides.pop(enforce_create_organization_rate_limit, None)
+    app.dependency_overrides.pop(enforce_email_verification_rate_limit, None)
+    app.dependency_overrides.pop(enforce_invitation_rate_limit, None)
 
 
 @pytest.fixture(autouse=True)
-async def cleanup_integration_test_data(request: pytest.FixtureRequest) -> AsyncIterator[None]:
-    """Elimina estrictamente los registros canary creados por pruebas de integración."""
+async def isolate_integration_database(request: pytest.FixtureRequest) -> AsyncIterator[None]:
+    """Ejecuta las pruebas de integración dentro de una transacción siempre rollbackeada."""
 
-    yield
     if request.node.get_closest_marker("integration") is None:
+        yield
         return
 
-    try:
-        canary_filter = or_(
-            *(User.email.like(f"{prefix}%@example.com") for prefix in TEST_EMAIL_PREFIXES)
+    async with engine.connect() as connection:
+        transaction = await connection.begin()
+        session = AsyncSession(
+            bind=connection,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
         )
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                organization_ids = list(
-                    (
-                        await session.execute(
-                            select(Membership.organization_id)
-                            .join(User, User.id == Membership.user_id)
-                            .where(canary_filter)
-                        )
-                    ).scalars()
-                )
-                await session.execute(delete(User).where(canary_filter))
-                if organization_ids:
-                    await session.execute(
-                        delete(Organization).where(Organization.id.in_(organization_ids))
-                    )
-    finally:
-        await engine.dispose()
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            yield
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+            await session.close()
+            await transaction.rollback()
+            await engine.dispose()

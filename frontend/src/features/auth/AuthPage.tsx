@@ -20,21 +20,30 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [organizationName, setOrganizationName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
+  const [verificationToken, setVerificationToken] = useState<string | null>(null)
   const isRegisterMode = mode === 'register'
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    setVerificationMessage(null)
+    setVerificationToken(null)
     setIsSubmitting(true)
 
     try {
       if (isRegisterMode) {
-        await register({
+        const response = await register({
           email,
           password,
           full_name: fullName,
           organization_name: organizationName,
         })
+        if (response.verification_required) {
+          setVerificationMessage(t('auth:verificationRequired'))
+          setVerificationToken(response.verification_token)
+          return
+        }
       } else {
         await login({ email, password })
       }
@@ -137,6 +146,21 @@ export function AuthPage({ mode }: AuthPageProps) {
             <p className="form-error" id="auth-error" role="alert">
               {error}
             </p>
+          ) : null}
+
+          {verificationMessage ? (
+            <p className="form-success" role="status">
+              {verificationMessage}
+            </p>
+          ) : null}
+
+          {verificationToken ? (
+            <Link
+              className="secondary-button"
+              to={`/verify-email?token=${encodeURIComponent(verificationToken)}`}
+            >
+              {t('auth:verifyEmailAction')}
+            </Link>
           ) : null}
 
           <button className="primary-button auth-submit" type="submit" disabled={isSubmitting}>

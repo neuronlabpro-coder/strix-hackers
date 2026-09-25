@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from backend.core.config import ENV_FILE, Settings
 
 
-def build_environment_values() -> dict[str, str | int | float | bool]:
+def build_environment_values() -> dict[str, str | int | float | bool | None]:
     return {
         "environment": "development",
         "debug": True,
@@ -41,6 +41,20 @@ def build_environment_values() -> dict[str, str | int | float | bool]:
         "auth_login_rate_window_seconds": 60,
         "auth_register_rate_limit": 3,
         "auth_register_rate_window_seconds": 60,
+        "organization_create_rate_limit": 10,
+        "organization_create_rate_window_seconds": 60,
+        "invitation_rate_limit": 10,
+        "invitation_rate_window_seconds": 3600,
+        "email_verification_ttl_minutes": 1440,
+        "email_verification_delivery_mode": "development",
+        "email_verification_from": "no-reply@example.com",
+        "frontend_base_url": "http://localhost:5173",
+        "smtp_host": "",
+        "smtp_port": 587,
+        "smtp_username": None,
+        "smtp_password": None,
+        "smtp_use_tls": True,
+        "smtp_timeout_seconds": 10,
     }
 
 

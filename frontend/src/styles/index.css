@@ -632,6 +632,12 @@ a {
   font-size: 0.8rem;
 }
 
+.form-success {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.8rem;
+}
+
 .auth-submit {
   width: 100%;
   margin-top: 4px;

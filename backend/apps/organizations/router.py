@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.organizations.models import Organization, RoleEnum, User
 from backend.apps.organizations.schemas import (
+    EmailVerificationRequest,
+    EmailVerificationResponse,
     InvitationCreate,
     InvitationResponse,
     LoginRequest,
@@ -25,11 +27,19 @@ from backend.apps.organizations.services import (
     create_organization_for_user,
     list_organizations_for_user,
     register_user_with_initial_organization,
+    verify_user_email,
 )
 from backend.core.config import settings
 from backend.core.database import get_db
+from backend.core.email import EmailDeliveryError, deliver_email_verification
 from backend.core.middleware import TenantContext, get_current_tenant, get_current_user
-from backend.core.rate_limit import enforce_login_rate_limit, enforce_register_rate_limit
+from backend.core.rate_limit import (
+    enforce_create_organization_rate_limit,
+    enforce_email_verification_rate_limit,
+    enforce_invitation_rate_limit,
+    enforce_login_rate_limit,
+    enforce_register_rate_limit,
+)
 from backend.core.security import create_access_token
 
 router = APIRouter()
@@ -67,9 +77,18 @@ async def register(
     """Registra un usuario y crea su organización inicial con rol admin."""
 
     try:
-        user, organization, membership = await register_user_with_initial_organization(
-            session, payload
-        )
+        (
+            user,
+            organization,
+            membership,
+            verification_token,
+        ) = await register_user_with_initial_organization(session, payload)
+        await deliver_email_verification(user.email, verification_token)
+    except EmailDeliveryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo enviar el email de verificación",
+        ) from error
     except IntegrityError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -79,7 +98,32 @@ async def register(
     return RegisterResponse(
         user=UserResponse.model_validate(user),
         organization=_organization_response(organization, membership.role),
+        verification_required=True,
+        verification_token=(
+            verification_token
+            if settings.email_verification_delivery_mode == "development"
+            else None
+        ),
     )
+
+
+@router.post(
+    "/api/v1/auth/verify-email",
+    response_model=EmailVerificationResponse,
+    dependencies=[Depends(enforce_email_verification_rate_limit)],
+)
+async def verify_email(
+    payload: EmailVerificationRequest,
+    session: SessionDependency,
+) -> EmailVerificationResponse:
+    """Confirma la propiedad del email y activa el acceso a la cuenta."""
+
+    if not await verify_user_email(session, payload.token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El token de verificación no es válido o ha expirado",
+        )
+    return EmailVerificationResponse(verified=True)
 
 
 @router.post(
@@ -123,6 +167,7 @@ async def list_my_organizations(
     "/api/v1/organizations/",
     response_model=OrganizationResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_create_organization_rate_limit)],
 )
 async def create_organization(
     payload: OrganizationCreate,
@@ -148,6 +193,7 @@ async def create_organization(
     "/api/v1/organizations/{organization_id}/invite",
     response_model=InvitationResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_invitation_rate_limit)],
 )
 async def invite_member(
     organization_id: UUID,

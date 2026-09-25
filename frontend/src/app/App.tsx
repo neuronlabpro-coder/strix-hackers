@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAuth } from '../features/auth/useAuth'
 import { AuthPage } from '../features/auth/AuthPage'
+import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
 import { PlaceholderPage } from '../features/shared/PlaceholderPage'
 import { ShellLayout } from './ShellLayout'
@@ -48,6 +49,7 @@ export default function App() {
         path="/register"
         element={token ? <Navigate to="/dashboard" replace /> : <AuthPage mode="register" />}
       />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route element={<ProtectedShell />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/pentests" element={<PlaceholderPage titleKey="navigation:pentests" />} />

@@ -1,7 +1,7 @@
 import { createContext } from 'react'
 
 import type { StoredUser } from '../../lib/session'
-import type { LoginPayload, Organization, RegisterPayload } from '../../types/api'
+import type { LoginPayload, Organization, RegisterPayload, RegisterResponse } from '../../types/api'
 
 export interface AuthContextValue {
   token: string | null
@@ -10,7 +10,7 @@ export interface AuthContextValue {
   selectedOrganizationId: string | null
   isLoading: boolean
   login: (payload: LoginPayload) => Promise<void>
-  register: (payload: RegisterPayload) => Promise<void>
+  register: (payload: RegisterPayload) => Promise<RegisterResponse>
   logout: () => void
   selectOrganization: (organizationId: string) => void
 }

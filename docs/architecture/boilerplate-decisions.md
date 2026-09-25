@@ -13,7 +13,7 @@ Las adaptaciones siguientes viven exclusivamente en `backend/` y `frontend/`. Se
 | Modelo de organización y workspace | `backend/apps/organizations/models.py` | `Organization` usa UUID, `slug` único, `PlanTierEnum` y timestamps. Se añadió `Organization` como raíz de aislamiento. |
 | Usuario y pertenencia a workspace | `backend/apps/organizations/models.py` | `User`, `Membership` e `Invitation` usan UUID, FKs con `CASCADE`, índices de FK y el índice único compuesto `ix_membership_org_user`. |
 | Flujo de sesión | `backend/core/security.py` | Se implementaron hash y verificación con bcrypt nativo. Se aplica SHA-256 de tamaño fijo antes de bcrypt para soportar el límite de contraseña configurado y conservar un hash bcrypt con salt. |
-| Email y verificación | `backend/apps/organizations/models.py`, `backend/apps/organizations/services.py` y `backend/apps/organizations/schemas.py` | `EmailStr` valida la entrada, los emails se normalizan con `strip().lower()` antes de consultar o guardar y `User.email_verified` comienza en `false` para el futuro flujo de confirmación. |
+| Email y verificación | `backend/apps/organizations/models.py`, `backend/apps/organizations/services.py`, `backend/apps/organizations/router.py` y `backend/core/email.py` | `EmailStr` valida la entrada, los emails se normalizan con `strip().lower()` antes de consultar o guardar, `User.email_verified` comienza en `false`, el token se almacena solo como hash y el login exige verificación. El entorno local expone el token; producción exige SMTP configurado. |
 | Rate limiting de autenticación | `backend/core/rate_limit.py` y `backend/apps/organizations/router.py` | Login y registro usan contadores Redis por IP con ventana fija, límites configurables, Lua atómico, `429` y `Retry-After`; Redis no disponible falla cerrado con `503`. |
 | Emisión de tokens | `backend/core/security.py` | JWT con `python-jose`, algoritmo y expiración controlados por variables de entorno. |
 | Dependencias de autenticación | `backend/core/middleware.py` | `get_current_user` valida el JWT y `get_current_tenant` exige `X-Organization-Id` y una membresía activa, fallando cerrado con HTTP 403. |
@@ -39,7 +39,7 @@ Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrati
 - El frontend solo usa `VITE_API_URL` como configuración pública; nunca incorpora secretos.
 - El token se almacena en `sessionStorage` para limitar su persistencia en el cliente. La evolución recomendada es migrar a cookie `HttpOnly`, `Secure` y `SameSite=Strict` cuando el backend exponga ese contrato.
 - Las consultas multi-tenant se filtran por `organization_id` a través de `Membership`; el middleware falla cerrado si falta el tenant o la membresía.
-- `backend/tests/conftest.py` bloquea la suite cuando `ENVIRONMENT=production`, desactiva el rate limiter real solo dentro de pytest y elimina automáticamente los registros canary `alpha-*`, `beta-*` y `api-*` al finalizar cada prueba de integración.
+- `backend/tests/conftest.py` bloquea la suite fuera de `ENVIRONMENT=development/test` y fuera del modo de email `development`, desactiva los rate limiters reales solo dentro de pytest y ejecuta cada prueba de integración en una sesión SQLAlchemy con savepoints y rollback exterior obligatorio.
 - `engines/`, `saas-boilerplate/` y `strix/` permanecen como referencias de solo lectura.
 
 ## Verificación realizada

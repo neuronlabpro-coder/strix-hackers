@@ -9,7 +9,9 @@ from fastapi import Depends, HTTPException, Request, status
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
+from backend.apps.organizations.models import User
 from backend.core.config import settings
+from backend.core.middleware import TenantContext, get_current_tenant, get_current_user
 from backend.core.redis import redis_client
 
 _RATE_LIMIT_SCRIPT = """
@@ -83,6 +85,8 @@ async def get_rate_limit_redis() -> Redis:
 
 
 RedisDependency = Annotated[Redis, Depends(get_rate_limit_redis)]
+CurrentUserDependency = Annotated[User, Depends(get_current_user)]
+TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
 
 
 async def enforce_login_rate_limit(
@@ -112,4 +116,49 @@ async def enforce_register_rate_limit(
         _request_identifier(request),
         settings.auth_register_rate_limit,
         settings.auth_register_rate_window_seconds,
+    )
+
+
+async def enforce_create_organization_rate_limit(
+    current_user: CurrentUserDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita la creación de workspaces por usuario autenticado."""
+
+    await _apply_rate_limit(
+        client,
+        "organization-create",
+        str(current_user.id),
+        settings.organization_create_rate_limit,
+        settings.organization_create_rate_window_seconds,
+    )
+
+
+async def enforce_email_verification_rate_limit(
+    request: Request,
+    client: RedisDependency,
+) -> None:
+    """Limita los intentos de verificación de email por IP."""
+
+    await _apply_rate_limit(
+        client,
+        "email-verification",
+        _request_identifier(request),
+        settings.auth_register_rate_limit,
+        settings.auth_register_rate_window_seconds,
+    )
+
+
+async def enforce_invitation_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita la creación de invitaciones por usuario y tenant."""
+
+    await _apply_rate_limit(
+        client,
+        "invitation",
+        f"{tenant.user.id}:{tenant.organization.id}",
+        settings.invitation_rate_limit,
+        settings.invitation_rate_window_seconds,
     )

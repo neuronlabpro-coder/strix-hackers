@@ -1,5 +1,6 @@
 """Operaciones de persistencia para usuarios, organizaciones e invitaciones."""
 
+import hashlib
 import re
 import secrets
 import unicodedata
@@ -42,16 +43,27 @@ def _unique_slug(value: str) -> str:
     return f"{_slugify(value)[:119]}-{uuid.uuid4().hex[:8]}"
 
 
+def hash_email_verification_token(token: str) -> str:
+    """Almacena únicamente el hash del token de verificación de email."""
+
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 async def register_user_with_initial_organization(
     session: AsyncSession,
     payload: RegisterRequest,
-) -> tuple[User, Organization, Membership]:
+) -> tuple[User, Organization, Membership, str]:
     """Crea usuario, organización inicial y membresía administradora en una transacción."""
 
     email = normalize_email(str(payload.email))
+    verification_token = secrets.token_urlsafe(32)
     try:
         user = User(
             email=email,
+            email_verified=False,
+            email_verification_token_hash=hash_email_verification_token(verification_token),
+            email_verification_expires_at=datetime.now(UTC)
+            + timedelta(minutes=settings.email_verification_ttl_minutes),
             hashed_password=hash_password(payload.password),
             full_name=payload.full_name,
         )
@@ -77,19 +89,45 @@ async def register_user_with_initial_organization(
         await session.rollback()
         raise
 
-    return user, organization, membership
+    return user, organization, membership, verification_token
 
 
 async def authenticate_user(session: AsyncSession, email: str, password: str) -> User | None:
     """Busca un usuario activo y valida su contraseña."""
 
     result = await session.execute(
-        select(User).where(User.email == normalize_email(email), User.is_active.is_(True))
+        select(User).where(
+            User.email == normalize_email(email),
+            User.is_active.is_(True),
+            User.email_verified.is_(True),
+        )
     )
     user = result.scalar_one_or_none()
     if user is None or not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+async def verify_user_email(session: AsyncSession, token: str) -> bool:
+    """Activa la cuenta solo con un token vigente y de un solo uso."""
+
+    token_hash = hash_email_verification_token(token.strip())
+    result = await session.execute(
+        select(User).where(
+            User.email_verification_token_hash == token_hash,
+            User.email_verification_expires_at > datetime.now(UTC),
+            User.email_verified.is_(False),
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        return False
+
+    user.email_verified = True
+    user.email_verification_token_hash = None
+    user.email_verification_expires_at = None
+    await session.commit()
+    return True
 
 
 async def list_organizations_for_user(

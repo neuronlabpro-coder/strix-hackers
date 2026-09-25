@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import unquote, urlsplit
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import EmailStr, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -47,6 +47,20 @@ class Settings(BaseSettings):
     auth_login_rate_window_seconds: int = Field(ge=1, le=3600)
     auth_register_rate_limit: int = Field(ge=1, le=100)
     auth_register_rate_window_seconds: int = Field(ge=1, le=3600)
+    organization_create_rate_limit: int = Field(ge=1, le=100)
+    organization_create_rate_window_seconds: int = Field(ge=1, le=3600)
+    invitation_rate_limit: int = Field(ge=1, le=100)
+    invitation_rate_window_seconds: int = Field(ge=1, le=3600)
+    email_verification_ttl_minutes: int = Field(gt=0, le=10080)
+    email_verification_delivery_mode: Literal["development", "smtp"]
+    email_verification_from: EmailStr
+    frontend_base_url: str = Field(min_length=1)
+    smtp_host: str = ""
+    smtp_port: int = Field(ge=1, le=65535)
+    smtp_username: SecretStr | None = None
+    smtp_password: SecretStr | None = None
+    smtp_use_tls: bool = True
+    smtp_timeout_seconds: float = Field(gt=0)
 
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
@@ -68,6 +82,9 @@ class Settings(BaseSettings):
 
         if not self._redis_url_matches_components():
             raise ValueError("REDIS_URL no coincide con las variables REDIS_* configuradas")
+
+        if self.email_verification_delivery_mode == "smtp" and not self.smtp_host:
+            raise ValueError("SMTP_HOST es obligatorio cuando el modo de email es smtp")
 
         return self
 

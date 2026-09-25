@@ -82,6 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (payload: RegisterPayload) => {
     setIsLoading(true)
     const response = await registerRequest(payload)
+    if (response.verification_required) {
+      setIsLoading(false)
+      return response
+    }
+
     const loginResponse = await loginRequest({
       email: payload.email,
       password: payload.password,
@@ -89,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveSession({ token: loginResponse.access_token, user: response.user })
     setToken(loginResponse.access_token)
     setUser(response.user)
+    return response
   }, [])
 
   const logout = useCallback(() => {

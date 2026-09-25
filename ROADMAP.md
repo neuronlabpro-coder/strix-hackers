@@ -248,7 +248,7 @@
 
 Marca cada fase únicamente cuando se hayan cumplido todos los puntos de su *Definition of Done*:
 
-- [ ] **Fase 1** · Fundación de Infraestructura, Dokploy, Tailscale & Core Multi-tenant
+- [x] **Fase 1** · Fundación de Infraestructura, Dokploy, Tailscale & Core Multi-tenant
 - [ ] **Fase 2** · Motor de Ejecución Sandbox, Orquestación & Runner Aislado
 - [ ] **Fase 3** · Conectores Git, Webhooks & Automatización de Pull Requests
 - [ ] **Fase 4** · Panel Web Frontend, Gestión de Vulnerabilidades & Knowledge Base

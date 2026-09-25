@@ -27,6 +27,8 @@ export interface TokenResponse {
 export interface RegisterResponse {
   user: UserProfile
   organization: Organization
+  verification_required: boolean
+  verification_token: string | null
 }
 
 export interface RegisterPayload {
@@ -34,6 +36,10 @@ export interface RegisterPayload {
   password: string
   full_name: string
   organization_name: string
+}
+
+export interface EmailVerificationResponse {
+  verified: boolean
 }
 
 export interface LoginPayload {
