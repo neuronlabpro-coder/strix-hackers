@@ -50,6 +50,56 @@ class GitLabClient(BaseGitClient):
     def get_clone_token(self) -> str:
         return self.access_token
 
+    def get_repository(self, remote_repo_id: str) -> dict[str, object]:
+        self._validate_remote_repo_id(remote_repo_id)
+        response = self._request(
+            "GET",
+            f"projects/{quote(remote_repo_id, safe='')}",
+            headers=self._headers,
+        )
+        return self._json_object(response)
+
+    def create_webhook(
+        self,
+        repo_full_name: str,
+        callback_url: str,
+        secret: str,
+        events: tuple[str, ...],
+    ) -> str:
+        self._validate_repo_reference(repo_full_name)
+        self._validate_webhook_target(callback_url, secret)
+        if not events:
+            raise GitClientError("GitLab requiere al menos un evento de webhook")
+        project_path = quote(repo_full_name, safe="")
+        response = self._request(
+            "POST",
+            f"projects/{project_path}/hooks",
+            json={
+                "url": callback_url,
+                "token": secret,
+                "push_events": False,
+                "merge_requests_events": "pull_request" in events,
+                "note_events": "issue_comment" in events,
+                "enable_ssl_verification": True,
+            },
+            headers=self._headers,
+        )
+        webhook_id = self._json_object(response).get("id")
+        if webhook_id is None:
+            raise GitClientError("GitLab no devolvió el identificador del webhook")
+        return str(webhook_id)
+
+    def delete_webhook(self, repo_full_name: str, webhook_id: str) -> None:
+        self._validate_repo_reference(repo_full_name)
+        if not webhook_id or not webhook_id.isdigit() or len(webhook_id) > 128:
+            raise GitClientError("Identificador de webhook inválido")
+        project_path = quote(repo_full_name, safe="")
+        self._request_optional(
+            "DELETE",
+            f"projects/{project_path}/hooks/{webhook_id}",
+            headers=self._headers,
+        )
+
     def set_commit_status(
         self,
         repo_full_name: str,

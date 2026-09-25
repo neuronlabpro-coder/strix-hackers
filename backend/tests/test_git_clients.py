@@ -9,6 +9,8 @@ from backend.apps.repositories.clients.github import GitHubClient
 from backend.apps.repositories.clients.gitlab import GitLabClient
 from backend.apps.repositories.models import GitProviderEnum
 
+_WEBHOOK_SECRET = "w6Kq3Jm2XbT9pL4nR7sV1yA0cD5fG8hJ2kM6nQ9tU3w"
+
 
 def test_github_client_uses_bearer_auth_and_returns_repositories() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
@@ -67,6 +69,49 @@ def test_github_client_updates_comment_and_checks_write_permission() -> None:
     client.update_pr_comment("acme/app", "9", "updated")
     assert client.has_write_access("acme/app", "reviewer") is True
     assert [request.method for request in requests] == ["PATCH", "GET"]
+
+
+def test_github_client_manages_repository_metadata_and_webhook() -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.method == "GET" and request.url.path == "/repositories/101":
+            return httpx.Response(
+                200,
+                json={
+                    "id": 101,
+                    "name": "app",
+                    "full_name": "acme/app",
+                    "clone_url": "https://github.com/acme/app.git",
+                    "default_branch": "main",
+                },
+            )
+        if request.method == "POST" and request.url.path.endswith("/hooks"):
+            return httpx.Response(201, json={"id": 77})
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(500)
+
+    client = GitHubClient(
+        access_token="github-token",
+        organization_id=uuid.uuid4(),
+        allowed_repo_full_name="acme/app",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    repository = client.get_repository("101")
+    webhook_id = client.create_webhook(
+        "acme/app",
+        "https://api.example.com/api/v1/webhooks/git/github",
+        _WEBHOOK_SECRET,
+        ("pull_request", "issue_comment"),
+    )
+    client.delete_webhook("acme/app", webhook_id)
+
+    assert repository["full_name"] == "acme/app"
+    assert webhook_id == "77"
+    assert ("DELETE", "/repos/acme/app/hooks/77") in calls
 
 
 def test_github_client_creates_branch_and_pull_request_from_patch() -> None:
@@ -142,6 +187,50 @@ def test_github_client_fetches_current_pull_request_head() -> None:
     assert isinstance(base, dict)
     assert head["sha"] == "a" * 40
     assert base["sha"] == "b" * 40
+
+
+def test_gitlab_client_manages_repository_metadata_and_webhook() -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.method == "GET" and request.url.path == "/api/v4/projects/202":
+            return httpx.Response(
+                200,
+                json={
+                    "id": 202,
+                    "name": "app",
+                    "path_with_namespace": "acme/app",
+                    "http_url_to_repo": "https://gitlab.com/acme/app.git",
+                    "default_branch": "main",
+                    "visibility": "private",
+                },
+            )
+        if request.method == "POST" and request.url.path.endswith("/hooks"):
+            return httpx.Response(201, json={"id": 88})
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(500)
+
+    client = GitLabClient(
+        access_token="gitlab-token",
+        organization_id=uuid.uuid4(),
+        allowed_repo_full_name="acme/app",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    repository = client.get_repository("202")
+    webhook_id = client.create_webhook(
+        "acme/app",
+        "https://api.example.com/api/v1/webhooks/git/gitlab",
+        _WEBHOOK_SECRET,
+        ("pull_request", "issue_comment"),
+    )
+    client.delete_webhook("acme/app", webhook_id)
+
+    assert repository["path_with_namespace"] == "acme/app"
+    assert webhook_id == "88"
+    assert ("DELETE", "/api/v4/projects/acme/app/hooks/88") in calls
 
 
 def test_gitlab_client_reports_write_access() -> None:

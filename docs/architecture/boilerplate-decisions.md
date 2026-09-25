@@ -43,6 +43,8 @@ Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrati
 | Integraciones Git | `backend/apps/repositories/` y `backend/core/crypto.py` | Tokens Git se cifran con AES-256-GCM y permanecen cifrados en PostgreSQL; la descifración ocurre solo al construir un cliente ligado a `organization_id`. GitHub y GitLab usan clientes REST autenticados, y el webhook valida firmas HMAC antes de encolar el evento. |
 | Pipeline PR y materialización | `backend/apps/repositories/workspace.py`, `pipeline.py`, `tasks.py` y `feedback.py` | El webhook crea revisiones idempotentes, el pipeline ejecuta un scan QUICK con archivos incrementales, publica checks/comentarios y purga el workspace en `finally`; el código fuente nunca se persiste en PostgreSQL. |
 | ChatOps y Autofix | `backend/apps/repositories/chatops.py`, `autofix.py` y `patches.py` | Los comandos ChatOps verifican permisos de escritura; los parches R4 se validan y se aplican mediante clientes Git sin almacenar el código fuente del cliente. |
+| OAuth y onboarding de repositorios | `backend/apps/repositories/oauth.py`, `router_auth.py`, `router.py`, `inventory.py` y `validation.py` | El `state` OAuth se firma con HMAC-SHA256 sobre `SECRET_KEY`, se indexa en Redis por su SHA-256 y se consume con `GETDEL` (un solo uso, 10 minutos). El callback no confía en el state: revalida la membresía activa en PostgreSQL antes de cifrar el token con AES-256-GCM. El alta de repositorio revalida los metadatos contra la API del proveedor, genera el secreto HMAC local y registra el webhook de forma best-effort (`webhook_registered: false` si el proveedor lo rechaza). `build_client_for_repository` se generalizó en `get_client_for_credential` para construir clientes acotados al tenant sin repositorio previo. No se requieren migraciones: el estado del flujo vive en Redis. |
+| Validación canónica de referencias Git | `backend/apps/repositories/validation.py` | `validate_git_branch`, `validate_git_commit_sha` y `validate_git_clone_url` concentran las reglas anti-inyección y anti-traversal que antes vivían duplicadas en `workspace.py` y `autofix.py`; el allowlist de hosts se aplica también al inventario remoto. |
 
 ## Frontend
 
@@ -68,3 +70,4 @@ Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrati
 - `ruff check`, `pyright` y `pytest` en `backend/`.
 - `alembic current` y `alembic check` contra la base remota configurada.
 - Test de aislamiento multi-tenant con Alpha y Beta.
+- Bloque 3.3: `165 passed, 2 skipped`; `ruff check` sin hallazgos; `pyright --project backend/pyproject.toml` con 0 errores; `alembic current` = `e8a0b2c4d6e8 (head)` y `alembic check` sin drift.

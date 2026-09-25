@@ -54,6 +54,59 @@ class GitHubClient(BaseGitClient):
     def get_clone_token(self) -> str:
         return self.access_token
 
+    def get_repository(self, remote_repo_id: str) -> dict[str, object]:
+        self._validate_remote_repo_id(remote_repo_id)
+        response = self._request(
+            "GET",
+            f"repositories/{quote(remote_repo_id, safe='')}",
+            headers=self._headers,
+        )
+        return self._json_object(response)
+
+    def create_webhook(
+        self,
+        repo_full_name: str,
+        callback_url: str,
+        secret: str,
+        events: tuple[str, ...],
+    ) -> str:
+        self._validate_repo_reference(repo_full_name)
+        self._validate_webhook_target(callback_url, secret)
+        if not events:
+            raise GitClientError("GitHub requiere al menos un evento de webhook")
+        repo_path = quote(repo_full_name, safe="/")
+        response = self._request(
+            "POST",
+            f"repos/{repo_path}/hooks",
+            json={
+                "name": "web",
+                "active": True,
+                "events": list(events),
+                "config": {
+                    "url": callback_url,
+                    "content_type": "json",
+                    "secret": secret,
+                    "insecure_ssl": "0",
+                },
+            },
+            headers=self._headers,
+        )
+        webhook_id = self._json_object(response).get("id")
+        if webhook_id is None:
+            raise GitClientError("GitHub no devolvió el identificador del webhook")
+        return str(webhook_id)
+
+    def delete_webhook(self, repo_full_name: str, webhook_id: str) -> None:
+        self._validate_repo_reference(repo_full_name)
+        if not webhook_id or len(webhook_id) > 128 or any(ord(char) < 32 for char in webhook_id):
+            raise GitClientError("Identificador de webhook inválido")
+        repo_path = quote(repo_full_name, safe="/")
+        self._request_optional(
+            "DELETE",
+            f"repos/{repo_path}/hooks/{quote(webhook_id, safe='')}",
+            headers=self._headers,
+        )
+
     def set_commit_status(
         self,
         repo_full_name: str,

@@ -78,6 +78,7 @@ def build_environment_values() -> dict[str, str | int | float | bool | None]:
         "email_verification_delivery_mode": "development",
         "email_verification_from": "no-reply@example.com",
         "frontend_base_url": "http://localhost:5173",
+        "api_public_base_url": "http://localhost:8000",
         "smtp_host": "",
         "smtp_port": 587,
         "smtp_username": None,
@@ -205,11 +206,57 @@ def test_settings_accepts_secure_production_smtp_configuration() -> None:
     values["smtp_username"] = "smtp-user"
     values["smtp_password"] = "smtp-password"
     values["frontend_base_url"] = "https://app.example.com"
+    values["api_public_base_url"] = "https://api.example.com"
 
     settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
     assert settings.environment == "production"
     assert settings.smtp_use_tls is True
+
+
+def test_settings_rejects_insecure_public_api_base_url_in_production() -> None:
+    values = build_environment_values()
+    values["environment"] = "production"
+    values["debug"] = False
+    values["email_verification_delivery_mode"] = "smtp"
+    values["smtp_host"] = "smtp.example.com"
+    values["smtp_username"] = "smtp-user"
+    values["smtp_password"] = "smtp-password"
+    values["frontend_base_url"] = "https://app.example.com"
+    values["api_public_base_url"] = "http://api.example.com"
+
+    with pytest.raises(ValidationError, match="API_PUBLIC_BASE_URL"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_rejects_partial_git_provider_oauth_credentials() -> None:
+    values = build_environment_values()
+    values["github_oauth_client_id"] = "github-client"
+
+    with pytest.raises(ValidationError, match="GitHub OAuth"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_accepts_paired_git_provider_oauth_credentials() -> None:
+    values = build_environment_values()
+    values["github_oauth_client_id"] = "github-client"
+    values["github_oauth_client_secret"] = "github-secret"
+    values["gitlab_oauth_client_id"] = "gitlab-client"
+    values["gitlab_oauth_client_secret"] = "gitlab-secret"
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert settings.github_oauth_client_secret is not None
+    assert settings.github_oauth_client_secret.get_secret_value() == "github-secret"
+    assert "github-secret" not in repr(settings)
+
+
+def test_settings_rejects_invalid_webhook_subscription_events() -> None:
+    values = build_environment_values()
+    values["git_webhook_subscription_events"] = "pull request;drop table"
+
+    with pytest.raises(ValidationError, match="GIT_WEBHOOK_SUBSCRIPTION_EVENTS"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_repr_hides_sensitive_values() -> None:

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.repositories.clients.base import BaseGitClient
-from backend.apps.repositories.clients.factory import get_git_client
+from backend.apps.repositories.clients.factory import get_client_for_credential, get_git_client
 from backend.apps.repositories.models import GitCredential, GitProviderEnum, Repository
 from backend.core.crypto import encrypt_secret
 
@@ -72,6 +72,28 @@ async def build_client_for_repository(
     return get_git_client(
         credential,
         repository,
+        api_base_url=api_base_url,
+        http_client=http_client,
+    )
+
+
+async def build_organization_client(
+    session: AsyncSession,
+    organization_id: UUID,
+    provider: GitProviderEnum,
+    *,
+    allowed_repo_full_name: str | None = None,
+    api_base_url: str | None = None,
+    http_client: httpx.Client | None = None,
+) -> BaseGitClient:
+    """Construye un cliente acotado al tenant para inventario y gestión de repositorios."""
+
+    credential = await get_organization_credential(session, organization_id, provider)
+    return get_client_for_credential(
+        credential,
+        organization_id,
+        provider,
+        allowed_repo_full_name=allowed_repo_full_name,
         api_base_url=api_base_url,
         http_client=http_client,
     )

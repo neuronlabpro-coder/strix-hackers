@@ -217,6 +217,36 @@ async def enforce_invitation_accept_rate_limit(
     )
 
 
+async def enforce_repository_management_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita operaciones de administración de repositorios por tenant."""
+
+    await _apply_rate_limit(
+        client,
+        "repository-management",
+        f"{tenant.user.id}:{tenant.organization.id}",
+        settings.repository_management_rate_limit,
+        settings.repository_management_rate_window_seconds,
+    )
+
+
+async def enforce_oauth_callback_rate_limit(
+    request: Request,
+    client: RedisDependency,
+) -> None:
+    """Limita callbacks OAuth públicos antes de consumir state o llamar al proveedor."""
+
+    await _apply_rate_limit(
+        client,
+        "oauth-callback",
+        _request_identifier(request),
+        settings.oauth_callback_rate_limit,
+        settings.oauth_callback_rate_window_seconds,
+    )
+
+
 async def enforce_autofix_rate_limit(
     tenant: TenantDependency,
     client: RedisDependency,

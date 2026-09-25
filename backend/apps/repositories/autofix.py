@@ -15,6 +15,7 @@ from backend.apps.repositories.clients.base import BaseGitClient
 from backend.apps.repositories.models import PullRequestReview, Repository
 from backend.apps.repositories.patches import AutofixPatchError, parse_patch
 from backend.apps.repositories.services import build_client_for_repository
+from backend.apps.repositories.validation import GitReferenceError, validate_git_branch
 from backend.apps.vulnerabilities.models import Vulnerability
 from backend.core.config import settings
 from backend.core.database import create_database_engine
@@ -69,15 +70,10 @@ def validate_autofix_patch(patch: str) -> str:
 
 def _branch_for_vulnerability(vulnerability_id: UUID) -> str:
     branch = f"{settings.autofix_branch_prefix}{vulnerability_id.hex[:8]}"
-    if (
-        len(branch) > 255
-        or branch.startswith("-")
-        or ".." in branch
-        or any(char.isspace() or ord(char) < 32 for char in branch)
-        or any(char in branch for char in "~^:?*[\\")
-    ):
-        raise AutofixError("El nombre de rama de autofix no es válido")
-    return branch
+    try:
+        return validate_git_branch(branch, field_name="la rama de autofix")
+    except GitReferenceError as error:
+        raise AutofixError("El nombre de rama de autofix no es válido") from error
 
 
 async def _create_autofix_branch_and_pr(

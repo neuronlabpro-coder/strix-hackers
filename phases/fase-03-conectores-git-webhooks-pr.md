@@ -2,7 +2,7 @@
 
 > **Documento de especificación ejecutable.** Define las integraciones OAuth y Apps para GitHub, GitLab, Bitbucket y Gitea, la recepción y validación criptográfica de Webhooks, el motor de análisis superficial en CI/CD (`--scan-mode quick`), el bot de retroalimentación en Pull Requests y la apertura programática de ramas con parches *autofix*.
 >
-> **Estado:** `[ ]` Pendiente de cierre — Bloques 3.1 y 3.2 implementados en código y pruebas
+> **Estado:** `[ ]` Pendiente de cierre — Bloques 3.1, 3.2 y 3.3 implementados en código y pruebas
 > **Dependencias previas:** Fase 1 (Organizaciones, RBAC y Auth) y Fase 2 (Motor de ejecución Strix en Docker Sandbox).  
 > **Autoridades que rigen esta fase:** `ARCHITECTURE.md` (§2, §3, §4) y `AGENTS.md` (Reglas de Oro R1, R3, R4 y R5).
 
@@ -344,12 +344,36 @@ def run_pr_security_scan(self, repo_id: str, pr_number: int, commit_sha: str, so
 
 ---
 
+### Tarea 3.6 · OAuth, Sincronización e Importación de Repositorios (Bloque 3.3)
+
+> **Estado:** `[x]` Implementado en código y pruebas (`backend/tests/test_git_oauth.py`, `backend/tests/test_repositories_api.py`, `backend/tests/test_repository_inventory.py`, `backend/tests/test_git_clients.py`). La validación E2E contra GitHub/GitLab reales sigue pendiente.
+
+1. **Primitivas OAuth (`backend/apps/repositories/oauth.py`):**
+   * `state` firmado con **HMAC-SHA256** sobre `SECRET_KEY`, con `provider`, `organization_id`, `user_id`, `nonce` de 32 bytes y expiración (`OAUTH_STATE_TTL_SECONDS`, 10 minutos por defecto).
+   * La clave Redis del `state` es el **SHA-256 del state completo**, de modo que ni el token ni el nonce aparecen en claves de infraestructura.
+   * Canje del código contra `GITHUB_OAUTH_TOKEN_URL` / `GITLAB_OAUTH_TOKEN_URL` con `client_id`, `client_secret` y `redirect_uri` verificados; los errores del proveedor se traducen a `HTTP 502` sin filtrar cuerpos ni secretos.
+2. **Rutas (`backend/apps/repositories/router_auth.py`):**
+   * `GET /api/v1/repositories/oauth/{provider}/authorize` — exige rol `ADMIN`, aplica rate limit por tenant (`repository-management`), falla cerrado con `HTTP 503` si el proveedor no está configurado y responde `302` a la pantalla de consentimiento.
+   * `GET /api/v1/repositories/oauth/{provider}/callback` — **consume el state con `GETDEL`** (un solo uso), revalida en PostgreSQL que la membresía, el usuario y la organización siguen activos, cifra el token con `AES-256-GCM` y AAD por organización/proveedor/campo, y redirige con `303` a `/repositories?connected={PROVIDER}`. Un replay del mismo `state` responde `400`.
+3. **Gestión de repositorios (`backend/apps/repositories/router.py`):**
+   * `GET /api/v1/repositories/remote?provider=…` — inventario paginado del proveedor usando el token descifrado **solo en memoria**; normaliza la respuesta heterogénea (`inventory.py`), descarta entradas cuyo host de clonado no esté en la allowlist y marca `already_connected`.
+   * `POST /api/v1/repositories/connect` — exige rol `ADMIN`, **revalida los metadatos contra el proveedor** (`GET /repositories/{id}` en GitHub, `GET /projects/{id}` en GitLab), genera un `webhook_secret` aleatorio de 32 bytes, inserta el repositorio y registra el webhook en `API_PUBLIC_BASE_URL` con los eventos de `GIT_WEBHOOK_SUBSCRIPTION_EVENTS`. Si el proveedor rechaza el hook, el alta se conserva con `webhook_registered: false` y traza sanitizada.
+   * `GET /api/v1/repositories/` — listado paginado y filtrable (`provider`, `is_active`) acotado a `organization_id`.
+   * `GET|PATCH|DELETE /api/v1/repositories/{id}` — lectura, actualización de `pr_reviews_enabled` / `default_branch` / `is_active` y desvinculación con borrado del webhook remoto. `PATCH` y `DELETE` exigen `ADMIN`; `DELETE` responde `409` si existen revisiones `QUEUED`/`SCANNING` en curso.
+   * Toda lectura o mutación sobre un repositorio ajeno devuelve `404` genérico: un recurso de otra organización es indistinguible de uno inexistente.
+4. **Clientes (`clients/github.py`, `clients/gitlab.py`):** `get_repository`, `create_webhook` y `delete_webhook` con validación de URL HTTPS sin credenciales y secreto de al menos 32 caracteres; un `404` al borrar el hook se considera éxito.
+5. **Sin migraciones:** `repositories` y `git_credentials` ya contienen `webhook_id`, `webhook_secret`, `default_branch`, `pr_reviews_enabled`, `is_active` y los tokens cifrados; el estado del flujo OAuth vive en Redis, por lo que `e8a0b2c4d6e8` sigue siendo *head* y `alembic check` no detecta drift.
+6. **Pendiente del bloque:** conectores Bitbucket/Gitea (incluido `autofix`) y la pantalla de onboarding del frontend, que corresponde a la Fase 4.
+7. **Higiene de logs (endurecimiento pendiente):** el `code` y el `state` viajan en la query del callback, por lo que el proxy de entrada y el *access log* de Uvicorn deben excluir la query de `/api/v1/repositories/oauth/*/callback` en staging y producción. El backend nunca los registra.
+
+---
+
 ## 4. Definition of Done (DoD) — Criterios de Aceptación
 
 Para dar por concluida la Fase 3, se deben validar y marcar todas las casillas siguientes:
 
 - [ ] **Validación HMAC Funcional:** El endpoint de webhooks rechaza peticiones con firmas manipuladas (`HTTP 401`) y procesa firmas válidas de GitHub, GitLab, Bitbucket y Gitea (`HTTP 202`).
-- [ ] **Sincronización de Repositorios:** La conexión OAuth permite listar los repositorios de la cuenta conectada y habilitar el toggle `pr_reviews_enabled`.
+- [x] **Sincronización de Repositorios:** La conexión OAuth permite listar los repositorios de la cuenta conectada y habilitar el toggle `pr_reviews_enabled`. *Certificado por pruebas automatizadas con las APIs de GitHub y GitLab simuladas; la comprobación contra proveedores reales queda en el checklist de cierre de fase.*
 - [ ] **Escaneo Automático ante PRs:** Al abrir o actualizar un PR en un repositorio de prueba conectado, la plataforma encola el escaneo rápido y reporta el status `pending` en los checks del commit.
 - [ ] **Bloqueo de Merge ante Hallazgos Críticos:** Si el código modificado contiene un fallo crítico intencionado (ej. SQLi o Command Injection):
   * El Commit Status check pasa a `failure`.

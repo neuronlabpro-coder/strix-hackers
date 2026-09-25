@@ -115,7 +115,7 @@
 **Pantallas de MENU-MAP.md que cubre:** §4.0 (Pestaña Reviews), §4.1 (Issues Caught en CI) y §6.1 (Listado de Repositorios conectados).
 
 **Definición de Hecho (DoD):**
-- [ ] Integración OAuth funcional con al menos GitHub y GitLab; sincronización de lista de repositorios verificada.
+- [x] Integración OAuth funcional con al menos GitHub y GitLab; sincronización de lista de repositorios verificada. *(Bloque 3.3 implementado y cubierto por pruebas; E2E contra proveedores reales pendiente.)*
 - [ ] Webhooks entrantes validan su firma HMAC correctamente; cargas con firma inválida se rechazan con HTTP 401.
 - [ ] Abrir o actualizar un Pull Request en un repositorio conectado encola automáticamente un escaneo de PR.
 - [ ] Al detectar vulnerabilidades, el bot publica un comentario estructurado en el Pull Request con la información del fallo.
@@ -255,7 +255,7 @@ Marca cada fase únicamente cuando se hayan cumplido todos los puntos de su *Def
 - [ ] **Fase 5** · Facturación Híbrida Stripe, Credit Ledger, API Keys & Servidor MCP
 - [ ] **Fase 6** · Auditoría de Seguridad End-to-End, Hardening Dokploy & Despliegue
 
-> **Nota de estado (2026-09-25):** la auditoría externa confirma `5433` y `6380` cerrados/filtrados a Internet y la configuración SMTP completa está presente en el entorno local; por ello la Fase 1 queda cerrada. La Fase 2 conserva pendientes E2E del runner. La Fase 3 está activa: los Bloques 3.1 y 3.2 (criptografía, modelos Git, webhooks, pipeline PR, materialización efímera, ChatOps y autofix) están implementados en código y pruebas; queda completar OAuth, conectores Bitbucket/Gitea, inbox/outbox durable, validación E2E contra proveedores y endurecimiento de producción para cerrar la fase.
+> **Nota de estado (2026-09-25):** la auditoría externa confirma `5433` y `6380` cerrados/filtrados a Internet y la configuración SMTP completa está presente en el entorno local; por ello la Fase 1 queda cerrada. La Fase 2 conserva pendientes E2E del runner. La Fase 3 está activa: los Bloques 3.1, 3.2 y 3.3 (criptografía, modelos Git, webhooks, pipeline PR, materialización efímera, ChatOps, autofix, OAuth, alta y gestión de repositorios con registro automático de webhooks) están implementados en código y pruebas; queda completar los conectores Bitbucket/Gitea, el inbox/outbox durable, la validación E2E contra proveedores reales y el endurecimiento de producción para cerrar la fase.
 
 ---
 

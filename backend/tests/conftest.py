@@ -18,8 +18,10 @@ from backend.core.rate_limit import (
     enforce_invitation_accept_rate_limit,
     enforce_invitation_rate_limit,
     enforce_login_rate_limit,
+    enforce_oauth_callback_rate_limit,
     enforce_pentest_rate_limit,
     enforce_register_rate_limit,
+    enforce_repository_management_rate_limit,
     get_rate_limit_redis,
 )
 from backend.main import app
@@ -51,7 +53,9 @@ def override_auth_rate_limits() -> Iterator[None]:
     """Desactiva el rate limiter real solo dentro de la suite controlada."""
 
     app.dependency_overrides[enforce_login_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_oauth_callback_rate_limit] = lambda: None
     app.dependency_overrides[enforce_register_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_repository_management_rate_limit] = lambda: None
     app.dependency_overrides[enforce_create_organization_rate_limit] = lambda: None
     app.dependency_overrides[enforce_autofix_rate_limit] = lambda: None
     app.dependency_overrides[enforce_email_verification_rate_limit] = lambda: None
@@ -64,7 +68,9 @@ def override_auth_rate_limits() -> Iterator[None]:
     app.dependency_overrides[get_dispatch_pentest_run] = lambda: (lambda _run_id: "test-task-id")
     yield
     app.dependency_overrides.pop(enforce_login_rate_limit, None)
+    app.dependency_overrides.pop(enforce_oauth_callback_rate_limit, None)
     app.dependency_overrides.pop(enforce_register_rate_limit, None)
+    app.dependency_overrides.pop(enforce_repository_management_rate_limit, None)
     app.dependency_overrides.pop(enforce_create_organization_rate_limit, None)
     app.dependency_overrides.pop(enforce_autofix_rate_limit, None)
     app.dependency_overrides.pop(enforce_email_verification_rate_limit, None)

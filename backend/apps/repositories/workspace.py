@@ -5,12 +5,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
-import re
 import shutil
 import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlsplit
 
 from backend.apps.repositories.models import (
     GitCredential,
@@ -19,6 +17,12 @@ from backend.apps.repositories.models import (
     Repository,
 )
 from backend.apps.repositories.services import get_organization_credential
+from backend.apps.repositories.validation import (
+    GitReferenceError,
+    validate_git_branch,
+    validate_git_clone_url,
+    validate_git_commit_sha,
+)
 from backend.core.config import settings
 from backend.core.crypto import decrypt_secret
 from backend.core.database import AsyncSessionLocal
@@ -55,46 +59,24 @@ def _default_git_runner(
 
 
 def _validate_branch(value: str, field_name: str) -> str:
-    if (
-        not value
-        or len(value) > 255
-        or value.startswith("-")
-        or value.endswith((".", "/"))
-        or value in {".", ".."}
-        or ".." in value
-        or "@{" in value
-        or "//" in value
-        or any(char.isspace() or ord(char) < 32 for char in value)
-        or any(char in value for char in "~^:?*[\\")
-    ):
-        raise WorkspaceMaterializationError(f"Nombre de {field_name} inválido")
-    return value
+    try:
+        return validate_git_branch(value, field_name=field_name)
+    except GitReferenceError as error:
+        raise WorkspaceMaterializationError(str(error)) from error
 
 
 def _validate_commit_sha(value: str) -> str:
-    if not re.fullmatch(r"[0-9a-fA-F]{40,64}", value):
-        raise WorkspaceMaterializationError("El commit SHA del PR no es válido")
-    return value.lower()
+    try:
+        return validate_git_commit_sha(value)
+    except GitReferenceError as error:
+        raise WorkspaceMaterializationError(str(error)) from error
 
 
 def _validate_clone_url(clone_url: str) -> str:
     try:
-        parsed = urlsplit(clone_url)
-    except ValueError as error:
-        raise WorkspaceMaterializationError("La URL de clonado no es válida") from error
-    if (
-        parsed.scheme.lower() != "https"
-        or not parsed.hostname
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise WorkspaceMaterializationError("La URL de clonado no es segura")
-    hostname = parsed.hostname.lower()
-    if hostname not in settings.git_allowed_clone_hosts:
-        raise WorkspaceMaterializationError("El host de clonado no está autorizado")
-    return clone_url
+        return validate_git_clone_url(clone_url)
+    except GitReferenceError as error:
+        raise WorkspaceMaterializationError(str(error)) from error
 
 
 def _safe_remove(path: Path) -> None:

@@ -81,6 +81,25 @@ class BaseGitClient(ABC):
         if state not in {"pending", "success", "failure", "error"}:
             raise GitClientError("Estado de commit inválido")
 
+    @staticmethod
+    def _validate_remote_repo_id(remote_repo_id: str) -> None:
+        if (
+            not remote_repo_id
+            or len(remote_repo_id) > 128
+            or not remote_repo_id.isdigit()
+        ):
+            raise GitClientError("Identificador de repositorio remoto inválido")
+
+    def _validate_webhook_target(self, callback_url: str, secret: str) -> None:
+        parsed = urlsplit(callback_url)
+        if (
+            parsed.scheme != "https"
+            and settings.environment in {"staging", "production"}
+        ) or not parsed.hostname or parsed.username or parsed.password:
+            raise GitClientError("La URL de webhook no es válida")
+        if len(secret) < 32 or len(secret) > 128 or any(ord(char) < 33 for char in secret):
+            raise GitClientError("El secreto de webhook no cumple los requisitos")
+
     @abstractmethod
     def list_repositories(self) -> list[dict[str, object]]:
         """Lista repositorios visibles para la credencial."""
@@ -88,6 +107,24 @@ class BaseGitClient(ABC):
     @abstractmethod
     def get_clone_token(self) -> str:
         """Devuelve el token temporal que debe existir solo en memoria."""
+
+    @abstractmethod
+    def get_repository(self, remote_repo_id: str) -> dict[str, object]:
+        """Obtiene los metadatos canónicos de un repositorio por su id remoto."""
+
+    @abstractmethod
+    def create_webhook(
+        self,
+        repo_full_name: str,
+        callback_url: str,
+        secret: str,
+        events: tuple[str, ...],
+    ) -> str:
+        """Registra el webhook HMAC del repositorio y devuelve su identificador."""
+
+    @abstractmethod
+    def delete_webhook(self, repo_full_name: str, webhook_id: str) -> None:
+        """Elimina el webhook registrado previamente; 404 se considera éxito."""
 
     @abstractmethod
     def set_commit_status(
