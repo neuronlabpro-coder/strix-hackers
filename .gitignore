@@ -96,3 +96,8 @@ Thumbs.db
 schema.graphql
 
 .opencode/
+saas-boilerplate/
+strix/
+node_modules/
+.venv/
+containers/
