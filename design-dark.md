@@ -9,6 +9,13 @@ colors:
   neutral: "#1C1C1C"
   surface: "#2A2A2A"
   on-primary: "#1C1C1C"
+  caption: "#B2B2B2"
+  severity:
+    critical: "#EF4444"
+    high: "#F97316"
+    medium: "#F59E0B"
+    low: "#3B82F6"
+    info: "#8A8F8A"
 typography:
   display:
     fontFamily: Inter
@@ -59,6 +66,8 @@ The palette is built around high-contrast neutrals and a single accent that driv
 - **Secondary (`#8A8F8A`):** Borders, captions, and metadata.
 - **Tertiary (`#17a163`):** The sole driver for interaction. Reserve it.
 - **Neutral (`#1C1C1C`):** The page foundation.
+- **Caption (`#B2B2B2`):** Long-form secondary text that must clear 4.5:1. Derived from `#EDEDED` at 70% over the surface rather than invented as a new tone.
+- **Severity ramp (`#EF4444` / `#F97316` / `#F59E0B` / `#3B82F6` / `#8A8F8A`):** the only sanctioned chromatic scale, and only for data visualization — severity swatches, distributions and rings. It never replaces Tertiary as an action color, and remediation-status badges stay monochrome so that color keeps meaning severity alone.
 
 ## Typography
 

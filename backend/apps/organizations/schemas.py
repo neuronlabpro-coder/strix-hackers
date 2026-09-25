@@ -42,6 +42,7 @@ class UserResponse(BaseModel):
     id: UUID
     email: EmailStr
     full_name: str
+    is_superuser: bool = False
 
 
 class OrganizationResponse(BaseModel):

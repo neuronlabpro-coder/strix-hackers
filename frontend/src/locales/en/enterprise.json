@@ -1,0 +1,32 @@
+{
+  "locked": "Enterprise",
+  "nav": {
+    "networks": "Networks",
+    "containers": "Containers",
+    "supplyChain": "Supply Chain"
+  },
+  "modal": {
+    "eyebrow": "Enterprise feature",
+    "contactSales": "Contact Sales",
+    "requestDemo": "Request a Demo",
+    "close": "Close",
+    "note": "This capability ships with the Enterprise plan. Let's talk about your environment before enabling it."
+  },
+  "features": {
+    "networks": {
+      "title": "Internal network pentesting",
+      "description": "Host discovery, exposure analysis and controlled exploitation inside the private network, with strict tenant isolation.",
+      "capabilities": "Segment and service mapping, firewall rules, internal protocols and lateral movement"
+    },
+    "containers": {
+      "title": "Docker image analysis",
+      "description": "Image inspection for embedded credentials, vulnerable packages and unsafe execution policies.",
+      "capabilities": "Image layers, runtime CVEs, secret detection and ingress policies"
+    },
+    "supplyChain": {
+      "title": "Supply chain auditing",
+      "description": "SBOM for every dependency, version policies and typosquatting detection inside the CI flow.",
+      "capabilities": "Per-repository SBOM, lockfiles, private registries and blocking policies"
+    }
+  }
+}

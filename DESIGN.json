@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-25T20:10:00Z",
+  "title": "Design System: Mind Guard Fenix Team",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Blanco de instrumental",
+        "canonical": "#EDEDED",
+        "tonalRamp": ["#1A1A1A", "#3A3A3A", "#5C5C5C", "#8A8A8A", "#B2B2B2", "#D2D2D2", "#EDEDED", "#FFFFFF"]
+      },
+      "secondary": {
+        "role": "secondary",
+        "displayName": "Gris de metadatos",
+        "canonical": "#8A8F8A",
+        "tonalRamp": ["#1A1C1A", "#33363333", "#4C504C", "#6B706B", "#8A8F8A", "#A8ADA8", "#C6CAC6", "#E4E7E4"]
+      },
+      "caption-on-surface": {
+        "role": "secondary",
+        "displayName": "Gris de rótulo",
+        "canonical": "#B2B2B2",
+        "tonalRamp": ["#202020", "#3A3A3A", "#575757", "#787878", "#959595", "#B2B2B2", "#D0D0D0", "#EDEDED"]
+      },
+      "accent": {
+        "role": "tertiary",
+        "displayName": "Verde esmeralda",
+        "canonical": "#17A163",
+        "tonalRamp": ["#07130D", "#0D2A1B", "#0F4A2B", "#136B3C", "#17A163", "#4CBB8B", "#7FD5AE", "#AEE9D1"]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Negro de sala",
+        "canonical": "#1C1C1C",
+        "tonalRamp": ["#0D0D0D", "#1C1C1C", "#2A2A2A", "#4A4A4A", "#6E6E6E", "#959595", "#BDBDBD", "#E6E6E6"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Gris de panel",
+        "canonical": "#2A2A2A",
+        "tonalRamp": ["#141414", "#1C1C1C", "#2A2A2A", "#434343", "#5F5F5F", "#828282", "#A8A8A8", "#D6D6D6"]
+      },
+      "severity-critical": {
+        "role": "severity",
+        "displayName": "Severidad crítica",
+        "canonical": "#EF4444",
+        "tonalRamp": ["#3B0C0C", "#6E1414", "#A81F1F", "#D62A2A", "#EF4444", "#F58585", "#FAC5C5", "#FDDCDC"]
+      },
+      "severity-high": {
+        "role": "severity",
+        "displayName": "Severidad alta",
+        "canonical": "#F97316",
+        "tonalRamp": ["#43180A", "#7A2C0C", "#B34411", "#D95D0F", "#F97316", "#FB9B5C", "#FDC5A1", "#FEE0CB"]
+      },
+      "severity-medium": {
+        "role": "severity",
+        "displayName": "Severidad media",
+        "canonical": "#F59E0B",
+        "tonalRamp": ["#3F2B06", "#6F4C0C", "#A07112", "#CB9413", "#F59E0B", "#F8BC51", "#FBD89C", "#FDE9C4"]
+      },
+      "severity-low": {
+        "role": "severity",
+        "displayName": "Severidad baja",
+        "canonical": "#3B82F6",
+        "tonalRamp": ["#0E1E3A", "#18356A", "#2150A0", "#2C6AD0", "#3B82F6", "#7CAEF9", "#B5D0FB", "#D6E4FD"]
+      },
+      "severity-info": {
+        "role": "severity",
+        "displayName": "Severidad informativa",
+        "canonical": "#8A8F8A",
+        "tonalRamp": ["#232523", "#343634", "#4E524D", "#6A6F6A", "#8A8F8A", "#ABB0AB", "#CCD0CC", "#E2E4E2"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Un único H1 por pantalla de shell." },
+      "headline": { "displayName": "Headline", "purpose": "Títulos fuera del shell: login, registro, verificación, invitación." },
+      "title": { "displayName": "Title", "purpose": "Encabezado de tarjeta y de sección dentro del shell." },
+      "body": { "displayName": "Body", "purpose": "Prosa, formularios y descripciones. 65-75 caracteres por línea." },
+      "label": { "displayName": "Label", "purpose": "Eyebrows, cabeceras de tabla, badges y datos técnicos en versalitas." }
+    },
+    "shadows": [
+      {
+        "name": "auth-float",
+        "value": "0 18px 48px rgba(28, 28, 28, 0.55)",
+        "purpose": "Única sombra del sistema: separa la tarjeta de autenticación de la pantalla completa."
+      }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "ease", "purpose": "Transiciones de estado de 150 ms; nunca coreografía de entrada." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Desactiva el giro del giratorio y la transición del interruptor." }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "1050px" },
+      { "name": "compact", "value": "760px" },
+      { "name": "mobile", "value": "520px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "La única acción que actúa en la pantalla. Verde esmeralda con texto casi negro.",
+      "html": "<button class=\"ds-btn-primary\">Añadir repositorio</button>",
+      "css": ".ds-btn-primary { background: #17A163; color: #1C1C1C; border: 0; border-radius: 6px; padding: 10px 16px; min-height: 38px; font: 500 0.8rem 'Inter', sans-serif; cursor: pointer; transition: filter 150ms ease; } .ds-btn-primary:hover { filter: brightness(1.08); } .ds-btn-primary:focus-visible { outline: 2px solid #17A163; outline-offset: 3px; } .ds-btn-primary:disabled { opacity: 0.6; cursor: wait; }"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción no primaria:刷新, volver, cerrar. Borde de metadatos, sin acento.",
+      "html": "<button class=\"ds-btn-secondary\">Actualizar</button>",
+      "css": ".ds-btn-secondary { background: #2A2A2A; color: #EDEDED; border: 1px solid #8A8F8A; border-radius: 6px; padding: 10px 16px; min-height: 38px; font: 500 0.8rem 'Inter', sans-serif; cursor: pointer; transition: border-color 150ms ease; } .ds-btn-secondary:hover { border-color: #17A163; } .ds-btn-secondary:focus-visible { outline: 2px solid #17A163; outline-offset: 3px; }"
+    },
+    {
+      "name": "Campo de formulario",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo hundido sobre la superficie, 44 px de alto, etiqueta en mono.",
+      "html": "<label class=\"ds-label\" for=\"correo\">Correo electrónico</label><input class=\"ds-input\" id=\"correo\" type=\"email\" placeholder=\"tu@empresa.com\" />",
+      "css": ".ds-label { display: block; color: #EDEDED; font: 500 0.72rem 'JetBrains Mono', monospace; letter-spacing: 0.04em; margin-bottom: 7px; } .ds-input { width: 100%; min-height: 44px; padding: 11px 12px; background: #1C1C1C; color: #EDEDED; border: 1px solid rgba(138,143,138,0.45); border-radius: 6px; font: 400 0.92rem 'Inter', sans-serif; box-sizing: border-box; } .ds-input::placeholder { color: #8A8F8A; opacity: 0.8; } .ds-input:hover { border-color: #17A163; } .ds-input:focus-visible { outline: 2px solid #17A163; outline-offset: 3px; }"
+    },
+    {
+      "name": "Interruptor de revisiones",
+      "kind": "custom",
+      "refersTo": "toggle-on",
+      "description": "Estado de revisión continua de un repositorio. Pomo desplazado con transform.",
+      "html": "<button class=\"ds-toggle ds-toggle-on\" role=\"switch\" aria-checked=\"true\"><span class=\"ds-toggle-track\"><span class=\"ds-toggle-thumb\"></span></span><span class=\"ds-toggle-label\">Revisiones automáticas activas</span></button>",
+      "css": ".ds-toggle { display: inline-flex; align-items: center; gap: 10px; background: transparent; border: 0; color: #B2B2B2; font: 400 0.72rem 'Inter', sans-serif; cursor: pointer; padding: 0; } .ds-toggle-track { position: relative; width: 38px; height: 20px; border-radius: 999px; background: #1C1C1C; border: 1px solid #8A8F8A; } .ds-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #8A8F8A; transition: transform 150ms ease, background-color 150ms ease; } .ds-toggle-on .ds-toggle-track { background: #17A163; border-color: #17A163; } .ds-toggle-on .ds-toggle-thumb { background: #1C1C1C; transform: translateX(18px); } .ds-toggle:focus-visible { outline: 2px solid #17A163; outline-offset: 3px; }"
+    },
+    {
+      "name": "Badge de estado",
+      "kind": "chip",
+      "description": "Estado de una fila: en curso invierte los papeles, pendiente usa borde discontinuo.",
+      "html": "<span class=\"ds-badge ds-badge-active\">Analizando</span><span class=\"ds-badge\">Probado</span><span class=\"ds-badge ds-badge-pending\">Pendiente de SBOM</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; background: #1C1C1C; color: #EDEDED; border: 1px solid #8A8F8A; border-radius: 4px; font: 500 0.68rem 'JetBrains Mono', monospace; } .ds-badge-active { background: #17A163; border-color: #17A163; color: #1C1C1C; } .ds-badge-pending { color: #B2B2B2; border-style: dashed; }"
+    },
+    {
+      "name": "Tarjeta de contenido",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Rejilla de 24 px sobre superficie, con eyebrow y título como anclas de escaneo.",
+      "html": "<section class=\"ds-card\"><p class=\"ds-eyebrow\">Distribución por severidad</p><h2 class=\"ds-card-title\">Hallazgos activos por severidad</h2></section>",
+      "css": ".ds-card { background: #2A2A2A; border: 1px solid #8A8F8A; border-radius: 10px; padding: 24px; } .ds-eyebrow { margin: 0; color: #8A8F8A; font: 500 0.68rem 'JetBrains Mono', monospace; letter-spacing: 0.04em; text-transform: uppercase; } .ds-card-title { margin: 8px 0 0; color: #EDEDED; font: 500 1.1rem 'Inter', sans-serif; } .ds-card p:last-child { color: #B2B2B2; }"
+    },
+    {
+      "name": "Enlace de navegación",
+      "kind": "nav",
+      "description": "Enlace de la barra lateral; el estado activo se marca con fondo y borde, nunca con franja gruesa.",
+      "html": "<a class=\"ds-nav-link ds-nav-active\" href=\"/repositories\">Repositorios</a><a class=\"ds-nav-link\" href=\"/issues\">Issues</a>",
+      "css": ".ds-nav-link { display: flex; align-items: center; min-height: 38px; padding: 8px 12px; color: #8A8F8A; border-left: 1px solid transparent; border-radius: 4px; font: 400 0.84rem 'Inter', sans-serif; text-decoration: none; } .ds-nav-link:hover, .ds-nav-active { color: #EDEDED; background: #1C1C1C; border-left-color: #17A163; } .ds-nav-link:focus-visible { outline: 2px solid #17A163; outline-offset: 3px; }"
+    },
+    {
+      "name": "Selector de idioma",
+      "kind": "button",
+      "description": "Control discreto de la esquina; su nombre accesible incluye el texto visible (WCAG 2.5.3).",
+      "html": "<button class=\"ds-lang\" aria-label=\"EN · Switch to English\">EN</button>",
+      "css": ".ds-lang { padding: 6px 8px; color: #8A8F8A; background: transparent; border: 1px solid #8A8F8A; border-radius: 4px; font: 500 0.68rem 'JetBrains Mono', monospace; cursor: pointer; } .ds-lang:hover { color: #EDEDED; border-color: #17A163; } .ds-lang:focus-visible { outline: 2px solid #17A163; outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La sala de operaciones nocturna",
+    "overview": "Una mesa de trabajo de seguridad a las 03:00: la luz de la pantalla es lo único que ilumina el escritorio, el operador conoce cada pantalla de memoria y no tolera que nada se mueva sin motivo. El sistema está construido para esa escena. La base es un negro cálido que no cansa la vista, las superficies separan por tono y no por sombra, y el texto principal tiene un contraste de 14.56:1 sobre el fondo para que se lea de reojo. Sobre ese grisalto entra un único verde esmeralda que significa exactamente una cosa: esta es la acción.\n\nLa densidad es deliberada, el mono está reservado a lo que una máquina nombraría y el sistema rechaza la ciberseguridad de escaparate, el SaaS de seguridad genérico y el degradado.",
+    "keyCharacteristics": [
+      "Fondo y superficies como única forma de profundidad; sin sombras salvo en la tarjeta de autenticación.",
+      "Un solo acento que actúa, nunca decora.",
+      "Rótulos en mono versalita como ancla de escaneo en cada bloque.",
+      "Todo dato del panel es rastreable al backend; los estados vacíos enseñan en lugar de rellenar."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "`#17a163` aparece en una sola acción primaria por pantalla. Si dos elementos compiten por el acento en la misma vista, uno de los dos es un error, no una decisión.", "section": "colors" },
+      { "name": "The Severity-Ramp Rule", "body": "`design-dark.md` admite una sola escala cromática, la rampa de severidad, y unicamente para visualizacion de datos. Cualquier otro color nuevo esta prohibido. La rampa nunca actua como color de accion y los badges de estado de remediacion siguen monocrimos.", "section": "colors" },
+      { "name": "The Contrast Floor Rule", "body": "Ningún texto menor de 19 px baja de 4.5:1 contra su fondo real. Sobre superficies, el texto secundario usa `--color-caption`, nunca `--color-secondary`.", "section": "colors" },
+      { "name": "The Mono Means Machine Rule", "body": "Solo entra JetBrains Mono lo que una máquina nombraría: hash, rama, endpoint, proveedor, severidad, score, fecha técnica.", "section": "typography" },
+      { "name": "The Eyebrow Rule", "body": "Cada bloque de contenido empieza con un `eyebrow` en mono versalita. Es el ancla de escaneo del bloque y sustituye a los iconos decorativos.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Las superficies están planas en reposo. Si algo necesita sombra para entenderse, el problema es de jerarquía tonal, no de sombra.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar `#17a163` para una sola acción primaria por pantalla y reservar el resto de interacciones para botones secundarios con borde.",
+      "Do escribir en JetBrains Mono los hashes, ramas, endpoints, proveedores, severidades y puntuaciones; escribir en Inter todo lo demás.",
+      "Do asegurar 4.5:1 mínimo en texto pequeño, y usar `--color-caption` cuando el texto secundario vive sobre `#2A2A2A`.",
+      "Do mantener un `eyebrow` en mono versalita al inicio de cada bloque, para que el escaneo tenga un ancla.",
+      "Do mostrar estados vacíos que enseñen el siguiente paso, con la acción principal a la vista.",
+      "Do respetar `prefers-reduced-motion`: sin giratorios ni transiciones cuando el sistema lo pide."
+    ],
+    "donts": [
+      "Don't introducir degradados de ningún tipo, ni en fondos, ni en bordes, ni en el texto.",
+      "Don't usar texto con degradado (`background-clip: text`) ni glassmorphism como recurso de profundidad.",
+      "Don't añadir una segunda paleta para severidad mientras `design-dark.md` no la admita.",
+      "Don't usar franjas de color de 2 px en el borde izquierdo o derecho de tarjetas o avisos.",
+      "Don't repetir rejillas de tarjetas idénticas con icono y párrafo.",
+      "Don't construir la jerarquía con un patrón de métrica gigante con degradado de acento.",
+      "Don't coreografiar la carga de una página con animaciones de entrada, ni animar propiedades de layout.",
+      "Don't usar el modal como primera opción.",
+      "Don't llamar a la seguridad de escaparate: nada de fósforo, calaveras, retículas ni `0xDEADBEEF` decorativo."
+    ]
+  }
+}

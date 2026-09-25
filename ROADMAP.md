@@ -156,15 +156,19 @@
 **Pantallas de MENU-MAP.md que cubre:** §1 (Dashboard), §2 (Pentests), §3 (Issues y reproductor de PoC), §5 (Chat con agentes), §6.2 (Dominios y APIs) y §7 (Knowledge Base).
 
 **Definición de Hecho (DoD):**
-- [ ] Todas las vistas implementan rigurosamente la paleta y tipografía de `design-dark.md` (fondo `#1C1C1C`, cards `#2A2A2A`, acento `#17a163`, fuentes Inter y JetBrains Mono). *Bloque 4.1 cerrado para `/dashboard` y `/repositories`.*
-- [ ] El conmutador Lista/Tablero en `/issues` permite mover incidencias de estado y persiste en la base de datos.
-- [ ] El reproductor de PoC en la ficha de vulnerabilidad muestra los comandos y trazas exactas generadas.
+- [ ] Todas las vistas implementan rigurosamente la paleta y tipografía de `design-dark.md` (fondo `#1C1C1C`, cards `#2A2A2A`, acento `#17a163`, fuentes Inter y JetBrains Mono). *Bloques 4.1 y 4.2 cerrados para `/dashboard`, `/repositories`, `/issues`, `/issues/:id`, `/pentests`, `/pentests/:id` y `/admin`.*
+- [ ] El conmutador Lista/Tablero en `/issues` permite mover incidencias de estado y persiste en la base de datos. *Bloque 4.2 entrega el conmutador y las columnas por estado con filtros connectedos a la API; el arrastre entre columnas que muta el estado sigue pendiente porque el backend aún no expone `PATCH /vulnerabilities/{id}`.*
+- [x] El reproductor de PoC en la ficha de vulnerabilidad muestra los comandos y trazas exactas generadas. *Visor inmutable en `JetBrains Mono` con copiado al portapapeles (R4) y renderizador de unified diff con tintes derivados de los tokens de acento y severidad.*
 - [ ] Un usuario no puede escanear un dominio en `/domains` hasta que el flujo de verificación de propiedad se complete con éxito.
-- [ ] El modal `+ New Pentest` dispara correctamente la tarea en la cola del backend y redirige a la vista de progreso.
+- [x] El modal `+ New Pentest` dispara correctamente la tarea en la cola del backend y redirige a la vista de progreso. *Modal con selección de repositorio o target manual, modo de escaneo y ficha en vivo con sondeo de 5 s, cronología, vista tipo terminal y abortado conectado a `POST /api/v1/pentests/{id}/abort`.*
 - [x] Gráficas de postura y severidades renderizan correctamente mediante Apache ECharts. *Gauge de Security Score y distribución por severidad en `/dashboard` con chunk propio; validado en el build de Vite.*
-- [x] Cero literales de texto hardcodeados; auditoría de internacionalización i18n limpia en español e inglés. *Namespaces `dashboard` y `repositories` en paridad es/en; sin claves huérfanas.*
+- [x] Cero literales de texto hardcodeados; auditoría de internacionalización i18n limpia en español e inglés. *Namespaces `dashboard`, `repositories`, `issues`, `pentests`, `admin` y `enterprise` en paridad es/en; 312 claves usadas, todas resueltas en ambos idiomas y ninguna huérfana.*
 
-> **Nota de estado (2026-09-25):** la Fase 4 está activa. El **Bloque 4.1** cierra el shell, `/dashboard` (§1.0 y §1.2) y `/repositories` (§6.1), e incorpora el endpoint de solo lectura `GET /api/v1/dashboard/summary` que el panel necesita para los KPIs, la distribución por severidad y el estado de monitorización por repositorio. Quedan §1.1 (guía `Get Set Up`), §2, §3, §5, §6.2 y §7 para los bloques siguientes.
+> **Nota de estado (2026-09-25):** la Fase 4 está activa. El **Bloque 4.1** cerró el shell, `/dashboard` (§1.0 y §1.2) y `/repositories` (§6.1), e incorporó el endpoint de solo lectura `GET /api/v1/dashboard/summary`.
+>
+> El **Bloque 4.2** cierra el gestor de vulnerabilidades (§3 y §3.4), el gestor de pentests con terminal en vivo (§2), las secciones Enterprise con candado en el Sidebar y la base de la consola de SuperAdmin (`/admin`, §0.2). Lo acompaña en backend: `GET /api/v1/pentests/` paginado con conteo de hallazgos y filtros por estado, tipo, modo y búsqueda; parámetro `search` en `GET /api/v1/vulnerabilities/`; `GET /api/v1/auth/me` para que el cliente conozca `is_superuser`; y `GET /api/v1/admin/organizations` más `GET /api/v1/admin/health` protegidos por `require_superuser`, con sondeo de PostgreSQL y Redis que degrada a `degraded` sin filtrar credenciales.
+>
+> Quedan §1.1 (guía `Get Set Up`), §5 (chat), §6.2 (dominios y verificación de propiedad), §7 (knowledge base) y el arrastre de tarjetas entre columnas del Kanban, que requiere `PATCH /api/v1/vulnerabilities/{id}` en backend.
 
 ---
 
@@ -260,6 +264,8 @@ Marca cada fase únicamente cuando se hayan cumplido todos los puntos de su *Def
 > **Nota de estado (2026-09-25):** la auditoría externa confirma `5433` y `6380` cerrados/filtrados a Internet y la configuración SMTP completa está presente en el entorno local; por ello la Fase 1 queda cerrada. La Fase 2 conserva pendientes E2E del runner.
 >
 > **Cierre de la Fase 3 (arquitectura backend):** los Bloques 3.1, 3.2 y 3.3 quedan cerrados con `180 passed, 2 skipped` en `backend/tests`, `ruff check` sin hallazgos, `pyright` con 0 errores y `alembic check` sin drift sobre la base remota. Quedan cubiertos criptografía AES-256-GCM, modelos Git, webhooks HMAC de los cuatro proveedores, pipeline de revisión de PR con materialización efímera, ChatOps, autofix, OAuth, alta de repositorios con registro automático de webhooks y el endpoint de resumen del dashboard.
+>
+> **Bloque 4.2 (Fase 4, avance):** la suite queda en `192 passed, 2 skipped` con `ruff check` limpio, `pyright` en 0 errores y `alembic check` sin drift. En frontend, `typecheck`, `lint` y `build` quedan limpios (429 kB + chunk EChart 453 kB sin comprimir). Se añadieron `GET /api/v1/pentests/`, `search` en vulnerabilidades, `GET /api/v1/auth/me` y la consola de SuperAdmin con aislamiento por superusuario verificado en pruebas (403 para usuarios normales, 401 sin token y fuga cross-tenant comprobada).
 >
 > **Pruebas E2E en vivo pospuestas a la Fase 6:** la validación contra GitHub/GitLab reales (OAuth, forks, webhooks), el runner Docker con la imagen real de Strix y la verificación forense de Zero Data requieren Linux y credenciales de staging; se ejecutan en la Fase 6 (Auditoría y Hardening) con evidencia registrada en `docs/testing/`. Los conectores Bitbucket/Gitea y el inbox/outbox durable quedan como deuda técnica documentada en `phases/fase-03-conectores-git-webhooks-pr.md`.
 

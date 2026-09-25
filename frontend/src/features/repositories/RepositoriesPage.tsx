@@ -190,8 +190,14 @@ export function RepositoriesPage() {
                     />
                   </td>
                   <td>
-                    <span className="badge badge-muted" title={t('supplyChain.caption')}>
+                    <span
+                      className="badge badge-muted"
+                      aria-describedby="supply-chain-caption"
+                    >
                       {t('supplyChain.pending')}
+                    </span>
+                    <span className="visually-hidden" id="supply-chain-caption">
+                      {t('supplyChain.caption')}
                     </span>
                   </td>
                   <td>

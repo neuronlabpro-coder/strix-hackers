@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.organizations.models import RoleEnum
@@ -44,6 +44,7 @@ async def list_vulnerabilities(
     severity: SeverityEnum | None = None,
     vulnerability_status: VulnerabilityStatus = None,
     target: TargetFilter = None,
+    search: Annotated[str | None, Query(max_length=256)] = None,
 ) -> VulnerabilityPage:
     """Lista únicamente vulnerabilidades del tenant activo con filtros y paginación."""
 
@@ -54,6 +55,15 @@ async def list_vulnerabilities(
         filters.append(Vulnerability.status == vulnerability_status)
     if target is not None:
         filters.append(Vulnerability.affected_target == target)
+    if search:
+        pattern = f"%{search.strip().lower()}%"
+        filters.append(
+            or_(
+                func.lower(Vulnerability.title).like(pattern),
+                func.lower(Vulnerability.affected_target).like(pattern),
+                func.lower(Vulnerability.cve_id).like(pattern),
+            )
+        )
 
     total_result = await session.execute(
         select(func.count()).select_from(Vulnerability).where(*filters)

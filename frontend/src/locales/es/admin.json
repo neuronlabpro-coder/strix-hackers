@@ -1,0 +1,51 @@
+{
+  "nav": "Consola SuperAdmin",
+  "title": "Consola de SuperAdmin",
+  "eyebrow": "Operación de plataforma",
+  "description": "Inventario de organizaciones registradas y salud de la infraestructura de datos.",
+  "organizations": {
+    "title": "Organizaciones registradas",
+    "caption": "Todos los tenants de la plataforma, con su plan y su saldo de créditos.",
+    "columns": {
+      "name": "Organización",
+      "slug": "Slug",
+      "plan": "Plan",
+      "credits": "Créditos",
+      "created": "Alta"
+    },
+    "plan": {
+      "FREE": "Free",
+      "PRO": "Pro",
+      "ENTERPRISE": "Enterprise"
+    },
+    "empty": "No hay organizaciones registradas",
+    "total": "{{total}} organizaciones registradas en total"
+  },
+  "health": {
+    "title": "Estado de infraestructura",
+    "caption": "Sondeo en vivo de las dependencias de datos.",
+    "status": {
+      "healthy": "Operativa",
+      "degraded": "Degradada"
+    },
+    "database": "PostgreSQL",
+    "cache": "Redis",
+    "dependencyStatus": {
+      "online": "En línea",
+      "offline": "Sin respuesta"
+    },
+    "latency": "Latencia",
+    "checkedAt": "Sondeado",
+    "refresh": "Volver a sondear"
+  },
+  "states": {
+    "loading": "Cargando consola",
+    "error": "No se pudo cargar la consola",
+    "retry": "Reintentar"
+  },
+  "forbidden": {
+    "title": "Privilegios insuficientes",
+    "description": "Esta consola está reservada a superusuarios de la plataforma.",
+    "back": "Volver al dashboard"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "nav": "SuperAdmin console",
+  "title": "SuperAdmin console",
+  "eyebrow": "Platform operations",
+  "description": "Inventory of registered organizations and the health of the data infrastructure.",
+  "organizations": {
+    "title": "Registered organizations",
+    "caption": "Every tenant on the platform, with its plan and credit balance.",
+    "columns": {
+      "name": "Organization",
+      "slug": "Slug",
+      "plan": "Plan",
+      "credits": "Credits",
+      "created": "Created"
+    },
+    "plan": {
+      "FREE": "Free",
+      "PRO": "Pro",
+      "ENTERPRISE": "Enterprise"
+    },
+    "empty": "No organizations registered yet",
+    "total": "{{total}} organizations registered in total"
+  },
+  "health": {
+    "title": "Infrastructure health",
+    "caption": "Live probe of the data dependencies.",
+    "status": {
+      "healthy": "Operational",
+      "degraded": "Degraded"
+    },
+    "database": "PostgreSQL",
+    "cache": "Redis",
+    "dependencyStatus": {
+      "online": "Online",
+      "offline": "Unreachable"
+    },
+    "latency": "Latency",
+    "checkedAt": "Checked at",
+    "refresh": "Probe again"
+  },
+  "states": {
+    "loading": "Loading console",
+    "error": "The console could not be loaded",
+    "retry": "Retry"
+  },
+  "forbidden": {
+    "title": "Insufficient privileges",
+    "description": "This console is restricted to platform superusers.",
+    "back": "Back to dashboard"
+  }
+}

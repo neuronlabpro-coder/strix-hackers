@@ -1,0 +1,32 @@
+{
+  "locked": "Enterprise",
+  "nav": {
+    "networks": "Networks",
+    "containers": "Containers",
+    "supplyChain": "Supply Chain"
+  },
+  "modal": {
+    "eyebrow": "Funcionalidad Enterprise",
+    "contactSales": "Contactar con Ventas",
+    "requestDemo": "Solicitar Demo",
+    "close": "Cerrar",
+    "note": "Esta capacidad forma parte del plan Enterprise. Hablemos de tu entorno antes de habilitarla."
+  },
+  "features": {
+    "networks": {
+      "title": "Pentesting de redes internas",
+      "description": "Descubrimiento de hosts, análisis de exposición y explotación controlada dentro de la red privada, con aislamiento por tenant.",
+      "capabilities": "Mapeo de segmentos y servicios, reglas de firewall, protocolos internos y movement lateral"
+    },
+    "containers": {
+      "title": "Análisis de imágenes Docker",
+      "description": "Inspección de imágenes en busca de credenciales embebidas, paquetes vulnerables y políticas de ejecución inseguras.",
+      "capabilities": "Capas de imagen, systemas billables, CVEs del runtime y ingress"
+    },
+    "supplyChain": {
+      "title": "Auditoría de cadena de suministro",
+      "description": "SBOM de cada dependencia, políticas de versiones y detección de paquetes typosquatting en el flujo de CI.",
+      "capabilities": "SBOM por repositorio, lockfiles, registries privadas y políticas de bloqueo"
+    }
+  }
+}

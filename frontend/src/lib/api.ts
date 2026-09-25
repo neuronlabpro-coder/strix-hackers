@@ -1,13 +1,21 @@
 import { API_BASE_URL } from '../config'
 import type {
+  AdminOrganizationPage,
+  AutofixRequest,
+  AutofixResponse,
   DashboardSummary,
   EmailResendResponse,
   EmailVerificationResponse,
   GitProvider,
+  InfrastructureHealth,
   InvitationAcceptResponse,
+  IssueStatus,
   LoginPayload,
   OAuthAuthorizationResponse,
   Organization,
+  PentestCreatePayload,
+  PentestRun,
+  PentestRunPage,
   RegisterPayload,
   RegisterResponse,
   RemoteRepositoryPage,
@@ -15,7 +23,14 @@ import type {
   RepositoryConnectPayload,
   RepositoryConnectResponse,
   RepositoryUpdatePayload,
+  ScanMode,
+  ScanStatus,
+  TargetType,
   TokenResponse,
+  UserProfile,
+  VulnerabilityDetail,
+  VulnerabilityPage,
+  VulnerabilitySeverity,
 } from '../types/api'
 
 export class ApiError extends Error {
@@ -89,6 +104,10 @@ export function resendVerificationRequest(email: string): Promise<EmailResendRes
     method: 'POST',
     body: JSON.stringify({ email }),
   })
+}
+
+export function getCurrentUserProfile(token: string): Promise<UserProfile> {
+  return request<UserProfile>('/api/v1/auth/me', {}, token)
 }
 
 export function getOrganizations(token: string): Promise<Organization[]> {
@@ -165,6 +184,164 @@ export function updateRepository(
   return request<Repository>(
     `/api/v1/repositories/${repositoryId}`,
     { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export function disconnectRepository(
+  token: string,
+  organizationId: string,
+  repositoryId: string,
+): Promise<void> {
+  return request<void>(
+    `/api/v1/repositories/${repositoryId}`,
+    { method: 'DELETE' },
+    token,
+    organizationId,
+  )
+}
+
+export interface VulnerabilityQuery {
+  limit?: number
+  offset?: number
+  severity?: VulnerabilitySeverity
+  status?: IssueStatus
+  target?: string
+  search?: string
+}
+
+export function getVulnerabilities(
+  token: string,
+  organizationId: string,
+  query: VulnerabilityQuery = {},
+): Promise<VulnerabilityPage> {
+  const params = new URLSearchParams()
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  if (query.severity) params.set('severity', query.severity)
+  if (query.status) params.set('status', query.status)
+  if (query.target) params.set('target', query.target)
+  if (query.search) params.set('search', query.search)
+  return request<VulnerabilityPage>(
+    `/api/v1/vulnerabilities/?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getVulnerability(
+  token: string,
+  organizationId: string,
+  vulnerabilityId: string,
+): Promise<VulnerabilityDetail> {
+  return request<VulnerabilityDetail>(
+    `/api/v1/vulnerabilities/${vulnerabilityId}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function createFixPullRequest(
+  token: string,
+  organizationId: string,
+  vulnerabilityId: string,
+  payload: AutofixRequest,
+): Promise<AutofixResponse> {
+  return request<AutofixResponse>(
+    `/api/v1/vulnerabilities/${vulnerabilityId}/create-fix-pr`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export interface PentestQuery {
+  limit?: number
+  offset?: number
+  status?: ScanStatus
+  target_type?: TargetType
+  scan_mode?: ScanMode
+  search?: string
+}
+
+export function getPentests(
+  token: string,
+  organizationId: string,
+  query: PentestQuery = {},
+): Promise<PentestRunPage> {
+  const params = new URLSearchParams()
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  if (query.status) params.set('status', query.status)
+  if (query.target_type) params.set('target_type', query.target_type)
+  if (query.scan_mode) params.set('scan_mode', query.scan_mode)
+  if (query.search) params.set('search', query.search)
+  return request<PentestRunPage>(
+    `/api/v1/pentests/?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getPentestRun(
+  token: string,
+  organizationId: string,
+  runId: string,
+): Promise<PentestRun> {
+  return request<PentestRun>(`/api/v1/pentests/${runId}`, {}, token, organizationId)
+}
+
+export function createPentest(
+  token: string,
+  organizationId: string,
+  payload: PentestCreatePayload,
+): Promise<PentestRun> {
+  return request<PentestRun>(
+    '/api/v1/pentests/',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export function abortPentest(
+  token: string,
+  organizationId: string,
+  runId: string,
+): Promise<PentestRun> {
+  return request<PentestRun>(
+    `/api/v1/pentests/${runId}/abort`,
+    { method: 'POST' },
+    token,
+    organizationId,
+  )
+}
+
+export function getAdminOrganizations(
+  token: string,
+  organizationId: string,
+  limit = 50,
+  offset = 0,
+): Promise<AdminOrganizationPage> {
+  return request<AdminOrganizationPage>(
+    `/api/v1/admin/organizations?limit=${limit}&offset=${offset}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getInfrastructureHealth(
+  token: string,
+  organizationId: string,
+): Promise<InfrastructureHealth> {
+  return request<InfrastructureHealth>(
+    '/api/v1/admin/health',
+    {},
     token,
     organizationId,
   )

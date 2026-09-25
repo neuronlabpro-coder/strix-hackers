@@ -24,9 +24,12 @@
   "pageNotFound": "Page not found",
   "backToDashboard": "Back to dashboard",
   "actions": {
-    "close": "Close"
+    "close": "Close",
+    "refresh": "Refresh"
   },
   "values": {
-    "never": "Never"
+    "never": "Never",
+    "unknown": "Unknown",
+    "noData": "No data"
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link2, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +37,7 @@ export function ConnectRepositoryModal({
 }: ConnectRepositoryModalProps) {
   const { t } = useTranslation('repositories')
   const { token, selectedOrganizationId } = useAuth()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [provider, setProvider] = useState<GitProvider>('GITHUB')
   const [remoteRepositories, setRemoteRepositories] = useState<RemoteRepository[]>([])
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
@@ -88,14 +89,39 @@ export function ConnectRepositoryModal({
       return
     }
 
+    // El foco entra en el diálogo y queda atrapado dentro mientras está abierto,
+    // para que la navegación por teclado no se escape al fondo (WCAG 2.4.3).
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const dialog = dialogRef.current
+    const focusable = dialog?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    focusable?.[0]?.focus()
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose()
+        return
+      }
+      if (event.key !== 'Tab' || !dialog || !focusable || focusable.length === 0) {
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
   }, [isOpen, onClose])
 
   const startOAuth = async (oauthProvider: GitProvider) => {
@@ -151,6 +177,7 @@ export function ConnectRepositoryModal({
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
         className="modal"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="connect-repository-title"

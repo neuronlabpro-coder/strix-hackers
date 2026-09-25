@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 import type { ChartOption } from '../../charts/EChart'
-import { chartPalette } from '../../charts/palette'
+import { readChartPalette, type ChartPalette, type SeverityColorKey } from '../../charts/palette'
 import type { DashboardRepository, VulnerabilitySeverity } from '../../types/api'
 import { useAuth } from '../auth/useAuth'
 import { ConnectedRepositoryToggle } from '../repositories/RepositoryReviewToggle'
@@ -15,15 +15,15 @@ const EChart = lazy(() =>
   import('../../charts/EChart').then((module) => ({ default: module.EChart })),
 )
 
-const SEVERITY_OPACITIES: Record<VulnerabilitySeverity, number> = {
-  CRITICAL: 1,
-  HIGH: 0.72,
-  MEDIUM: 0.52,
-  LOW: 0.34,
-  INFO: 0.18,
+const SEVERITY_COLORS: Record<VulnerabilitySeverity, SeverityColorKey> = {
+  CRITICAL: 'critical',
+  HIGH: 'high',
+  MEDIUM: 'medium',
+  LOW: 'low',
+  INFO: 'info',
 }
 
-function gaugeOption(score: number, scoreLabel: string): ChartOption {
+function gaugeOption(score: number, scoreLabel: string, palette: ChartPalette): ChartOption {
   return {
     backgroundColor: 'transparent',
     series: [
@@ -39,10 +39,10 @@ function gaugeOption(score: number, scoreLabel: string): ChartOption {
           show: true,
           width: 14,
           roundCap: false,
-          itemStyle: { color: chartPalette.accent },
+          itemStyle: { color: palette.accent },
         },
         axisLine: {
-          lineStyle: { width: 14, color: [[1, chartPalette.surface]] },
+          lineStyle: { width: 14, color: [[1, palette.surface]] },
         },
         pointer: { show: false },
         axisTick: { show: false },
@@ -53,7 +53,7 @@ function gaugeOption(score: number, scoreLabel: string): ChartOption {
         detail: {
           valueAnimation: false,
           offsetCenter: [0, '0%'],
-          color: chartPalette.primary,
+          color: palette.primary,
           formatter: scoreLabel,
         },
         data: [{ value: score, name: '' }],
@@ -64,19 +64,20 @@ function gaugeOption(score: number, scoreLabel: string): ChartOption {
 
 function distributionOption(
   distribution: { severity: VulnerabilitySeverity; total: number }[],
+  palette: ChartPalette,
 ): ChartOption {
   return {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
-      backgroundColor: chartPalette.surface,
-      borderColor: chartPalette.secondary,
-      textStyle: { color: chartPalette.primary, fontFamily: 'JetBrains Mono, monospace' },
+      backgroundColor: palette.surface,
+      borderColor: palette.secondary,
+      textStyle: { color: palette.primary, fontFamily: 'JetBrains Mono, monospace' },
     },
     legend: {
       bottom: 0,
       icon: 'square',
-      textStyle: { color: chartPalette.secondary, fontSize: 11 },
+      textStyle: { color: palette.secondary, fontSize: 11 },
     },
     series: [
       {
@@ -84,17 +85,14 @@ function distributionOption(
         radius: ['58%', '86%'],
         center: ['50%', '44%'],
         avoidLabelOverlap: true,
-        itemStyle: { borderColor: chartPalette.surface, borderWidth: 2 },
+        itemStyle: { borderColor: palette.surface, borderWidth: 2 },
         label: { show: false },
         data: distribution
           .filter((item) => item.total > 0)
           .map((item) => ({
             name: item.severity,
             value: item.total,
-            itemStyle: {
-              color: chartPalette.primary,
-              opacity: SEVERITY_OPACITIES[item.severity],
-            },
+            itemStyle: { color: palette[SEVERITY_COLORS[item.severity]] },
           })),
       },
     ],
@@ -119,17 +117,17 @@ export function DashboardPage() {
   )
   const workspaceName = selectedOrganization?.name ?? tCommon('noWorkspace')
 
-  const gauge = useMemo(
-    () =>
-      gaugeOption(
-        summary?.security_score ?? 0,
-        t('charts.gaugeValue', { score: summary?.security_score ?? 0 }),
-      ),
-    [summary?.security_score, t],
-  )
+  const gauge = useMemo(() => {
+    const palette = readChartPalette()
+    return gaugeOption(
+      summary?.security_score ?? 0,
+      t('charts.gaugeValue', { score: summary?.security_score ?? 0 }),
+      palette,
+    )
+  }, [summary?.security_score, t])
 
   const distribution = useMemo(
-    () => distributionOption(summary?.severity_distribution ?? []),
+    () => distributionOption(summary?.severity_distribution ?? [], readChartPalette()),
     [summary?.severity_distribution],
   )
 
@@ -211,18 +209,32 @@ export function DashboardPage() {
                   ariaLabel={t('charts.gaugeValue', { score: summary.security_score })}
                 />
               </Suspense>
+              <p className="visually-hidden">
+                {t('charts.healthCaption')}: {t('charts.gaugeValue', { score: summary.security_score })}
+              </p>
             </section>
             <section className="content-card" aria-labelledby="distribution-title">
               <p className="eyebrow">{t('charts.distributionTitle')}</p>
               <h2 id="distribution-title">{t('charts.distributionCaption')}</h2>
               {hasFindings ? (
-                <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-                  <EChart
-                    option={distribution}
-                    height={220}
-                    ariaLabel={t('charts.distributionCaption')}
-                  />
-                </Suspense>
+                <>
+                  <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+                    <EChart
+                      option={distribution}
+                      height={220}
+                      ariaLabel={t('charts.distributionCaption')}
+                    />
+                  </Suspense>
+                  <ul className="visually-hidden">
+                    {summary.severity_distribution
+                      .filter((item) => item.total > 0)
+                      .map((item) => (
+                        <li key={item.severity}>
+                          {item.severity}: {item.total}
+                        </li>
+                      ))}
+                  </ul>
+                </>
               ) : (
                 <p className="chart-empty">{t('charts.distributionEmpty')}</p>
               )}

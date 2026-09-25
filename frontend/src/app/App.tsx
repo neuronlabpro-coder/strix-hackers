@@ -7,7 +7,13 @@ import { useAuth } from '../features/auth/useAuth'
 import { AcceptInvitationPage } from '../features/auth/AcceptInvitationPage'
 import { AuthPage } from '../features/auth/AuthPage'
 import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
+import { AdminPage } from '../features/admin/AdminPage'
+import { RequireSuperuser } from '../features/admin/RequireSuperuser'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
+import { IssuesPage } from '../features/issues/IssuesPage'
+import { VulnerabilityDetailPage } from '../features/issues/VulnerabilityDetailPage'
+import { PentestsPage } from '../features/pentests/PentestsPage'
+import { PentestRunPage } from '../features/pentests/PentestRunPage'
 import { RepositoriesPage } from '../features/repositories/RepositoriesPage'
 import { PlaceholderPage } from '../features/shared/PlaceholderPage'
 import { ShellLayout } from './ShellLayout'
@@ -55,8 +61,10 @@ export default function App() {
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
       <Route element={<ProtectedShell />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/pentests" element={<PlaceholderPage titleKey="navigation:pentests" />} />
-        <Route path="/issues" element={<PlaceholderPage titleKey="navigation:issues" />} />
+        <Route path="/pentests" element={<PentestsPage />} />
+        <Route path="/pentests/:runId" element={<PentestRunPage />} />
+        <Route path="/issues" element={<IssuesPage />} />
+        <Route path="/issues/:vulnerabilityId" element={<VulnerabilityDetailPage />} />
         <Route
           path="/pr-reviews"
           element={<PlaceholderPage titleKey="navigation:prReviews" />}
@@ -64,6 +72,14 @@ export default function App() {
         <Route path="/repositories" element={<RepositoriesPage />} />
         <Route path="/knowledge" element={<PlaceholderPage titleKey="navigation:knowledge" />} />
         <Route path="/settings" element={<PlaceholderPage titleKey="navigation:settings" />} />
+        <Route
+          path="/admin"
+          element={
+            <RequireSuperuser>
+              <AdminPage />
+            </RequireSuperuser>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>

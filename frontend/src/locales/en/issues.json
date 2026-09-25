@@ -1,0 +1,101 @@
+{
+  "title": "Issues",
+  "eyebrow": "Findings",
+  "description": "Vulnerabilities recorded by the engine, with their proof of concept and proposed patch.",
+  "severityCounts": {
+    "label": "Severity",
+    "CRITICAL": "Critical",
+    "HIGH": "High",
+    "MEDIUM": "Medium",
+    "LOW": "Low",
+    "INFO": "Info"
+  },
+  "viewMode": {
+    "label": "View mode",
+    "table": "Table",
+    "board": "Board"
+  },
+  "filters": {
+    "searchLabel": "Search findings",
+    "searchPlaceholder": "Title, target or CVE",
+    "severity": "Severity",
+    "status": "Status",
+    "allSeverities": "All",
+    "allStatuses": "All",
+    "clear": "Clear filters"
+  },
+  "columns": {
+    "severity": "Severity",
+    "title": "Finding",
+    "target": "Target",
+    "cvss": "CVSS",
+    "status": "Status",
+    "discovered": "Discovered",
+    "open": "Open"
+  },
+  "status": {
+    "OPEN": "Open",
+    "IN_PROGRESS": "In progress",
+    "FIXED": "Fixed",
+    "SNOOZED": "Snoozed",
+    "IGNORED": "Ignored"
+  },
+  "board": {
+    "caption": "Columns by remediation status",
+    "empty": "No findings in this status"
+  },
+  "pagination": {
+    "label": "Pagination",
+    "summary": "{{from}}-{{to}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "states": {
+    "loading": "Loading findings",
+    "empty": "No findings yet",
+    "emptyDescription": "Run a pentest or wait for the first pull request review.",
+    "noResults": "No finding matches the filters",
+    "error": "Findings could not be loaded",
+    "retry": "Retry"
+  },
+  "detail": {
+    "back": "Back to issues",
+    "eyebrow": "Finding record",
+    "notFound": "The finding does not exist or belongs to another organization",
+    "metadata": "Metadata",
+    "cve": "CVE",
+    "cveMissing": "No CVE assigned",
+    "cvss": "CVSS score",
+    "target": "Affected target",
+    "line": "Line",
+    "lineMissing": "No line reported",
+    "severity": "Severity",
+    "status": "Remediation status",
+    "discovered": "Discovered",
+    "updated": "Updated",
+    "description": "Description",
+    "poc": {
+      "title": "Immutable proof of concept",
+      "caption": "Technical evidence recorded at scan time. Not editable by design (R4).",
+      "copy": "Copy reproduction",
+      "copied": "Reproduction copied"
+    },
+    "patch": {
+      "title": "Proposed patch",
+      "caption": "Unified diff of the autofix computed by the engine.",
+      "empty": "This finding has no proposed patch.",
+      "added": "Added line",
+      "removed": "Removed line",
+      "hunk": "Hunk"
+    },
+    "autofix": {
+      "button": "Create fix pull request",
+      "reviewId": "Pull request review ID",
+      "working": "Creating branch and pull request",
+      "needsReview": "Select the pull request review that originated this finding to open the remediation.",
+      "success": "Remediation opened on the provider",
+      "error": "The remediation could not be opened",
+      "notSupported": "The provider does not support pull request creation yet"
+    }
+  }
+}

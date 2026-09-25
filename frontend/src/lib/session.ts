@@ -1,6 +1,7 @@
 export interface StoredUser {
   email: string
   full_name: string
+  is_superuser: boolean
 }
 
 const tokenStorageKey = 'fenix_access_token'
@@ -24,7 +25,8 @@ function isStoredUser(value: unknown): value is StoredUser {
   const candidate = value as Record<string, unknown>
   return (
     typeof candidate.email === 'string' &&
-    typeof candidate.full_name === 'string'
+    typeof candidate.full_name === 'string' &&
+    typeof candidate.is_superuser === 'boolean'
   )
 }
 

@@ -38,6 +38,8 @@ El usuario debe poder visualizar sus métricas de seguridad en el dashboard prin
 
 > **Resolución de contradicciones de diseño (Bloque 4.1, 2026-09-25).** `design-dark.md` es la autoridad visual y este mismo documento exige `AGENTS.md` R1 (i18n y cero literales), pero propone colores de severidad que no existen en la ficha de diseño. Como las reglas de construcción y la ficha de diseño rigen sobre las propuestas de este bloque, el Bloque 4.1 aplica las siguientes decisiones, todas reversibles si producto decide otra cosa:
 > 1. **Severidad sin paleta paralela:** la distribución por severidad y los badges usan `#EDEDED` con escalones de opacidad (`CRITICAL` 100 %, `HIGH` 72 %, `MEDIUM` 52 %, `LOW` 34 %, `INFO` 18 %). Se respeta el acento único `#17a163` y la prohibición de degradados. Si se adoptan los colores del §2.3, deben incorporarse primero a `design-dark.md`.
+>
+>    **Actualización (Bloque 4.2, 2026-09-25):** producto autorizó expresamente la rampa cromática de severidad para visualización de datos, y se ha incorporado a `design-dark.md` como tokens `--color-critical` (`#EF4444`), `--color-high` (`#F97316`), `--color-medium` (`#F59E0B`), `--color-low` (`#3B82F6`) e `--color-info` (`#8A8F8A`). El acento único `#17a163` sigue reservado para la acción principal de cada pantalla; la rampa solo aparece en indicadores de severidad (swatches, anillos y distribución). El badge de *estado de remediación* permanece monocromo a propósito: el color ya comunica la severidad y volver a colorear el estado haría competir dos escalas en la misma celda.
 > 2. **ECharts nativo en lugar de `echarts-for-react`:** se importa `echarts/core` con solo `GaugeChart`, `PieChart`, `LegendComponent`, `TooltipComponent` y `CanvasRenderer`, y se carga con `React.lazy` en su propio chunk (153 kB gzip) para que el shell y el login no lo descarguen. Sigue siendo Apache ECharts como biblioteca exclusiva.
 > 3. **Iconos de marca:** `lucide-react` ya no incluye logotipos de GitHub/GitLab. La columna Proveedor usa un icono genérico más el identificador del proveedor en `JetBrains Mono`, coherente con la estética code-first.
 
@@ -73,6 +75,24 @@ El usuario debe poder visualizar sus métricas de seguridad en el dashboard prin
 4. **Repositorios (`frontend/src/features/repositories/`):** tabla de MENU-MAP §6.1 (Proveedor, Repositorio, Estado, Vulnerabilidades abiertas, PR reviews, Supply chain, Last tested), buscador, estado vacío y modal de conexión con dos pasos: OAuth GitHub/GitLab e inventario remoto con importación directa desde `GET /api/v1/repositories/remote`.
 5. **i18n:** namespaces `dashboard` y `repositories` en `es`/`en` con paridad verificada; el bloque antiguo `common:dashboard` se eliminó para evitar claves duplicadas.
 6. **Pendiente de este bloque:** guía `Get Set Up` (§1.1, Tarea 4.1.2) y la columna Supply chain con datos reales de SBOM; ambas requieren endpoints que aún no existen.
+
+---
+
+### Tarea 4.2-b · Bloque 4.2 · Issues, Pentests, Secciones Enterprise y Base de SuperAdmin
+
+> **Estado:** `[x]` Implementado y verificado (`frontend/` con `typecheck`, `lint` y `build` limpios; `backend/tests` con `192 passed, 2 skipped`, `ruff` y `pyright` sin hallazgos y `alembic check` sin drift).
+
+1. **Contratos de backend añadidos:**
+   * `GET /api/v1/pentests/` devuelve página de ejecuciones (`items`, `total`, `limit`, `offset`) con filtros por `status`, `target_type`, `scan_mode` y `search`, y agrega el conteo de hallazgos por run excluyendo los `IGNORED`. Es la primera lectura de histórico de escaneos de la plataforma, antes inexistente.
+   * `GET /api/v1/vulnerabilities/` acepta `search` con coincidencia parcial sobre título, target y CVE.
+   * `GET /api/v1/auth/me` expone el perfil autenticado con `is_superuser`, de modo que el cliente decide la visibilidad del enlace de SuperAdmin sin adivinar.
+   * `GET /api/v1/admin/organizations` y `GET /api/v1/admin/health` bajo `require_superuser`. El sondeo ejecuta `SELECT 1` y `PING` y devuelve `healthy`/`degraded` con la latencia observada, sin exponer credenciales, hosts ni puertos (R3).
+2. **Gestor de vulnerabilidades (`frontend/src/features/issues/`):** `IssuesPage` con contadores de severidad que filtran al pulsarse, conmutador Tabla/Tablero segmentado, buscador, filtros de severidad, estado y target, y paginación conectada a la API. El tablero agrupa por `OPEN`, `IN_PROGRESS`, `FIXED`, `SNOOZED` e `IGNORED`. `VulnerabilityDetailPage` presenta metadatos (CVE, CVSS, target, línea, fechas), el visor de PoC inmutable con copiado, el diff de autofix y el botón de creación de Pull Request contra `POST /api/v1/vulnerabilities/{id}/create-fix-pr`.
+3. **Gestor de pentests (`frontend/src/features/pentests/`):** tabla histórica con ID corto, target, tipo, modo, estado (con pulso animado en `RUNNING`), hallazgos y fecha. `NewPentestModal` elige repositorio importado o target manual, valida el formato según el tipo y lanza el escaneo con confirmación esmeralda. `PentestRunPage` sondea cada 5 s mientras la ejecución está activa, muestra cronología, contenedor, código de salida, duración y una terminal monoespaciada, y permite abortar.
+4. **Secciones Enterprise:** `EnterpriseGateModal` con trampa de foco, restauración del foco previo y cierre con `Escape`; el Sidebar expone `Networks`, `Containers` y `Supply Chain` con etiqueta de candado. Ninguna navega: la capacidad aún no existe y ofrecer un destino vacío sería mentir.
+5. **Consola de SuperAdmin:** `RequireSuperuser` falla cerrado (sin sesión → `/login`; sin privilegio → `/dashboard`) y `AdminPage` lista organizaciones con plan y saldo, más el estado de PostgreSQL y Redis. El enlace del Sidebar solo aparece para superusuarios.
+6. **i18n:** namespaces `issues`, `pentests`, `admin` y `enterprise` en `es`/`en`, con 312 claves usadas verificadas contra ambos idiomas y sin claves huérfanas.
+7. **Deuda que deja el bloque:** el arrastre de tarjetas entre columnas del Kanban requiere `PATCH /api/v1/vulnerabilities/{id}`, que el backend aún no expone; la terminal muestra el ciclo de vida de la ejecución porque el stdout de Strix todavía no se sirve por la API. Ambas quedan anotadas como pendientes de backend, no como funcionalidad terminada.
 
 ---
 

@@ -1,0 +1,101 @@
+{
+  "title": "Issues",
+  "eyebrow": "Hallazgos",
+  "description": "Vulnerabilidades registradas por el motor, con su prueba de concepto y su parche propuesto.",
+  "severityCounts": {
+    "label": "Severidad",
+    "CRITICAL": "Crítico",
+    "HIGH": "Alto",
+    "MEDIUM": "Medio",
+    "LOW": "Bajo",
+    "INFO": "Informativo"
+  },
+  "viewMode": {
+    "label": "Modo de vista",
+    "table": "Tabla",
+    "board": "Tablero"
+  },
+  "filters": {
+    "searchLabel": "Buscar hallazgos",
+    "searchPlaceholder": "Título, target o CVE",
+    "severity": "Severidad",
+    "status": "Estado",
+    "allSeverities": "Todas",
+    "allStatuses": "Todos",
+    "clear": "Limpiar filtros"
+  },
+  "columns": {
+    "severity": "Severidad",
+    "title": "Hallazgo",
+    "target": "Target",
+    "cvss": "CVSS",
+    "status": "Estado",
+    "discovered": "Detectado",
+    "open": "Abrir"
+  },
+  "status": {
+    "OPEN": "Abierto",
+    "IN_PROGRESS": "En curso",
+    "FIXED": "Corregido",
+    "SNOOZED": "Aplazado",
+    "IGNORED": "Ignorado"
+  },
+  "board": {
+    "caption": "Columnas por estado de remediación",
+    "empty": "Sin hallazgos en este estado"
+  },
+  "pagination": {
+    "label": "Paginación",
+    "summary": "{{from}}-{{to}} de {{total}}",
+    "previous": "Anterior",
+    "next": "Siguiente"
+  },
+  "states": {
+    "loading": "Cargando hallazgos",
+    "empty": "Todavía no hay hallazgos",
+    "emptyDescription": "Lanza un pentest o espera a la primera revisión de un Pull Request.",
+    "noResults": "Ningún hallazgo coincide con los filtros",
+    "error": "No se pudieron cargar los hallazgos",
+    "retry": "Reintentar"
+  },
+  "detail": {
+    "back": "Volver a issues",
+    "eyebrow": "Ficha de hallazgo",
+    "notFound": "El hallazgo no existe o pertenece a otra organización",
+    "metadata": "Metadatos",
+    "cve": "CVE",
+    "cveMissing": "Sin CVE asignado",
+    "cvss": "Puntuación CVSS",
+    "target": "Target afectado",
+    "line": "Línea",
+    "lineMissing": "Sin línea reportada",
+    "severity": "Severidad",
+    "status": "Estado de remediación",
+    "discovered": "Detectado",
+    "updated": "Actualizado",
+    "description": "Descripción",
+    "poc": {
+      "title": "Prueba de concepto inmutable",
+      "caption": "Evidencia técnica registrada en el momento del escaneo. No es editable por diseño (R4).",
+      "copy": "Copiar reproducción",
+      "copied": "Reproducción copiada"
+    },
+    "patch": {
+      "title": "Parche propuesto",
+      "caption": "Diferencia unificada del autofix calculado por el motor.",
+      "empty": "Este hallazgo no tiene parche propuesto.",
+      "added": "Línea añadida",
+      "removed": "Línea suprimida",
+      "hunk": "Fragmento"
+    },
+    "autofix": {
+      "button": "Crear Pull Request con Fix",
+      "reviewId": "ID de la revisión de PR",
+      "working": "Creando rama y Pull Request",
+      "needsReview": "Selecciona la revisión de Pull Request que originó este hallazgo para abrir la remediación.",
+      "success": "Remediación abierta en el proveedor",
+      "error": "No se pudo abrir la remediación",
+      "notSupported": "El proveedor no admite apertura de Pull Request todavía"
+    }
+  }
+}

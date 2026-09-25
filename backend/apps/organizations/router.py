@@ -78,6 +78,13 @@ def _organization_response(
     )
 
 
+@router.get("/api/v1/auth/me", response_model=UserResponse)
+async def read_current_user(current_user: CurrentUserDependency) -> UserResponse:
+    """Devuelve el perfil autenticado, incluida la marca de superusuario."""
+
+    return UserResponse.model_validate(current_user)
+
+
 @router.post(
     "/api/v1/auth/register",
     response_model=RegisterResponse,

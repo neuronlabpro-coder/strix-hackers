@@ -3,10 +3,13 @@ import {
   BookOpen,
   ChevronDown,
   CircleDot,
+  Container,
   FolderGit2,
   GitPullRequest,
   LayoutDashboard,
   LogOut,
+  Network,
+  PackageSearch,
   Plus,
   Settings,
   ShieldCheck,
@@ -18,6 +21,10 @@ import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import type { Organization } from '../types/api'
+import {
+  EnterpriseGateModal,
+  type EnterpriseFeature,
+} from '../features/enterprise/EnterpriseGateModal'
 import { LanguageSwitcher } from './LanguageSwitcher'
 
 type Icon = ComponentType<LucideProps>
@@ -31,7 +38,7 @@ interface NavigationItem {
 interface SidebarProps {
   organizations: Organization[]
   selectedOrganizationId: string | null
-  user: { email: string; full_name: string } | null
+  user: { email: string; full_name: string; is_superuser: boolean } | null
   onSelectOrganization: (organizationId: string) => void
   onCreateWorkspace: () => void
   onLogout: () => void
@@ -50,6 +57,12 @@ const assetNavigation: NavigationItem[] = [
   { labelKey: 'settings', path: '/settings', icon: Settings },
 ]
 
+const enterpriseNavigation: { feature: EnterpriseFeature; labelKey: string; icon: Icon }[] = [
+  { feature: 'networks', labelKey: 'networks', icon: Network },
+  { feature: 'containers', labelKey: 'containers', icon: Container },
+  { feature: 'supplyChain', labelKey: 'supplyChain', icon: PackageSearch },
+]
+
 export function Sidebar({
   organizations,
   selectedOrganizationId,
@@ -60,7 +73,10 @@ export function Sidebar({
 }: SidebarProps) {
   const { t: tCommon } = useTranslation('common')
   const { t: tNavigation } = useTranslation('navigation')
+  const { t: tEnterprise } = useTranslation('enterprise')
+  const { t: tAdmin } = useTranslation('admin')
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
+  const [lockedFeature, setLockedFeature] = useState<EnterpriseFeature | null>(null)
   const workspaceSelectorRef = useRef<HTMLDivElement>(null)
   const selectedOrganization = organizations.find(
     (organization) => organization.id === selectedOrganizationId,
@@ -184,6 +200,24 @@ export function Sidebar({
             </li>
           ))}
         </ul>
+        <p className="eyebrow navigation-label navigation-label-spaced">
+          {tEnterprise('locked')}
+        </p>
+        <ul>
+          {enterpriseNavigation.map((item) => (
+            <li key={item.feature}>
+              <button
+                className="nav-link locked-nav-link"
+                type="button"
+                onClick={() => setLockedFeature(item.feature)}
+              >
+                <item.icon size={17} aria-hidden="true" />
+                <span>{tEnterprise(`nav.${item.labelKey}`)}</span>
+                <span className="locked-tag">{tEnterprise('locked')}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </nav>
 
       <div className="sidebar-footer">
@@ -197,11 +231,19 @@ export function Sidebar({
           </div>
           <CircleDot size={12} className="status-dot" aria-hidden="true" />
         </div>
+        {user?.is_superuser ? (
+          <NavLink className="nav-link" to="/admin">
+            <ShieldCheck size={16} aria-hidden="true" />
+            <span>{tAdmin('nav')}</span>
+          </NavLink>
+        ) : null}
         <button className="logout-button" type="button" onClick={onLogout}>
           <LogOut size={16} aria-hidden="true" />
           <span>{tCommon('signOut')}</span>
         </button>
       </div>
+
+      <EnterpriseGateModal feature={lockedFeature} onClose={() => setLockedFeature(null)} />
     </aside>
   )
 }

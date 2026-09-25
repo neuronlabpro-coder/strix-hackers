@@ -16,6 +16,7 @@ export interface UserProfile {
   id: string
   email: string
   full_name: string
+  is_superuser: boolean
 }
 
 export interface TokenResponse {
@@ -63,6 +64,118 @@ export type GitProvider = 'GITHUB' | 'GITLAB' | 'BITBUCKET' | 'GITEA'
 export type RepositoryMonitoringStatus = 'NOT_TESTED' | 'TESTED' | 'SCANNING'
 
 export type VulnerabilitySeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
+
+export type IssueStatus = 'OPEN' | 'IN_PROGRESS' | 'FIXED' | 'SNOOZED' | 'IGNORED'
+
+export type ScanMode = 'QUICK' | 'STANDARD' | 'DEEP'
+
+export type ScanStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'TIMED_OUT'
+  | 'ABORTED'
+
+export type TargetType = 'REPOSITORY' | 'DOMAIN' | 'API_SPEC'
+
+export interface VulnerabilityListItem {
+  id: string
+  run_id: string
+  title: string
+  severity: VulnerabilitySeverity
+  cvss_score: number
+  cve_id: string | null
+  affected_target: string
+  status: IssueStatus
+  discovered_at: string
+}
+
+export interface VulnerabilityPage {
+  items: VulnerabilityListItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface VulnerabilityDetail extends VulnerabilityListItem {
+  description: string
+  affected_line: string | null
+  poc_reproduction_raw: string
+  autofix_patch_diff: string | null
+  updated_at: string
+}
+
+export interface AutofixRequest {
+  review_id: string
+}
+
+export interface AutofixResponse {
+  autofix_url: string
+}
+
+export interface PentestRun {
+  id: string
+  organization_id: string
+  target_type: TargetType
+  target_identifier: string
+  scan_mode: ScanMode
+  status: ScanStatus
+  container_id: string | null
+  exit_code: string | null
+  error_message: string | null
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+}
+
+export interface PentestRunListItem extends PentestRun {
+  findings: number
+}
+
+export interface PentestRunPage {
+  items: PentestRunListItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface PentestCreatePayload {
+  target_type: TargetType
+  target_identifier: string
+  scan_mode: ScanMode
+}
+
+export type PlanTierAdmin = 'FREE' | 'PRO' | 'ENTERPRISE'
+
+export interface AdminOrganization {
+  id: string
+  name: string
+  slug: string
+  plan_tier: PlanTierAdmin
+  credit_balance: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminOrganizationPage {
+  items: AdminOrganization[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface DependencyHealth {
+  status: 'online' | 'offline'
+  latency_ms: number
+}
+
+export interface InfrastructureHealth {
+  status: 'healthy' | 'degraded'
+  database: DependencyHealth
+  cache: DependencyHealth
+  checked_at: string
+}
 
 export interface Repository {
   id: string

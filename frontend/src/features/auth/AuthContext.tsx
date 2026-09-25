@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { getOrganizations, loginRequest, registerRequest } from '../../lib/api'
+import { getCurrentUserProfile, getOrganizations, loginRequest, registerRequest } from '../../lib/api'
 import {
   clearSession,
   readActiveOrganizationId,
@@ -71,13 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const response = await loginRequest(payload)
-      const authenticatedUser: StoredUser = {
-        email: payload.email,
-        full_name: payload.email,
-      }
-      saveSession({ token: response.access_token, user: authenticatedUser })
+      const profile = await getCurrentUserProfile(response.access_token)
+      saveSession({ token: response.access_token, user: profile })
       setToken(response.access_token)
-      setUser(authenticatedUser)
+      setUser(profile)
     } finally {
       setIsLoading(false)
     }
@@ -97,7 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       saveSession({ token: loginResponse.access_token, user: response.user })
       setToken(loginResponse.access_token)
-      setUser(response.user)
+      setUser({
+        ...response.user,
+        is_superuser: response.user.is_superuser ?? false,
+      })
       return response
     } finally {
       setIsLoading(false)
