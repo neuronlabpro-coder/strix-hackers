@@ -1,0 +1,45 @@
+{
+  "title": "Base de conocimiento",
+  "eyebrow": "Catálogo técnico",
+  "description": "Apuntes de remediación de las familias de vulnerabilidad que detecta el motor, con el patrón vulnerable, el patrón seguro y la mitigación aplicable.",
+  "searchLabel": "Buscar en el catálogo",
+  "searchPlaceholder": "Título, CWE, resumen del riesgo o categoría OWASP",
+  "filters": {
+    "category": "Categoría",
+    "severity": "Severidad",
+    "allCategories": "Todas",
+    "allSeverities": "Todas"
+  },
+  "category": {
+    "INJECTION": "Inyección",
+    "XSS": "XSS",
+    "AUTH": "Autenticación",
+    "CRYPTOGRAPHY": "Criptografía",
+    "SECRET_EXPOSURE": "Exposición de secretos",
+    "DESERIALIZATION": "Deserialización",
+    "SSRF": "SSRF",
+    "PATH_TRAVERSAL": "Path Traversal",
+    "LOGIC": "Lógica de negocio",
+    "DEPENDENCY": "Dependencias"
+  },
+  "detail": {
+    "risk": "Riesgo",
+    "vulnerable": "Código vulnerable",
+    "secure": "Código seguro",
+    "mitigation": "Mitigación",
+    "owasp": "OWASP",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "close": "Cerrar",
+    "back": "Volver al catálogo"
+  },
+  "states": {
+    "loading": "Cargando catálogo",
+    "empty": "El catálogo está vacío",
+    "emptyDescription": "Ejecuta la migración f1a2b3c4d5e6 para sembrar los apuntes iniciales.",
+    "noResults": "Ningún apunte coincide con los filtros",
+    "error": "No se pudo cargar el catálogo",
+    "retry": "Reintentar",
+    "notFound": "El apunte no existe"
+  }
+}

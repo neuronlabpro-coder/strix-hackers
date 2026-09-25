@@ -32,6 +32,8 @@ from backend.apps.repositories.models import (
     generate_webhook_secret,
 )
 from backend.apps.repositories.schemas import (
+    PRReviewPage,
+    PRReviewResponse,
     RemoteRepositoryPage,
     RemoteRepositoryResponse,
     RepositoryConnectRequest,
@@ -328,6 +330,58 @@ async def list_repositories(
     repositories = result.scalars().all()
     return RepositoryPage(
         items=[RepositoryResponse.from_repository(repository) for repository in repositories],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/api/v1/repositories/{repository_id}/reviews",
+    response_model=PRReviewPage,
+)
+async def list_repository_reviews(
+    tenant: TenantDependency,
+    session: SessionDependency,
+    repository_id: UUID,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
+    review_status: Annotated[PRReviewStatusEnum | None, Query(alias="status")] = None,
+    source_branch: Annotated[str | None, Query(max_length=255)] = None,
+) -> PRReviewPage:
+    """Historial paginado de revisiones de seguridad de un repositorio del tenant.
+
+    El repositorio se carga primero acotado a `organization_id`, de modo que un
+    identificador ajeno devuelve `404` sin revelar siquiera si existe.
+    """
+
+    repository = await _load_tenant_repository(session, tenant.organization.id, repository_id)
+    filters = [
+        PullRequestReview.repository_id == repository.id,
+        PullRequestReview.organization_id == tenant.organization.id,
+    ]
+    if review_status is not None:
+        filters.append(PullRequestReview.status == review_status)
+    if source_branch:
+        pattern = f"%{source_branch.strip().lower()}%"
+        filters.append(func.lower(PullRequestReview.source_branch).like(pattern))
+
+    total_result = await session.execute(
+        select(func.count()).select_from(PullRequestReview).where(*filters)
+    )
+    total = int(total_result.scalar_one())
+    result = await session.execute(
+        select(PullRequestReview)
+        .where(*filters)
+        .order_by(PullRequestReview.created_at.desc(), PullRequestReview.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return PRReviewPage(
+        items=[
+            PRReviewResponse.from_review(review, repository_name=repository.full_name)
+            for review in result.scalars().all()
+        ],
         total=total,
         limit=limit,
         offset=offset,

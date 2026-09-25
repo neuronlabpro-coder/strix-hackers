@@ -1,0 +1,32 @@
+{
+  "title": "Configuración inicial",
+  "eyebrow": "Primeros pasos",
+  "description": "Tres pasos para tener postura de seguridad real. El progreso se lee del estado real de tu organización, no de lo que se haya marcado a mano.",
+  "progress": "{{completed}} de {{total}} completados",
+  "complete": "Configuración completa",
+  "completeDescription": "Tu organización ya está conectada, vigilando repositorios y escaneando.",
+  "collapse": "Contraer",
+  "expand": "Desplegar",
+  "steps": {
+    "connect_git": {
+      "title": "Conectar una cuenta Git",
+      "description": "Autoriza a Fenix sobre tu cuenta de GitHub o GitLab para poder leer repositorios y registrar webhooks.",
+      "action": "Conectar cuenta"
+    },
+    "import_repository": {
+      "title": "Importar un repositorio",
+      "description": "Trae un repositorio a Fenix y activa las revisiones automáticas de cada Pull Request.",
+      "action": "Importar repositorio"
+    },
+    "run_first_scan": {
+      "title": "Ejecutar el primer escaneo",
+      "description": "Lanza un pentest sobre un repositorio o un dominio para obtener hallazgos reales.",
+      "action": "Lanzar pentest"
+    }
+  },
+  "states": {
+    "loading": "Comprobando el progreso",
+    "error": "No se pudo comprobar el progreso",
+    "retry": "Reintentar"
+  }
+}

@@ -6,7 +6,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict
 
 from backend.apps.admin.router import router as admin_router
+from backend.apps.audit.router import router as audit_router
 from backend.apps.dashboard.router import router as dashboard_router
+from backend.apps.knowledge.router import router as knowledge_router
+from backend.apps.onboarding.router import router as onboarding_router
 from backend.apps.organizations.router import router as organizations_router
 from backend.apps.pentests.router import router as pentests_router
 from backend.apps.repositories.router import router as repositories_router
@@ -65,3 +68,6 @@ app.include_router(repositories_auth_router)
 app.include_router(repositories_router)
 app.include_router(dashboard_router)
 app.include_router(admin_router)
+app.include_router(audit_router)
+app.include_router(knowledge_router)
+app.include_router(onboarding_router)

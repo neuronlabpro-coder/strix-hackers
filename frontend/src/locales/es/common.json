@@ -27,6 +27,8 @@
     "close": "Cerrar",
     "refresh": "Actualizar"
   },
+  "notifications": "Notificaciones",
+  "dismissNotification": "Descartar notificación",
   "values": {
     "never": "Nunca",
     "unknown": "Desconocido",

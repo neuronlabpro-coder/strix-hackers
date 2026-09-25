@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.apps.audit.models import AuditActionEnum, AuditLogEntry
 from backend.apps.organizations.models import RoleEnum
 from backend.apps.repositories.autofix import AutofixError, create_autofix_branch_and_pr
 from backend.apps.vulnerabilities.models import IssueStatusEnum, SeverityEnum, Vulnerability
@@ -18,6 +19,8 @@ from backend.apps.vulnerabilities.schemas import (
     VulnerabilityDetail,
     VulnerabilityListItem,
     VulnerabilityPage,
+    VulnerabilityTriageRequest,
+    VulnerabilityTriageResponse,
 )
 from backend.core.database import get_db
 from backend.core.middleware import TenantContext, get_current_tenant
@@ -104,6 +107,78 @@ async def get_vulnerability(
             detail="Vulnerabilidad no encontrada",
         )
     return VulnerabilityDetail.model_validate(vulnerability)
+
+
+@router.patch(
+    "/api/v1/vulnerabilities/{vulnerability_id}",
+    response_model=VulnerabilityTriageResponse,
+)
+async def triage_vulnerability(
+    vulnerability_id: UUID,
+    payload: VulnerabilityTriageRequest,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> VulnerabilityTriageResponse:
+    """Cambia únicamente el estado de remediación y deja rastro en el audit log.
+
+    R4: las evidencias forenses son inmutables. El esquema solo admite `status` y
+    rechaza con `422` cualquier otro campo, de modo que un cliente que intente
+    reescribir la prueba de concepto nunca llega a la base de datos. El aislamiento
+    R3 se aplica en la propia consulta: un hallazgo de otro tenant devuelve `404`,
+    no `403`, para no confirmar la existencia de un identificador ajeno.
+    """
+
+    result = await session.execute(
+        select(Vulnerability)
+        .where(
+            Vulnerability.id == vulnerability_id,
+            Vulnerability.organization_id == tenant.organization.id,
+        )
+        .with_for_update()
+    )
+    vulnerability = result.scalar_one_or_none()
+    if vulnerability is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vulnerabilidad no encontrada",
+        )
+
+    if vulnerability.status == payload.status:
+        return VulnerabilityTriageResponse(
+            id=vulnerability.id,
+            status=vulnerability.status,
+            updated_at=vulnerability.updated_at,
+            changed=False,
+        )
+
+    previous_status = vulnerability.status
+    vulnerability.status = payload.status
+    session.add(
+        AuditLogEntry(
+            organization_id=tenant.organization.id,
+            actor_user_id=tenant.user.id,
+            action=AuditActionEnum.STATUS_CHANGED,
+            entity_type="vulnerability",
+            entity_id=vulnerability.id,
+            from_state=previous_status.value,
+            to_state=payload.status.value,
+        )
+    )
+    await session.commit()
+    await session.refresh(vulnerability)
+    logger.info(
+        "Triaje de vulnerabilidad %s: %s -> %s por usuario %s",
+        vulnerability.id,
+        previous_status.value,
+        payload.status.value,
+        tenant.user.id,
+    )
+    return VulnerabilityTriageResponse(
+        id=vulnerability.id,
+        status=vulnerability.status,
+        updated_at=vulnerability.updated_at,
+        changed=True,
+    )
 
 
 @router.post(

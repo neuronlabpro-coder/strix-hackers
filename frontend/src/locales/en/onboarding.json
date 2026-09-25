@@ -1,0 +1,32 @@
+{
+  "title": "Get set up",
+  "eyebrow": "First steps",
+  "description": "Three steps to reach a real security posture. Progress is read from the actual state of your organization, not from anything you tick by hand.",
+  "progress": "{{completed}} of {{total}} completed",
+  "complete": "Setup complete",
+  "completeDescription": "Your organization is connected, watching repositories and scanning.",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "steps": {
+    "connect_git": {
+      "title": "Connect a Git account",
+      "description": "Authorize Fenix on your GitHub or GitLab account so it can read repositories and register webhooks.",
+      "action": "Connect account"
+    },
+    "import_repository": {
+      "title": "Import a repository",
+      "description": "Bring a repository into Fenix and turn on automatic reviews for every pull request.",
+      "action": "Import repository"
+    },
+    "run_first_scan": {
+      "title": "Run the first scan",
+      "description": "Launch a pentest against a repository or a domain to get real findings.",
+      "action": "Launch pentest"
+    }
+  },
+  "states": {
+    "loading": "Checking progress",
+    "error": "Progress could not be checked",
+    "retry": "Retry"
+  }
+}

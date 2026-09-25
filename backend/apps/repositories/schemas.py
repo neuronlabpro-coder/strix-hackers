@@ -9,7 +9,12 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.apps.repositories.inventory import NormalizedRepository
-from backend.apps.repositories.models import GitProviderEnum, Repository
+from backend.apps.repositories.models import (
+    GitProviderEnum,
+    PRReviewStatusEnum,
+    PullRequestReview,
+    Repository,
+)
 from backend.apps.repositories.validation import GitReferenceError, validate_git_branch
 
 
@@ -138,3 +143,67 @@ class RepositoryUpdateRequest(BaseModel):
             except GitReferenceError as error:
                 raise ValueError(str(error)) from error
         return self
+
+
+class PRReviewResponse(BaseModel):
+    """Revisión de seguridad de un repositorio.
+
+    No expone `head_clone_url`: aunque contiene una URL de clonación del pull
+    request, publicarla en el panel convertiría el listado de revisiones en una
+    vía para obtener código del cliente. Tampoco expone `comment_id` ni el
+    `commit_sha` completo, que no aportan nada a la decisión de triaje.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    repository_id: UUID
+    repository_name: str
+    run_id: UUID | None
+    pr_number: int
+    pr_title: str
+    pr_author: str
+    source_branch: str
+    target_branch: str
+    short_sha: str
+    status: PRReviewStatusEnum
+    issues_caught_critical: int
+    issues_caught_high: int
+    merge_blocked: bool
+    finished_at: datetime | None
+    created_at: datetime
+
+    @classmethod
+    def from_review(
+        cls,
+        review: PullRequestReview,
+        *,
+        repository_name: str,
+    ) -> PRReviewResponse:
+        return cls(
+            id=review.id,
+            repository_id=review.repository_id,
+            repository_name=repository_name,
+            run_id=review.run_id,
+            pr_number=review.pr_number,
+            pr_title=review.pr_title,
+            pr_author=review.pr_author,
+            source_branch=review.source_branch,
+            target_branch=review.target_branch,
+            short_sha=review.commit_sha[:7],
+            status=review.status,
+            issues_caught_critical=review.issues_caught_critical,
+            issues_caught_high=review.issues_caught_high,
+            merge_blocked=review.merge_blocked,
+            finished_at=review.finished_at,
+            created_at=review.created_at,
+        )
+
+
+class PRReviewPage(BaseModel):
+    """Página de revisiones de un repositorio concreto."""
+
+    items: list[PRReviewResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)

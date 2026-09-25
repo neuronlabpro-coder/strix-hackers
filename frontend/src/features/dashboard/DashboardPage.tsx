@@ -8,6 +8,7 @@ import { readChartPalette, type ChartPalette, type SeverityColorKey } from '../.
 import type { DashboardRepository, VulnerabilitySeverity } from '../../types/api'
 import { useAuth } from '../auth/useAuth'
 import { ConnectedRepositoryToggle } from '../repositories/RepositoryReviewToggle'
+import { OnboardingChecklist } from './OnboardingChecklist'
 import { useDashboardSummary } from './useDashboardSummary'
 
 // Apache ECharts entra en su propio chunk: el shell y el login no lo descargan.
@@ -170,6 +171,8 @@ export function DashboardPage() {
               {tRepositories('prReviews.updateFailed')}
             </p>
           ) : null}
+
+          <OnboardingChecklist />
 
           <div className="metric-grid">
             <article className="metric-card">

@@ -1,0 +1,20 @@
+{
+  "title": "Triaje",
+  "statusLabel": "Estado de remediación",
+  "saving": "Guardando",
+  "saved": "Estado actualizado",
+  "error": "No se pudo actualizar el estado",
+  "retry": "Reintentar",
+  "moveTo": "Mover a",
+  "noTransitions": "No hay otros estados disponibles",
+  "history": {
+    "title": "Historial de cambios",
+    "caption": "Registro inmutable de los cambios de estado de este hallazgo.",
+    "empty": "Este hallazgo aún no ha cambiado de estado",
+    "from": "Desde",
+    "to": "Hasta",
+    "actor": "Autor",
+    "unknownActor": "Sistema",
+    "entry": "Cambio de estado"
+  }
+}

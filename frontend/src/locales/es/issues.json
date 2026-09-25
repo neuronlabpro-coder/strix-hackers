@@ -90,9 +90,14 @@
     },
     "autofix": {
       "button": "Crear Pull Request con Fix",
-      "reviewId": "ID de la revisión de PR",
+      "reviewId": "Revisión de Pull Request de origen",
       "working": "Creando rama y Pull Request",
       "needsReview": "Selecciona la revisión de Pull Request que originó este hallazgo para abrir la remediación.",
+      "reviewsLoading": "Cargando revisiones",
+      "reviewsEmpty": "Este repositorio todavía no tiene revisiones de seguridad",
+      "reviewsError": "No se pudieron cargar las revisiones",
+      "selectReview": "Selecciona una revisión",
+      "reviewOption": "#{{number}} · {{branch}} · {{status}}",
       "success": "Remediación abierta en el proveedor",
       "error": "No se pudo abrir la remediación",
       "notSupported": "El proveedor no admite apertura de Pull Request todavía"

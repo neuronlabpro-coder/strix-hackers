@@ -90,9 +90,14 @@
     },
     "autofix": {
       "button": "Create fix pull request",
-      "reviewId": "Pull request review ID",
+      "reviewId": "Originating pull request review",
       "working": "Creating branch and pull request",
       "needsReview": "Select the pull request review that originated this finding to open the remediation.",
+      "reviewsLoading": "Loading reviews",
+      "reviewsEmpty": "This repository has no security reviews yet",
+      "reviewsError": "Reviews could not be loaded",
+      "selectReview": "Select a review",
+      "reviewOption": "#{{number}} · {{branch}} · {{status}}",
       "success": "Remediation opened on the provider",
       "error": "The remediation could not be opened",
       "notSupported": "The provider does not support pull request creation yet"

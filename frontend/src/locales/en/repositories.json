@@ -20,6 +20,13 @@
     "TESTED": "Tested",
     "SCANNING": "Scanning"
   },
+  "reviewStatus": {
+    "QUEUED": "Queued",
+    "SCANNING": "Scanning",
+    "PASSED": "Passed",
+    "FAILED": "With findings",
+    "ERROR": "Error"
+  },
   "supplyChain": {
     "pending": "SBOM pending",
     "caption": "Dependency analysis will be enabled once Strix exposes the SBOM"
@@ -54,6 +61,9 @@
     "public": "Public",
     "defaultBranch": "Default branch",
     "close": "Close"
+  },
+  "autofix": {
+    "notFromReview": "This finding does not come from a pull request review, so the autofix cannot be opened automatically."
   },
   "connected": {
     "success": "{{provider}} credential connected successfully",

@@ -96,6 +96,21 @@ El usuario debe poder visualizar sus métricas de seguridad en el dashboard prin
 
 ---
 
+### Tarea 4.3-b · Bloque 4.3 · Triaje, Knowledge Base y Cierre de la Fase 4
+
+> **Estado:** `[x]` Implementado y verificado (`frontend/` con `typecheck`, `lint` y `build` limpios; `backend/tests` con `213 passed, 2 skipped`, `ruff` y `pyright` sin hallazgos y `alembic check` sin drift).
+
+1. **Triaje de vulnerabilidades (`PATCH /api/v1/vulnerabilities/{id}`):** acepta únicamente `status`. El esquema declara `extra="forbid"`, de modo que cualquier campo forense (`title`, `poc_reproduction_raw`, `cvss_score`, `cve_id`, `affected_target`, `autofix_patch_diff`, `run_id`) devuelve `422` en el borde y nunca llega a la base de datos. El aislamiento R3 devuelve `404` ante identificadores ajenos, no `403`, para no confirmar la existencia de un recurso de otro tenant. Un `PATCH` con el estado ya vigente responde `changed: false` y no genera ruido de auditoría.
+2. **Rastro de auditoría (`audit_log`):** tabla append-only con trigger `FOR EACH STATEMENT` sobre `UPDATE OR DELETE OR TRUNCATE`. Cada cambio de estado escribe actor, estado origen, estado destino y marca temporal. `GET /api/v1/audit-log/` es la única vía de lectura y no existe ruta de escritura. Implementa el historial inmutable de §3.4.
+3. **Listado de revisiones (`GET /api/v1/repositories/{id}/reviews`):** reemplaza el campo `review_id` manual de la ficha de vulnerabilidad. El repositorio se carga acotado a `organization_id` antes de listar, así que un identificador ajeno devuelve `404`. La respuesta expone el SHA abreviado pero nunca `head_clone_url`, que convertiría el listado en una vía de acceso al código del cliente.
+4. **Tablero Kanban interactivo:** arrastre con `draggable` y, en paralelo, un selector de destino por tarjeta. El segundo camino no es redundante: sin él, la acción central de la vista quedaría fuera de alcance para quien navega con teclado o lector de pantalla. Ambos caminos emiten el mismo `PATCH` con actualización optimista, estado de pendiente por tarjeta y notificación de error con reversión.
+5. **Ficha de vulnerabilidad:** selector de estado de remediación con actualización optimista, historial de auditoría y selector real de revisiones. El repositorio de origen se resuelve comparando `affected_target` con `full_name`; cuando no hay coincidencia, el componente declara que el hallazgo no procede de una revisión de PR en lugar de mostrar un desplegable inútil.
+6. **Catálogo de conocimiento (`/knowledge`):** `knowledge_entries` es una tabla de referencia compartida, sembrada con diez apuntes OWASP/CWE por la migración `f1a2b3c4d5e6`. Cada apunte ofrece resumen del riesgo, ejemplo vulnerable, ejemplo seguro y mitigación. La API es de solo lectura: no expone `POST`, `PATCH` ni `DELETE` (responden `405`). **No es la base de conocimiento descrita en §7.0 y §7.1**, que es un módulo por organización para reglas de negocio escritas por el tenant; esa sigue pendiente.
+7. **Checklist `Get Set Up` (§1.1):** `GET /api/v1/onboarding/status` deriva el progreso de la base de datos, no de marcas manuales. Tres pasos porque son los únicos verificables contra datos existentes; los pasos 4 a 6 de §1.1 dependen de pantallas que siguen siendo placeholder y marcarlos como completados sería mentir sobre el estado del producto. El paso «primer escaneo» excluye los runs `QUICK`, que dispara el webhook de un PR y no el usuario.
+8. **Notificaciones:** `ToastProvider` sobre el árbol de rutas aporta los avisos de éxito y error del triaje. Sin él, una reversión optimista sería silenciosa y el tablero mostraría un estado que el servidor no tiene.
+
+---
+
 ### Tarea 4.2 · Gestor de Pentests (`frontend/src/features/pentests/`)
 1. **Listado de Pentests (`PentestListPage.tsx`):**
    * Pestañas: `Pentests` y `Schedules` (programaciones periódicas).

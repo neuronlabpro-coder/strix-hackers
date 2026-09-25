@@ -8,9 +8,12 @@ import dashboardEn from './locales/en/dashboard.json'
 import enterpriseEn from './locales/en/enterprise.json'
 import errorsEn from './locales/en/errors.json'
 import issuesEn from './locales/en/issues.json'
+import knowledgeEn from './locales/en/knowledge.json'
 import navigationEn from './locales/en/navigation.json'
+import onboardingEn from './locales/en/onboarding.json'
 import pentestsEn from './locales/en/pentests.json'
 import repositoriesEn from './locales/en/repositories.json'
+import triageEn from './locales/en/triage.json'
 import authEs from './locales/es/auth.json'
 import adminEs from './locales/es/admin.json'
 import commonEs from './locales/es/common.json'
@@ -18,9 +21,12 @@ import dashboardEs from './locales/es/dashboard.json'
 import enterpriseEs from './locales/es/enterprise.json'
 import errorsEs from './locales/es/errors.json'
 import issuesEs from './locales/es/issues.json'
+import knowledgeEs from './locales/es/knowledge.json'
 import navigationEs from './locales/es/navigation.json'
+import onboardingEs from './locales/es/onboarding.json'
 import pentestsEs from './locales/es/pentests.json'
 import repositoriesEs from './locales/es/repositories.json'
+import triageEs from './locales/es/triage.json'
 
 export type SupportedLanguage = 'es' | 'en'
 
@@ -48,6 +54,9 @@ void i18n.use(initReactI18next).init({
       pentests: pentestsEs,
       admin: adminEs,
       enterprise: enterpriseEs,
+      triage: triageEs,
+      knowledge: knowledgeEs,
+      onboarding: onboardingEs,
     },
     en: {
       common: commonEn,
@@ -60,6 +69,9 @@ void i18n.use(initReactI18next).init({
       pentests: pentestsEn,
       admin: adminEn,
       enterprise: enterpriseEn,
+      triage: triageEn,
+      knowledge: knowledgeEn,
+      onboarding: onboardingEn,
     },
   },
   lng: getInitialLanguage(),
@@ -75,6 +87,9 @@ void i18n.use(initReactI18next).init({
     'pentests',
     'admin',
     'enterprise',
+    'triage',
+    'knowledge',
+    'onboarding',
   ],
   defaultNS: 'common',
   interpolation: {

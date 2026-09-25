@@ -20,6 +20,13 @@
     "TESTED": "Probado",
     "SCANNING": "Analizando"
   },
+  "reviewStatus": {
+    "QUEUED": "En cola",
+    "SCANNING": "Analizando",
+    "PASSED": "Aprobada",
+    "FAILED": "Con hallazgos",
+    "ERROR": "Error"
+  },
   "supplyChain": {
     "pending": "Pendiente de SBOM",
     "caption": "El análisis de dependencias se habilitará cuando Strix exponga el SBOM"
@@ -54,6 +61,9 @@
     "public": "Público",
     "defaultBranch": "Rama por defecto",
     "close": "Cerrar"
+  },
+  "autofix": {
+    "notFromReview": "Este hallazgo no procede de una revisión de Pull Request, así que el autofix no puede abrirse automáticamente."
   },
   "connected": {
     "success": "Credencial de {{provider}} conectada correctamente",

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { LayoutGrid, RefreshCw, Rows3, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { IssueStatus, VulnerabilityListItem, VulnerabilitySeverity } from '../../types/api'
+import { KanbanBoard } from './KanbanBoard'
 import {
   PAGE_SIZE,
   SEVERITIES,
@@ -30,9 +31,6 @@ function formatDateTime(value: string, locale: string, fallback: string): string
 
 export function IssuesPage() {
   const { t } = useTranslation('issues')
-  const { t: tCommon } = useTranslation('common')
-  const { i18n } = useTranslation()
-  const navigate = useNavigate()
   const [viewMode, setViewMode] = useState<IssuesViewMode>('table')
   const {
     items,
@@ -47,7 +45,6 @@ export function IssuesPage() {
     setPage,
     refresh,
   } = useIssues()
-  const locale = i18n.language
   const hasFilters = Boolean(query.severity || query.status || query.search || query.target)
 
   return (
@@ -180,88 +177,9 @@ export function IssuesPage() {
           <p>{t('states.emptyDescription')}</p>
         </div>
       ) : viewMode === 'table' ? (
-        <div className="table-wrapper">
-          <table className="data-table">
-            <caption className="visually-hidden">{t('title')}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t('columns.severity')}</th>
-                <th scope="col">{t('columns.title')}</th>
-                <th scope="col">{t('columns.target')}</th>
-                <th scope="col">{t('columns.cvss')}</th>
-                <th scope="col">{t('columns.status')}</th>
-                <th scope="col">{t('columns.discovered')}</th>
-                <th scope="col">{t('columns.open')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((finding) => (
-                <tr key={finding.id}>
-                  <td>
-                    <span className="provider-cell">
-                      <span
-                        className={`severity-swatch ${SEVERITY_CLASS[finding.severity]}`}
-                        aria-hidden="true"
-                      />
-                      <span>{t(`severityCounts.${finding.severity}`)}</span>
-                    </span>
-                  </td>
-                  <td>{finding.title}</td>
-                  <td>
-                    <span className="mono">{finding.affected_target}</span>
-                  </td>
-                  <td>
-                    <span className="mono">{finding.cvss_score.toFixed(1)}</span>
-                  </td>
-                  <td>
-                    <span className={`badge badge-status-${finding.status.toLowerCase()}`}>
-                      {t(`status.${finding.status}`)}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="mono timestamp">
-                      {formatDateTime(finding.discovered_at, locale, tCommon('values.unknown'))}
-                    </span>
-                  </td>
-                  <td>
-                    <Link
-                      className="secondary-button"
-                      to={`/issues/${finding.id}`}
-                      aria-label={`${t('columns.open')}: ${finding.title}`}
-                    >
-                      <span>{t('columns.open')}</span>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <IssuesTable items={items} />
       ) : (
-        <div className="board" role="list" aria-label={t('board.caption')}>
-          {STATUSES.map((status) => {
-            const column = items.filter((finding) => finding.status === status)
-            return (
-              <div key={status} className="board-column">
-                <div className="board-column-header">
-                  <span>{t(`status.${status}`)}</span>
-                  <span>{column.length}</span>
-                </div>
-                {column.length === 0 ? (
-                  <p className="chart-empty">{t('board.empty')}</p>
-                ) : (
-                  column.map((finding) => (
-                    <BoardCard
-                      key={finding.id}
-                      finding={finding}
-                      onOpen={() => navigate(`/issues/${finding.id}`)}
-                    />
-                  ))
-                )}
-              </div>
-            )
-          })}
-        </div>
+        <KanbanBoard findings={items} viewMode={viewMode} />
       )}
 
       {!isLoading && !loadFailed && items.length > 0 ? (
@@ -297,21 +215,69 @@ export function IssuesPage() {
   )
 }
 
-function BoardCard({
-  finding,
-  onOpen,
-}: {
-  finding: VulnerabilityListItem
-  onOpen: () => void
-}) {
+function IssuesTable({ items }: { items: VulnerabilityListItem[] }) {
+  const { t } = useTranslation('issues')
+  const { t: tCommon } = useTranslation('common')
+  const { i18n } = useTranslation()
+  const locale = i18n.language
+
   return (
-    <button className="board-card" type="button" onClick={onOpen}>
-      <span>{finding.title}</span>
-      <span className="board-card-meta">
-        <span className={`severity-swatch ${SEVERITY_CLASS[finding.severity]}`} aria-hidden="true" />
-        <span className="mono">{finding.cvss_score.toFixed(1)}</span>
-        <span className="mono">{finding.affected_target}</span>
-      </span>
-    </button>
+    <div className="table-wrapper">
+      <table className="data-table">
+        <caption className="visually-hidden">{t('title')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('columns.severity')}</th>
+            <th scope="col">{t('columns.title')}</th>
+            <th scope="col">{t('columns.target')}</th>
+            <th scope="col">{t('columns.cvss')}</th>
+            <th scope="col">{t('columns.status')}</th>
+            <th scope="col">{t('columns.discovered')}</th>
+            <th scope="col">{t('columns.open')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((finding) => (
+            <tr key={finding.id}>
+              <td>
+                <span className="provider-cell">
+                  <span
+                    className={`severity-swatch ${SEVERITY_CLASS[finding.severity]}`}
+                    aria-hidden="true"
+                  />
+                  <span>{t(`severityCounts.${finding.severity}`)}</span>
+                </span>
+              </td>
+              <td>{finding.title}</td>
+              <td>
+                <span className="mono">{finding.affected_target}</span>
+              </td>
+              <td>
+                <span className="mono">{finding.cvss_score.toFixed(1)}</span>
+              </td>
+              <td>
+                <span className={`badge badge-status-${finding.status.toLowerCase()}`}>
+                  {t(`status.${finding.status}`)}
+                </span>
+              </td>
+              <td>
+                <span className="mono timestamp">
+                  {formatDateTime(finding.discovered_at, locale, tCommon('values.unknown'))}
+                </span>
+              </td>
+              <td>
+                <Link
+                  className="secondary-button"
+                  to={`/issues/${finding.id}`}
+                  aria-label={`${t('columns.open')}: ${finding.title}`}
+                >
+                  <span>{t('columns.open')}</span>
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

@@ -1,0 +1,45 @@
+{
+  "title": "Knowledge base",
+  "eyebrow": "Technical catalog",
+  "description": "Remediation notes for the vulnerability families the engine detects, with the vulnerable pattern, the secure pattern and the applicable mitigation.",
+  "searchLabel": "Search the catalog",
+  "searchPlaceholder": "Title, CWE, risk summary or OWASP category",
+  "filters": {
+    "category": "Category",
+    "severity": "Severity",
+    "allCategories": "All",
+    "allSeverities": "All"
+  },
+  "category": {
+    "INJECTION": "Injection",
+    "XSS": "XSS",
+    "AUTH": "Authentication",
+    "CRYPTOGRAPHY": "Cryptography",
+    "SECRET_EXPOSURE": "Secret exposure",
+    "DESERIALIZATION": "Deserialization",
+    "SSRF": "SSRF",
+    "PATH_TRAVERSAL": "Path traversal",
+    "LOGIC": "Business logic",
+    "DEPENDENCY": "Dependencies"
+  },
+  "detail": {
+    "risk": "Risk",
+    "vulnerable": "Vulnerable code",
+    "secure": "Secure code",
+    "mitigation": "Mitigation",
+    "owasp": "OWASP",
+    "copy": "Copy",
+    "copied": "Copied",
+    "close": "Close",
+    "back": "Back to the catalog"
+  },
+  "states": {
+    "loading": "Loading the catalog",
+    "empty": "The catalog is empty",
+    "emptyDescription": "Run migration f1a2b3c4d5e6 to seed the initial notes.",
+    "noResults": "No note matches the filters",
+    "error": "The catalog could not be loaded",
+    "retry": "Retry",
+    "notFound": "The note does not exist"
+  }
+}

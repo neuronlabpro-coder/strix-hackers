@@ -148,6 +148,114 @@ export interface PentestCreatePayload {
 
 export type PlanTierAdmin = 'FREE' | 'PRO' | 'ENTERPRISE'
 
+export interface TriageResponse {
+  id: string
+  status: IssueStatus
+  updated_at: string
+  changed: boolean
+}
+
+export type AuditAction = 'STATUS_CHANGED' | 'REPOSITORY_POLICY_UPDATED' | 'REPOSITORY_CONNECTED' | 'REPOSITORY_DISCONNECTED'
+
+export interface AuditLogEntry {
+  id: string
+  organization_id: string
+  actor_user_id: string | null
+  action: AuditAction
+  entity_type: string
+  entity_id: string
+  from_state: string | null
+  to_state: string | null
+  created_at: string
+}
+
+export interface AuditLogPage {
+  items: AuditLogEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface PRReviewSummary {
+  id: string
+  repository_id: string
+  repository_name: string
+  run_id: string | null
+  pr_number: number
+  pr_title: string
+  pr_author: string
+  source_branch: string
+  target_branch: string
+  short_sha: string
+  status: PRReviewStatus
+  issues_caught_critical: number
+  issues_caught_high: number
+  merge_blocked: boolean
+  finished_at: string | null
+  created_at: string
+}
+
+export interface PRReviewPage {
+  items: PRReviewSummary[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export type PRReviewStatus = 'QUEUED' | 'SCANNING' | 'PASSED' | 'FAILED' | 'ERROR'
+
+export type KnowledgeCategory =
+  | 'INJECTION'
+  | 'XSS'
+  | 'AUTH'
+  | 'CRYPTOGRAPHY'
+  | 'SECRET_EXPOSURE'
+  | 'DESERIALIZATION'
+  | 'SSRF'
+  | 'PATH_TRAVERSAL'
+  | 'LOGIC'
+  | 'DEPENDENCY'
+
+export type KnowledgeSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+export interface KnowledgeSummary {
+  id: string
+  reference_code: string
+  title: string
+  category: KnowledgeCategory
+  severity: KnowledgeSeverity
+  risk_summary: string
+  owasp_category: string
+}
+
+export interface KnowledgeDetail extends KnowledgeSummary {
+  vulnerable_example: string
+  secure_example: string
+  mitigation: string
+  updated_at: string
+}
+
+export interface KnowledgePage {
+  items: KnowledgeSummary[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export type OnboardingStepKey = 'connect_git' | 'import_repository' | 'run_first_scan'
+
+export interface OnboardingStep {
+  key: OnboardingStepKey
+  completed: boolean
+}
+
+export interface OnboardingStatus {
+  steps: OnboardingStep[]
+  completed_steps: number
+  total_steps: number
+  is_complete: boolean
+}
+
 export interface AdminOrganization {
   id: string
   name: string

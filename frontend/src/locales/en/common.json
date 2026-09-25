@@ -27,6 +27,8 @@
     "close": "Close",
     "refresh": "Refresh"
   },
+  "notifications": "Notifications",
+  "dismissNotification": "Dismiss notification",
   "values": {
     "never": "Never",
     "unknown": "Unknown",

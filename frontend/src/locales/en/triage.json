@@ -1,0 +1,20 @@
+{
+  "title": "Triage",
+  "statusLabel": "Remediation status",
+  "saving": "Saving",
+  "saved": "Status updated",
+  "error": "The status could not be updated",
+  "retry": "Retry",
+  "moveTo": "Move to",
+  "noTransitions": "No other statuses available",
+  "history": {
+    "title": "Change history",
+    "caption": "Immutable record of the status changes of this finding.",
+    "empty": "This finding has not changed status yet",
+    "from": "From",
+    "to": "To",
+    "actor": "Author",
+    "unknownActor": "System",
+    "entry": "Status change"
+  }
+}

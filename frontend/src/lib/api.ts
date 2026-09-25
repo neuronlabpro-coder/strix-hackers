@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../config'
 import type {
   AdminOrganizationPage,
+  AuditLogPage,
   AutofixRequest,
   AutofixResponse,
   DashboardSummary,
@@ -10,12 +11,18 @@ import type {
   InfrastructureHealth,
   InvitationAcceptResponse,
   IssueStatus,
+  KnowledgeCategory,
+  KnowledgeDetail,
+  KnowledgePage,
+  KnowledgeSeverity,
   LoginPayload,
   OAuthAuthorizationResponse,
+  OnboardingStatus,
   Organization,
   PentestCreatePayload,
   PentestRun,
   PentestRunPage,
+  PRReviewPage,
   RegisterPayload,
   RegisterResponse,
   RemoteRepositoryPage,
@@ -27,6 +34,7 @@ import type {
   ScanStatus,
   TargetType,
   TokenResponse,
+  TriageResponse,
   UserProfile,
   VulnerabilityDetail,
   VulnerabilityPage,
@@ -256,6 +264,106 @@ export function createFixPullRequest(
     token,
     organizationId,
   )
+}
+
+/**
+ * Triaje de un hallazgo. El backend solo admite `status` y rechaza con `422`
+ * cualquier otro campo (R4), así que este cliente nunca envía evidencias.
+ */
+export function triageVulnerability(
+  token: string,
+  organizationId: string,
+  vulnerabilityId: string,
+  status: IssueStatus,
+): Promise<TriageResponse> {
+  return request<TriageResponse>(
+    `/api/v1/vulnerabilities/${vulnerabilityId}`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
+    token,
+    organizationId,
+  )
+}
+
+export interface AuditQuery {
+  limit?: number
+  offset?: number
+  entityType?: string
+  entityId?: string
+}
+
+export function getAuditLog(
+  token: string,
+  organizationId: string,
+  query: AuditQuery = {},
+): Promise<AuditLogPage> {
+  const params = new URLSearchParams()
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  if (query.entityType !== undefined) params.set('entity_type', query.entityType)
+  if (query.entityId !== undefined) params.set('entity_id', query.entityId)
+  return request<AuditLogPage>(
+    `/api/v1/audit-log/?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getRepositoryReviews(
+  token: string,
+  organizationId: string,
+  repositoryId: string,
+  limit = 25,
+  offset = 0,
+): Promise<PRReviewPage> {
+  return request<PRReviewPage>(
+    `/api/v1/repositories/${repositoryId}/reviews?limit=${limit}&offset=${offset}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export interface KnowledgeQuery {
+  limit?: number
+  offset?: number
+  category?: KnowledgeCategory
+  severity?: KnowledgeSeverity
+  search?: string
+}
+
+export function getKnowledgeEntries(
+  token: string,
+  organizationId: string,
+  query: KnowledgeQuery = {},
+): Promise<KnowledgePage> {
+  const params = new URLSearchParams()
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  if (query.category !== undefined) params.set('category', query.category)
+  if (query.severity !== undefined) params.set('severity', query.severity)
+  if (query.search !== undefined) params.set('search', query.search)
+  return request<KnowledgePage>(
+    `/api/v1/knowledge/?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getKnowledgeEntry(
+  token: string,
+  organizationId: string,
+  entryId: string,
+): Promise<KnowledgeDetail> {
+  return request<KnowledgeDetail>(`/api/v1/knowledge/${entryId}`, {}, token, organizationId)
+}
+
+export function getOnboardingStatus(
+  token: string,
+  organizationId: string,
+): Promise<OnboardingStatus> {
+  return request<OnboardingStatus>('/api/v1/onboarding/status', {}, token, organizationId)
 }
 
 export interface PentestQuery {

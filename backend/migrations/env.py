@@ -14,6 +14,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from backend.apps.audit import models as audit_models  # noqa: F401
+from backend.apps.knowledge import models as knowledge_models  # noqa: F401
 from backend.apps.organizations import models as organization_models  # noqa: F401
 from backend.apps.pentests import models as pentest_models  # noqa: F401
 from backend.apps.repositories import models as repository_models  # noqa: F401
