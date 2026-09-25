@@ -20,6 +20,9 @@ def test_celery_uses_isolated_redis_database_and_strict_json() -> None:
     assert "pentests.ingest_strix_output" in celery_app.tasks
     assert "pentests.execute" in celery_app.tasks
     assert "pentests.watchdog_orphaned_runs" in celery_app.tasks
+    assert "repositories.process_git_webhook_event" in celery_app.tasks
+    assert "repositories.run_pr_security_pipeline" in celery_app.tasks
+    assert celery_app.tasks["repositories.run_pr_security_pipeline"].max_retries == 3
     assert configuration.beat_schedule["watchdog-orphaned-runs"]["task"] == (
         "pentests.watchdog_orphaned_runs"
     )

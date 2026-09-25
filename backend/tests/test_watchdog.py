@@ -8,6 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.organizations.models import Organization
 from backend.apps.pentests.models import PentestRun, ScanModeEnum, ScanStatusEnum, TargetTypeEnum
+from backend.apps.repositories.models import (
+    GitProviderEnum,
+    PRReviewStatusEnum,
+    PullRequestReview,
+    Repository,
+)
 from backend.workers.runner.exceptions import SandboxTimeoutError
 from backend.workers.tasks import (
     execute_pentest_run,
@@ -42,6 +48,30 @@ async def test_watchdog_marks_stale_running_runs_failed(
     )
     integration_session.add(run)
     await integration_session.flush()
+    repository = Repository(
+        organization_id=organization.id,
+        provider=GitProviderEnum.GITHUB,
+        remote_repo_id=str(uuid.uuid4().int),
+        name="app",
+        full_name="acme/app",
+        clone_url="https://github.com/acme/app.git",
+    )
+    integration_session.add(repository)
+    await integration_session.flush()
+    review = PullRequestReview(
+        organization_id=organization.id,
+        repository_id=repository.id,
+        run_id=run.id,
+        pr_number=1,
+        pr_title="Orphaned PR",
+        pr_author="alice",
+        source_branch="feature/orphan",
+        target_branch="main",
+        commit_sha="a" * 40,
+        status=PRReviewStatusEnum.SCANNING,
+    )
+    integration_session.add(review)
+    await integration_session.flush()
     workspace = tmp_path / str(run.id)
     workspace.mkdir()
     (workspace / "source.py").write_text("secret-source", encoding="utf-8")
@@ -61,6 +91,8 @@ async def test_watchdog_marks_stale_running_runs_failed(
     assert run.status == ScanStatusEnum.FAILED
     assert run.error_message == "WORKER_WATCHDOG_ORPHANED"
     assert run.cleanup_pending is False
+    await integration_session.refresh(review)
+    assert review.status == PRReviewStatusEnum.ERROR
     assert not workspace.exists()
 
 
@@ -155,6 +187,54 @@ def test_execute_task_marks_timeout_when_sandbox_raises_timeout() -> None:
             execute_pentest_run.run(run_id)  # pyright: ignore[reportFunctionMemberAccess]
 
     mark_timeout.assert_awaited_once_with(None, uuid.UUID(run_id))
+
+
+@pytest.mark.asyncio
+async def test_watchdog_reenqueues_stale_queued_pr_reviews(
+    integration_session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    assert integration_session is not None
+    organization = Organization(
+        name=f"Queued {uuid.uuid4().hex}",
+        slug=f"queued-{uuid.uuid4().hex}",
+    )
+    integration_session.add(organization)
+    await integration_session.flush()
+    repository = Repository(
+        organization_id=organization.id,
+        provider=GitProviderEnum.GITHUB,
+        remote_repo_id=str(uuid.uuid4().int),
+        name="app",
+        full_name="acme/app",
+        clone_url="https://github.com/acme/app.git",
+    )
+    integration_session.add(repository)
+    await integration_session.flush()
+    review = PullRequestReview(
+        organization_id=organization.id,
+        repository_id=repository.id,
+        pr_number=8,
+        pr_title="Queued PR",
+        pr_author="alice",
+        source_branch="feature/queued",
+        target_branch="main",
+        commit_sha="b" * 40,
+        status=PRReviewStatusEnum.QUEUED,
+        created_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+    integration_session.add(review)
+    await integration_session.commit()
+
+    with patch("backend.apps.repositories.tasks.run_pr_security_pipeline.delay") as delay:
+        marked = await reconcile_orphaned_runs(
+            integration_session,
+            now=datetime.now(UTC),
+            workspace_root=tmp_path,
+        )
+
+    assert marked == 0
+    delay.assert_called_once_with(str(review.id))
 
 
 def test_startup_signal_enqueues_watchdog() -> None:

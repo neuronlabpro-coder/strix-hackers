@@ -28,7 +28,7 @@ uv run --project backend alembic -c backend/alembic.ini check
 No new upgrade operations detected.
 
 uv run --project backend alembic -c backend/alembic.ini current
-d0e2f4a6b8c9 (head)
+e8a0b2c4d6e8 (head)
 
 cd frontend && npm run typecheck
 pass

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -53,6 +54,7 @@ class StrixSandboxManager:
         scan_mode: str = "STANDARD",
         *,
         target_type: str | None = None,
+        included_files: list[str] | None = None,
         client: DockerClient | None = None,
         workspace_root: Path | str | None = None,
         image: str | None = None,
@@ -62,6 +64,7 @@ class StrixSandboxManager:
         self.target_argument = (
             "/workspace/target" if target_type and target_type.upper() == "REPOSITORY" else target
         )
+        self.included_files = included_files or []
         self.scan_mode = scan_mode.lower()
         self.client = client if client is not None else create_docker_client()
         self.workspace_root = Path(workspace_root or settings.strix_workspace_root)
@@ -85,8 +88,11 @@ class StrixSandboxManager:
         try:
             (run_dir / "workspace").mkdir(mode=0o700)
             (run_dir / "output").mkdir(mode=0o700)
-        except Exception:
+        except Exception as error:
             shutil.rmtree(run_dir, ignore_errors=True)
+            if run_dir.exists():
+                self.cleanup_pending = True
+                raise SandboxCleanupError("No se pudo purgar el workspace incompleto") from error
             self.temp_dir = None
             raise
         return run_dir
@@ -111,13 +117,19 @@ class StrixSandboxManager:
         raise SandboxTimeoutError("Strix superó el timeout de ejecución")
 
     def _container_environment(self) -> dict[str, str]:
-        return {
+        environment = {
             "STRIX_LLM": settings.default_strix_llm,
             "LLM_API_KEY": settings.llm_api_key.get_secret_value(),
             "LLM_API_BASE": settings.llm_api_base,
             "STRIX_NON_INTERACTIVE": "1",
             "STRIX_HEADLESS": "1",
         }
+        if self.included_files:
+            environment["STRIX_INCREMENTAL_FILES"] = json.dumps(
+                sorted(set(self.included_files)),
+                separators=(",", ":"),
+            )
+        return environment
 
     @staticmethod
     def _read_output_file(path: Path) -> str:
@@ -167,6 +179,8 @@ class StrixSandboxManager:
         timeout_seconds: int | None = None,
         soft_timeout_seconds: float | None = None,
         on_started: Callable[[str], None] | None = None,
+        *,
+        workspace_prepared: bool = False,
     ) -> SandboxRunResult:
         """Ejecuta Strix y devuelve el JSON leído antes de purgar el workspace."""
 
@@ -184,7 +198,12 @@ class StrixSandboxManager:
         soft_timer: threading.Timer | None = None
         soft_timeout_triggered = threading.Event()
         try:
-            workspace_dir = self.setup_workspace()
+            if workspace_prepared:
+                if self.temp_dir is None or not self.temp_dir.is_dir():
+                    raise SandboxError("El workspace preparado no existe")
+                workspace_dir = self.temp_dir
+            else:
+                workspace_dir = self.setup_workspace()
             # Un bridge dedicado por run evita compartir el namespace del bridge por defecto.
             self.network = self.client.networks.create(
                 name=self.network_name,
@@ -316,6 +335,7 @@ class StrixSandboxManager:
                 self.temp_dir = None
 
         if cleanup_errors:
+            self.cleanup_pending = True
             raise SandboxCleanupError("; ".join(cleanup_errors))
 
     @staticmethod

@@ -9,6 +9,7 @@ from docker.client import DockerClient
 from requests.exceptions import ReadTimeout
 
 from backend.workers.runner.sandbox import (
+    SandboxCleanupError,
     SandboxExecutionError,
     SandboxOutputError,
     SandboxTimeoutError,
@@ -83,6 +84,23 @@ def test_sandbox_uses_bridge_network_cgroups_and_no_docker_socket(tmp_path: Path
     client.networks.create.return_value.remove.assert_called_once_with()
 
 
+def test_sandbox_can_run_with_a_prepared_workspace_and_incremental_scope(
+    tmp_path: Path,
+) -> None:
+    client = MagicMock()
+    manager = make_manager(tmp_path, client)
+    manager.setup_workspace()
+    manager.included_files = ["z.py", "a.py"]
+    configure_completed_container(manager, client)
+
+    result = manager.run(timeout_seconds=5, workspace_prepared=True)
+
+    assert result.exit_code == 0
+    environment = client.containers.run.call_args.kwargs["environment"]
+    assert environment["STRIX_INCREMENTAL_FILES"] == '["a.py","z.py"]'
+    assert manager.temp_dir is None
+
+
 def test_sandbox_cleans_workspace_and_container_when_execution_raises(tmp_path: Path) -> None:
     client = MagicMock()
     manager = make_manager(tmp_path, client)
@@ -110,6 +128,21 @@ def test_sandbox_kills_container_and_raises_typed_timeout(tmp_path: Path) -> Non
     container.kill.assert_called_once_with()
     container.remove.assert_called_once_with(force=True)
     assert manager.temp_dir is None
+
+
+def test_sandbox_marks_cleanup_pending_when_resource_removal_fails(
+    tmp_path: Path,
+) -> None:
+    client = MagicMock()
+    manager = make_manager(tmp_path, client)
+    manager.setup_workspace()
+    manager.network = MagicMock()
+    manager.network.remove.side_effect = OSError("network busy")
+
+    with pytest.raises(SandboxCleanupError):
+        manager.cleanup()
+
+    assert manager.cleanup_pending is True
 
 
 def test_sandbox_rejects_symlink_output_file(tmp_path: Path) -> None:

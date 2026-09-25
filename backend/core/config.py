@@ -1,10 +1,12 @@
 """Configuración validada del backend desde el archivo raíz `.env`."""
 
+import base64
+import binascii
 from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import unquote, urlsplit, urlunsplit
 
-from pydantic import EmailStr, Field, SecretStr, model_validator
+from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -37,6 +39,29 @@ class Settings(BaseSettings):
     redis_socket_timeout_seconds: float = Field(gt=0)
 
     git_encryption_key: SecretStr = Field(min_length=32, repr=False)
+    git_webhook_max_body_bytes: int = Field(default=2_000_000, gt=0, le=10_000_000)
+    git_webhook_rate_limit: int = Field(default=120, ge=1, le=1000)
+    git_webhook_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    git_webhook_replay_ttl_seconds: int = Field(default=86_400, ge=300, le=604_800)
+    git_api_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+    git_command_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
+    git_max_diff_files: int = Field(default=5000, ge=1, le=100_000)
+    git_max_diff_path_chars: int = Field(default=512, ge=32, le=4096)
+    git_allowed_clone_hosts_csv: str = Field(
+        default="github.com,gitlab.com,bitbucket.org,gitea.com",
+        min_length=1,
+    )
+    chatops_review_commands: str = Field(
+        default="@fenix-team review,@strix review",
+        min_length=1,
+    )
+    autofix_branch_prefix: str = Field(default="fenix/fix-", min_length=1, max_length=64)
+    autofix_max_files: int = Field(default=50, ge=1, le=500)
+    autofix_create_rate_limit: int = Field(default=5, ge=1, le=100)
+    autofix_create_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    pr_scan_hard_timeout_seconds: int = Field(default=900, gt=0, le=7200)
+    pr_scan_soft_timeout_seconds: int = Field(default=840, gt=0, le=7200)
+    pr_review_stale_after_seconds: int = Field(default=300, ge=30, le=86400)
 
     jwt_algorithm: Literal["HS256", "HS384", "HS512"]
     access_token_expire_minutes: int = Field(gt=0)
@@ -97,12 +122,64 @@ class Settings(BaseSettings):
         frozen=True,
     )
 
+    @staticmethod
+    def _decode_git_encryption_key(value: str) -> bytes:
+        raw_value = value.encode("utf-8")
+        if len(raw_value) == 32:
+            return raw_value
+        try:
+            padding = "=" * (-len(value) % 4)
+            decoded = base64.b64decode(value + padding, altchars=b"-_", validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("GIT_ENCRYPTION_KEY no contiene 32 bytes válidos") from error
+        if len(decoded) != 32:
+            raise ValueError("GIT_ENCRYPTION_KEY debe contener exactamente 32 bytes")
+        return decoded
+
+    @field_validator("git_encryption_key")
+    @classmethod
+    def validate_git_encryption_key(cls, value: SecretStr) -> SecretStr:
+        """Exige exactamente 32 bytes de material para AES-256."""
+
+        cls._decode_git_encryption_key(value.get_secret_value())
+        return value
+
+    @property
+    def git_encryption_key_bytes(self) -> bytes:
+        """Entrega la clave maestra solo como bytes para el cifrador AES."""
+
+        return self._decode_git_encryption_key(self.git_encryption_key.get_secret_value())
+
+    @property
+    def git_allowed_clone_hosts(self) -> frozenset[str]:
+        """Hosts autorizados para materializar repositorios en producción."""
+
+        return frozenset(
+            host.strip().lower()
+            for host in self.git_allowed_clone_hosts_csv.split(",")
+            if host.strip()
+        )
+
+    @property
+    def chatops_review_command_aliases(self) -> tuple[str, ...]:
+        """Comandos ChatOps permitidos, normalizados sin depender del locale."""
+
+        return tuple(
+            command.strip()
+            for command in self.chatops_review_commands.split(",")
+            if command.strip()
+        )
+
     @model_validator(mode="after")
     def validate_runtime_and_endpoints(self) -> Self:
         """Impide combinaciones inseguras o endpoints con componentes divergentes."""
 
         if self.environment == "production" and self.debug:
             raise ValueError("DEBUG debe ser false en el entorno production")
+        if self.environment in {"staging", "production"} and self._decode_git_encryption_key(
+            self.git_encryption_key.get_secret_value()
+        ) == b"0123456789abcdef0123456789abcdef":
+            raise ValueError("GIT_ENCRYPTION_KEY de ejemplo no se permite fuera de desarrollo")
 
         if not self._database_url_matches_components():
             raise ValueError("DATABASE_URL no coincide con las variables DB_* configuradas")
@@ -123,6 +200,15 @@ class Settings(BaseSettings):
 
         if self.celery_task_soft_time_limit_seconds >= self.celery_task_time_limit_seconds:
             raise ValueError("El límite suave de Celery debe ser menor que el límite duro")
+        if self.pr_scan_soft_timeout_seconds >= self.pr_scan_hard_timeout_seconds:
+            raise ValueError("El timeout suave del scan PR debe ser menor que el duro")
+        if not self.git_allowed_clone_hosts:
+            raise ValueError("GIT_ALLOWED_CLONE_HOSTS debe contener al menos un host")
+        if not self.chatops_review_command_aliases:
+            raise ValueError("CHATOPS_REVIEW_COMMANDS debe contener un comando")
+        if any(char.isspace() for char in self.autofix_branch_prefix):
+            raise ValueError("AUTOFIX_BRANCH_PREFIX no puede contener espacios")
+
         if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds:
             raise ValueError("El timeout suave de Strix debe ser menor que el duro")
         if self.strix_hard_timeout_seconds >= self.celery_task_soft_time_limit_seconds:

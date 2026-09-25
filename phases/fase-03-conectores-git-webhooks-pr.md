@@ -2,7 +2,7 @@
 
 > **Documento de especificación ejecutable.** Define las integraciones OAuth y Apps para GitHub, GitLab, Bitbucket y Gitea, la recepción y validación criptográfica de Webhooks, el motor de análisis superficial en CI/CD (`--scan-mode quick`), el bot de retroalimentación en Pull Requests y la apertura programática de ramas con parches *autofix*.
 >
-> **Estado:** `[ ]` Pendiente de ejecución  
+> **Estado:** `[ ]` Pendiente de cierre — Bloques 3.1 y 3.2 implementados en código y pruebas
 > **Dependencias previas:** Fase 1 (Organizaciones, RBAC y Auth) y Fase 2 (Motor de ejecución Strix en Docker Sandbox).  
 > **Autoridades que rigen esta fase:** `ARCHITECTURE.md` (§2, §3, §4) y `AGENTS.md` (Reglas de Oro R1, R3, R4 y R5).
 

@@ -217,6 +217,36 @@ async def enforce_invitation_accept_rate_limit(
     )
 
 
+async def enforce_autofix_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita la creación de ramas de autofix por usuario y organización."""
+
+    await _apply_rate_limit(
+        client,
+        "autofix-create",
+        f"{tenant.user.id}:{tenant.organization.id}",
+        settings.autofix_create_rate_limit,
+        settings.autofix_create_rate_window_seconds,
+    )
+
+
+async def enforce_git_webhook_rate_limit(
+    request: Request,
+    client: RedisDependency,
+) -> None:
+    """Limita webhooks públicos por IP antes de validar o consultar la BD."""
+
+    await _apply_rate_limit(
+        client,
+        "git-webhook",
+        _request_identifier(request),
+        settings.git_webhook_rate_limit,
+        settings.git_webhook_rate_window_seconds,
+    )
+
+
 async def enforce_pentest_rate_limit(
     tenant: TenantDependency,
     client: RedisDependency,

@@ -23,7 +23,7 @@ Las adaptaciones siguientes viven exclusivamente en `backend/` y `frontend/`. Se
 
 ### Migraciones
 
-Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrations/env.py`. La primera revisión es `bb33e283b0d5_fase1_initial_multitenant_schema`; las revisiones Fase 2 `7dd8e09a263d`, `c3f8a1d9e2b4`, `d4e6f8a1b2c3`, `e5f7a9b1c3d4`, `f6a8b0c2d4e6`, `a7b9c1d3e5f7`, `b8c0d2e4f6a8`, `c9d1e3f5a7b9` y `d0e2f4a6b8c9` añaden runs, vulnerabilidades, provenance/idempotencia, la FK compuesta de aislamiento, los triggers R3/R4 endurecidos, el ID de tarea Celery y el marcador de reintento de cleanup. Las migraciones se ejecutan con `asyncpg` en modo asíncrono.
+Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrations/env.py`. La primera revisión es `bb33e283b0d5_fase1_initial_multitenant_schema`; las revisiones Fase 2 `7dd8e09a263d`, `c3f8a1d9e2b4`, `d4e6f8a1b2c3`, `e5f7a9b1c3d4`, `f6a8b0c2d4e6`, `a7b9c1d3e5f7`, `b8c0d2e4f6a8`, `c9d1e3f5a7b9` y `d0e2f4a6b8c9` añaden runs, vulnerabilidades, provenance/idempotencia, la FK compuesta de aislamiento, los triggers R3/R4 endurecidos, el ID de tarea Celery y el marcador de reintento de cleanup. Las revisiones Fase 3 `e1f3a5c7e9b0`, `e2f4b6d8a0c1`, `e3a5c7c9d1e2`, `e4b6c8d0f2a3`, `e5c7d9e1f3a5`, `e6d8f0a2b4c6`, `e7f9a1b3c5d7` y `e8a0b2c4d6e8` añaden las tablas, índices, restricciones cifradas, FK/trigger de tenant, idempotencia y provenance de materialización de revisiones PR; las últimas seis son forward-only para no debilitar R3. Las migraciones se ejecutan con `asyncpg` en modo asíncrono.
 
 ## Fase 2 · Datos y cola de ejecución
 
@@ -35,6 +35,15 @@ Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrati
 | Parser Strix | `backend/workers/parser/strix_parser.py` y `normalizer.py` | El parser es puro, exige `status=completed`, `scan_id` e IDs de finding, lanza excepciones tipadas y devuelve entidades sin abrir una transacción. La tarea de ingesta exige el `expected_scan_id` y realiza la persistencia atómica. |
 | Cola Celery | `backend/workers/celery_app.py` y `backend/workers/tasks.py` | Redis usa una base lógica separada (`CELERY_REDIS_DB`), serialización JSON estricta, prefetch 1, límites de tiempo y beat periódico. La ingesta registra fallos del run sin ocultar el error al operador. |
 | Runner y watchdog | `backend/workers/runner/sandbox.py`, `docker_client.py` y `tasks.py` | Cada run usa bridge Docker dedicado, workspace efímero con permisos privados, cgroups 4 GB/2 vCPU, límite de PIDs, secretos LLM solo por entorno, `run-name` determinista para provenance, lectura `O_NOFOLLOW` del artefacto y cleanup en `finally`. `worker_ready` y el watchdog periódico reconcilian runs `RUNNING` obsoletos como `FAILED`, purgan sus recursos y reintentan cleanup pendiente. |
+
+## Fase 3 · Integraciones Git
+
+| Entregable | Ubicación | Decisión |
+| --- | --- | --- |
+| Integraciones Git | `backend/apps/repositories/` y `backend/core/crypto.py` | Tokens Git se cifran con AES-256-GCM y permanecen cifrados en PostgreSQL; la descifración ocurre solo al construir un cliente ligado a `organization_id`. GitHub y GitLab usan clientes REST autenticados, y el webhook valida firmas HMAC antes de encolar el evento. |
+| Pipeline PR y materialización | `backend/apps/repositories/workspace.py`, `pipeline.py`, `tasks.py` y `feedback.py` | El webhook crea revisiones idempotentes, el pipeline ejecuta un scan QUICK con archivos incrementales, publica checks/comentarios y purga el workspace en `finally`; el código fuente nunca se persiste en PostgreSQL. |
+| ChatOps y Autofix | `backend/apps/repositories/chatops.py`, `autofix.py` y `patches.py` | Los comandos ChatOps verifican permisos de escritura; los parches R4 se validan y se aplican mediante clientes Git sin almacenar el código fuente del cliente. |
+
 ## Frontend
 
 | Referencia | Destino | Adaptación |

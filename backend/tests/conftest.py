@@ -1,6 +1,7 @@
 """Fixtures compartidas para aislar conexiones y datos de pruebas."""
 
 from collections.abc import AsyncIterator, Iterator
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,14 +10,17 @@ from backend.apps.pentests.router import get_dispatch_pentest_run
 from backend.core.config import settings
 from backend.core.database import engine, get_db
 from backend.core.rate_limit import (
+    enforce_autofix_rate_limit,
     enforce_create_organization_rate_limit,
     enforce_email_resend_rate_limit,
     enforce_email_verification_rate_limit,
+    enforce_git_webhook_rate_limit,
     enforce_invitation_accept_rate_limit,
     enforce_invitation_rate_limit,
     enforce_login_rate_limit,
     enforce_pentest_rate_limit,
     enforce_register_rate_limit,
+    get_rate_limit_redis,
 )
 from backend.main import app
 
@@ -49,8 +53,11 @@ def override_auth_rate_limits() -> Iterator[None]:
     app.dependency_overrides[enforce_login_rate_limit] = lambda: None
     app.dependency_overrides[enforce_register_rate_limit] = lambda: None
     app.dependency_overrides[enforce_create_organization_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_autofix_rate_limit] = lambda: None
     app.dependency_overrides[enforce_email_verification_rate_limit] = lambda: None
     app.dependency_overrides[enforce_email_resend_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_git_webhook_rate_limit] = lambda: None
+    app.dependency_overrides[get_rate_limit_redis] = lambda: AsyncMock()
     app.dependency_overrides[enforce_invitation_accept_rate_limit] = lambda: None
     app.dependency_overrides[enforce_invitation_rate_limit] = lambda: None
     app.dependency_overrides[enforce_pentest_rate_limit] = lambda: None
@@ -59,8 +66,11 @@ def override_auth_rate_limits() -> Iterator[None]:
     app.dependency_overrides.pop(enforce_login_rate_limit, None)
     app.dependency_overrides.pop(enforce_register_rate_limit, None)
     app.dependency_overrides.pop(enforce_create_organization_rate_limit, None)
+    app.dependency_overrides.pop(enforce_autofix_rate_limit, None)
     app.dependency_overrides.pop(enforce_email_verification_rate_limit, None)
     app.dependency_overrides.pop(enforce_email_resend_rate_limit, None)
+    app.dependency_overrides.pop(enforce_git_webhook_rate_limit, None)
+    app.dependency_overrides.pop(get_rate_limit_redis, None)
     app.dependency_overrides.pop(enforce_invitation_accept_rate_limit, None)
     app.dependency_overrides.pop(enforce_invitation_rate_limit, None)
     app.dependency_overrides.pop(enforce_pentest_rate_limit, None)

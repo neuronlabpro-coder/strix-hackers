@@ -16,6 +16,11 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from backend.apps.pentests.models import PentestRun, ScanStatusEnum
+from backend.apps.repositories.models import (
+    PRReviewStatusEnum,
+    PullRequestReview,
+    Repository,
+)
 from backend.apps.vulnerabilities.models import Vulnerability
 from backend.core.config import settings
 from backend.core.database import create_database_engine
@@ -467,6 +472,67 @@ async def reconcile_orphaned_runs(
             run.status = ScanStatusEnum.FAILED
             run.finished_at = current_time
             run.error_message = "WORKER_WATCHDOG_ORPHANED"
+            review_result = await session.execute(
+                select(PullRequestReview)
+                .where(
+                    PullRequestReview.run_id == run.id,
+                    PullRequestReview.organization_id == run.organization_id,
+                )
+                .with_for_update()
+            )
+            for review in review_result.scalars().all():
+                if review.status in {
+                    PRReviewStatusEnum.QUEUED,
+                    PRReviewStatusEnum.SCANNING,
+                }:
+                    review.status = PRReviewStatusEnum.ERROR
+                    review.finished_at = current_time
+    queued_before = current_time - timedelta(seconds=settings.pr_review_stale_after_seconds)
+    terminal_review_result = await session.execute(
+        select(PullRequestReview)
+        .join(PentestRun, PentestRun.id == PullRequestReview.run_id)
+        .where(
+            PullRequestReview.status == PRReviewStatusEnum.SCANNING,
+            PullRequestReview.organization_id == PentestRun.organization_id,
+            PullRequestReview.created_at < queued_before,
+            PentestRun.status.in_(
+                {
+                    ScanStatusEnum.COMPLETED,
+                    ScanStatusEnum.FAILED,
+                    ScanStatusEnum.TIMED_OUT,
+                    ScanStatusEnum.ABORTED,
+                }
+            ),
+            PentestRun.finished_at.is_not(None),
+            PentestRun.finished_at < queued_before,
+        )
+    )
+    for terminal_review in terminal_review_result.scalars().all():
+        terminal_review.status = PRReviewStatusEnum.ERROR
+        terminal_review.finished_at = current_time
+    queued_result = await session.execute(
+        select(PullRequestReview)
+        .join(Repository, Repository.id == PullRequestReview.repository_id)
+        .where(
+            PullRequestReview.status == PRReviewStatusEnum.QUEUED,
+            PullRequestReview.created_at < queued_before,
+            PullRequestReview.organization_id == Repository.organization_id,
+            Repository.is_active.is_(True),
+            Repository.pr_reviews_enabled.is_(True),
+        )
+    )
+    from backend.apps.repositories.tasks import run_pr_security_pipeline
+
+    for queued_review in queued_result.scalars().all():
+        try:
+            run_pr_security_pipeline.delay(  # pyright: ignore[reportFunctionMemberAccess]
+                str(queued_review.id)
+            )
+        except Exception:
+            logger.exception(
+                "No se pudo reencolar la revisión PR obsoleta %s",
+                queued_review.id,
+            )
     await session.commit()
     return len(stale_runs)
 

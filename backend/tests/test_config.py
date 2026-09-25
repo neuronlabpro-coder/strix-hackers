@@ -31,7 +31,12 @@ def build_environment_values() -> dict[str, str | int | float | bool | None]:
         "redis_db": 0,
         "celery_redis_db": 1,
         "redis_socket_timeout_seconds": 10,
-        "git_encryption_key": "clave-de-cifrado-de-prueba-para-aes-256-gcm",
+        "git_encryption_key": "dGVzdC1rZXktMzItYnl0ZXMtMDAwMDAwMDAwMDBBQkM",
+        "git_webhook_max_body_bytes": 2_000_000,
+        "git_webhook_rate_limit": 120,
+        "git_webhook_rate_window_seconds": 60,
+        "git_webhook_replay_ttl_seconds": 86_400,
+        "git_api_timeout_seconds": 10,
         "jwt_algorithm": "HS256",
         "access_token_expire_minutes": 60,
         "invitation_expire_days": 7,
@@ -101,6 +106,33 @@ def test_settings_loads_infrastructure_values_from_env_file(tmp_path: Path) -> N
     assert settings.redis_host == "100.89.59.70"
     assert settings.redis_port == 6380
     assert settings.celery_redis_url.endswith("/1")
+    assert settings.git_encryption_key_bytes == b"test-key-32-bytes-00000000000ABC"
+
+
+def test_settings_rejects_git_encryption_key_without_exact_aes_length() -> None:
+    values = build_environment_values()
+    values["git_encryption_key"] = "a" * 33
+
+    with pytest.raises(ValidationError, match="32 bytes"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+@pytest.mark.parametrize(
+    "example_key",
+    [
+        "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY",
+        "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+        "0123456789abcdef0123456789abcdef",
+    ],
+)
+def test_settings_rejects_public_example_git_key_in_production(example_key: str) -> None:
+    values = build_environment_values()
+    values["environment"] = "production"
+    values["debug"] = False
+    values["git_encryption_key"] = example_key
+
+    with pytest.raises(ValidationError, match="ejemplo"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_rejects_database_url_that_does_not_match_components() -> None:

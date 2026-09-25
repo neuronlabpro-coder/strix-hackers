@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from backend.apps.organizations import models as organization_models  # noqa: F401
 from backend.apps.pentests import models as pentest_models  # noqa: F401
+from backend.apps.repositories import models as repository_models  # noqa: F401
 from backend.apps.vulnerabilities import models as vulnerability_models  # noqa: F401
 from backend.core.config import settings
 from backend.core.database import Base

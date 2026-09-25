@@ -255,7 +255,7 @@ Marca cada fase únicamente cuando se hayan cumplido todos los puntos de su *Def
 - [ ] **Fase 5** · Facturación Híbrida Stripe, Credit Ledger, API Keys & Servidor MCP
 - [ ] **Fase 6** · Auditoría de Seguridad End-to-End, Hardening Dokploy & Despliegue
 
-> **Nota de estado (2026-09-25):** la auditoría externa confirma `5433` y `6380` cerrados/filtrados a Internet y la configuración SMTP completa está presente en el entorno local; por ello la Fase 1 queda cerrada. La Fase 2 está activa: los Bloques 2.1 y 2.2 están implementados en código y pruebas; queda validar la ejecución Docker real, el contrato de la imagen, el egress/SSRF y el cleanup forense antes de cerrar el DoD completo de Fase 2.
+> **Nota de estado (2026-09-25):** la auditoría externa confirma `5433` y `6380` cerrados/filtrados a Internet y la configuración SMTP completa está presente en el entorno local; por ello la Fase 1 queda cerrada. La Fase 2 conserva pendientes E2E del runner. La Fase 3 está activa: los Bloques 3.1 y 3.2 (criptografía, modelos Git, webhooks, pipeline PR, materialización efímera, ChatOps y autofix) están implementados en código y pruebas; queda completar OAuth, conectores Bitbucket/Gitea, inbox/outbox durable, validación E2E contra proveedores y endurecimiento de producción para cerrar la fase.
 
 ---
 
