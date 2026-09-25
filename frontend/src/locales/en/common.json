@@ -1,0 +1,40 @@
+{
+  "appName": "Mind Guard Fenix Team",
+  "appDescription": "Continuous offensive security platform",
+  "language": "Language",
+  "switchToEnglish": "Switch to English",
+  "switchToSpanish": "Switch to Spanish",
+  "loading": "Loading",
+  "workspaceReady": "Active workspace",
+  "newPentest": "New pentest",
+  "signOut": "Sign out",
+  "noWorkspace": "Select a workspace",
+  "userFallback": "Authenticated user",
+  "userInitials": "U",
+  "headerStatus": "Security control connected",
+  "mainNavigation": "Main navigation",
+  "assetsNavigation": "Assets and configuration",
+  "createWorkspace": "Create workspace",
+  "organizationSelector": "Organization selector",
+  "selectOrganization": "Select organization",
+  "currentOrganization": "Current organization",
+  "profile": "Profile",
+  "noOrganizations": "No workspaces available",
+  "authRequired": "Sign in to continue",
+  "pageNotFound": "Page not found",
+  "backToDashboard": "Back to dashboard",
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Initial view for {{workspace}}.",
+    "getStarted": "Next steps",
+    "getStartedTitle": "Prepare your security workspace",
+    "getStartedDescription": "Connect repositories, configure context, and launch your first pentest.",
+    "metrics": {
+      "securityScore": "Security score",
+      "openIssues": "Open issues",
+      "prsReviewed": "PRs reviewed",
+      "pentests": "Pentests",
+      "pending": "Awaiting data"
+    }
+  }
+}

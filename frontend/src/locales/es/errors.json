@@ -1,0 +1,7 @@
+{
+  "requestFailed": "No se pudo completar la solicitud. Inténtalo de nuevo.",
+  "invalidCredentials": "Las credenciales no son válidas.",
+  "registrationFailed": "No se pudo crear la cuenta.",
+  "sessionExpired": "Tu sesión ha expirado. Vuelve a iniciar sesión.",
+  "workspaceLoadFailed": "No se pudieron cargar los workspaces."
+}

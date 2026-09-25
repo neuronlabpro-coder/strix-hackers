@@ -1,0 +1,1 @@
+"""Utilidades ejecutables del backend."""

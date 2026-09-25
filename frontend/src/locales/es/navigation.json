@@ -1,0 +1,12 @@
+{
+  "dashboard": "Dashboard",
+  "pentests": "Pentests",
+  "issues": "Issues",
+  "prReviews": "PR Reviews",
+  "repositories": "Repositories",
+  "knowledge": "Knowledge",
+  "settings": "Settings",
+  "workspace": "Workspace",
+  "locked": "Bloqueado",
+  "comingSoon": "Esta vista estará disponible en una fase posterior."
+}

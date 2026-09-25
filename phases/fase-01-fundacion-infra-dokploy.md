@@ -53,14 +53,14 @@ Posteriormente, extraer y adaptar desde `engines/saas-boilerplate` el núcleo de
    DB_PORT=5433
    DB_NAME=fenix_team_db
    DB_USER=fenix_admin
-   DB_PASSWORD=Fenix_Secure_Pass_2026!
-   DATABASE_URL=postgresql+asyncpg://fenix_admin:Fenix_Secure_Pass_2026!@100.89.59.70:5433/fenix_team_db
+   DB_PASSWORD=<configurar_en_dotenv>
+   DATABASE_URL=postgresql+asyncpg://<DB_USER>:<DB_PASSWORD>@100.89.59.70:5433/<DB_NAME>
 
    # Redis Remoto (Dokploy VPS vía Tailscale)
    REDIS_HOST=100.89.59.70
    REDIS_PORT=6380
-   REDIS_PASSWORD=Fenix_Redis_Secret_2026!
-   REDIS_URL=redis://:Fenix_Redis_Secret_2026!@100.89.59.70:6380/0
+   REDIS_PASSWORD=<configurar_en_dotenv>
+   REDIS_URL=redis://:<REDIS_PASSWORD>@100.89.59.70:6380/0
 
    # Criptografía interna (R3)
    GIT_ENCRYPTION_KEY=clave_aes256_32_bytes_de_ejemplo_para_dev!
