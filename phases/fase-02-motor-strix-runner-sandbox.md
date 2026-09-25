@@ -2,7 +2,7 @@
 
 > **Documento de especificación ejecutable.** Define la arquitectura del runner ofensivo, orquestación de colas asíncronas con Celery/Redis, ejecución headless de Strix (`strix -n`) en contenedores Docker efímeros, control de recursos, ingesta estructurada de vulnerabilidades y almacenamiento inmutable de Pruebas de Concepto (PoC).
 >
-> **Estado:** `[ ]` Pendiente de ejecución  
+> **Estado:** `[ ]` Pendiente de cierre E2E — Bloques 2.1 y 2.2 implementados en código y pruebas
 > **Dependencias previas:** Fase 1 completada y validada (Base de datos PostgreSQL 16, Redis 7, Organizaciones y Auth con aislamiento multi-tenant R3).  
 > **Autoridades que rigen esta fase:** `ARCHITECTURE.md` (§1, §2.2, §2.3, §4), `AGENTS.md` (Reglas de Oro R2, R3, R4 y R5).
 
@@ -28,7 +28,7 @@ Cada análisis se ejecutará dentro de un contenedor Docker efímero (`ghcr.io/u
      * Cuota de procesador: `2 vCPUs` (`--cpus="2.0"`).
      * Timeout duro de ejecución por escaneo: cancelable por Celery y forzado a nivel de Docker (`docker kill` si excede el tiempo máximo configurado, por defecto 30 minutos).
 3. **Privacidad y Zero Data en Código Fuente (R5):**
-   * El código del repositorio o los artefactos del target residen en un volumen montado temporal: `/tmp/strix_workspaces/<job_id>/workspace`.
+   * El código del repositorio o los artefactos del target residen en un volumen montado temporal: `/tmp/fenix_workspaces/<job_id>/workspace`.
    * El ciclo de vida está encapsulado en un bloque `try ... finally` garantizado:
      ```python
      try:
@@ -37,7 +37,7 @@ Cada análisis se ejecutará dentro de un contenedor Docker efímero (`ghcr.io/u
          # 3. Parsear JSON de salida strix_runs/
      finally:
          # 4. Detener y remover contenedor Docker (force=True)
-         # 5. Destrucción segura en disco del directorio temporal (/tmp/strix_workspaces/<job_id>)
+         # 5. Destrucción segura en disco del directorio temporal (/tmp/fenix_workspaces/<job_id>)
      ```
    * En PostgreSQL nunca se persiste el código fuente completo, únicamente referencias de archivos, números de línea, trazas de PoC y parches de corrección.
 4. **Inmutabilidad de Evidencias (R4):**
@@ -72,7 +72,7 @@ Cada análisis se ejecutará dentro de un contenedor Docker efímero (`ghcr.io/u
    * Broker y Result Backend apuntando a Redis en VPS por Tailscale: `redis://:${REDIS_PASSWORD}@${TAILSCALE_BIND_IP}:6379/1`.
    * Serializador estricto JSON: `task_serializer = "json"`, `accept_content = ["json"]`.
    * Prefetch limitado para evitar acumulación de jobs pesados en un solo worker: `worker_prefetch_multiplier = 1`.
-   * Límites de tiempo: `task_time_limit = 2400` (40 minutos timeout duro), `task_soft_time_limit = 1800` (30 minutos para limpieza controlada).
+   * Límites de tiempo: `task_time_limit = 2400` (40 minutos timeout duro), `task_soft_time_limit = 2100` (35 minutos; deja margen para que el runner aplique sus límites y limpie).
 
 ---
 
@@ -245,7 +245,11 @@ class StrixSandboxManager:
                 os.path.join(workspace_dir, "output"): {"bind": "/workspace/output", "mode": "rw"}
             }
 
-            command = f"strix -n --target /workspace/target --scan-mode {self.scan_mode} --output {output_file}"
+            command = [
+                "strix", "-n", "--target", self.target_argument,
+                "--scan-mode", self.scan_mode, "--run-name", self.run_name,
+                "--output", output_file,
+            ]
 
             self.container = self.client.containers.run(
                 image=self.SANDBOX_IMAGE,
@@ -254,7 +258,8 @@ class StrixSandboxManager:
                 volumes=volumes,
                 mem_limit="4g",
                 nano_cpus=int(2.0 * 1e9),
-                network_mode="bridge",
+                pids_limit=256,
+                network=self.network_name,
                 detach=True,
                 remove=False
             )
@@ -350,7 +355,7 @@ Para dar por concluida la Fase 2, se deben validar y marcar todas las casillas s
 - [ ] **Ingesta Atómica de Hallazgos:** El parser procesa `results.json` e inserta correctamente los registros en `PentestRun` y `Vulnerabilities` con sus campos CVSS y PoC.
 - [ ] **Destrucción y Zero Data Verificada (R5):** Comprobado mediante inspección en disco tras la ejecución:
   * El contenedor Docker es detenido y eliminado (`docker ps -a` no lo lista).
-  * El directorio temporal `/tmp/strix_workspaces/<job_id>` es purgado al 100%.
+  * El directorio temporal `/tmp/fenix_workspaces/<job_id>` es purgado al 100%.
   * La base de datos no contiene copias del código analizado.
 - [ ] **Resiliencia ante Timeouts y Abortos:** Si un job excede el límite de tiempo o se invoca `/abort`, el contenedor es eliminado de forma forzada y el estado pasa a `TIMED_OUT` o `ABORTED`.
 - [ ] **Inmutabilidad Relacional de Evidencias (R4):** Un intento de ejecutar un script SQL que modifique `poc_reproduction_raw` o `cvss_score` en un registro existente es rechazado por el trigger de PostgreSQL.

@@ -9,8 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.organizations.models import Organization, RoleEnum, User
 from backend.apps.organizations.schemas import (
+    EmailResendRequest,
+    EmailResendResponse,
     EmailVerificationRequest,
     EmailVerificationResponse,
+    InvitationAcceptRequest,
+    InvitationAcceptResponse,
     InvitationCreate,
     InvitationResponse,
     LoginRequest,
@@ -22,20 +26,30 @@ from backend.apps.organizations.schemas import (
     UserResponse,
 )
 from backend.apps.organizations.services import (
+    accept_invitation as accept_organization_invitation,
+)
+from backend.apps.organizations.services import (
     authenticate_user,
     create_invitation,
     create_organization_for_user,
     list_organizations_for_user,
     register_user_with_initial_organization,
+    rotate_email_verification_token,
     verify_user_email,
 )
 from backend.core.config import settings
 from backend.core.database import get_db
-from backend.core.email import EmailDeliveryError, deliver_email_verification
+from backend.core.email import (
+    EmailDeliveryError,
+    deliver_email_verification,
+    deliver_invitation,
+)
 from backend.core.middleware import TenantContext, get_current_tenant, get_current_user
 from backend.core.rate_limit import (
     enforce_create_organization_rate_limit,
+    enforce_email_resend_rate_limit,
     enforce_email_verification_rate_limit,
+    enforce_invitation_accept_rate_limit,
     enforce_invitation_rate_limit,
     enforce_login_rate_limit,
     enforce_register_rate_limit,
@@ -88,6 +102,7 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="No se pudo enviar el email de verificación",
+            headers={"Retry-After": "60"},
         ) from error
     except IntegrityError as error:
         raise HTTPException(
@@ -124,6 +139,68 @@ async def verify_email(
             detail="El token de verificación no es válido o ha expirado",
         )
     return EmailVerificationResponse(verified=True)
+
+
+@router.post(
+    "/api/v1/auth/resend-verification",
+    response_model=EmailResendResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(enforce_email_resend_rate_limit)],
+)
+async def resend_email_verification(
+    payload: EmailResendRequest,
+    session: SessionDependency,
+) -> EmailResendResponse:
+    """Rota y reenvía el token sin revelar si una cuenta existe."""
+
+    result = await rotate_email_verification_token(session, str(payload.email))
+    if result is not None:
+        user, verification_token = result
+        try:
+            await deliver_email_verification(user.email, verification_token)
+        except EmailDeliveryError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No se pudo enviar el email de verificación",
+                headers={"Retry-After": "60"},
+            ) from error
+
+    return EmailResendResponse(
+        accepted=True,
+        verification_token=(
+            result[1]
+            if result is not None
+            and settings.email_verification_delivery_mode == "development"
+            else None
+        ),
+    )
+
+
+@router.post(
+    "/api/v1/invitations/accept",
+    response_model=InvitationAcceptResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_invitation_accept_rate_limit)],
+)
+async def accept_invitation(
+    payload: InvitationAcceptRequest,
+    current_user: CurrentUserDependency,
+    session: SessionDependency,
+) -> InvitationAcceptResponse:
+    """Acepta la invitación únicamente para el usuario que recibió el email."""
+
+    result = await accept_organization_invitation(session, payload.token, current_user.id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La invitación no es válida o ha expirado",
+        )
+    organization, membership = result
+    return InvitationAcceptResponse(
+        organization_id=organization.id,
+        role=membership.role,
+        accepted=True,
+    )
 
 
 @router.post(
@@ -210,4 +287,22 @@ async def invite_member(
         )
 
     invitation = await create_invitation(session, organization_id, payload)
-    return InvitationResponse.model_validate(invitation)
+    try:
+        await deliver_invitation(invitation.email, invitation.token)
+    except EmailDeliveryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo enviar la invitación por email",
+            headers={"Retry-After": "60"},
+        ) from error
+
+    return InvitationResponse(
+        id=invitation.id,
+        email=invitation.email,
+        role=invitation.role,
+        expires_at=invitation.expires_at,
+        accepted=invitation.accepted,
+        invitation_token=(
+            invitation.token if settings.email_verification_delivery_mode == "development" else None
+        ),
+    )

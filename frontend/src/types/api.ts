@@ -42,6 +42,17 @@ export interface EmailVerificationResponse {
   verified: boolean
 }
 
+export interface EmailResendResponse {
+  accepted: boolean
+  verification_token: string | null
+}
+
+export interface InvitationAcceptResponse {
+  organization_id: string
+  role: OrganizationRole
+  accepted: boolean
+}
+
 export interface LoginPayload {
   email: string
   password: string

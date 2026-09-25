@@ -10,6 +10,12 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from backend.apps.organizations.models import User
+from backend.apps.organizations.schemas import (
+    EmailResendRequest,
+    EmailVerificationRequest,
+    InvitationAcceptRequest,
+    LoginRequest,
+)
 from backend.core.config import settings
 from backend.core.middleware import TenantContext, get_current_tenant, get_current_user
 from backend.core.redis import redis_client
@@ -53,7 +59,7 @@ async def _apply_rate_limit(
 ) -> RateLimitResult:
     key = rate_limit_key(scope, identifier)
     try:
-        count_result = client.eval(_RATE_LIMIT_SCRIPT, 1, key, window_seconds)
+        count_result = client.eval(_RATE_LIMIT_SCRIPT, 1, key, str(window_seconds))
         if isawaitable(count_result):
             count_result = await count_result
         count = int(count_result)
@@ -91,14 +97,22 @@ TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
 
 async def enforce_login_rate_limit(
     request: Request,
+    payload: LoginRequest,
     client: RedisDependency,
 ) -> None:
-    """Limita los intentos de login por IP y ventana configurada."""
+    """Limita los intentos de login por IP y por cuenta normalizada."""
 
     await _apply_rate_limit(
         client,
-        "login",
+        "login-ip",
         _request_identifier(request),
+        settings.auth_login_rate_limit,
+        settings.auth_login_rate_window_seconds,
+    )
+    await _apply_rate_limit(
+        client,
+        "login-account",
+        str(payload.email).strip().lower(),
         settings.auth_login_rate_limit,
         settings.auth_login_rate_window_seconds,
     )
@@ -136,16 +150,85 @@ async def enforce_create_organization_rate_limit(
 
 async def enforce_email_verification_rate_limit(
     request: Request,
+    payload: EmailVerificationRequest,
     client: RedisDependency,
 ) -> None:
-    """Limita los intentos de verificación de email por IP."""
+    """Limita la verificación por IP y por token, sin almacenar el token en Redis."""
 
     await _apply_rate_limit(
         client,
-        "email-verification",
+        "email-verification-ip",
         _request_identifier(request),
         settings.auth_register_rate_limit,
         settings.auth_register_rate_window_seconds,
+    )
+    await _apply_rate_limit(
+        client,
+        "email-verification-token",
+        payload.token,
+        settings.auth_register_rate_limit,
+        settings.auth_register_rate_window_seconds,
+    )
+
+
+async def enforce_email_resend_rate_limit(
+    request: Request,
+    payload: EmailResendRequest,
+    client: RedisDependency,
+) -> None:
+    """Limita el reenvío por IP y por email sin revelar la cuenta."""
+
+    await _apply_rate_limit(
+        client,
+        "email-resend-ip",
+        _request_identifier(request),
+        settings.auth_register_rate_limit,
+        settings.auth_register_rate_window_seconds,
+    )
+    await _apply_rate_limit(
+        client,
+        "email-resend-account",
+        str(payload.email).strip().lower(),
+        settings.auth_register_rate_limit,
+        settings.auth_register_rate_window_seconds,
+    )
+
+
+async def enforce_invitation_accept_rate_limit(
+    request: Request,
+    payload: InvitationAcceptRequest,
+    client: RedisDependency,
+) -> None:
+    """Limita intentos de adivinar tokens de invitación por IP y token."""
+
+    await _apply_rate_limit(
+        client,
+        "invitation-accept-ip",
+        _request_identifier(request),
+        settings.auth_register_rate_limit,
+        settings.auth_register_rate_window_seconds,
+    )
+    await _apply_rate_limit(
+        client,
+        "invitation-accept-token",
+        payload.token,
+        settings.auth_register_rate_limit,
+        settings.auth_register_rate_window_seconds,
+    )
+
+
+async def enforce_pentest_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita la creación de pentests por usuario y organización."""
+
+    await _apply_rate_limit(
+        client,
+        "pentest-create",
+        f"{tenant.user.id}:{tenant.organization.id}",
+        settings.pentest_create_rate_limit,
+        settings.pentest_create_rate_window_seconds,
     )
 
 

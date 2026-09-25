@@ -1,18 +1,28 @@
 import { useState, type FormEvent } from 'react'
 import { ShieldCheck } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { resendVerificationRequest } from '../../lib/api'
 import { useAuth } from './useAuth'
 
 interface AuthPageProps {
   mode: 'login' | 'register'
 }
 
+function getSafeReturnPath(value: string | null): string {
+  if (value?.startsWith('/') && !value.startsWith('//') && !value.includes('\\')) {
+    return value
+  }
+  return '/dashboard'
+}
+
 export function AuthPage({ mode }: AuthPageProps) {
   const { t } = useTranslation(['auth', 'errors'])
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnPath = getSafeReturnPath(searchParams.get('returnTo'))
   const { login, register } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,6 +32,10 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
   const [verificationToken, setVerificationToken] = useState<string | null>(null)
+  const [showResendVerification, setShowResendVerification] = useState(false)
+  const [isResending, setIsResending] = useState(false)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
+  const [resendFailed, setResendFailed] = useState(false)
   const isRegisterMode = mode === 'register'
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -29,6 +43,9 @@ export function AuthPage({ mode }: AuthPageProps) {
     setError(null)
     setVerificationMessage(null)
     setVerificationToken(null)
+    setShowResendVerification(false)
+    setResendMessage(null)
+    setResendFailed(false)
     setIsSubmitting(true)
 
     try {
@@ -42,16 +59,38 @@ export function AuthPage({ mode }: AuthPageProps) {
         if (response.verification_required) {
           setVerificationMessage(t('auth:verificationRequired'))
           setVerificationToken(response.verification_token)
+          setShowResendVerification(true)
           return
         }
       } else {
         await login({ email, password })
       }
-      navigate('/dashboard', { replace: true })
+      navigate(returnPath, { replace: true })
     } catch {
+      if (isRegisterMode) {
+        setShowResendVerification(true)
+      }
       setError(t(isRegisterMode ? 'errors:registrationFailed' : 'errors:invalidCredentials'))
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleResendVerification() {
+    setIsResending(true)
+    setResendMessage(null)
+    setResendFailed(false)
+    try {
+      const response = await resendVerificationRequest(email)
+      if (response.verification_token) {
+        setVerificationToken(response.verification_token)
+      }
+      setResendMessage(t('auth:verificationResent'))
+    } catch {
+      setResendFailed(true)
+      setResendMessage(t('errors:resendVerificationFailed'))
+    } finally {
+      setIsResending(false)
     }
   }
 
@@ -167,6 +206,24 @@ export function AuthPage({ mode }: AuthPageProps) {
             {t(isSubmitting ? 'auth:submitting' : isRegisterMode ? 'auth:submitRegister' : 'auth:submitLogin')}
           </button>
         </form>
+
+        {showResendVerification && isRegisterMode ? (
+          <div className="auth-form">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void handleResendVerification()}
+              disabled={isResending}
+            >
+              {t(isResending ? 'auth:resendingVerification' : 'auth:resendVerification')}
+            </button>
+            {resendMessage ? (
+              <p className={resendFailed ? 'form-error' : 'form-success'} role="status">
+                {resendMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <Link className="auth-switch" to={isRegisterMode ? '/login' : '/register'}>
           {t(isRegisterMode ? 'auth:switchToLogin' : 'auth:switchToRegister')}

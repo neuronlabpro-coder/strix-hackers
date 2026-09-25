@@ -5,8 +5,15 @@ from fastapi import HTTPException
 from redis.asyncio import Redis
 from starlette.requests import Request
 
+from backend.apps.organizations.schemas import (
+    EmailResendRequest,
+    InvitationAcceptRequest,
+    LoginRequest,
+)
 from backend.core.config import settings
 from backend.core.rate_limit import (
+    enforce_email_resend_rate_limit,
+    enforce_invitation_accept_rate_limit,
     enforce_login_rate_limit,
     enforce_register_rate_limit,
     rate_limit_key,
@@ -41,10 +48,62 @@ async def test_login_rate_limit_returns_429_with_retry_after() -> None:
     redis.ttl.return_value = 42
 
     with pytest.raises(HTTPException) as error:
-        await enforce_login_rate_limit(make_request(), redis)
+        await enforce_login_rate_limit(
+            make_request(),
+            LoginRequest(email="user@example.com", password="contraseña-de-prueba-123"),
+            redis,
+        )
 
     assert error.value.status_code == 429
     assert error.value.headers == {"Retry-After": "42"}
+
+
+@pytest.mark.asyncio
+async def test_login_rate_limit_uses_ip_and_account_buckets() -> None:
+    redis = AsyncMock(spec=Redis)
+    redis.eval.side_effect = [settings.auth_login_rate_limit, settings.auth_login_rate_limit]
+    redis.ttl.side_effect = [60, 60]
+
+    await enforce_login_rate_limit(
+        make_request(),
+        LoginRequest(email="User@Example.COM", password="contraseña-de-prueba-123"),
+        redis,
+    )
+
+    assert redis.eval.call_count == 2
+    assert redis.ttl.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_email_resend_rate_limit_uses_email_bucket() -> None:
+    redis = AsyncMock(spec=Redis)
+    redis.eval.side_effect = [settings.auth_register_rate_limit, settings.auth_register_rate_limit]
+    redis.ttl.side_effect = [60, 60]
+
+    await enforce_email_resend_rate_limit(
+        make_request(),
+        EmailResendRequest(email="user@example.com"),
+        redis,
+    )
+
+    assert redis.eval.call_count == 2
+    assert redis.ttl.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_invitation_acceptance_rate_limit_uses_token_bucket() -> None:
+    redis = AsyncMock(spec=Redis)
+    redis.eval.side_effect = [settings.auth_register_rate_limit, settings.auth_register_rate_limit]
+    redis.ttl.side_effect = [60, 60]
+
+    await enforce_invitation_accept_rate_limit(
+        make_request(),
+        InvitationAcceptRequest(token="a" * 32),
+        redis,
+    )
+
+    assert redis.eval.call_count == 2
+    assert redis.ttl.call_count == 2
 
 
 @pytest.mark.asyncio

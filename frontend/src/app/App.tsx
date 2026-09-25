@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAuth } from '../features/auth/useAuth'
+import { AcceptInvitationPage } from '../features/auth/AcceptInvitationPage'
 import { AuthPage } from '../features/auth/AuthPage'
 import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
@@ -50,6 +51,7 @@ export default function App() {
         element={token ? <Navigate to="/dashboard" replace /> : <AuthPage mode="register" />}
       />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
       <Route element={<ProtectedShell />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/pentests" element={<PlaceholderPage titleKey="navigation:pentests" />} />

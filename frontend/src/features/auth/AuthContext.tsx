@@ -69,32 +69,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (payload: LoginPayload) => {
     setIsLoading(true)
-    const response = await loginRequest(payload)
-    const authenticatedUser: StoredUser = {
-      email: payload.email,
-      full_name: payload.email,
+    try {
+      const response = await loginRequest(payload)
+      const authenticatedUser: StoredUser = {
+        email: payload.email,
+        full_name: payload.email,
+      }
+      saveSession({ token: response.access_token, user: authenticatedUser })
+      setToken(response.access_token)
+      setUser(authenticatedUser)
+    } finally {
+      setIsLoading(false)
     }
-    saveSession({ token: response.access_token, user: authenticatedUser })
-    setToken(response.access_token)
-    setUser(authenticatedUser)
   }, [])
 
   const register = useCallback(async (payload: RegisterPayload) => {
     setIsLoading(true)
-    const response = await registerRequest(payload)
-    if (response.verification_required) {
-      setIsLoading(false)
-      return response
-    }
+    try {
+      const response = await registerRequest(payload)
+      if (response.verification_required) {
+        return response
+      }
 
-    const loginResponse = await loginRequest({
-      email: payload.email,
-      password: payload.password,
-    })
-    saveSession({ token: loginResponse.access_token, user: response.user })
-    setToken(loginResponse.access_token)
-    setUser(response.user)
-    return response
+      const loginResponse = await loginRequest({
+        email: payload.email,
+        password: payload.password,
+      })
+      saveSession({ token: loginResponse.access_token, user: response.user })
+      setToken(loginResponse.access_token)
+      setUser(response.user)
+      return response
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
   const logout = useCallback(() => {

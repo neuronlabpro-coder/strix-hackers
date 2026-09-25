@@ -72,6 +72,15 @@ class EmailVerificationResponse(BaseModel):
     verified: bool
 
 
+class EmailResendRequest(StrictSchema):
+    email: EmailStr
+
+
+class EmailResendResponse(BaseModel):
+    accepted: bool
+    verification_token: str | None = None
+
+
 class OrganizationCreate(StrictSchema):
     name: str = Field(min_length=1, max_length=128)
     slug: str | None = Field(default=None, min_length=1, max_length=128)
@@ -103,4 +112,15 @@ class InvitationResponse(BaseModel):
     email: EmailStr
     role: RoleEnum
     expires_at: datetime
+    accepted: bool
+    invitation_token: str | None = None
+
+
+class InvitationAcceptRequest(StrictSchema):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class InvitationAcceptResponse(BaseModel):
+    organization_id: UUID
+    role: RoleEnum
     accepted: bool

@@ -29,6 +29,7 @@ def build_environment_values() -> dict[str, str | int | float | bool | None]:
         "redis_password": "clave-redis-de-prueba",
         "redis_url": "redis://:clave-redis-de-prueba@100.89.59.70:6380/0",
         "redis_db": 0,
+        "celery_redis_db": 1,
         "redis_socket_timeout_seconds": 10,
         "git_encryption_key": "clave-de-cifrado-de-prueba-para-aes-256-gcm",
         "jwt_algorithm": "HS256",
@@ -45,6 +46,29 @@ def build_environment_values() -> dict[str, str | int | float | bool | None]:
         "organization_create_rate_window_seconds": 60,
         "invitation_rate_limit": 10,
         "invitation_rate_window_seconds": 3600,
+        "pentest_create_rate_limit": 5,
+        "pentest_create_rate_window_seconds": 60,
+        "celery_task_time_limit_seconds": 2400,
+        "celery_task_soft_time_limit_seconds": 2100,
+        "strix_max_output_bytes": 10_000_000,
+        "strix_max_findings": 10_000,
+        "strix_max_description_chars": 100_000,
+        "strix_max_poc_chars": 1_000_000,
+        "strix_max_autofix_chars": 2_000_000,
+        "strix_sandbox_image": "ghcr.io/usestrix/strix-sandbox:latest",
+        "strix_workspace_root": "/tmp/fenix_workspaces",  # noqa: S108
+        "strix_network_prefix": "strix_net",
+        "strix_memory_limit": "4g",
+        "strix_cpu_limit": 2.0,
+        "strix_pids_limit": 256,
+        "strix_worker_concurrency": 1,
+        "strix_hard_timeout_seconds": 1800,
+        "strix_soft_timeout_seconds": 1500,
+        "strix_watchdog_interval_seconds": 300,
+        "strix_watchdog_stale_after_seconds": 1860,
+        "default_strix_llm": "openrouter/test-model",
+        "llm_api_key": "clave-llm-de-prueba",
+        "llm_api_base": "https://api.example.com/v1",
         "email_verification_ttl_minutes": 1440,
         "email_verification_delivery_mode": "development",
         "email_verification_from": "no-reply@example.com",
@@ -76,6 +100,7 @@ def test_settings_loads_infrastructure_values_from_env_file(tmp_path: Path) -> N
     assert settings.db_port == 5433
     assert settings.redis_host == "100.89.59.70"
     assert settings.redis_port == 6380
+    assert settings.celery_redis_url.endswith("/1")
 
 
 def test_settings_rejects_database_url_that_does_not_match_components() -> None:
@@ -96,6 +121,63 @@ def test_settings_rejects_debug_mode_in_production() -> None:
 
     with pytest.raises(ValidationError, match="DEBUG"):
         Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_rejects_development_email_delivery_in_production() -> None:
+    values = build_environment_values()
+    values["environment"] = "production"
+    values["debug"] = False
+    values["email_verification_delivery_mode"] = "development"
+
+    with pytest.raises(ValidationError, match="smtp"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_rejects_insecure_production_smtp_transport() -> None:
+    values = build_environment_values()
+    values["environment"] = "production"
+    values["debug"] = False
+    values["email_verification_delivery_mode"] = "smtp"
+    values["smtp_host"] = "smtp.example.com"
+    values["frontend_base_url"] = "http://app.example.com"
+
+    with pytest.raises(ValidationError, match="HTTPS"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_rejects_incomplete_smtp_credentials() -> None:
+    values = build_environment_values()
+    values["email_verification_delivery_mode"] = "smtp"
+    values["smtp_host"] = "smtp.example.com"
+    values["smtp_username"] = "smtp-user"
+    values["smtp_password"] = None
+
+    with pytest.raises(ValidationError, match="credenciales SMTP"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_rejects_shared_redis_database_for_celery() -> None:
+    values = build_environment_values()
+    values["celery_redis_db"] = values["redis_db"]
+
+    with pytest.raises(ValidationError, match="CELERY_REDIS_DB"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_accepts_secure_production_smtp_configuration() -> None:
+    values = build_environment_values()
+    values["environment"] = "production"
+    values["debug"] = False
+    values["email_verification_delivery_mode"] = "smtp"
+    values["smtp_host"] = "smtp.example.com"
+    values["smtp_username"] = "smtp-user"
+    values["smtp_password"] = "smtp-password"
+    values["frontend_base_url"] = "https://app.example.com"
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert settings.environment == "production"
+    assert settings.smtp_use_tls is True
 
 
 def test_settings_repr_hides_sensitive_values() -> None:

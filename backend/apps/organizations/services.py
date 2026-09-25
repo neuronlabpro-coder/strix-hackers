@@ -130,6 +130,92 @@ async def verify_user_email(session: AsyncSession, token: str) -> bool:
     return True
 
 
+async def rotate_email_verification_token(
+    session: AsyncSession,
+    email: str,
+) -> tuple[User, str] | None:
+    """Rota el token de una cuenta pendiente y lo persiste antes del envío."""
+
+    result = await session.execute(
+        select(User).where(
+            User.email == normalize_email(email),
+            User.is_active.is_(True),
+            User.email_verified.is_(False),
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        return None
+
+    verification_token = secrets.token_urlsafe(32)
+    user.email_verification_token_hash = hash_email_verification_token(verification_token)
+    user.email_verification_expires_at = datetime.now(UTC) + timedelta(
+        minutes=settings.email_verification_ttl_minutes
+    )
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise
+    return user, verification_token
+
+
+async def accept_invitation(
+    session: AsyncSession,
+    token: str,
+    user_id: uuid.UUID,
+) -> tuple[Organization, Membership] | None:
+    """Acepta una invitación válida para el usuario autenticado."""
+
+    result = await session.execute(
+        select(Invitation, Organization, User)
+        .join(Organization, Organization.id == Invitation.organization_id)
+        .join(User, User.email == Invitation.email)
+        .where(
+            Invitation.token == token.strip(),
+            Invitation.accepted.is_(False),
+            Invitation.expires_at > datetime.now(UTC),
+            User.id == user_id,
+            User.is_active.is_(True),
+            User.email_verified.is_(True),
+        )
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+
+    invitation, organization, user = row
+    if normalize_email(user.email) != normalize_email(invitation.email):
+        return None
+
+    existing_result = await session.execute(
+        select(Membership).where(
+            Membership.organization_id == organization.id,
+            Membership.user_id == user.id,
+            Membership.is_active.is_(True),
+        )
+    )
+    existing_membership = existing_result.scalar_one_or_none()
+    if existing_membership is not None:
+        invitation.accepted = True
+        await session.commit()
+        return organization, existing_membership
+
+    membership = Membership(
+        organization_id=organization.id,
+        user_id=user.id,
+        role=invitation.role,
+    )
+    session.add(membership)
+    invitation.accepted = True
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise
+    return organization, membership
+
+
 async def list_organizations_for_user(
     session: AsyncSession,
     user_id: uuid.UUID,

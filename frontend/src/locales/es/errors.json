@@ -4,5 +4,6 @@
   "registrationFailed": "No se pudo crear la cuenta.",
   "sessionExpired": "Tu sesión ha expirado. Vuelve a iniciar sesión.",
   "workspaceLoadFailed": "No se pudieron cargar los workspaces.",
-  "invalidVerificationToken": "El token de verificación no es válido o ha expirado."
+  "invalidVerificationToken": "El token de verificación no es válido o ha expirado.",
+  "resendVerificationFailed": "No se pudo reenviar el email de verificación."
 }

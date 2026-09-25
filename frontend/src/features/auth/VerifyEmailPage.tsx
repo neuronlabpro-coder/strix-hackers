@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -10,18 +10,21 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') ?? ''
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
-    token ? 'loading' : 'idle',
+    token ? 'idle' : 'error',
   )
+  const attemptedToken = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!token || status !== 'idle') {
+    if (!token || attemptedToken.current === token) {
       return
     }
 
+    attemptedToken.current = token
+    setStatus('loading')
     void verifyEmailRequest(token)
       .then((response) => setStatus(response.verified ? 'success' : 'error'))
       .catch(() => setStatus('error'))
-  }, [status, token])
+  }, [token])
 
   return (
     <main className="auth-layout">

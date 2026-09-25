@@ -62,7 +62,13 @@ async def _resolve_authenticated_user(
     except (TypeError, ValueError) as error:
         raise _unauthorized("El token no contiene un usuario válido") from error
 
-    result = await session.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
+    result = await session.execute(
+        select(User).where(
+            User.id == user_id,
+            User.is_active.is_(True),
+            User.email_verified.is_(True),
+        )
+    )
     user = result.scalar_one_or_none()
     if user is None:
         raise _unauthorized("Usuario no encontrado o inactivo")
