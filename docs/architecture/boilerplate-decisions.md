@@ -45,16 +45,21 @@ Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrati
 | ChatOps y Autofix | `backend/apps/repositories/chatops.py`, `autofix.py` y `patches.py` | Los comandos ChatOps verifican permisos de escritura; los parches R4 se validan y se aplican mediante clientes Git sin almacenar el código fuente del cliente. |
 | OAuth y onboarding de repositorios | `backend/apps/repositories/oauth.py`, `router_auth.py`, `router.py`, `inventory.py` y `validation.py` | El `state` OAuth se firma con HMAC-SHA256 sobre `SECRET_KEY`, se indexa en Redis por su SHA-256 y se consume con `GETDEL` (un solo uso, 10 minutos). El callback no confía en el state: revalida la membresía activa en PostgreSQL antes de cifrar el token con AES-256-GCM. El alta de repositorio revalida los metadatos contra la API del proveedor, genera el secreto HMAC local y registra el webhook de forma best-effort (`webhook_registered: false` si el proveedor lo rechaza). `build_client_for_repository` se generalizó en `get_client_for_credential` para construir clientes acotados al tenant sin repositorio previo. No se requieren migraciones: el estado del flujo vive en Redis. |
 | Validación canónica de referencias Git | `backend/apps/repositories/validation.py` | `validate_git_branch`, `validate_git_commit_sha` y `validate_git_clone_url` concentran las reglas anti-inyección y anti-traversal que antes vivían duplicadas en `workspace.py` y `autofix.py`; el allowlist de hosts se aplica también al inventario remoto. |
+| Resumen de dashboard | `backend/apps/dashboard/` | `GET /api/v1/dashboard/summary` agrega KPIs, distribución por severidad y estado de monitorización por repositorio en una sola llamada de solo lectura, siempre filtrada por `organization_id`. El `security_score` vive en `score.py` como función pura y auditable (`100 - media_ponderada` de hallazgos abiertos: CRITICAL 5, HIGH 2, MEDIUM 1, LOW 0.25, INFO 0) para que el cálculo sea verificable y no una heurística dispersa en el panel. Los hallazgos por repositorio se obtienen uniendo revisiones PR → runs → vulnerabilidades y contando vulnerabilidades distintas, porque un rerun puede referenciar la misma ejecución. |
+| OAuth con cliente XHR | `backend/apps/repositories/router_auth.py` | `/authorize` exige cabecera `Authorization`, que una navegación de navegador no puede portar. Con `Accept: application/json` devuelve `200` + `authorization_url` para el panel y conserva el `302` del flujo de navegador, sin duplicar la lógica de state ni el rate limit. |
+| Panel web Fase 4 · Bloque 4.1 | `frontend/src/features/dashboard/`, `frontend/src/features/repositories/`, `frontend/src/charts/` | El panel consume un único endpoint agregado en lugar de N+1 consultas por repositorio. Apache ECharts entra con `echarts/core` (solo Gauge y Pie) y `React.lazy`, en un chunk propio de 153 kB gzip que el shell no descarga. El estado de carga se deriva en lugar de escribirse dentro de efectos, y el toggle de revisiones aplica una actualización optimista compartida entre dashboard y repositorios para que ambas vistas nunca divergan. |
 
 ## Frontend
 
 | Referencia | Destino | Adaptación |
 | --- | --- | --- |
 | Shell de navegación SaaS | `frontend/src/components/Sidebar.tsx` | Sidebar React 19 con selector de organización, navegación principal, sección de activos, perfil y cierre de sesión. |
-| Rutas y vistas base | `frontend/src/app/App.tsx` y `frontend/src/features/` | Se añadieron rutas de Dashboard, Pentests, Issues, PR Reviews, Repositories, Knowledge y Settings sin introducir pantallas fuera de `MENU-MAP.md`. |
+| Rutas y vistas base | `frontend/src/app/App.tsx` y `frontend/src/features/` | Se añadieron rutas de Dashboard, Pentests, Issues, PR Reviews, Repositories, Knowledge y Settings sin introducir pantallas fuera de `MENU-MAP.md`. `/dashboard` y `/repositories` tienen vista real; el resto sigue como placeholder de navegación. |
 | Autenticación | `frontend/src/features/auth/` | Login y registro consumen FastAPI mediante `fetch`. El JWT se mantiene en `sessionStorage` bajo una clave de sesión y se elimina al cerrar sesión. |
-| Tokens visuales de `design-dark.md` | `frontend/src/styles/index.css` | Se definieron exactamente `#1C1C1C`, `#2A2A2A`, `#EDEDED`, `#8A8F8A`, `#17a163` y `#1C1C1C` para `on-primary`, además de Inter y JetBrains Mono. No se usan degradados ni acentos alternativos. |
-| Localización | `frontend/src/i18n.ts` y `frontend/src/locales/{es,en}/` | Se configuran namespaces `common`, `auth`, `navigation` y `errors`. Todos los textos visibles de React se resuelven mediante `t()`. |
+| Tokens visuales de `design-dark.md` | `frontend/src/styles/index.css` | Se definieron exactamente `#1C1C1C`, `#2A2A2A`, `#EDEDED`, `#8A8F8A`, `#17a163` y `#1C1C1C` para `on-primary`, además de Inter y JetBrains Mono. No se usan degradados ni acentos alternativos. El Bloque 4.1 añade tablas, badges, toggle, modal y tarjetas de gráfico **solo** con esos tokens y sus opacidades. |
+| Localización | `frontend/src/i18n.ts` y `frontend/src/locales/{es,en}/` | Namespaces `common`, `auth`, `navigation`, `errors`, `dashboard` y `repositories`. Todos los textos visibles de React se resuelven mediante `t()`; la auditoría comprueba paridad de claves es/en y ausencia de claves huérfanas. |
+| Cliente HTTP y tenant | `frontend/src/lib/api.ts` | Toda llamada con datos de tenant envía `Authorization` **y** `X-Organization-Id`; el servidor vuelve a validar la membresía, de modo que el encabezado del cliente nunca amplía permisos. Las respuestas `204` se tratan sin cuerpo. |
+| Gráficas | `frontend/src/charts/EChart.tsx` y `palette.ts` | Envoltura mínima sobre `echarts/core` con `role="img"` y `aria-label` para que el canvas sea accesible, redimensionado en `resize` y paleta importada desde un único módulo. |
 
 ## Decisiones de seguridad
 
@@ -63,11 +68,14 @@ Alembic utiliza `Base.metadata` y `settings.database_url` desde `backend/migrati
 - Las consultas multi-tenant se filtran por `organization_id` a través de `Membership`; el middleware falla cerrado si falta el tenant o la membresía.
 - `backend/tests/conftest.py` bloquea la suite fuera de `ENVIRONMENT=development/test` y fuera del modo de email `development`, desactiva los rate limiters reales solo dentro de pytest y ejecuta cada prueba de integración en una sesión SQLAlchemy con savepoints y rollback exterior obligatorio.
 - `engines/`, `saas-boilerplate/` y `strix/` permanecen como referencias de solo lectura.
+- El panel nunca renderiza el secreto HMAC del webhook ni tokens: el backend no los incluye en ninguna respuesta y `RepositoryResponse` solo expone `webhook_registered` como booleano.
+- El estado de las revisiones de PR se cambia solo con `PATCH /api/v1/repositories/{id}`, restringido a administradores; la actualización optimista del cliente se revierte si la API responde con error.
 
 ## Verificación realizada
 
-- `npm run build` y `npm run typecheck` en `frontend/`.
+- `npm run typecheck`, `npm run lint` y `npm run build` en `frontend/`.
 - `ruff check`, `pyright` y `pytest` en `backend/`.
 - `alembic current` y `alembic check` contra la base remota configurada.
 - Test de aislamiento multi-tenant con Alpha y Beta.
 - Bloque 3.3: `165 passed, 2 skipped`; `ruff check` sin hallazgos; `pyright --project backend/pyproject.toml` con 0 errores; `alembic current` = `e8a0b2c4d6e8 (head)` y `alembic check` sin drift.
+- Bloque 4.1: `180 passed, 2 skipped`; `ruff check` y `pyright` limpios; `npm run typecheck` y `npm run lint` sin advertencias; `npm run build` genera el chunk principal (114 kB gzip) y el chunk diferido de ECharts (153 kB gzip); auditoría de strings sin literales visibles y con paridad de claves es/en.

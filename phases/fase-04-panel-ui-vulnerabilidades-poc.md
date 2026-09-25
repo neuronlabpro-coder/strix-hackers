@@ -2,7 +2,7 @@
 
 > **Documento de especificación ejecutable.** Define el desarrollo visual completo del panel de usuario en React 19, TypeScript y Tailwind CSS bajo los tokens estrictos de `design-dark.md` (Dark Emerald), la integración de Apache ECharts, el gestor de vulnerabilidades en modo Lista/Kanban, el visor y reproductor de Pruebas de Concepto (PoC), el visualizador de parches *autofix*, la verificación de dominios y la base de conocimiento de la aplicación.
 >
-> **Estado:** `[ ]` Pendiente de ejecución  
+> **Estado:** `[ ]` En ejecución — Bloque 4.1 (shell, dashboard y repositorios) implementado
 > **Dependencias previas:** Fase 1 (Shell UI base, Auth, Multi-tenancy), Fase 2 (Modelos y persistencia de PentestRuns y Vulnerabilities) y Fase 3 (Repositorios Git y automatización de PRs).  
 > **Autoridades que rigen esta fase:** `ARCHITECTURE.md` (§8), `MENU-MAP.md` (§1, §2, §3, §5, §6.2, §7), `design-dark.md` y `AGENTS.md` (Reglas de Oro R1, R3 y R4).
 
@@ -36,6 +36,11 @@ El usuario debe poder visualizar sus métricas de seguridad en el dashboard prin
 4. **Gráficas ECharts como Biblioteca Exclusiva:**
    * Todos los gráficos (postura, evolución temporal, distribución de incidencias) se implementan mediante `echarts-for-react` con opciones tematizadas oscuras, sin cargar bibliotecas redundantes (Chart.js, Recharts, etc.).
 
+> **Resolución de contradicciones de diseño (Bloque 4.1, 2026-09-25).** `design-dark.md` es la autoridad visual y este mismo documento exige `AGENTS.md` R1 (i18n y cero literales), pero propone colores de severidad que no existen en la ficha de diseño. Como las reglas de construcción y la ficha de diseño rigen sobre las propuestas de este bloque, el Bloque 4.1 aplica las siguientes decisiones, todas reversibles si producto decide otra cosa:
+> 1. **Severidad sin paleta paralela:** la distribución por severidad y los badges usan `#EDEDED` con escalones de opacidad (`CRITICAL` 100 %, `HIGH` 72 %, `MEDIUM` 52 %, `LOW` 34 %, `INFO` 18 %). Se respeta el acento único `#17a163` y la prohibición de degradados. Si se adoptan los colores del §2.3, deben incorporarse primero a `design-dark.md`.
+> 2. **ECharts nativo en lugar de `echarts-for-react`:** se importa `echarts/core` con solo `GaugeChart`, `PieChart`, `LegendComponent`, `TooltipComponent` y `CanvasRenderer`, y se carga con `React.lazy` en su propio chunk (153 kB gzip) para que el shell y el login no lo descarguen. Sigue siendo Apache ECharts como biblioteca exclusiva.
+> 3. **Iconos de marca:** `lucide-react` ya no incluye logotipos de GitHub/GitLab. La columna Proveedor usa un icono genérico más el identificador del proveedor en `JetBrains Mono`, coherente con la estética code-first.
+
 ---
 
 ## 3. Desglose de Tareas de Implementación
@@ -55,6 +60,19 @@ El usuario debe poder visualizar sus métricas de seguridad en el dashboard prin
      * 6. Invitar colaboradores (`/settings/members`).
 3. **Widget de Repositorios Conectados (`ConnectedRepositoriesWidget.tsx`):**
    * Tabla compacta con iconos de GitHub/GitLab, nombre del repositorio, badge `Reviews on` / `Off` con toggle interactivo y enlace `View all (N)` hacia `/repositories`.
+
+---
+
+### Tarea 4.1-b · Bloque 4.1 · Shell, Dashboard y Gestión de Repositorios
+
+> **Estado:** `[x]` Implementado y verificado (`frontend/` con `typecheck`, `lint` y `build` limpios; `backend/tests` con `180 passed, 2 skipped`).
+
+1. **Contrato de datos (`GET /api/v1/dashboard/summary`):** endpoint de solo lectura en `backend/apps/dashboard/` que entrega `security_score`, `open_issues`, `total_issues`, `fix_rate`, `prs_reviewed` (30 días), `prs_reviewed_total`, `pentests_total`, `repositories_monitored`, `severity_distribution`, `repositories[]` (con `status`, `open_vulnerabilities` y `last_tested_at`) y `generated_at`. Todas las consultas filtran por `organization_id` (R3) y el cálculo del score vive en `score.py` con pesos documentados y pruebas unitarias.
+2. **Negociación de contenido en `/authorize`:** el endpoint OAuth de GitHub/GitLab exige cabecera `Authorization`, inalcanzable en una navegación normal; con `Accept: application/json` responde `200` con `authorization_url` para el panel, y conserva el `302` para el flujo de navegador.
+3. **Dashboard (`frontend/src/features/dashboard/`):** cuatro tarjetas KPI, gauge de postura y anillo de distribución por severidad con Apache ECharts (chunk diferido), widget de repositorios con toggle real contra `PATCH /api/v1/repositories/{id}` y enlace a `/repositories`. Estados de carga, error y reintento.
+4. **Repositorios (`frontend/src/features/repositories/`):** tabla de MENU-MAP §6.1 (Proveedor, Repositorio, Estado, Vulnerabilidades abiertas, PR reviews, Supply chain, Last tested), buscador, estado vacío y modal de conexión con dos pasos: OAuth GitHub/GitLab e inventario remoto con importación directa desde `GET /api/v1/repositories/remote`.
+5. **i18n:** namespaces `dashboard` y `repositories` en `es`/`en` con paridad verificada; el bloque antiguo `common:dashboard` se eliminó para evitar claves duplicadas.
+6. **Pendiente de este bloque:** guía `Get Set Up` (§1.1, Tarea 4.1.2) y la columna Supply chain con datos reales de SBOM; ambas requieren endpoints que aún no existen.
 
 ---
 

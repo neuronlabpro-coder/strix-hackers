@@ -8,6 +8,7 @@ import { AcceptInvitationPage } from '../features/auth/AcceptInvitationPage'
 import { AuthPage } from '../features/auth/AuthPage'
 import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
+import { RepositoriesPage } from '../features/repositories/RepositoriesPage'
 import { PlaceholderPage } from '../features/shared/PlaceholderPage'
 import { ShellLayout } from './ShellLayout'
 
@@ -60,10 +61,7 @@ export default function App() {
           path="/pr-reviews"
           element={<PlaceholderPage titleKey="navigation:prReviews" />}
         />
-        <Route
-          path="/repositories"
-          element={<PlaceholderPage titleKey="navigation:repositories" />}
-        />
+        <Route path="/repositories" element={<RepositoriesPage />} />
         <Route path="/knowledge" element={<PlaceholderPage titleKey="navigation:knowledge" />} />
         <Route path="/settings" element={<PlaceholderPage titleKey="navigation:settings" />} />
       </Route>

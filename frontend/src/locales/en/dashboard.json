@@ -1,0 +1,35 @@
+{
+  "title": "Dashboard",
+  "eyebrow": "Security posture",
+  "welcome": "Summary for {{workspace}}",
+  "generatedAt": "Updated at {{timestamp}}",
+  "kpis": {
+    "securityScore": "Security score",
+    "openIssues": "Open issues",
+    "totalIssues": "Issues found",
+    "fixRate": "Fix rate",
+    "prsReviewed": "PRs reviewed",
+    "prsReviewedHint": "in the last 30 days",
+    "pentests": "Pentests",
+    "monitoredRepositories": "Monitored repositories"
+  },
+  "charts": {
+    "healthTitle": "Posture health",
+    "healthCaption": "0-100 index computed from open findings",
+    "distributionTitle": "Severity distribution",
+    "distributionCaption": "Active findings per severity",
+    "distributionEmpty": "No active findings yet",
+    "gaugeValue": "{{score}}/100"
+  },
+  "repositoriesWidget": {
+    "title": "Connected repositories",
+    "caption": "Continuous monitoring status",
+    "viewAll": "View all",
+    "empty": "Connect your first repository to enable PR reviews."
+  },
+  "states": {
+    "loading": "Loading security posture",
+    "error": "The dashboard could not be loaded",
+    "retry": "Retry"
+  }
+}

@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from backend.apps.dashboard.router import router as dashboard_router
 from backend.apps.organizations.router import router as organizations_router
 from backend.apps.pentests.router import router as pentests_router
 from backend.apps.repositories.router import router as repositories_router
@@ -16,3 +17,4 @@ app.include_router(vulnerabilities_router)
 app.include_router(repositories_webhooks_router)
 app.include_router(repositories_auth_router)
 app.include_router(repositories_router)
+app.include_router(dashboard_router)

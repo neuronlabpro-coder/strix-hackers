@@ -18,6 +18,7 @@ from backend.apps.repositories.oauth import (
     decode_oauth_state,
 )
 from backend.apps.repositories.router_auth import get_oauth_provider_settings
+from backend.core.config import settings
 from backend.core.crypto import decrypt_secret
 from backend.core.rate_limit import get_rate_limit_redis
 from backend.core.security import create_access_token
@@ -179,6 +180,72 @@ async def test_oauth_callback_stores_encrypted_token_and_state_is_single_use(
         == "github-access-token"
     )
     assert credential.token_expires_at is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_authorize_returns_json_for_xhr_clients(
+    integration_session: AsyncSession,
+) -> None:
+    assert integration_session is not None
+    suffix = uuid.uuid4().hex
+    organization = Organization(name=f"OAuth Json {suffix}", slug=f"oauth-json-{suffix}")
+    user = User(
+        email=f"oauth-json-{suffix}@example.com",
+        hashed_password="not-used",
+        full_name="OAuth Json",
+        email_verified=True,
+    )
+    integration_session.add_all([organization, user])
+    await integration_session.flush()
+    integration_session.add(
+        Membership(organization_id=organization.id, user_id=user.id, role=RoleEnum.ADMIN)
+    )
+    await integration_session.commit()
+
+    redis = _OAuthRedis()
+
+    def _fake_oauth_settings(provider: str) -> OAuthProviderSettings:
+        del provider
+        return OAuthProviderSettings(
+            provider=GitProviderEnum.GITLAB,
+            client_id="gitlab-client",
+            client_secret="gitlab-secret",
+            authorize_url="https://gitlab.example.com/oauth/authorize",
+            token_url="https://gitlab.example.com/oauth/token",
+            scopes=("api",),
+        )
+
+    app.dependency_overrides[get_rate_limit_redis] = lambda: redis
+    app.dependency_overrides[get_oauth_provider_settings] = _fake_oauth_settings
+    headers = {
+        "Authorization": f"Bearer {create_access_token({'sub': str(user.id)})}",
+        "X-Organization-Id": str(organization.id),
+        "Accept": "application/json",
+    }
+    transport = ASGITransport(app=app)
+
+    try:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            follow_redirects=False,
+        ) as client:
+            response = await client.get(
+                "/api/v1/repositories/oauth/gitlab/authorize",
+                headers=headers,
+            )
+    finally:
+        app.dependency_overrides.pop(get_rate_limit_redis, None)
+        app.dependency_overrides.pop(get_oauth_provider_settings, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    authorization_url = payload["authorization_url"]
+    assert authorization_url.startswith("https://gitlab.example.com/oauth/authorize?")
+    assert "client_id=gitlab-client" in authorization_url
+    assert payload["expires_in"] == settings.oauth_state_ttl_seconds
+    assert redis.values
 
 
 @pytest.mark.asyncio

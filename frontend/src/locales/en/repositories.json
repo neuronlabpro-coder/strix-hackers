@@ -1,0 +1,71 @@
+{
+  "title": "Repositories",
+  "eyebrow": "Code assets",
+  "description": "Connect repositories to review every pull request before merging.",
+  "searchLabel": "Search repositories",
+  "searchPlaceholder": "Search by name or provider",
+  "addRepository": "Add repository",
+  "refresh": "Refresh",
+  "columns": {
+    "provider": "Provider",
+    "repository": "Repository",
+    "status": "Status",
+    "issues": "Open vulnerabilities",
+    "prReviews": "PR reviews",
+    "supplyChain": "Supply chain",
+    "lastTested": "Last tested"
+  },
+  "status": {
+    "NOT_TESTED": "Not tested",
+    "TESTED": "Tested",
+    "SCANNING": "Scanning"
+  },
+  "supplyChain": {
+    "pending": "SBOM pending",
+    "caption": "Dependency analysis will be enabled once Strix exposes the SBOM"
+  },
+  "prReviews": {
+    "on": "Automatic reviews enabled",
+    "off": "Automatic reviews paused",
+    "enable": "Enable PR reviews",
+    "disable": "Disable PR reviews",
+    "updateFailed": "Automatic reviews could not be updated"
+  },
+  "modal": {
+    "title": "Connect repository",
+    "description": "Authorize Fenix against your provider and pick the repository to watch.",
+    "oauthTitle": "1. Connect your provider",
+    "oauthDescription": "The provider consent screen opens in this tab so you can grant access.",
+    "connectGitHub": "Connect with GitHub",
+    "connectGitLab": "Connect with GitLab",
+    "inventoryTitle": "2. Choose a repository",
+    "inventoryDescription": "Repositories available with the connected credential.",
+    "selectProvider": "Provider",
+    "reload": "Reload",
+    "import": "Import",
+    "imported": "Repository connected",
+    "importFailed": "The repository could not be connected",
+    "webhookMissing": "The repository was connected but the provider rejected the webhook.",
+    "alreadyConnected": "Already connected",
+    "empty": "No repositories available with this credential.",
+    "noCredential": "Connect a {{provider}} credential first.",
+    "unsupportedProvider": "This provider has no connector yet.",
+    "private": "Private",
+    "public": "Public",
+    "defaultBranch": "Default branch",
+    "close": "Close"
+  },
+  "connected": {
+    "success": "{{provider}} credential connected successfully",
+    "denied": "{{provider}} authorization was cancelled",
+    "missing": "The {{provider}} connection could not be completed"
+  },
+  "states": {
+    "loading": "Loading repositories",
+    "empty": "No repositories connected yet",
+    "emptyDescription": "Connect GitHub or GitLab to enable automatic pull request reviews.",
+    "error": "Repositories could not be loaded",
+    "noResults": "No repository matches your search",
+    "retry": "Retry"
+  }
+}

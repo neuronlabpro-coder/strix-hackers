@@ -23,18 +23,10 @@
   "authRequired": "Inicia sesión para continuar",
   "pageNotFound": "Página no encontrada",
   "backToDashboard": "Volver al dashboard",
-  "dashboard": {
-    "title": "Dashboard",
-    "welcome": "Vista inicial de {{workspace}}.",
-    "getStarted": "Próximos pasos",
-    "getStartedTitle": "Prepara tu espacio de seguridad",
-    "getStartedDescription": "Conecta repositorios, configura el contexto y lanza tu primer pentest.",
-    "metrics": {
-      "securityScore": "Security score",
-      "openIssues": "Open issues",
-      "prsReviewed": "PRs reviewed",
-      "pentests": "Pentests",
-      "pending": "Pendiente de datos"
-    }
+  "actions": {
+    "close": "Cerrar"
+  },
+  "values": {
+    "never": "Nunca"
   }
 }

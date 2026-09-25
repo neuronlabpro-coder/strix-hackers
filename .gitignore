@@ -20,6 +20,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# El patrón `lib/` de Python no debe ignorar el cliente HTTP del panel
+!frontend/src/lib/
+
 # Virtual Environment
 venv/
 env/

@@ -70,6 +70,14 @@ class OAuthToken:
     expires_in: int | None
 
 
+@dataclass(frozen=True, slots=True)
+class OAuthAuthorizeResponse:
+    """URL de consentimiento para clientes XHR que ya autenticaron la sesión."""
+
+    authorization_url: str
+    expires_in: int
+
+
 def _b64encode(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
 

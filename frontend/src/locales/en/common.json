@@ -23,18 +23,10 @@
   "authRequired": "Sign in to continue",
   "pageNotFound": "Page not found",
   "backToDashboard": "Back to dashboard",
-  "dashboard": {
-    "title": "Dashboard",
-    "welcome": "Initial view for {{workspace}}.",
-    "getStarted": "Next steps",
-    "getStartedTitle": "Prepare your security workspace",
-    "getStartedDescription": "Connect repositories, configure context, and launch your first pentest.",
-    "metrics": {
-      "securityScore": "Security score",
-      "openIssues": "Open issues",
-      "prsReviewed": "PRs reviewed",
-      "pentests": "Pentests",
-      "pending": "Awaiting data"
-    }
+  "actions": {
+    "close": "Close"
+  },
+  "values": {
+    "never": "Never"
   }
 }

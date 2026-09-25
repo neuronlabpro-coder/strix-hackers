@@ -7,8 +7,8 @@ from typing import Annotated
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.apps.organizations.models import Membership, Organization, RoleEnum, User
 from backend.apps.repositories.models import GitCredential, GitProviderEnum
 from backend.apps.repositories.oauth import (
+    OAuthAuthorizeResponse,
     OAuthConfigurationError,
     OAuthError,
     OAuthExchangeError,
@@ -79,6 +80,12 @@ def _oauth_callback_url(provider: GitProviderEnum) -> str:
     )
 
 
+def _prefers_json(request: Request) -> bool:
+    """Detecta clientes XHR que necesitan la URL de consentimiento en el cuerpo."""
+
+    return "application/json" in request.headers.get("accept", "")
+
+
 def _frontend_redirect(provider: GitProviderEnum, **values: str) -> RedirectResponse:
     query = urlencode({"connected": provider.value, **values})
     return RedirectResponse(
@@ -135,14 +142,22 @@ async def _store_state(redis_client: Redis, state: str, nonce: str) -> None:
 @router.get(
     "/api/v1/repositories/oauth/{provider}/authorize",
     dependencies=[Depends(enforce_repository_management_rate_limit)],
+    response_model=None,
 )
 async def authorize_git_provider(
+    request: Request,
     provider: str,
     tenant: TenantDependency,
     provider_settings: OAuthSettingsDependency,
     redis_client: RedisDependency,
-) -> RedirectResponse:
-    """Genera un state firmado y de un solo uso antes de redirigir al proveedor."""
+) -> Response:
+    """Genera un state firmado y de un solo uso antes de redirigir al proveedor.
+
+    Una navegación directa del navegador recibe un `302`, pero ese flujo no puede
+    portar el encabezado `Authorization`. Por eso los clientes XHR del panel piden
+    `Accept: application/json` y reciben la URL de consentimiento en el cuerpo, con
+    la misma semántica de state, expiración y rate limit.
+    """
 
     if tenant.role != RoleEnum.ADMIN:
         raise HTTPException(
@@ -169,12 +184,25 @@ async def authorize_git_provider(
     )
     state_payload = decode_oauth_state(state, selected)
     await _store_state(redis_client, state, state_payload.nonce)
+    authorization_url = build_authorization_url(
+        provider_settings,
+        state,
+        _oauth_callback_url(selected),
+    )
+    if _prefers_json(request):
+        payload = OAuthAuthorizeResponse(
+            authorization_url=authorization_url,
+            expires_in=settings.oauth_state_ttl_seconds,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "authorization_url": payload.authorization_url,
+                "expires_in": payload.expires_in,
+            },
+        )
     return RedirectResponse(
-        url=build_authorization_url(
-            provider_settings,
-            state,
-            _oauth_callback_url(selected),
-        ),
+        url=authorization_url,
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -191,7 +219,7 @@ async def git_oauth_callback(
     session: SessionDependency,
     code: Annotated[str | None, Query(max_length=2048)] = None,
     error: Annotated[str | None, Query(max_length=128)] = None,
-) -> RedirectResponse:
+) -> Response:
     """Consume state, canjea el código y persiste solo ciphertext AES-GCM."""
 
     selected = _provider_from_path(provider)

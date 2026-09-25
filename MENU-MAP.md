@@ -45,13 +45,13 @@
 
 ## 1. Dashboard Principal (`/dashboard`)
 
-- [ ] **1.0 · KPIs de Postura de Seguridad**
-  - [ ] Tarjeta `Security Score` (Cálculo porcentual de salud 0-100% mediante ECharts Gauge)
-  - [ ] Contador `Open Issues` (Vulnerabilidades activas sin mitigar)
-  - [ ] Contador `Issues Found` (Total histórico acumulado)
-  - [ ] Ratio `Fix Rate` (% de vulnerabilidades resueltas / autofixed)
-  - [ ] Contador `PRs Reviewed` (Revisiones en Pull Requests ejecutadas en el mes)
-  - [ ] Contador `Pentests` (Total de escaneos profundos ejecutados)
+- [x] **1.0 · KPIs de Postura de Seguridad**  _(Bloque 4.1)_
+  - [x] Tarjeta `Security Score` (Cálculo porcentual de salud 0-100% mediante ECharts Gauge)
+  - [x] Contador `Open Issues` (Vulnerabilidades activas sin mitigar)
+  - [x] Contador `Issues Found` (Total histórico acumulado)
+  - [x] Ratio `Fix Rate` (% de vulnerabilidades resueltas / autofixed)
+  - [x] Contador `PRs Reviewed` (Revisiones en Pull Requests ejecutadas en el mes)
+  - [x] Contador `Pentests` (Total de escaneos profundos ejecutados)
 - [ ] **1.1 · Guía de Configuración Inicial (Get Set Up)**
   - [ ] Barra de progreso reactiva (X de 6 pasos completados)
   - [ ] Paso 1: Conectar repositorios (`Connect your repositories` ──▶ `/repositories`)
@@ -60,10 +60,10 @@
   - [ ] Paso 4: Revisar primer Pull Request (`Get your first PR security review` ──▶ `/pr-reviews`)
   - [ ] Paso 5: Conectar integraciones (`Set up integrations` Slack/Jira ──▶ `/integrations`)
   - [ ] Paso 6: Invitar al equipo (`Invite your team` ──▶ `/settings/members`)
-- [ ] **1.2 · Widget de Repositorios Conectados**
-  - [ ] Lista de repositorios vinculados con badge de proveedor (GitHub, GitLab, Bitbucket, Gitea)
-  - [ ] Toggle interactivo de estado de revisión continua (`Reviews on` / `Off`)
-  - [ ] Enlace rápido `View all` hacia `/repositories`
+- [x] **1.2 · Widget de Repositorios Conectados**  _(Bloque 4.1)_
+  - [x] Lista de repositorios vinculados con badge de proveedor (GitHub, GitLab, Bitbucket, Gitea)
+  - [x] Toggle interactivo de estado de revisión continua (`Reviews on` / `Off`)
+  - [x] Enlace rápido `View all` hacia `/repositories`
 
 ---
 
@@ -154,15 +154,15 @@
 
 ## 6. Gestión de Activos
 
-### 6.1 Repositorios (`/repositories`)
-- [ ] Barra de búsqueda y botón `+ Add repository`
-- [ ] Tabla de repositorios conectados:
-  - [ ] Icono del proveedor (GitHub, GitLab, Bitbucket, Gitea) + `Nombre del repo`
-  - [ ] `Status`: Not tested / Tested / Scanning
-  - [ ] `Issues`: Conteo de vulnerabilidades abiertas
-  - [ ] `PR reviews`: Toggle interactivo para activar/desactivar revisiones automáticas
-  - [ ] `Supply chain`: Estado de SBOM de dependencias
-  - [ ] `Last tested`: Fecha y hora de la última auditoría
+### 6.1 Repositorios (`/repositories`)  _(Bloque 4.1)_
+- [x] Barra de búsqueda y botón `+ Add repository`
+- [x] Tabla de repositorios conectados:
+  - [x] Icono del proveedor (GitHub, GitLab, Bitbucket, Gitea) + `Nombre del repo`
+  - [x] `Status`: Not tested / Tested / Scanning
+  - [x] `Issues`: Conteo de vulnerabilidades abiertas
+  - [x] `PR reviews`: Toggle interactivo para activar/desactivar revisiones automáticas
+  - [ ] `Supply chain`: Estado de SBOM de dependencias  _(pendiente: Strix aún no expone SBOM)_
+  - [x] `Last tested`: Fecha y hora de la última auditoría
 
 ### 6.2 Dominios y APIs (`/domains`)
 - [ ] Barra de búsqueda y botón `+ Add domain`

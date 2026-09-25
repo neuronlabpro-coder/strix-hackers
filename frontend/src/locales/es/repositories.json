@@ -1,0 +1,71 @@
+{
+  "title": "Repositorios",
+  "eyebrow": "Activos de código",
+  "description": "Conecta repositorios para revisar cada Pull Request antes de fusionar.",
+  "searchLabel": "Buscar repositorios",
+  "searchPlaceholder": "Buscar por nombre o proveedor",
+  "addRepository": "Añadir repositorio",
+  "refresh": "Actualizar",
+  "columns": {
+    "provider": "Proveedor",
+    "repository": "Repositorio",
+    "status": "Estado",
+    "issues": "Vulnerabilidades abiertas",
+    "prReviews": "PR reviews",
+    "supplyChain": "Supply chain",
+    "lastTested": "Última prueba"
+  },
+  "status": {
+    "NOT_TESTED": "Sin probar",
+    "TESTED": "Probado",
+    "SCANNING": "Analizando"
+  },
+  "supplyChain": {
+    "pending": "Pendiente de SBOM",
+    "caption": "El análisis de dependencias se habilitará cuando Strix exponga el SBOM"
+  },
+  "prReviews": {
+    "on": "Revisiones automáticas activas",
+    "off": "Revisiones automáticas pausadas",
+    "enable": "Activar revisiones de PR",
+    "disable": "Desactivar revisiones de PR",
+    "updateFailed": "No se pudo actualizar la revisión automática"
+  },
+  "modal": {
+    "title": "Conectar repositorio",
+    "description": "Autoriza a Fenix contra tu proveedor y selecciona el repositorio a vigilar.",
+    "oauthTitle": "1. Conecta tu proveedor",
+    "oauthDescription": "Se abrirá el consentimiento del proveedor en esta pestaña para autorizar el acceso.",
+    "connectGitHub": "Conectar con GitHub",
+    "connectGitLab": "Conectar con GitLab",
+    "inventoryTitle": "2. Elige un repositorio",
+    "inventoryDescription": "Repositorios disponibles con la credencial conectada.",
+    "selectProvider": "Proveedor",
+    "reload": "Recargar",
+    "import": "Importar",
+    "imported": "Repositorio conectado",
+    "importFailed": "No se pudo conectar el repositorio",
+    "webhookMissing": "El repositorio se conectó, pero el proveedor no aceptó el webhook.",
+    "alreadyConnected": "Ya conectado",
+    "empty": "No hay repositorios disponibles con esta credencial.",
+    "noCredential": "Conecta primero una credencial de {{provider}}.",
+    "unsupportedProvider": "Este proveedor todavía no tiene conector.",
+    "private": "Privado",
+    "public": "Público",
+    "defaultBranch": "Rama por defecto",
+    "close": "Cerrar"
+  },
+  "connected": {
+    "success": "Credencial de {{provider}} conectada correctamente",
+    "denied": "Se canceló la autorización de {{provider}}",
+    "missing": "No se pudo completar la conexión con {{provider}}"
+  },
+  "states": {
+    "loading": "Cargando repositorios",
+    "empty": "Aún no hay repositorios conectados",
+    "emptyDescription": "Conecta GitHub o GitLab para activar las revisiones automáticas de PR.",
+    "error": "No se pudieron cargar los repositorios",
+    "noResults": "Ningún repositorio coincide con la búsqueda",
+    "retry": "Reintentar"
+  }
+}

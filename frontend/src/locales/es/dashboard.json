@@ -1,0 +1,35 @@
+{
+  "title": "Dashboard",
+  "eyebrow": "Postura de seguridad",
+  "welcome": "Resumen de {{workspace}}",
+  "generatedAt": "Actualizado el {{timestamp}}",
+  "kpis": {
+    "securityScore": "Security score",
+    "openIssues": "Open issues",
+    "totalIssues": "Issues found",
+    "fixRate": "Fix rate",
+    "prsReviewed": "PRs reviewed",
+    "prsReviewedHint": "en los últimos 30 días",
+    "pentests": "Pentests",
+    "monitoredRepositories": "Repositorios monitorizados"
+  },
+  "charts": {
+    "healthTitle": "Salud de postura",
+    "healthCaption": "Índice 0-100 calculado sobre hallazgos abiertos",
+    "distributionTitle": "Distribución por severidad",
+    "distributionCaption": "Hallazgos activos por severidad",
+    "distributionEmpty": "Todavía no hay hallazgos activos",
+    "gaugeValue": "{{score}}/100"
+  },
+  "repositoriesWidget": {
+    "title": "Repositorios conectados",
+    "caption": "Estado de monitorización continua",
+    "viewAll": "Ver todos",
+    "empty": "Conecta tu primer repositorio para activar revisiones de PR."
+  },
+  "states": {
+    "loading": "Cargando postura de seguridad",
+    "error": "No se pudo cargar el dashboard",
+    "retry": "Reintentar"
+  }
+}

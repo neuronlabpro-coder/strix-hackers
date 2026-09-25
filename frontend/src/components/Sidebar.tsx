@@ -3,6 +3,7 @@ import {
   BookOpen,
   ChevronDown,
   CircleDot,
+  FolderGit2,
   GitPullRequest,
   LayoutDashboard,
   LogOut,
@@ -44,7 +45,7 @@ const primaryNavigation: NavigationItem[] = [
 ]
 
 const assetNavigation: NavigationItem[] = [
-  { labelKey: 'repositories', path: '/repositories', icon: GitPullRequest },
+  { labelKey: 'repositories', path: '/repositories', icon: FolderGit2 },
   { labelKey: 'knowledge', path: '/knowledge', icon: BookOpen },
   { labelKey: 'settings', path: '/settings', icon: Settings },
 ]
