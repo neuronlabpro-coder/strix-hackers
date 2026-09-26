@@ -17,5 +17,6 @@
   "settings": "Settings",
   "workspace": "Workspace",
   "locked": "Bloqueado",
-  "comingSoon": "Esta vista estará disponible en una fase posterior."
+  "comingSoon": "Esta vista estará disponible en una fase posterior.",
+  "billing": "Facturación y créditos"
 }

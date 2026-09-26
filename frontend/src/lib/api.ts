@@ -45,6 +45,11 @@ import type {
   ApiTokenPage,
   PersonalTokenConnectPayload,
   PersonalTokenConnectResponse,
+  WebhookCreated,
+  WebhookDeliveryPage,
+  WebhookEndpoint,
+  WebhookEventCatalog,
+  WebhookPingResult,
   RepositoryConnectResponse,
   RepositoryUpdatePayload,
   ScanMode,
@@ -196,6 +201,65 @@ export function getRemoteRepositories(
  */
 export function getApiScopes(token: string): Promise<ApiScopeCatalog> {
   return request<ApiScopeCatalog>('/api/v1/auth/scopes', {}, token)
+}
+
+export function getWebhookEvents(token: string): Promise<WebhookEventCatalog> {
+  return request<WebhookEventCatalog>('/api/v1/webhooks/events', {}, token)
+}
+
+export function listWebhooks(token: string): Promise<{ items: WebhookEndpoint[]; total: number }> {
+  return request<{ items: WebhookEndpoint[]; total: number }>('/api/v1/webhooks', {}, token)
+}
+
+/**
+ * Registra un endpoint y devuelve su secreto de firma.
+ *
+ * El `signing_secret` solo viene en esta respuesta. Si la interfaz la pierde, la única
+ * salida es borrar el endpoint y crear otro, y por eso el modal de revelación obliga a
+ * reconocer que se ha guardado en vez de dejar cerrar la ventana.
+ */
+export function createWebhook(
+  token: string,
+  payload: { url: string; description: string | null; event_types: string[] },
+): Promise<WebhookCreated> {
+  return request<WebhookCreated>(
+    '/api/v1/webhooks',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+export function updateWebhook(
+  token: string,
+  id: string,
+  changes: Partial<Pick<WebhookEndpoint, 'url' | 'description' | 'event_types' | 'is_active'>>,
+): Promise<WebhookEndpoint> {
+  return request<WebhookEndpoint>(
+    `/api/v1/webhooks/${id}`,
+    { method: 'PATCH', body: JSON.stringify(changes) },
+    token,
+  )
+}
+
+export function deleteWebhook(token: string, id: string): Promise<void> {
+  return request<void>(`/api/v1/webhooks/${id}`, { method: 'DELETE' }, token)
+}
+
+export function pingWebhook(token: string, id: string): Promise<WebhookPingResult> {
+  return request<WebhookPingResult>(`/api/v1/webhooks/${id}/ping`, { method: 'POST' }, token)
+}
+
+export function getWebhookDeliveries(
+  token: string,
+  id: string,
+  limit = 20,
+  offset = 0,
+): Promise<WebhookDeliveryPage> {
+  return request<WebhookDeliveryPage>(
+    `/api/v1/webhooks/${id}/deliveries?limit=${limit}&offset=${offset}`,
+    {},
+    token,
+  )
 }
 
 /**

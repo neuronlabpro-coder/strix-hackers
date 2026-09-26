@@ -1,6 +1,7 @@
 """Pruebas de la consola de SuperAdmin y del sondeo de infraestructura."""
 
 import uuid
+from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -65,7 +66,12 @@ async def test_superuser_lists_organizations_with_plan_and_credits(
     assert payload["total"] >= 1
     item = next(entry for entry in payload["items"] if entry["id"] == str(organization.id))
     assert item["plan_tier"] == "PRO"
-    assert item["credit_balance"] == 42.5
+    # `credit_balance` viaja como cadena porque es un `Decimal`. Antes de la consola de
+    # SuperAdmin se serializaba como `float` y llegaba como `42.5`; ahora llega `"42.5"`.
+    # La cadena es la forma correcta en JSON: un número binario en coma flotante no puede
+    # representar 42,10 sin error, y un saldo que se desincroniza del ledger por un redondeo
+    # de coma flotante es un saldo que no cuadra en la auditoría.
+    assert Decimal(str(item["credit_balance"])) == Decimal("42.5")
     assert item["slug"] == organization.slug
 
 

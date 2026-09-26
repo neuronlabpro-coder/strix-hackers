@@ -19,6 +19,7 @@ from backend.apps.repositories.router import router as repositories_router
 from backend.apps.repositories.router_auth import router as repositories_auth_router
 from backend.apps.repositories.router_webhooks import router as repositories_webhooks_router
 from backend.apps.vulnerabilities.router import router as vulnerabilities_router
+from backend.apps.webhooks.router import router as webhooks_router
 
 app = FastAPI(title="Mind Guard Fenix Team API")
 
@@ -77,3 +78,4 @@ app.include_router(knowledge_router)
 app.include_router(onboarding_router)
 app.include_router(billing_router)
 app.include_router(cve_router)
+app.include_router(webhooks_router)

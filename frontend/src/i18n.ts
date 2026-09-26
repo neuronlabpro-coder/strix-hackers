@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next'
 
 import authEn from './locales/en/auth.json'
 import adminEn from './locales/en/admin.json'
+import billingEn from './locales/en/billing.json'
 import commonEn from './locales/en/common.json'
 import apiAccessEn from './locales/en/apiAccess.json'
 import cveEn from './locales/en/cve.json'
@@ -20,6 +21,7 @@ import repositoriesEn from './locales/en/repositories.json'
 import triageEn from './locales/en/triage.json'
 import authEs from './locales/es/auth.json'
 import adminEs from './locales/es/admin.json'
+import billingEs from './locales/es/billing.json'
 import commonEs from './locales/es/common.json'
 import apiAccessEs from './locales/es/apiAccess.json'
 import cveEs from './locales/es/cve.json'
@@ -61,9 +63,10 @@ void i18n.use(initReactI18next).init({
       issues: issuesEs,
       pentests: pentestsEs,
       apiAccess: apiAccessEs,
-  cve: cveEs,
+      cve: cveEs,
       prReviews: prReviewsEs,
       admin: adminEs,
+      billing: billingEs,
       enterprise: enterpriseEs,
       triage: triageEs,
       llm: llmEs,
@@ -80,9 +83,10 @@ void i18n.use(initReactI18next).init({
       issues: issuesEn,
       pentests: pentestsEn,
       apiAccess: apiAccessEn,
-  cve: cveEn,
+      cve: cveEn,
       prReviews: prReviewsEn,
       admin: adminEn,
+      billing: billingEn,
       enterprise: enterpriseEn,
       triage: triageEn,
       llm: llmEn,
@@ -102,9 +106,10 @@ void i18n.use(initReactI18next).init({
     'issues',
     'pentests',
     'apiAccess',
-  'cve',
+    'cve',
     'prReviews',
     'admin',
+    'billing',
     'enterprise',
     'triage',
     'llm',

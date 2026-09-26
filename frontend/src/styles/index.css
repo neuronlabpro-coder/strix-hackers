@@ -3527,6 +3527,424 @@ code.mono,
   font-size: 0.75rem;
 }
 
+/* ==========================================================================
+   Webhooks salientes: filas, contador de fallos e historial de entregas
+   ==========================================================================
+
+   Se apoya en `data-table`, `empty-card`, `modal`, `form-field`, `badge` y
+   `scope-groups`, que ya existen. Solo se declara lo propio de esta pantalla.
+   ========================================================================== */
+
+.webhook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+/*
+  El contador de fallos usa el color como un canal de estado, no como decoracion.
+  Cero en verde significa "nunca falló" y es el estado en el que el usuario quiere
+  estar; en ámbar, que hay algo que mirar; en rojo, que el endpoint se apagará solo
+  en breve. Con un solo número gris, los tres estados se indistinguían.
+*/
+.cell-failures-ok {
+  color: var(--color-low);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.cell-failures-warn {
+  color: var(--color-medium);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.cell-failures-critical {
+  color: var(--color-critical);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/*
+  El historial de entregas necesita más ancho que un modal normal. `.modal` se queda en
+  640 px, que es lo adecuado para un formulario de dos campos, y a 640 px el `<pre>` del
+  JSON obliga a desplazarse en horizontal para leer una línea. La clase la usan ya el
+  detalle de CVE y el de conocimiento, y tampoco tenía regla: estaba ahí esperando a que
+  alguien notara que un modal de detalle no necesita el ancho de un formulario.
+*/
+.modal-wide {
+  width: min(100%, 900px);
+}
+
+/* --- Historial de entregas ------------------------------------------------- */
+
+.delivery-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.delivery-item {
+  background: var(--color-surface);
+}
+
+.delivery-summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.delivery-summary:hover {
+  background: var(--color-surface-elevated);
+}
+
+.delivery-summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.delivery-summary .badge {
+  flex: 0 0 auto;
+  min-width: 44px;
+  text-align: center;
+}
+
+.delivery-detail {
+  display: grid;
+  gap: var(--spacing-sm);
+  padding: 0 10px 12px 36px;
+}
+
+.delivery-payload {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  max-height: 260px;
+  overflow: auto;
+  color: var(--color-secondary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* =============================================================================
+   Bloque 5.4 — Consola de SuperAdmin y facturación del cliente
+   -----------------------------------------------------------------------------
+   Solo se declara lo que no tiene equivalente previo. Los campos, el diálogo, las
+   celdas y los botones ya existían (`form-field`, `modal-caption`, `modal-footer`,
+   `cell-primary`, `cell-muted`, `link-button`, `icon-button`) y se reutilizan en vez
+   de duplicar su estilo con otro nombre.
+   ========================================================================== */
+
+/* --- Métricas ------------------------------------------------------------- */
+
+.metric-unit {
+  color: var(--color-caption);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+/*
+  La pista de una métrica va en `--color-caption` y no en `--color-secondary`. La
+  diferencia es de 6,9:1 contra 4,53:1, y este texto es el que explica qué mide el
+  número de arriba: leerlo con 4,53:1 obliga a acercar la pantalla en una tarjeta que
+  se lee de un vistazo.
+*/
+.metric-hint {
+  margin: 10px 0 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.metric-card-accent {
+  border-color: var(--color-accent);
+}
+
+/* --- Packs de recarga ------------------------------------------------------ */
+
+.pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pack-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 18px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/*
+  El precio va en un tamaño mayor que la cantidad de créditos, al revés que en una
+  tarjeta de producto de consumo. Aquí la decisión es cuánto va a costar, y la
+  cantidad es la conversión; presentar la cifra grande como «500» y la pequeña como
+  «$19» invierte la pregunta que el operador se trae al abrir la pantalla.
+*/
+.pack-credits {
+  margin: 0;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.pack-price {
+  margin: 0;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 1.9rem;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.pack-unit {
+  margin: 0 0 10px;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+}
+
+.pack-card .primary-button {
+  justify-content: center;
+}
+
+/* --- Saldo en la barra superior -------------------------------------------- */
+
+.credit-pill {
+  display: inline-flex;
+  overflow: hidden;
+  align-items: stretch;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+/*
+  El saldo y el botón de recarga comparten un borde porque forman un control único —
+  "cuánto tienes" y "aumentarlo" son la misma decisión. Separarlos con un hueco
+  invites a leerlos como dos elementos distintos y a que el botón de recarga se
+  confunda con un ajuste de la cuenta.
+*/
+.credit-pill-balance,
+.credit-pill-topup {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 6px 12px;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.credit-pill-topup {
+  color: var(--color-on-primary);
+  background: var(--color-accent);
+  font-weight: 500;
+}
+
+.credit-pill-balance:hover {
+  background: var(--color-surface);
+}
+
+.credit-pill-topup:hover {
+  filter: brightness(1.1);
+}
+
+.credit-pill-balance:focus-visible,
+.credit-pill-topup:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: -2px;
+}
+
+.credit-pill-pending {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+/* --- Estados de una fila --------------------------------------------------- */
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.terminal-warning {
+  color: var(--color-medium);
+  border-color: var(--color-medium);
+}
+
+.delta-positive {
+  color: var(--color-accent-bright);
+}
+
+/*
+  Un consumo **no** va en rojo. Va en el color de texto normal.
+  El rojo es la señal de «esto es un problema», y un escaneo que consume créditos es lo
+  contrario: es el producto trabajando. Pintarlo en rojo pondría la tabla de movimientos
+  llena de alarms en un tenant activo, y quien la mirara aprendería a ignorar el color
+  justo en la columna donde un reembolso —que sí sería rojo— necesita destacar.
+*/
+.delta-negative {
+  color: var(--color-caption);
+}
+
+.delta-neutral {
+  color: var(--color-muted);
+}
+
+/* --- Casilla única de filtro ------------------------------------------------ */
+
+/*
+  Alineada por su base con los desplegables de la barra de filtros, no por el centro: una
+  casilla de 16 px centrada al lado de un campo de 36 px parece un elemento arrastrado a
+  esa barra y no un filtro del mismo grupo.
+*/
+.checkbox-field {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--color-caption);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.checkbox-field:focus-within {
+  border-color: var(--color-accent);
+}
+
+/* --- Avisos dentro de un diálogo o de una página ---------------------------- */
+
+.banner-success,
+.banner-warning {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+}
+
+.banner-success {
+  color: var(--color-accent-bright);
+  border-color: var(--color-accent);
+}
+
+.banner-warning {
+  color: var(--color-medium);
+  border-color: var(--color-medium);
+}
+
+.modal-warning,
+.modal-success {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.modal-warning {
+  color: var(--color-medium);
+  border-color: var(--color-medium);
+}
+
+.modal-success {
+  color: var(--color-accent-bright);
+  border-color: var(--color-accent);
+}
+
+.admin-inline-warning {
+  color: var(--color-medium);
+}
+
+/* --- Consola de SuperAdmin -------------------------------------------------- */
+
+/*
+  La consola reutiliza la rejilla del shell de cliente en vez de tener una propia. Sus
+  secciones son las mismas tablas y las mismas tarjetas, y duplicar la rejilla
+  garantizaría que las dos se desincronizasen en el primer ajuste de espaciado.
+*/
+.admin-sidebar {
+  background: var(--color-raised);
+}
+
+.admin-navigation {
+  flex: 1;
+}
+
+.admin-navigation .nav-link {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.admin-back-link {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 12px;
+  color: var(--color-accent-bright);
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.admin-back-link:hover {
+  filter: brightness(1.15);
+}
+
+.admin-back-link:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+/* --- Resumen de la barra de paginación ------------------------------------- */
+
+.pagination-summary {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .content-shell {
     margin-left: 0;

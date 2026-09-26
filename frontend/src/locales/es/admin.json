@@ -2,24 +2,42 @@
   "nav": "Consola SuperAdmin",
   "title": "Consola de SuperAdmin",
   "eyebrow": "Operación de plataforma",
-  "description": "Inventario de organizaciones registradas y salud de la infraestructura de datos.",
-  "organizations": {
-    "title": "Organizaciones registradas",
-    "caption": "Todos los tenants de la plataforma, con su plan y su saldo de créditos.",
-    "columns": {
-      "name": "Organización",
-      "slug": "Slug",
-      "plan": "Plan",
-      "credits": "Créditos",
-      "created": "Alta"
-    },
-    "plan": {
-      "FREE": "Free",
-      "PRO": "Pro",
-      "ENTERPRISE": "Enterprise"
-    },
-    "empty": "No hay organizaciones registradas",
-    "total": "{{total}} organizaciones registradas en total"
+  "description": "Inventario de organizaciones registradas y salud de la infra",
+  "brand": {
+    "eyebrow": "Consola SuperAdmin",
+    "caption": "Operación de plataforma"
+  },
+  "sections": {
+    "consoleLabel": "Consola de plataforma",
+    "overview": "Resumen global",
+    "tenants": "Organizaciones / Tenants",
+    "users": "Usuarios",
+    "sales": "Ventas e ingresos",
+    "audit": "Auditoría global",
+    "llm": "Modelos LLM",
+    "backToApp": "Volver a la App"
+  },
+  "overview": {
+    "title": "Resumen global",
+    "description": "Ingresos, volumen de créditos, escaneos y adopción de la plataforma.",
+    "generatedAt": "Calculado",
+    "refresh": "Actualizar",
+    "empty": "El backend no devolvió métricas"
+  },
+  "metrics": {
+    "mrr": "Ingresos del mes",
+    "revenueTotal": "Ingresos acumulados",
+    "creditsSold": "Créditos vendidos",
+    "pentestRuns": "Escaneos ejecutados",
+    "activeTenants": "Tenants activos",
+    "totalUsers": "Usuarios registrados",
+    "mrrHint": "Créditos comprados con pago desde el primer día del mes. Los créditos de bienvenida y los ajustes administrativos no cuentan como ingresos.",
+    "revenueTotalHint": "Todo lo comprado con pago desde el arranque de la plataforma, en dólares.",
+    "creditsSoldHint": "Suma de los créditos acreditados por compras, sin descontar los consumidos.",
+    "pentestRunsHint": "Escaneos lanzados en toda la plataforma, incluidos los que fallaron: un resumen que solo contara los exitosos escondería justo los que se caen.",
+    "activeTenantsHint": "Workspaces no dados de baja y no desactivados. Los dados de baja siguen contando en las demás métricas.",
+    "totalUsersHint": "Todas las cuentas creadas, incluidas las de tenants dados de baja.",
+    "creditsUnit": "créditos"
   },
   "health": {
     "title": "Estado de infraestructura",
@@ -38,14 +56,170 @@
     "checkedAt": "Sondeado",
     "refresh": "Volver a sondear"
   },
+  "organizations": {
+    "title": "Organizaciones registradas",
+    "caption": "Todos los tenants de la plataforma, con su plan y su saldo de créditos.",
+    "columns": {
+      "name": "Organización",
+      "slug": "Slug",
+      "plan": "Plan",
+      "credits": "Créditos",
+      "created": "Alta"
+    },
+    "plan": {
+      "FREE": "Free",
+      "PRO": "Pro",
+      "ENTERPRISE": "Enterprise"
+    },
+    "empty": "No hay organizaciones registradas",
+    "total": "{{total}} organizaciones registradas en total"
+  },
+  "tenants": {
+    "title": "Organizaciones / Tenants",
+    "description": "Todos los workspaces de la plataforma, con su plan, su saldo y su estado.",
+    "filters": {
+      "plan": "Plan",
+      "lifecycle": "Estado",
+      "search": "Buscar",
+      "searchPlaceholder": "Nombre o slug",
+      "allPlans": "Todos los planes",
+      "allLifecycles": "Todos los estados",
+      "clear": "Quitar filtros"
+    },
+    "lifecycle": {
+      "active": "Activo",
+      "deleted": "Dado de baja",
+      "deactivated": "Desactivado"
+    },
+    "columns": {
+      "name": "Organización",
+      "slug": "Slug",
+      "plan": "Plan",
+      "credits": "Saldo",
+      "members": "Miembros",
+      "status": "Estado",
+      "created": "Alta",
+      "actions": "Acciones"
+    },
+    "members": {
+      "one": "{{count}} miembro",
+      "other": "{{count}} miembros"
+    },
+    "actions": {
+      "plan": "Cambiar plan",
+      "grant": "Inyectar créditos",
+      "deactivate": "Dar de baja"
+    },
+    "planModal": {
+      "title": "Cambiar plan de {{name}}",
+      "caption": "Bajar de plan no toca el saldo. El workspace conserva sus créditos y dejará de poder gastarlos cuando llegue a su límite.",
+      "label": "Plan de destino",
+      "submit": "Aplicar plan",
+      "submitting": "Aplicando"
+    },
+    "grantModal": {
+      "title": "Inyectar créditos a {{name}}",
+      "caption": "El asiento se registra como ajuste administrativo, nunca como compra, para que no se cuente como ingreso en el resumen global.",
+      "amountLabel": "Cantidad de créditos",
+      "amountHint": "Solo números positivos, hasta cuatro decimales.",
+      "noteLabel": "Nota interna",
+      "noteHint": "No aparece en la factura del cliente. Sirve para saber por qué se hizo.",
+      "submit": "Acreditar",
+      "submitting": "Acreditando",
+      "result": "Saldo tras la inyección: {{balance}}",
+      "amountPlaceholder": "100.0000"
+    },
+    "deactivateModal": {
+      "title": "Dar de baja {{name}}",
+      "caption": "La baja es lógica: ni el workspace, ni sus escaneos, ni sus facturas se borran. Se revocan sus accesos y queda asiento en el rastro de auditoría.",
+      "warning": "Esta acción no se puede deshacer desde la consola.",
+      "confirm": "Confirmar baja",
+      "submitting": "Dando de baja"
+    },
+    "empty": "Ningún tenant coincide con los filtros",
+    "messages": {
+      "planUpdated": "Plan actualizado",
+      "creditsGranted": "Créditos acreditados",
+      "deactivated": "Workspace dado de baja"
+    }
+  },
+  "users": {
+    "title": "Usuarios",
+    "description": "Todas las cuentas registradas y los workspaces a los que pertenecen.",
+    "searchPlaceholder": "Email o nombre",
+    "onlySuperusers": "Solo superusuarios",
+    "columns": {
+      "email": "Email",
+      "name": "Nombre",
+      "organizations": "Organizaciones",
+      "superuser": "Superusuario",
+      "verified": "Email verificado",
+      "active": "Estado",
+      "created": "Alta"
+    },
+    "yes": "Sí",
+    "no": "No",
+    "active": "Activo",
+    "inactive": "Desactivado",
+    "noOrganizations": "Sin organización",
+    "empty": "Ningún usuario coincide con la búsqueda",
+    "total": "{{total}} usuarios en total"
+  },
+  "sales": {
+    "title": "Ventas e ingresos",
+    "description": "Historial de los eventos de pago procesados por el proveedor de cobro.",
+    "columns": {
+      "event": "Evento",
+      "type": "Tipo",
+      "tenant": "Tenant",
+      "credits": "Créditos",
+      "session": "Sesión de pago",
+      "created": "Procesado"
+    },
+    "purchase": "Compra",
+    "notPurchase": "Sin créditos",
+    "noTenant": "Sin tenant",
+    "noSession": "—",
+    "empty": "Todavía no se ha procesado ningún pago",
+    "total": "{{count}} eventos · {{credits}} créditos en esta página",
+    "totalCaption": "La suma es de los importes registrados de esta página, no del histórico."
+  },
+  "audit": {
+    "title": "Auditoría global",
+    "description": "Rastro append-only de todo lo que ha ocurrido en la plataforma.",
+    "searchPlaceholder": "Tenant, actor o entidad",
+    "actionPlaceholder": "Acción exacta",
+    "columns": {
+      "created": "Cuándo",
+      "action": "Acción",
+      "entity": "Entidad",
+      "actor": "Actor",
+      "tenant": "Tenant",
+      "transition": "Transición"
+    },
+    "system": "Sistema",
+    "noTransition": "—",
+    "empty": "Ninguna entrada coincide con los filtros",
+    "total": "{{total}} entradas en total"
+  },
   "states": {
     "loading": "Cargando consola",
     "error": "No se pudo cargar la consola",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "empty": "Sin datos"
   },
   "forbidden": {
     "title": "Privilegios insuficientes",
-    "description": "Esta consola está reservada a superusuarios de la plataforma.",
+    "description": "Esta consola está reservada a superusuarios de la plataforma",
     "back": "Volver al dashboard"
+  },
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
+  },
+  "actions": {
+    "cancel": "Cancelar",
+    "close": "Cerrar"
   }
 }

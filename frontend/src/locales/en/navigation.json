@@ -17,5 +17,6 @@
   "settings": "Settings",
   "workspace": "Workspace",
   "locked": "Locked",
-  "comingSoon": "This view will be available in a later phase."
+  "comingSoon": "This view will be available in a later phase.",
+  "billing": "Billing and credits"
 }

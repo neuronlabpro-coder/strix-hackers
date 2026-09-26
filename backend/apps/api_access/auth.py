@@ -307,7 +307,13 @@ async def resolve_principal(
     user = await _resolve_authenticated_user(credentials, session)
     organization_id = organization_id_from_request(request)
     if organization_id is None:
-        return await _resolve_principal_without_tenant(user, session)
+        # Se rechaza en vez de elegir el tenant más antiguo del usuario. No cruza
+        # tenants —el elegido sería suyo—, pero es peor que un `403`: un endpoint que
+        # promete "los endpoints de tu workspace activo" respondería con los de un
+        # workspace que el usuario no eligió, sin decir cuál. El `403` dice "falta la
+        # cabecera"; elegir en silencio obliga al cliente a adivinar por qué ve datos que
+        # no esperaba.
+        raise _forbidden("Falta la cabecera X-Organization-Id")
     contexto = await resolve_tenant_for_user(session, user, organization_id)
     if contexto is None:
         raise _forbidden("Acceso a la organización denegado")
@@ -315,45 +321,6 @@ async def resolve_principal(
         organization=contexto.organization,
         user=contexto.user,
         membership=contexto.membership,
-    )
-
-
-async def _resolve_principal_without_tenant(
-    user: User,
-    session: AsyncSession,
-) -> UserPrincipal:
-    """Sujeto de una sesión web a la que no se le exige tenant concreto.
-
-    Se usa solo en la emisión de tokens: crear un token es un acto de cuenta, no de
-    recurso, y la respuesta no filtra datos de ningún tenant. Cuando el usuario
-    pertenece a varios, se toma el más antiguo para que dos emisiones seguidas produzcan
-    el mismo tenant y el cliente no tenga que adivinar en cuál se creó el token.
-
-    Si el usuario no tiene ninguna membresía activa no hay tenant al que colgar el token
-    y se responde `403`: emitir un token que no puede servir sería devolver un secreto
-    que ya es inservible, que es la peor forma de responder.
-    """
-
-    result = await session.execute(
-        select(Organization, Membership)
-        .join(Membership, Membership.organization_id == Organization.id)
-        .where(
-            Membership.user_id == user.id,
-            Membership.is_active.is_(True),
-            Organization.is_active.is_(True),
-            Organization.deleted_at.is_(None),
-        )
-        .order_by(Organization.created_at.asc())
-        .limit(1)
-    )
-    fila = result.first()
-    if fila is None:
-        raise _forbidden("El usuario no pertenece a ninguna organización activa")
-    organization, membership = fila
-    return UserPrincipal(
-        organization=organization,
-        user=user,
-        membership=membership,
     )
 
 

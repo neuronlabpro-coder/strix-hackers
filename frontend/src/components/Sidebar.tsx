@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  BrainCircuit,
   ChevronDown,
   CircleDot,
   LogOut,
@@ -45,7 +44,6 @@ export function Sidebar({
   const { t: tNavigation } = useTranslation('navigation')
   const { t: tEnterprise } = useTranslation('enterprise')
   const { t: tAdmin } = useTranslation('admin')
-  const { t: tLlm } = useTranslation('llm')
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<EnterpriseFeature | null>(null)
   const workspaceSelectorRef = useRef<HTMLDivElement>(null)
@@ -199,16 +197,16 @@ export function Sidebar({
           <CircleDot size={12} className="status-dot" aria-hidden="true" />
         </div>
         {user?.is_superuser ? (
-          <>
-            <NavLink className="nav-link" to="/admin" end>
-              <Server size={16} aria-hidden="true" />
-              <span>{tAdmin('nav')}</span>
-            </NavLink>
-            <NavLink className="nav-link" to="/admin/llm">
-              <BrainCircuit size={16} aria-hidden="true" />
-              <span>{tLlm('nav')}</span>
-            </NavLink>
-          </>
+          /*
+            Una sola entrada a la consola, no una por sección. El pie del panel de cliente
+            antes enlazaba `/admin` y `/admin/llm` por separado, lo que prometía que
+            `/admin` era todo lo que había y ocultaba cinco secciones más. Ahora apunta al
+            resumen y de ahí se navega.
+          */
+          <NavLink className="nav-link" to="/admin" end>
+            <Server size={16} aria-hidden="true" />
+            <span>{tAdmin('nav')}</span>
+          </NavLink>
         ) : null}
         <button className="logout-button" type="button" onClick={onLogout}>
           <LogOut size={16} aria-hidden="true" />

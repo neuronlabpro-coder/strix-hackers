@@ -26,6 +26,11 @@ class AuditActionEnum(StrEnum):
     # operar: el asiento se escribe antes de revocar los accesos, y por eso tiene que
     # poder emitirse aunque la revocación falle a mitad.
     ORGANIZATION_DELETED = "ORGANIZATION_DELETED"
+    # Desactivación automática de un webhook por fallos consecutivos. Va al rastro forense
+    # y no a un log porque es una decisión que **tomó el sistema** sin que nadie la
+    # pidiera: un endpoint que se apaga solo tiene que poder responder cuándo pasó, por
+    # qué y cuál era la URL, y eso solo se responde desde la tabla append-only.
+    WEBHOOK_AUTO_DISABLED = "WEBHOOK_AUTO_DISABLED"
 
 
 class AuditLogEntry(Base):

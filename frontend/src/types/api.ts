@@ -6,7 +6,13 @@ export interface Organization {
   name: string
   slug: string
   plan_tier: PlanTier
-  credit_balance: number
+  /**
+   * Saldo como **cadena decimal**, no como número. El backend lo declara `Decimal` y
+   * Pydantic lo serializa con cadena. Declararlo `number` funcionaba por casualidad
+   * porque `Intl.NumberFormat` convierte la cadena, pero cualquier aritmética sobre el
+   * valor habría suspendido la comprobación de tipos justo donde importa: en el dinero.
+   */
+  credit_balance: string
   role: OrganizationRole
   created_at: string
   updated_at: string
@@ -350,18 +356,115 @@ export interface OnboardingStatus {
   is_complete: boolean
 }
 
+export type TenantLifecycle = 'active' | 'deleted' | 'deactivated'
+
 export interface AdminOrganization {
   id: string
   name: string
   slug: string
   plan_tier: PlanTierAdmin
-  credit_balance: number
+  /**
+   * Saldo del tenant como **cadena decimal**, no como número.
+   *
+   * El backend lo declara `Decimal` y Pydantic lo serializa con cadena: `"42.5"`. Un
+   * número JSON es un binario en coma flotante donde `0.1` no es exactamente `0.1`, así
+   * que 42,10 créditos viajarían como `42.099999999999994` y el saldo que se ve en pantalla
+   * no cuadraría con el del ledger. Para pintar hay que pasar por `formatCredits`.
+   */
+  credit_balance: string
+  is_active: boolean
+  deleted_at: string | null
   created_at: string
   updated_at: string
+  member_count: number
 }
 
 export interface AdminOrganizationPage {
   items: AdminOrganization[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AdminCreditGrantResult {
+  organization_id: string
+  granted: string
+  balance_after: string
+  ledger_entry_id: string
+}
+
+export type AdminMetricFormat = 'currency' | 'credits' | 'count'
+
+export interface AdminMetric {
+  key: string
+  /** Cadena decimal, por la misma razón que `credit_balance`. */
+  value: string
+  format: AdminMetricFormat
+  /** Clave de i18n del texto que explica qué mide esta métrica. */
+  hint_key: string
+}
+
+export interface AdminOverview {
+  metrics: AdminMetric[]
+  infrastructure: InfrastructureHealth
+  generated_at: string
+}
+
+export interface AdminUser {
+  id: string
+  email: string
+  full_name: string
+  is_superuser: boolean
+  is_active: boolean
+  email_verified: boolean
+  created_at: string
+  organizations: string[]
+  organization_count: number
+}
+
+export interface AdminUserPage {
+  items: AdminUser[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AdminSale {
+  id: string
+  event_id: string
+  event_type: string
+  session_id: string | null
+  organization_id: string | null
+  organization_name: string | null
+  /** `null` cuando el evento no acreditó créditos. No es `0`: un `0` sería una venta. */
+  credits_granted: string | null
+  created_at: string
+}
+
+export interface AdminSalePage {
+  items: AdminSale[]
+  total: number
+  limit: number
+  offset: number
+  total_credits: string
+}
+
+export interface AdminAuditEntry {
+  id: string
+  organization_id: string | null
+  organization_name: string | null
+  actor_user_id: string | null
+  actor_email: string | null
+  action: string
+  entity_type: string
+  entity_id: string
+  from_state: string | null
+  to_state: string | null
+  created_at: string
+}
+
+export interface AdminAuditPage {
+  items: AdminAuditEntry[]
   total: number
   limit: number
   offset: number
@@ -482,6 +585,79 @@ export interface ApiTokenCreatePayload {
   scopes: string[]
   /** Días hasta la caducidad. El backend impone un techo de 365. */
   expires_in_days: number
+}
+
+/**
+ * Un endpoint de webhook saliente.
+ *
+ * `is_auto_disabled` lo calcula el backend y llega aquí ya resuelto. No se deduce en el
+ * cliente porque la diferencia importa: un endpoint pausado por el usuario y uno apagado
+ * por diez fallos consecutivos requieren acciones distintas, y un panel que los muestra
+ * igual deja al usuario sin manera de saber por qué dejó de llegarse.
+ */
+export interface WebhookEndpoint {
+  id: string
+  url: string
+  description: string | null
+  event_types: string[]
+  is_active: boolean
+  consecutive_failures: number
+  created_at: string
+  updated_at: string
+  is_auto_disabled?: boolean
+}
+
+export interface WebhookCreated extends WebhookEndpoint {
+  /** Secreto `whsec_` para firmar. Solo se devuelve aquí; no es recuperable. */
+  signing_secret: string
+}
+
+export interface WebhookEventDefinition {
+  event_type: string
+  group: string
+  action: string
+  label_key: string
+  description_key: string
+}
+
+export interface WebhookEventGroup {
+  group: string
+  events: WebhookEventDefinition[]
+}
+
+export interface WebhookEventCatalog {
+  groups: WebhookEventGroup[]
+  total: number
+}
+
+export interface WebhookDelivery {
+  id: string
+  endpoint_id: string
+  event_type: string
+  /** Cuerpo exacto que se envió. El backend lo devuelve para poder diagnosticar. */
+  payload: Record<string, unknown>
+  status_code: number | null
+  response_body: string | null
+  execution_time_ms: number | null
+  attempt: number
+  error_message: string | null
+  delivered_at: string
+}
+
+export interface WebhookDeliveryPage {
+  items: WebhookDelivery[]
+  total: number
+  limit: number
+  offset: number
+  response_truncated?: boolean
+}
+
+export interface WebhookPingResult {
+  delivered: boolean
+  status_code: number | null
+  execution_time_ms: number | null
+  error_message: string | null
+  delivery_id: string
 }
 
 export interface RepositoryConnectResponse {

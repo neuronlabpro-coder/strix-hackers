@@ -83,6 +83,44 @@ def override_auth_rate_limits() -> Iterator[None]:
     app.dependency_overrides.pop(get_dispatch_pentest_run, None)
 
 
+@pytest.fixture(autouse=True)
+async def bind_health_probe_redis() -> AsyncIterator[None]:
+    """Da al sondeo de salud un cliente Redis atado al bucle de eventos de cada test.
+
+    ## Por qué hace falta
+
+    `backend.core.redis.redis_client` es un cliente creado **a la hora de importar el
+    módulo**, y su pool de conexiones vive en el bucle de eventos que estuviera abierto
+    cuando se usó por primera vez. En producción hay un solo bucle y no hay problema, pero
+    aquí cada test corre en el suyo: el pool conserva una conexión de un bucle ya cerrado
+    y el siguiente `PING` revienta con `Event loop is closed` o con
+    `'NoneType' object has no attribute 'send'` de redis-py.
+
+    El fallo es **dependiente del orden**: pasa si el test que usa Redis es el primero que
+    lo usa, y falla si hay otro antes. Por eso la suite entera parecía verde y una prueba
+    concreta fallaba en un archivo y no en otro.
+
+    ## Por qué un cliente nuevo en vez de un mock
+
+    Un `AsyncMock` haría que el sondeo devolviera `online` siempre, y la prueba de salud
+    dejaría de comprobar nada: pasaría con Redis caído. Se crea un cliente real —la misma
+    fábrica que usa producción— y se cierra al terminar, de modo que la prueba sigue
+    midiendo algo y el único coste es una conexión.
+    """
+
+    from backend.apps.admin import service as admin_service
+    from backend.core.redis import create_redis_client
+
+    cliente = create_redis_client(settings)
+    anterior = admin_service.redis_client
+    admin_service.redis_client = cliente
+    try:
+        yield
+    finally:
+        admin_service.redis_client = anterior
+        await cliente.aclose()
+
+
 @pytest.fixture
 async def integration_session(request: pytest.FixtureRequest) -> AsyncIterator[AsyncSession | None]:
     """Proporciona una sesión de integración aislada por transacción y savepoints."""

@@ -1,0 +1,59 @@
+{
+  "title": "Facturación y créditos",
+  "description": "Saldo disponible, consumo del mes, recarga y movimientos.",
+  "kpi": {
+    "balance": "Saldo disponible",
+    "balanceHint": "Créditos que quedan para lanzar escaneos.",
+    "spentThisMonth": "Consumido este mes",
+    "spentThisMonthHint": "Escaneos lanzados desde el primer día del mes.",
+    "purchasedThisMonth": "Comprado este mes",
+    "purchasedThisMonthHint": "Créditos acreditados por pago desde el primer día del mes.",
+    "estimate": "≈ {{usd}} al precio del pack más grande",
+    "estimateHint": "Estimación: lo que costaría comprar esta cantidad de créditos al precio unitario más barato del catálogo. El precio real depende del pack que elijas."
+  },
+  "packs": {
+    "title": "Recargar créditos",
+    "caption": "El pago se resuelve con el proveedor de cobro externo; la tarjeta nunca pasa por nosotros.",
+    "buy": "Comprar créditos",
+    "buying": "Redirigiendo al pago",
+    "perCredit": "{{usd}} por crédito",
+    "credits": "{{count}} créditos",
+    "empty": "No hay paquetes disponibles en este momento",
+    "emptyCaption": "El catálogo comercial se define en el servidor. Si está vacío, el administrador de la plataforma tiene que configurarlo antes de que se pueda comprar.",
+    "redirectNotice": "Vas a salir de la plataforma para completar el pago."
+  },
+  "ledger": {
+    "title": "Movimientos",
+    "caption": "Cada línea es un asiento. El saldo nunca se edita: solo se suma.",
+    "columns": {
+      "date": "Fecha",
+      "reason": "Concepto",
+      "amount": "Cantidad",
+      "balance": "Saldo resultante",
+      "reference": "Referencia"
+    },
+    "noReference": "—",
+    "empty": "Todavía no hay movimientos en esta cuenta"
+  },
+  "reason": {
+    "SCAN_CONSUMPTION": "Consumo de escaneo",
+    "STRIPE_PURCHASE": "Compra de créditos",
+    "ADMIN_ADJUSTMENT": "Ajuste administrativo",
+    "SIGNUP_BONUS": "Créditos de bienvenida",
+    "REFUND": "Devolución",
+    "unknown": "Movimiento"
+  },
+  "topbar": {
+    "balance": "Saldo",
+    "topUp": "Recargar"
+  },
+  "states": {
+    "loading": "Cargando facturación",
+    "error": "No se pudo cargar la facturación",
+    "retry": "Reintentar"
+  },
+  "payment": {
+    "paid": "Pago recibido. El saldo se actualiza en cuanto el proveedor confirme el cobro.",
+    "cancelled": "Has cancelado el pago. No se ha descontado nada."
+  }
+}

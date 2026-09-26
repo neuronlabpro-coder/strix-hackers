@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Sidebar } from '../components/Sidebar'
 import { useAuth } from '../features/auth/useAuth'
+import { CreditBalancePill } from '../features/billing/CreditBalancePill'
 
 export function ShellLayout() {
   const { t } = useTranslation('common')
@@ -41,6 +42,7 @@ export function ShellLayout() {
               selector de workspace, que es un control con función y no un ajuste.
             */}
             <LanguageSwitcher />
+            <CreditBalancePill />
             <span className="topbar-workspace">{t('workspaceReady')}</span>
             <button className="primary-button" type="button" onClick={() => navigate('/pentests')}>
               <Plus size={17} aria-hidden="true" />

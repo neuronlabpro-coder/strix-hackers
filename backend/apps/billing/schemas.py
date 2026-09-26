@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 from urllib.parse import urlsplit
@@ -81,3 +82,44 @@ class CreditLedgerEntryResponse(BaseModel):
     reason: str
     reference_id: str | None
     created_at: str
+
+
+class CreditPackResponse(BaseModel):
+    """Un paquete comprable del catálogo comercial.
+
+    `usd_per_credit` lo calcula el servidor para que el panel pueda mostrar el precio
+    unitario sin dividir en el cliente, donde un redondeo distinto por navegador daría dos
+    cifras para el mismo producto.
+    """
+
+    credits: int = Field(gt=0)
+    amount_usd: Decimal = Field(gt=0)
+    usd_per_credit: Decimal = Field(gt=0)
+
+
+class BillingSummaryResponse(BaseModel):
+    """Resumen de facturacion del tenant, para las tarjetas KPI del panel.
+
+    ## Por qué los importes en dólares son una estimación y no el saldo
+
+    El catálogo comercial aplica descuento por volumen, así que no hay una única paridad
+    crédito-dólar. `credit_balance_usd` y `spent_this_month_usd` son **lo que costaría
+    comprar** esa cantidad de créditos al mejor precio unitario del catálogo, y no el
+    "valor" del saldo. El panel lo rotula como estimación.
+
+    Lo que se podría hacer —elegir una paridad fija y aplicarla— produce cifras que
+    contradicen los packs de la misma pantalla: 1000 créditos a la paridad del pack
+    pequeño salen en $26.315,79, y no hay ningún producto de ese precio. Un número que
+    acompaña a un saldo real y no se puede comprobar contra nada es peor que no darlo.
+    """
+
+    credit_balance: Decimal
+    #: Estimación: precio de compra al mejor precio unitario del catálogo actual.
+    credit_balance_usd: Decimal
+    #: Precio unitario con el que se ha calculado la estimación, para que sea comprobable.
+    best_unit_price_usd: Decimal = Field(gt=0)
+    spent_this_month: Decimal = Field(ge=0)
+    purchased_this_month: Decimal = Field(ge=0)
+    spent_this_month_usd: Decimal = Field(ge=0)
+    period_start: datetime
+    packs: list[CreditPackResponse]

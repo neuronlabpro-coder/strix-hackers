@@ -6,13 +6,13 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  Webhook,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { ApiToken, ApiTokenCreated } from '../../types/api'
 import { CreateTokenModal, SecretRevealModal } from './CreateTokenModal'
 import { useApiAccess } from './useApiAccess'
+import { WebhooksTab } from './WebhooksTab'
 
 type Tab = 'tokens' | 'webhooks' | 'mcp'
 
@@ -375,34 +375,6 @@ function RevokeConfirmModal({
         </footer>
       </div>
     </div>
-  )
-}
-
-function WebhooksTab() {
-  const { t } = useTranslation('apiAccess')
-  return (
-    <section role="tabpanel" aria-label={t('tabs.webhooks')}>
-      <div className="empty-card">
-        <Webhook size={24} aria-hidden="true" />
-        <h2>{t('webhooks.title')}</h2>
-        <p>{t('webhooks.description')}</p>
-        <ul className="empty-state-list">
-          <li>{t('webhooks.events.scanCompleted')}</li>
-          <li>{t('webhooks.events.newVulnerability')}</li>
-          <li>{t('webhooks.events.triageChanged')}</li>
-        </ul>
-        {/*
-          El botón está deshabilitado y no escondido. Anunciar una función que no existe
-          es peor que no anunciarla; mostrarla deshabilitada deja claro que el endpoint
-          está previsto sin prometer que funcione hoy.
-        */}
-        <button className="primary-button" type="button" disabled>
-          <Plus size={16} aria-hidden="true" />
-          <span>{t('webhooks.addEndpoint')}</span>
-        </button>
-        <p className="empty-state-note">{t('webhooks.pending')}</p>
-      </div>
-    </section>
   )
 }
 

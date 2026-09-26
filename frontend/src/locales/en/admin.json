@@ -2,7 +2,60 @@
   "nav": "SuperAdmin console",
   "title": "SuperAdmin console",
   "eyebrow": "Platform operations",
-  "description": "Inventory of registered organizations and the health of the data infrastructure.",
+  "description": "Registered organizations and infrastructure health",
+  "brand": {
+    "eyebrow": "SuperAdmin console",
+    "caption": "Platform operations"
+  },
+  "sections": {
+    "consoleLabel": "Platform console",
+    "overview": "Global overview",
+    "tenants": "Organizations / Tenants",
+    "users": "Users",
+    "sales": "Sales and revenue",
+    "audit": "Global audit",
+    "llm": "LLM models",
+    "backToApp": "Back to the App"
+  },
+  "overview": {
+    "title": "Global overview",
+    "description": "Revenue, credit volume, scans and platform adoption.",
+    "generatedAt": "Computed",
+    "refresh": "Refresh",
+    "empty": "The backend returned no metrics"
+  },
+  "metrics": {
+    "mrr": "Revenue this month",
+    "revenueTotal": "Lifetime revenue",
+    "creditsSold": "Credits sold",
+    "pentestRuns": "Scans executed",
+    "activeTenants": "Active tenants",
+    "totalUsers": "Registered users",
+    "mrrHint": "Credits bought with payment since the first of the month. Welcome bonuses and admin adjustments do not count as revenue.",
+    "revenueTotalHint": "Everything bought with payment since launch, in dollars.",
+    "creditsSoldHint": "Sum of the credits granted by purchases, without subtracting what was spent.",
+    "pentestRunsHint": "Scans launched across the platform, including the failed ones: a summary counting only successes would hide exactly the ones that break.",
+    "activeTenantsHint": "Workspaces neither deleted nor deactivated. Deleted ones still count in every other metric.",
+    "totalUsersHint": "Every account created, including those of deleted tenants.",
+    "creditsUnit": "credits"
+  },
+  "health": {
+    "title": "Infrastructure health",
+    "caption": "Live probe of the data dependencies.",
+    "status": {
+      "healthy": "Operational",
+      "degraded": "Degraded"
+    },
+    "database": "PostgreSQL",
+    "cache": "Redis",
+    "dependencyStatus": {
+      "online": "Online",
+      "offline": "No response"
+    },
+    "latency": "Latency",
+    "checkedAt": "Probed",
+    "refresh": "Probe again"
+  },
   "organizations": {
     "title": "Registered organizations",
     "caption": "Every tenant on the platform, with its plan and credit balance.",
@@ -18,34 +71,155 @@
       "PRO": "Pro",
       "ENTERPRISE": "Enterprise"
     },
-    "empty": "No organizations registered yet",
+    "empty": "No organizations registered",
     "total": "{{total}} organizations registered in total"
   },
-  "health": {
-    "title": "Infrastructure health",
-    "caption": "Live probe of the data dependencies.",
-    "status": {
-      "healthy": "Operational",
-      "degraded": "Degraded"
+  "tenants": {
+    "title": "Organizations / Tenants",
+    "description": "Every workspace on the platform, with its plan, balance and state.",
+    "filters": {
+      "plan": "Plan",
+      "lifecycle": "Status",
+      "search": "Search",
+      "searchPlaceholder": "Name or slug",
+      "allPlans": "All plans",
+      "allLifecycles": "All statuses",
+      "clear": "Clear filters"
     },
-    "database": "PostgreSQL",
-    "cache": "Redis",
-    "dependencyStatus": {
-      "online": "Online",
-      "offline": "Unreachable"
+    "lifecycle": {
+      "active": "Active",
+      "deleted": "Deleted",
+      "deactivated": "Deactivated"
     },
-    "latency": "Latency",
-    "checkedAt": "Checked at",
-    "refresh": "Probe again"
+    "columns": {
+      "name": "Organization",
+      "slug": "Slug",
+      "plan": "Plan",
+      "credits": "Balance",
+      "members": "Members",
+      "status": "Status",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "members": {
+      "one": "{{count}} member",
+      "other": "{{count}} members"
+    },
+    "actions": {
+      "plan": "Change plan",
+      "grant": "Grant credits",
+      "deactivate": "Deactivate"
+    },
+    "planModal": {
+      "title": "Change plan of {{name}}",
+      "caption": "Downgrading does not touch the balance. The workspace keeps its credits and will stop being able to spend them once it hits the plan limit.",
+      "label": "Target plan",
+      "submit": "Apply plan",
+      "submitting": "Applying"
+    },
+    "grantModal": {
+      "title": "Grant credits to {{name}}",
+      "caption": "The entry is recorded as an admin adjustment, never as a purchase, so it is not counted as revenue in the global overview.",
+      "amountLabel": "Credit amount",
+      "amountHint": "Positive numbers only, up to four decimal places.",
+      "noteLabel": "Internal note",
+      "noteHint": "Not shown on the customer invoice. It records why this was done.",
+      "submit": "Grant",
+      "submitting": "Granting",
+      "result": "Balance after the grant: {{balance}}",
+      "amountPlaceholder": "100.0000"
+    },
+    "deactivateModal": {
+      "title": "Deactivate {{name}}",
+      "caption": "Deletion is logical: neither the workspace, nor its scans, nor its invoices are erased. Access is revoked and an entry is written to the audit trail.",
+      "warning": "This action cannot be undone from the console.",
+      "confirm": "Confirm deletion",
+      "submitting": "Deleting"
+    },
+    "empty": "No tenant matches the filters",
+    "messages": {
+      "planUpdated": "Plan updated",
+      "creditsGranted": "Credits granted",
+      "deactivated": "Workspace deleted"
+    }
+  },
+  "users": {
+    "title": "Users",
+    "description": "Every registered account and the workspaces it belongs to.",
+    "searchPlaceholder": "Email or name",
+    "onlySuperusers": "Superusers only",
+    "columns": {
+      "email": "Email",
+      "name": "Name",
+      "organizations": "Organizations",
+      "superuser": "Superuser",
+      "verified": "Email verified",
+      "active": "Status",
+      "created": "Created"
+    },
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Deactivated",
+    "noOrganizations": "No organization",
+    "empty": "No user matches the search",
+    "total": "{{total}} users in total"
+  },
+  "sales": {
+    "title": "Sales and revenue",
+    "description": "History of the payment events processed by the payment provider.",
+    "columns": {
+      "event": "Event",
+      "type": "Type",
+      "tenant": "Tenant",
+      "credits": "Credits",
+      "session": "Payment session",
+      "created": "Processed"
+    },
+    "purchase": "Purchase",
+    "notPurchase": "No credits",
+    "noTenant": "No tenant",
+    "noSession": "—",
+    "empty": "No payment has been processed yet",
+    "total": "{{count}} events · {{credits}} credits on this page",
+    "totalCaption": "The sum covers this page's recorded amounts, not the full history."
+  },
+  "audit": {
+    "title": "Global audit",
+    "description": "Append-only trail of everything that happened on the platform.",
+    "searchPlaceholder": "Tenant, actor or entity",
+    "actionPlaceholder": "Exact action",
+    "columns": {
+      "created": "When",
+      "action": "Action",
+      "entity": "Entity",
+      "actor": "Actor",
+      "tenant": "Tenant",
+      "transition": "Transition"
+    },
+    "system": "System",
+    "noTransition": "—",
+    "empty": "No entry matches the filters",
+    "total": "{{total}} entries in total"
   },
   "states": {
     "loading": "Loading console",
     "error": "The console could not be loaded",
-    "retry": "Retry"
+    "retry": "Retry",
+    "empty": "No data"
   },
   "forbidden": {
     "title": "Insufficient privileges",
-    "description": "This console is restricted to platform superusers.",
-    "back": "Back to dashboard"
+    "description": "This console is reserved for platform superusers",
+    "back": "Back to the dashboard"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "summary": "{{from}}–{{to}} of {{total}}"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "close": "Close"
   }
 }

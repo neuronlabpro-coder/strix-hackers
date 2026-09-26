@@ -10,7 +10,11 @@ celery_app = Celery(
     "mind_guard_fenix",
     broker=settings.celery_redis_url,
     backend=settings.celery_redis_url,
-    include=["backend.workers.tasks", "backend.apps.repositories.tasks"],
+    include=[
+        "backend.workers.tasks",
+        "backend.apps.repositories.tasks",
+        "backend.apps.webhooks.tasks",
+    ],
 )
 
 celery_app.conf.update(

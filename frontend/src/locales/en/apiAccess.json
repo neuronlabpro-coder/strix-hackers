@@ -16,6 +16,30 @@
     "revoked": "Revoked",
     "expired": "Expired"
   },
+  "events": {
+    "pentest": {
+      "completed": "Scan completed",
+      "failed": "Scan failed",
+      "timed_out": "Scan timed out",
+      "aborted": "Scan aborted"
+    },
+    "vulnerability": {
+      "created": "Vulnerability found",
+      "status_changed": "Vulnerability status changed",
+      "autofixed": "Vulnerability auto-fixed"
+    },
+    "pr_review": {
+      "completed": "PR review completed",
+      "failed": "PR review failed",
+      "comment_posted": "Comment posted on the PR",
+      "autofix_opened": "A fix PR was opened"
+    },
+    "billing": {
+      "credits_purchased": "Credits purchased",
+      "credits_low": "Running low on credits"
+    },
+    "ping": "Connection test"
+  },
   "expiry": {
     "days30": "30 days",
     "days90": "90 days",
@@ -114,15 +138,69 @@
     }
   },
   "webhooks": {
-    "title": "No outgoing webhooks configured",
-    "description": "Register an HTTPS endpoint and Fenix will deliver your workspace events to it, signed with HMAC.",
-    "events": {
-      "scanCompleted": "Scan completed",
-      "newVulnerability": "New vulnerability",
-      "triageChanged": "Triage changed"
-    },
+    "title": "Outgoing webhooks",
+    "description": "Register an HTTPS endpoint and Fenix will deliver your workspace events to it, signed with HMAC-SHA256.",
+    "loading": "Loading webhooks…",
+    "loadFailed": "Webhooks could not be loaded",
+    "loadFailedHint": "Check your session and try again.",
+    "count": "{total} registered endpoints",
+    "empty": "No endpoints yet",
+    "emptyHint": "Register one to receive scans, vulnerabilities and PR reviews in your own system.",
     "addEndpoint": "Add endpoint",
-    "pending": "Outgoing event delivery lands with task 3.5. The button is here to declare the gap, not to fake a feature."
+    "active": "Active",
+    "paused": "Paused",
+    "autoDisabled": "Auto-disabled",
+    "autoDisabledHint": "The endpoint reached 10 consecutive failed deliveries and the platform paused it. Reactivate it after fixing the problem.",
+    "ping": "Test",
+    "pingHint": "Sends a test event and records the delivery",
+    "pingOk": "{code} in {ms} ms",
+    "pingFailed": "The test did not arrive",
+    "history": "History",
+    "columns": {
+      "url": "URL",
+      "events": "Events",
+      "status": "Status",
+      "failures": "Failures",
+      "actions": "Actions"
+    },
+    "create": {
+      "title": "New webhook endpoint",
+      "description": "Fenix will send the events you pick to this URL, signed.",
+      "url": "Endpoint URL",
+      "urlPlaceholder": "https://my-system.example.com/hooks/fenix",
+      "urlHint": "It must be HTTPS and resolve to a public address. Private networks, loopback and the cloud metadata IPs are rejected: the platform refuses those deliveries so the API cannot be used to explore your network.",
+      "descriptionLabel": "Description (optional)",
+      "descriptionPlaceholder": "Slack notifications",
+      "events": "Events",
+      "submit": "Register endpoint",
+      "failed": "The endpoint could not be registered.",
+      "urlRejected": "That URL is not a valid webhook destination. Check what the server said."
+    },
+    "secret": {
+      "title": "Signing secret generated",
+      "description": "Use it to verify that every delivery comes from Fenix.",
+      "warning": "Store this secret now. For security reasons you will not be able to look it up again: if you lose it you must delete the endpoint and create another.",
+      "fieldLabel": "Secret",
+      "verifyHint": "The signature arrives in the X-MGF-Signature header as t={unix},v1={hmac}. The HMAC is SHA-256 of “{timestamp}.{body}” with this secret, over the body exactly as it was sent, without reformatting.",
+      "acknowledge": "I stored the secret"
+    },
+    "delete": {
+      "title": "Delete endpoint",
+      "description": "{url} will stop receiving events immediately.",
+      "historyNote": "The delivery history is deleted along with the endpoint. The audit trail is not: if the endpoint auto-disabled, its entry survives and remains explainable.",
+      "confirm": "Delete"
+    },
+    "historyTitle": "Delivery history",
+    "historyLoading": "Loading deliveries…",
+    "historyFailed": "The history could not be loaded.",
+    "historyEmpty": "This endpoint has no recorded deliveries yet.",
+    "historyCount": "{total} recorded deliveries",
+    "noResponse": "no response",
+    "attempt": "attempt {n}",
+    "inMs": "{ms} ms",
+    "payloadLabel": "Body sent",
+    "responseLabel": "Endpoint response",
+    "noBody": "(no body)"
   },
   "mcp": {
     "title": "Model Context Protocol",

@@ -29,7 +29,7 @@
   },
   "supplyChain": {
     "pending": "Pendiente de SBOM",
-    "caption": "El análisis de dependencias se habilitará cuando Strix exponga el SBOM"
+    "caption": "El análisis de dependencias se habilitará cuando el motor exponga el SBOM"
   },
   "prReviews": {
     "on": "Revisiones automáticas activas",

@@ -1,0 +1,59 @@
+{
+  "title": "Billing and credits",
+  "description": "Available balance, this month's spend, top-ups and movements.",
+  "kpi": {
+    "balance": "Available balance",
+    "balanceHint": "Credits left to launch scans.",
+    "spentThisMonth": "Spent this month",
+    "spentThisMonthHint": "Scans launched since the first of the month.",
+    "purchasedThisMonth": "Bought this month",
+    "purchasedThisMonthHint": "Credits granted by payment since the first of the month.",
+    "estimate": "≈ {{usd}} at the largest pack rate",
+    "estimateHint": "Estimate: what buying this many credits would cost at the cheapest per-credit rate in the catalog. The real price depends on which pack you pick."
+  },
+  "packs": {
+    "title": "Top up credits",
+    "caption": "Payment is handled by the external provider; the card never touches us.",
+    "buy": "Buy credits",
+    "buying": "Redirecting to payment",
+    "perCredit": "{{usd}} per credit",
+    "credits": "{{count}} credits",
+    "empty": "No packs available right now",
+    "emptyCaption": "The commercial catalog is defined on the server. If it is empty, the platform administrator has to configure it before anyone can buy.",
+    "redirectNotice": "You are leaving the platform to complete the payment."
+  },
+  "ledger": {
+    "title": "Movements",
+    "caption": "Every row is a ledger entry. The balance is never edited, only summed.",
+    "columns": {
+      "date": "Date",
+      "reason": "Concept",
+      "amount": "Amount",
+      "balance": "Resulting balance",
+      "reference": "Reference"
+    },
+    "noReference": "—",
+    "empty": "No movements on this account yet"
+  },
+  "reason": {
+    "SCAN_CONSUMPTION": "Scan consumption",
+    "STRIPE_PURCHASE": "Credit purchase",
+    "ADMIN_ADJUSTMENT": "Admin adjustment",
+    "SIGNUP_BONUS": "Welcome credits",
+    "REFUND": "Refund",
+    "unknown": "Movement"
+  },
+  "topbar": {
+    "balance": "Balance",
+    "topUp": "Top up"
+  },
+  "states": {
+    "loading": "Loading billing",
+    "error": "Billing could not be loaded",
+    "retry": "Retry"
+  },
+  "payment": {
+    "paid": "Payment received. The balance updates as soon as the provider confirms the charge.",
+    "cancelled": "You cancelled the payment. Nothing was charged."
+  }
+}

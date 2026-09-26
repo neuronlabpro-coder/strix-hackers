@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 from urllib.parse import urlsplit
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEvent
 from backend.apps.billing.schemas import (
     CREDIT_PACKS,
+    BillingSummaryResponse,
     CheckoutSessionRequest,
     CheckoutSessionResponse,
     CreditLedgerEntryResponse,
@@ -26,6 +28,12 @@ from backend.apps.billing.stripe import (
     StripeConfigurationError,
     StripeWebhookSignatureError,
     get_stripe_client,
+)
+from backend.apps.billing.summary import (
+    available_packs,
+    best_unit_price,
+    cheapest_buy_price,
+    credit_activity,
 )
 from backend.apps.organizations.models import Organization, RoleEnum
 from backend.core.config import settings
@@ -344,6 +352,40 @@ async def _record_ignored(
         await session.rollback()
     return WebhookAckResponse(
         status="ignored", duplicate=False, event_id=event_id, event_type=event_type
+    )
+
+
+@router.get("/summary", response_model=BillingSummaryResponse)
+async def read_billing_summary(
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> BillingSummaryResponse:
+    """Saldo, consumo del mes y catálogo comercial, en una respuesta.
+
+    Va todo junto porque el panel pinta una fila de tarjetas sobre el saldo y el catálogo
+    de packs a la vez: pedirlo en tres llamadas paralelas se ve como un panel que tarda en
+    aparecer y parpadea mientras llegan.
+
+    ## Por qué el consumo del mes se recorta en el servidor
+
+    Recortar en el cliente obligaría a traer los asientos de todo el histórico para
+    descartar los de meses anteriores. La fecha la calcula el servidor en UTC, así que el
+    resultado no depende de la zona horaria de quien mira.
+    """
+
+    now = datetime.now(UTC)
+    saldo, consumidos, comprados = await credit_activity(
+        session, tenant.organization.id, now
+    )
+    return BillingSummaryResponse(
+        credit_balance=saldo,
+        credit_balance_usd=cheapest_buy_price(saldo),
+        best_unit_price_usd=best_unit_price(),
+        spent_this_month=consumidos,
+        purchased_this_month=comprados,
+        spent_this_month_usd=cheapest_buy_price(consumidos),
+        period_start=now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+        packs=available_packs(),
     )
 
 

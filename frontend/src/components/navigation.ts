@@ -15,6 +15,7 @@ import {
   Settings,
   TestTube2,
   TriangleAlert,
+  Wallet,
   type LucideProps,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -35,7 +36,7 @@ export interface NavigationItem {
 }
 
 /**
- * Bloque principal. El orden es el de Strix y no es un detalle de estilo: la posición
+ * Bloque principal. El orden no es un detalle de estilo: la posición
  * de un ítem en la navegación es jerarquía, y mover `Chat` por debajo de `Settings`
  * cambia qué el usuario considera tarea principal.
  */
@@ -74,6 +75,7 @@ export const assetNavigation: NavigationItem[] = [
   { labelKey: 'cve', path: '/cve', icon: DatabaseSearch },
   { labelKey: 'integrations', path: '/integrations', icon: Plug },
   { labelKey: 'apiAccess', path: '/api-access', icon: KeyRound },
+  { labelKey: 'billing', path: '/billing', icon: Wallet },
   { labelKey: 'settings', path: '/settings', icon: Settings },
 ]
 

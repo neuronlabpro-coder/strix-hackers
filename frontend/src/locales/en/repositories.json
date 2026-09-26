@@ -29,7 +29,7 @@
   },
   "supplyChain": {
     "pending": "SBOM pending",
-    "caption": "Dependency analysis will be enabled once Strix exposes the SBOM"
+    "caption": "Dependency analysis will be enabled once the engine exposes the SBOM"
   },
   "prReviews": {
     "on": "Automatic reviews enabled",

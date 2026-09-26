@@ -16,6 +16,30 @@
     "revoked": "Revocado",
     "expired": "Caducado"
   },
+  "events": {
+    "pentest": {
+      "completed": "Escaneo completado",
+      "failed": "Escaneo fallido",
+      "timed_out": "Escaneo agotó el tiempo",
+      "aborted": "Escaneo abortado"
+    },
+    "vulnerability": {
+      "created": "Vulnerabilidad detectada",
+      "status_changed": "Cambió el estado de una vulnerabilidad",
+      "autofixed": "Vulnerabilidad corregida automáticamente"
+    },
+    "pr_review": {
+      "completed": "Revisión de PR completada",
+      "failed": "Revisión de PR fallida",
+      "comment_posted": "Comentario publicado en la PR",
+      "autofix_opened": "Se abrió una PR de corrección"
+    },
+    "billing": {
+      "credits_purchased": "Se compraron créditos",
+      "credits_low": "Quedan pocos créditos"
+    },
+    "ping": "Prueba de conexión"
+  },
   "expiry": {
     "days30": "30 días",
     "days90": "90 días",
@@ -114,15 +138,69 @@
     }
   },
   "webhooks": {
-    "title": "No hay webhooks de salida configurados",
-    "description": "Registra un endpoint HTTPS y Fenix le entregará los eventos de tu workspace Firmados con HMAC.",
-    "events": {
-      "scanCompleted": "Escaneo completado",
-      "newVulnerability": "Vulnerabilidad nueva",
-      "triageChanged": "Cambio de clasificación"
-    },
+    "title": "Webhooks salientes",
+    "description": "Registra un endpoint HTTPS y Fenix le entrega los eventos de tu workspace, firmados con HMAC-SHA256.",
+    "loading": "Cargando webhooks…",
+    "loadFailed": "No se pudieron cargar los webhooks",
+    "loadFailedHint": "Comprueba la sesión y vuelve a intentarlo.",
+    "count": "{total} endpoints registrados",
+    "empty": "Todavía no hay endpoints",
+    "emptyHint": "Registra uno para recibir escaneos, vulnerabilidades y revisiones de PR en tu propio sistema.",
     "addEndpoint": "Añadir endpoint",
-    "pending": "La entrega saliente de eventos llega con la Tarea 3.5. El botón está aquí para dejar el hueco declarado, no para simular una función."
+    "active": "Activo",
+    "paused": "Pausado",
+    "autoDisabled": "Apagado automáticamente",
+    "autoDisabledHint": "El endpoint alcanzó 10 entregas fallidas seguidas y la plataforma lo pausó. Reactívalo tras corregir el problema.",
+    "ping": "Probar",
+    "pingHint": "Envía un evento de prueba y registra la entrega",
+    "pingOk": "{code} en {ms} ms",
+    "pingFailed": "La prueba no llegó",
+    "history": "Historial",
+    "columns": {
+      "url": "URL",
+      "events": "Eventos",
+      "status": "Estado",
+      "failures": "Fallos",
+      "actions": "Acciones"
+    },
+    "create": {
+      "title": "Nuevo endpoint de webhook",
+      "description": "Fenix enviará a esta URL los eventos que marques, firmados.",
+      "url": "URL del endpoint",
+      "urlPlaceholder": "https://mi-sistema.example.com/hooks/fenix",
+      "urlHint": "Debe ser HTTPS y resolver a una dirección pública. No se admiten redes privadas, bucle local ni las IP de metadatos de la nube: la plataforma rechaza esas entregas para que la API no pueda usarse para explorar tu red.",
+      "descriptionLabel": "Descripción (opcional)",
+      "descriptionPlaceholder": "Notificaciones a Slack",
+      "events": "Eventos",
+      "submit": "Registrar endpoint",
+      "failed": "No se pudo registrar el endpoint.",
+      "urlRejected": "La URL no es válida como destino de webhook. Revisa el mensaje del servidor."
+    },
+    "secret": {
+      "title": "Secreto de firma generado",
+      "description": "Úsalo para verificar que cada entrega viene de Fenix.",
+      "warning": "Guarda este secreto ahora. Por motivos de seguridad no podrás volver a consultarlo: si lo pierdes, tendrás que borrar el endpoint y crear otro.",
+      "fieldLabel": "Secreto",
+      "verifyHint": "La firma llega en la cabecera X-MGF-Signature con el formato t={unix},v1={hmac}. El HMAC es SHA-256 de «{timestamp}.{cuerpo}» con este secreto, y el cuerpo es el que se envió tal cual, sin reformatear.",
+      "acknowledge": "He guardado el secreto"
+    },
+    "delete": {
+      "title": "Eliminar endpoint",
+      "description": "{url} dejará de recibir eventos de inmediato.",
+      "historyNote": "El historial de entregas se borra con el endpoint. El rastro de auditoría no: si el endpoint se apagó solo, su asiento sobrevive y se puede seguir explicando.",
+      "confirm": "Eliminar"
+    },
+    "historyTitle": "Historial de entregas",
+    "historyLoading": "Cargando entregas…",
+    "historyFailed": "No se pudo cargar el historial.",
+    "historyEmpty": "Este endpoint todavía no tiene entregas registradas.",
+    "historyCount": "{total} entregas registradas",
+    "noResponse": "sin respuesta",
+    "attempt": "intento {n}",
+    "inMs": "{ms} ms",
+    "payloadLabel": "Cuerpo enviado",
+    "responseLabel": "Respuesta del receptor",
+    "noBody": "(sin cuerpo)"
   },
   "mcp": {
     "title": "Model Context Protocol",
