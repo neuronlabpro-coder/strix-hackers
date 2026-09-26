@@ -38,6 +38,11 @@ import type {
   RemoteRepositoryPage,
   Repository,
   RepositoryConnectPayload,
+  ApiScopeCatalog,
+  ApiToken,
+  ApiTokenCreatePayload,
+  ApiTokenCreated,
+  ApiTokenPage,
   PersonalTokenConnectPayload,
   PersonalTokenConnectResponse,
   RepositoryConnectResponse,
@@ -180,6 +185,54 @@ export function getRemoteRepositories(
     token,
     organizationId,
   )
+}
+
+/**
+ * Catálogo de los 46 scopes de la API pública.
+ *
+ * Se pide al backend y no se escribe aquí. Un catálogo duplicado en el cliente es un
+ * segundo sitio donde un permiso puede existir sin que el servidor lo conceda, y el
+ * síntoma es un `422` sobre algo que el propio panel acaba de ofrecer.
+ */
+export function getApiScopes(token: string): Promise<ApiScopeCatalog> {
+  return request<ApiScopeCatalog>('/api/v1/auth/scopes', {}, token)
+}
+
+/**
+ * Lista los tokens del tenant.
+ *
+ * `include_revoked` existe para poder auditar qué credenciales existieron, no solo las
+ * que sirven. Un token revocado que desaparece del panel deja de poder responder a
+ * "¿este token estuvo activo el día del incidente?".
+ */
+export function listApiTokens(
+  token: string,
+  includeRevoked = false,
+): Promise<ApiTokenPage> {
+  const query = includeRevoked ? '?include_revoked=true' : ''
+  return request<ApiTokenPage>(`/api/v1/auth/tokens${query}`, {}, token)
+}
+
+/**
+ * Emite un token y devuelve el secreto.
+ *
+ * El `raw_token` solo viene en esta respuesta. Quien la descarte pierde la credencial
+ * para siempre, y por eso la interfaz tiene que pedir confirmación explícita al cerrar
+ * en lugar de descartar el modal y seguir como si nada.
+ */
+export function createApiToken(
+  token: string,
+  payload: ApiTokenCreatePayload,
+): Promise<ApiTokenCreated> {
+  return request<ApiTokenCreated>(
+    '/api/v1/auth/tokens',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+export function revokeApiToken(token: string, tokenId: string): Promise<ApiToken> {
+  return request<ApiToken>(`/api/v1/auth/tokens/${tokenId}`, { method: 'DELETE' }, token)
 }
 
 export function connectRepository(

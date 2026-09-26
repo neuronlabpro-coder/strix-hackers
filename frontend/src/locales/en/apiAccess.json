@@ -1,0 +1,135 @@
+{
+  "title": "API Access",
+  "description": "Service credentials and automations for your workspace.",
+  "tabs": {
+    "label": "API access sections",
+    "tokens": "Tokens",
+    "webhooks": "Webhooks",
+    "mcp": "MCP"
+  },
+  "actions": {
+    "newToken": "New token",
+    "revoke": "Revoke",
+    "refresh": "Refresh"
+  },
+  "status": {
+    "revoked": "Revoked",
+    "expired": "Expired"
+  },
+  "expiry": {
+    "days30": "30 days",
+    "days90": "90 days",
+    "year": "1 year"
+  },
+  "create": {
+    "title": "New API token",
+    "description": "Choose what the token may do and for how long.",
+    "name": "Name",
+    "namePlaceholder": "GitHub Actions CI",
+    "expiry": "Expiry",
+    "expiryHint": "One year is the maximum. A credential with no expiry outlives whoever created it.",
+    "scopes": "Permissions",
+    "submit": "Issue token",
+    "submitHint": "The token is shown once, right after it is issued.",
+    "failed": "The token could not be issued."
+  },
+  "reveal": {
+    "title": "Token issued",
+    "description": "This is the «{name}» token. Copy it before you continue.",
+    "warning": "Store this token somewhere safe now. For security reasons you will not be able to look it up again.",
+    "fieldLabel": "Token",
+    "copy": "Copy",
+    "copied": "Copied",
+    "acknowledge": "I stored the token",
+    "metaPrefix": "Prefix",
+    "metaScopes": "Permissions",
+    "metaExpiry": "Expires",
+    "neverExpires": "Never expires"
+  },
+  "revoke": {
+    "title": "Revoke token",
+    "description": "«{name}» stops working immediately. Integrations using it will start getting 401s.",
+    "auditNote": "The row is not deleted: it is marked as revoked so there is a record of which credentials existed.",
+    "confirm": "Revoke",
+    "failed": "The token could not be revoked."
+  },
+  "tokens": {
+    "loading": "Loading tokens…",
+    "loadFailed": "Tokens could not be loaded",
+    "loadFailedHint": "Check your session and try again. Without this response you cannot tell “you have no tokens” from “the question was never asked”.",
+    "count": "{active} active of {total}",
+    "includeRevoked": "Show revoked",
+    "empty": "No tokens yet",
+    "emptyHint": "Issue one to connect CI, a script or an AI agent.",
+    "neverUsed": "Never",
+    "usedAt": "{value} ago",
+    "columns": {
+      "name": "Name",
+      "prefix": "Prefix",
+      "scopes": "Permissions",
+      "created": "Created",
+      "lastUsed": "Last used",
+      "actions": "Actions"
+    }
+  },
+  "scopes": {
+    "selectedOf": "{chosen} of {total} selected",
+    "selectAll": "Select all",
+    "clearAll": "Clear selection",
+    "selectGroup": "Select group",
+    "clearGroup": "Clear group",
+    "privilegedWarning": "{count} of the selected are platform permissions. Turn them on only for integrations you trust.",
+    "privilegedShort": "Platform permission",
+    "more": "+{count}",
+    "noPermissions": "No permissions",
+    "actions": {
+      "read": "Read",
+      "create": "Create",
+      "abort": "Abort",
+      "delete": "Delete",
+      "triage": "Triage",
+      "export": "Export",
+      "connect": "Connect",
+      "sync": "Sync",
+      "trigger": "Trigger",
+      "write": "Write",
+      "search": "Search",
+      "checkout": "Checkout",
+      "ledger_read": "Read the ledger",
+      "revoke": "Revoke",
+      "update": "Update",
+      "invite": "Invite",
+      "remove": "Remove",
+      "networks_read": "Read networks",
+      "networks_write": "Write networks",
+      "containers_read": "Read containers",
+      "containers_write": "Write containers",
+      "supply_chain_read": "Read supply chain",
+      "supply_chain_write": "Write supply chain",
+      "models_read": "View models",
+      "usage_read": "View usage",
+      "models_manage": "Manage models",
+      "analytics_read": "View analytics",
+      "invoke": "Invoke"
+    }
+  },
+  "webhooks": {
+    "title": "No outgoing webhooks configured",
+    "description": "Register an HTTPS endpoint and Fenix will deliver your workspace events to it, signed with HMAC.",
+    "events": {
+      "scanCompleted": "Scan completed",
+      "newVulnerability": "New vulnerability",
+      "triageChanged": "Triage changed"
+    },
+    "addEndpoint": "Add endpoint",
+    "pending": "Outgoing event delivery lands with task 3.5. The button is here to declare the gap, not to fake a feature."
+  },
+  "mcp": {
+    "title": "Model Context Protocol",
+    "description": "Connect AI agents so they can query your scans, vulnerabilities and CVEs with the same permissions you do.",
+    "quickstartLabel": "Quick start",
+    "quickstart": "npx -y @mind-guard/mcp-server --url https://YOUR-DOMAIN/mcp",
+    "configLabel": "Server configuration",
+    "tokenHint": "Replace <API_TOKEN> with a token from the Tokens tab holding only the permissions the agent needs. Fewer is better."
+  }
+}

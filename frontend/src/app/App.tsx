@@ -11,6 +11,7 @@ import { AdminPage } from '../features/admin/AdminPage'
 import { LlmModelsPage } from '../features/admin/LlmModelsPage'
 import { RequireSuperuser } from '../features/admin/RequireSuperuser'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
+import { ApiAccessPage } from '../features/api_access/ApiAccessPage'
 import { IssuesPage } from '../features/issues/IssuesPage'
 import { VulnerabilityDetailPage } from '../features/issues/VulnerabilityDetailPage'
 import { KnowledgePage } from '../features/knowledge/KnowledgePage'
@@ -123,12 +124,7 @@ export default function App() {
               />
             }
           />
-          <Route
-            path="/api-access"
-            element={
-              <PlaceholderPage titleKey="navigation:apiAccess" reasonKey="pending.apiAccess" />
-            }
-          />
+          <Route path="/api-access" element={<ApiAccessPage />} />
           <Route
             path="/settings"
             element={<PlaceholderPage titleKey="navigation:settings" reasonKey="pending.settings" />}

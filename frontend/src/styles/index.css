@@ -3041,6 +3041,492 @@ code.mono,
   flex-wrap: nowrap;
 }
 
+/* ==========================================================================
+   API Access: pestanas, tabla de tokens, selector de scopes, MCP y revelado
+   ==========================================================================
+
+   Solo se declara lo que no existe todavia en el tema. Todo lo demas
+   (page-header, data-table, modal, empty-card, link-button, eyebrow, badge,
+   form-field, panel, mono) se reutiliza tal cual, y por eso esta pantalla no
+   necesita redefinir la tipografia ni los estados de foco: hereda los del
+   resto del panel y no puede divergir de ellos.
+   ========================================================================== */
+
+/* --- Pestanas ------------------------------------------------------------ */
+
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-button {
+  position: relative;
+  padding: 9px 14px;
+  color: var(--color-secondary);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.tab-button:hover {
+  color: var(--color-primary);
+}
+
+.tab-button-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-accent);
+}
+
+/*
+  El indicador de la pestaña activa es un `border-bottom`, no un fondo. Un fondo
+  cambiaba el color de fondo de la fila y la separacion con la tabla se notaba
+  como un hueco; con el borde, la pestaña activa es una linea de 2 px sobre la
+  misma superficie, que es lo que se lee sin que el contenido se mueva.
+*/
+
+.tab-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* --- Tabla de tokens ----------------------------------------------------- */
+
+.row-dimmed td {
+  color: var(--color-muted);
+}
+
+.cell-primary {
+  display: block;
+  font-weight: 500;
+}
+
+.cell-muted {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.list-count {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+}
+
+/*
+  Un token caducado no es lo mismo que uno revocado: el primero se arregla
+  reemitiendolo y el segundo no. Por eso tiene su propio tono en lugar de
+  compartir el gris de `badge-muted`, que es el de "inerte y sin accion posible".
+*/
+.badge-expired {
+  color: var(--color-medium);
+  background: color-mix(in srgb, var(--color-medium) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-medium) 35%, transparent);
+}
+
+/* --- Chips de scopes ----------------------------------------------------- */
+
+.scope-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.scope-chip {
+  padding: 2px 6px;
+  color: var(--color-secondary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.scope-chip-overflow {
+  padding: 2px 6px;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px dashed var(--color-border-hover);
+  border-radius: var(--radius-sm);
+  cursor: help;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+/* --- Selector de 46 scopes ---------------------------------------------- */
+
+.scope-selector {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.scope-selector-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scope-counter {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.scope-counter-value {
+  color: var(--color-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.scope-counter-label {
+  color: var(--color-caption);
+  font-size: 0.75rem;
+}
+
+/*
+  El aviso de permisos privilegiados usa `--color-medium` y no `--color-critical`,
+  a proposito. Marcar `admin:models_manage` no es una operacion invalida: es una
+  operacion que conviene pensar dos veces. Ponerla en rojo haria que el aviso se
+  confundiera con los errores de la pantalla y dejara de leerse.
+*/
+.scope-warning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 9px 11px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-medium) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-medium) 40%, transparent);
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+}
+
+.scope-warning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--color-medium);
+}
+
+.scope-groups {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.scope-group {
+  background: var(--color-surface);
+}
+
+.scope-group-header {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  padding: 7px 10px;
+}
+
+.scope-group-toggle {
+  display: flex;
+  flex: 1;
+  gap: 7px;
+  align-items: center;
+  padding: 0;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.scope-group-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.scope-group-count {
+  color: var(--color-caption);
+  font-size: 0.72rem;
+}
+
+.scope-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+}
+
+.scope-item {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 5px 10px 5px 26px;
+  cursor: pointer;
+}
+
+.scope-item:hover {
+  background: var(--color-surface-elevated);
+}
+
+.scope-item input {
+  margin-top: 3px;
+}
+
+.scope-item-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.scope-item-label {
+  color: var(--color-primary);
+  font-size: 0.8rem;
+}
+
+.scope-item-value {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
+.scope-item-flag {
+  color: var(--color-medium);
+  cursor: help;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* --- Modal de revelado del secreto --------------------------------------- */
+
+.text-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  color: var(--color-primary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.reveal-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: stretch;
+}
+
+.reveal-row .text-input {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.reveal-warning {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-medium) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-medium) 40%, transparent);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+}
+
+.reveal-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0;
+}
+
+.reveal-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.reveal-meta dt {
+  color: var(--color-caption);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reveal-meta dd {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.8rem;
+}
+
+.revoke-note {
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+}
+
+.modal-caption {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+}
+
+.modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+  justify-content: flex-end;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.modal-footer-note {
+  margin: 0 auto 0 0;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.form-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.73rem;
+}
+
+.empty-state-list {
+  margin: 0;
+  padding: 0;
+  color: var(--color-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  list-style: none;
+  text-align: left;
+}
+
+.empty-state-note {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+}
+
+/* --- Boton de peligro ---------------------------------------------------- */
+
+.danger-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 14px;
+  color: var(--color-on-primary);
+  background: var(--color-critical);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.danger-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.danger-button:focus-visible {
+  outline: 2px solid var(--color-critical);
+  outline-offset: 2px;
+}
+
+/* --- MCP ----------------------------------------------------------------- */
+
+.mcp-card {
+  display: grid;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.mcp-card-header {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+}
+
+.mcp-card-header svg {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.mcp-card-header h2 {
+  margin: 0 0 3px;
+  color: var(--color-primary);
+  font-size: 0.95rem;
+}
+
+.mcp-card-header p {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: 0.82rem;
+}
+
+.mcp-command {
+  display: block;
+  padding: 10px 12px;
+  overflow-x: auto;
+  color: var(--color-primary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.76rem;
+  white-space: pre;
+}
+
+.mcp-config {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.74rem;
+}
+
+.mcp-config code {
+  color: var(--color-secondary);
+}
+
+.mcp-note {
+  max-width: 66ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
 @media (max-width: 900px) {
   .content-shell {
     margin-left: 0;

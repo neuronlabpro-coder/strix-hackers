@@ -14,7 +14,13 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.apps.api_access.models import ApiToken
-from backend.apps.api_access.scopes import Scope, normalize_scopes, unknown_scopes
+from backend.apps.api_access.scopes import (
+    ALL_SCOPES,
+    SCOPE_CATALOG,
+    Scope,
+    normalize_scopes,
+    unknown_scopes,
+)
 
 #: Vigüedad máxima que se admite. Un token sin caducidad es una credencial permanente que
 #: sobrevive a quien la creó, y el punto de este mecanismo es que deje de servir sin que
@@ -135,3 +141,60 @@ class ApiTokenPage(BaseModel):
     items: list[ApiTokenResponse]
     total: int
     include_revoked: bool
+
+
+class ApiScopeDefinitionResponse(BaseModel):
+    """Un permiso del catálogo y sus metadatos de presentación."""
+
+    scope: str
+    action: str
+    group: str
+    label_key: str
+    is_privileged: bool
+
+
+class ApiScopeGroupResponse(BaseModel):
+    """Los permisos de un recurso, en el orden en que el panel los presenta."""
+
+    group: str
+    scopes: list[ApiScopeDefinitionResponse]
+
+
+class ApiScopeCatalogResponse(BaseModel):
+    """Los 46 scopes, agrupados.
+
+    El panel los pide en vez de tenerlos escritos. Un catálogo duplicado en el frontend es
+    un segundo lugar donde un permiso puede existir sin que el backend lo conceda, o
+    al revés: el usuario marca una casilla y el `422` le dice que ese permiso no existe,
+    que es la peor forma de descubrir un desajuste que una sola fuente habría evitado.
+
+    El `total` viaja en la respuesta para que el panel pueda decir "12 de 46" sin contar
+    por su cuenta, y para que una prueba pueda afirmar el número contra el servidor.
+    """
+
+    groups: list[ApiScopeGroupResponse]
+    total: int
+
+
+def scope_catalog_response() -> ApiScopeCatalogResponse:
+    """Construye la respuesta del catálogo desde la definición del módulo."""
+
+    return ApiScopeCatalogResponse(
+        groups=[
+            ApiScopeGroupResponse(
+                group=name,
+                scopes=[
+                    ApiScopeDefinitionResponse(
+                        scope=definition.scope.value,
+                        action=definition.action,
+                        group=definition.group,
+                        label_key=definition.label_key,
+                        is_privileged=definition.is_privileged,
+                    )
+                    for definition in definitions
+                ],
+            )
+            for name, definitions in SCOPE_CATALOG.items()
+        ],
+        total=len(ALL_SCOPES),
+    )

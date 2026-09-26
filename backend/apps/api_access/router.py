@@ -20,10 +20,12 @@ from backend.apps.api_access.auth import (
     require_scope,
 )
 from backend.apps.api_access.schemas import (
+    ApiScopeCatalogResponse,
     ApiTokenCreate,
     ApiTokenCreatedResponse,
     ApiTokenPage,
     ApiTokenResponse,
+    scope_catalog_response,
 )
 from backend.apps.api_access.scopes import Scope
 from backend.apps.api_access.service import (
@@ -67,6 +69,29 @@ async def create_token(
     logger.info("Secreto emitido para el token %s (valor no registrado)", token.id)
     respuesta = ApiTokenResponse.from_model(token)
     return ApiTokenCreatedResponse(**respuesta.model_dump(), raw_token=raw_token)
+
+
+@router.get(
+    "/api/v1/auth/scopes",
+    response_model=ApiScopeCatalogResponse,
+)
+async def list_scopes(
+    principal: Annotated[TenantPrincipal, Depends(require_scope(Scope.TOKENS_READ))],
+) -> ApiScopeCatalogResponse:
+    """Expone el catálogo de permisos para que el panel no lo repita.
+
+    Pide `tokens:read` y no un permiso propio por una razón práctica: quien puede ver
+    los tokens de su organización es exactamente quien puede crearlos, así que exigir
+    `tokens:create` solo impediría que un token de solo lectura pudiera abrir el
+    asistente de alta para ver qué opciones tiene.
+
+    No filtra por organización: el catálogo es el mismo para todos y no contiene nada
+    del tenant. El sujeto se resuelve igual para dejar constancia de que la ruta exige
+    autenticación, porque un catálogo público no es lo que se pidió.
+    """
+
+    del principal
+    return scope_catalog_response()
 
 
 @router.get(

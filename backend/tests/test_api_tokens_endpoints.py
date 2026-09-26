@@ -755,3 +755,84 @@ async def test_the_organization_keeps_its_financial_ledger_intact(
         )
     ).scalar_one()
     assert fila.credit_balance == Decimal("0")
+
+
+# --------------------------------------------------------------------------- #
+# Catalogo de scopes
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_the_scope_catalog_is_served_with_the_total_counted(
+    integration_session: AsyncSession,
+) -> None:
+    """El panel pide el catalogo en vez de tenerlo escrito.
+
+    Un catalogo duplicado en el frontend es un segundo sitio donde un permiso puede
+    existir sin que el backend lo conceda. El `total` viaja en la respuesta para que la
+    interfaz pueda decir "12 de 46" sin contar por su cuenta, que es donde un conteo
+    erroneo se convertiria en una mentira visible.
+    """
+
+    assert integration_session is not None
+    tenant = await _tenant(integration_session)
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/auth/scopes", headers=tenant.headers)
+
+    assert response.status_code == 200
+    cuerpo = response.json()
+    assert cuerpo["total"] == 46
+    assert len(cuerpo["groups"]) == 16
+    planos = [s["scope"] for g in cuerpo["groups"] for s in g["scopes"]]
+    assert len(planos) == 46
+    assert len(set(planos)) == 46, "el catalogo devolvio scopes duplicados"
+    assert Scope.PENTESTS_READ.value in planos
+    assert Scope.ENTERPRISE_SUPPLY_CHAIN_WRITE.value in planos
+
+
+@pytest.mark.asyncio
+async def test_the_scope_catalog_requires_authentication(
+    integration_session: AsyncSession,
+) -> None:
+    assert integration_session is not None
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/auth/scopes")
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_every_scope_the_catalog_offers_is_accepted_on_creation(
+    integration_session: AsyncSession,
+) -> None:
+    """El catalogo y el validador no pueden discrepar.
+
+    Si el panel ofrece un permiso que el alta rechaza, el usuario marca la casilla y
+    recibe un `422` de algo que el propio backend le acaba de decir que existe. Se
+    comprueba con los 46 de golpe en vez de por grupos para que un fallo apunte al
+    contrato y no a un subconjunto.
+    """
+
+    assert integration_session is not None
+    tenant = await _tenant(integration_session)
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        catalogo = (await client.get("/api/v1/auth/scopes", headers=tenant.headers)).json()
+        emission = await client.post(
+            TOKENS_URL,
+            json={
+                "name": "todos los permisos",
+                "scopes": [s["scope"] for g in catalogo["groups"] for s in g["scopes"]],
+            },
+            headers=tenant.headers,
+        )
+
+    assert emission.status_code == 201, emission.text
+    assert sorted(emission.json()["scopes"]) == sorted(
+        s["scope"] for g in catalogo["groups"] for s in g["scopes"]
+    )

@@ -1,0 +1,135 @@
+{
+  "title": "API Access",
+  "description": "Credenciales de servicio y automatizaciones para tu workspace.",
+  "tabs": {
+    "label": "Secciones de acceso por API",
+    "tokens": "Tokens",
+    "webhooks": "Webhooks",
+    "mcp": "MCP"
+  },
+  "actions": {
+    "newToken": "Nuevo token",
+    "revoke": "Revocar",
+    "refresh": "Actualizar"
+  },
+  "status": {
+    "revoked": "Revocado",
+    "expired": "Caducado"
+  },
+  "expiry": {
+    "days30": "30 días",
+    "days90": "90 días",
+    "year": "1 año"
+  },
+  "create": {
+    "title": "Nuevo token de API",
+    "description": "Elige qué puede hacer el token y cuánto tiempo lo hará.",
+    "name": "Nombre",
+    "namePlaceholder": "GitHub Actions CI",
+    "expiry": "Caducidad",
+    "expiryHint": "El máximo admitido es de un año. Una credencial sin caducidad sobrevive a quien la creó.",
+    "scopes": "Permisos",
+    "submit": "Emitir token",
+    "submitHint": "El token se entrega una sola vez, justo después de emitirlo.",
+    "failed": "No se pudo emitir el token."
+  },
+  "reveal": {
+    "title": "Token emitido",
+    "description": "Este es el token «{name}». Cópialo antes de continuar.",
+    "warning": "Guarda este token ahora en un lugar seguro. Por motivos de seguridad, no podrás volver a consultarlo.",
+    "fieldLabel": "Token",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "acknowledge": "He guardado el token",
+    "metaPrefix": "Prefijo",
+    "metaScopes": "Permisos",
+    "metaExpiry": "Caduca",
+    "neverExpires": "Sin caducidad"
+  },
+  "revoke": {
+    "title": "Revocar token",
+    "description": "«{name}» dejará de servir de inmediato. Las integraciones que lo usen empezarán a recibir 401.",
+    "auditNote": "La fila no se borra: queda marcada como revocada para conservar el rastro de qué credenciales existieron.",
+    "confirm": "Revocar",
+    "failed": "No se pudo revocar el token."
+  },
+  "tokens": {
+    "loading": "Cargando tokens…",
+    "loadFailed": "No se pudieron cargar los tokens",
+    "loadFailedHint": "Comprueba la sesión y vuelve a intentarlo. Sin esta respuesta no se puede distinguir «no tienes tokens» de «no se pudo preguntar».",
+    "count": "{active} activos de {total}",
+    "includeRevoked": "Mostrar revocados",
+    "empty": "Todavía no hay tokens",
+    "emptyHint": "Emite uno para conectar CI, un script o un agente de IA.",
+    "neverUsed": "Nunca",
+    "usedAt": "hace {value}",
+    "columns": {
+      "name": "Nombre",
+      "prefix": "Prefijo",
+      "scopes": "Permisos",
+      "created": "Creado",
+      "lastUsed": "Último uso",
+      "actions": "Acciones"
+    }
+  },
+  "scopes": {
+    "selectedOf": "{chosen} de {total} seleccionados",
+    "selectAll": "Seleccionar todos",
+    "clearAll": "Borrar selección",
+    "selectGroup": "Seleccionar grupo",
+    "clearGroup": "Borrar grupo",
+    "privilegedWarning": "{count} de los seleccionados son permisos de plataforma. Actívalos solo si la integración es de confianza.",
+    "privilegedShort": "Permiso de plataforma",
+    "more": "+{count}",
+    "noPermissions": "Sin permisos",
+    "actions": {
+      "read": "Leer",
+      "create": "Crear",
+      "abort": "Abortar",
+      "delete": "Eliminar",
+      "triage": "Clasificar",
+      "export": "Exportar",
+      "connect": "Conectar",
+      "sync": "Sincronizar",
+      "trigger": "Disparar",
+      "write": "Escribir",
+      "search": "Buscar",
+      "checkout": "Pagar",
+      "ledger_read": "Leer el libro de asientos",
+      "revoke": "Revocar",
+      "update": "Actualizar",
+      "invite": "Invitar",
+      "remove": "Quitar",
+      "networks_read": "Leer redes",
+      "networks_write": "Escribir redes",
+      "containers_read": "Leer contenedores",
+      "containers_write": "Escribir contenedores",
+      "supply_chain_read": "Leer cadena de suministro",
+      "supply_chain_write": "Escribir cadena de suministro",
+      "models_read": "Ver modelos",
+      "usage_read": "Ver uso",
+      "models_manage": "Gestionar modelos",
+      "analytics_read": "Ver analítica",
+      "invoke": "Invocar"
+    }
+  },
+  "webhooks": {
+    "title": "No hay webhooks de salida configurados",
+    "description": "Registra un endpoint HTTPS y Fenix le entregará los eventos de tu workspace Firmados con HMAC.",
+    "events": {
+      "scanCompleted": "Escaneo completado",
+      "newVulnerability": "Vulnerabilidad nueva",
+      "triageChanged": "Cambio de clasificación"
+    },
+    "addEndpoint": "Añadir endpoint",
+    "pending": "La entrega saliente de eventos llega con la Tarea 3.5. El botón está aquí para dejar el hueco declarado, no para simular una función."
+  },
+  "mcp": {
+    "title": "Model Context Protocol",
+    "description": "Conecta agentes de IA para que consulten tus escaneos, vulnerabilidades y CVE con tus mismos permisos.",
+    "quickstartLabel": "Arranque rápido",
+    "quickstart": "npx -y @mind-guard/mcp-server --url https://TU-DOMINIO/mcp",
+    "configLabel": "Configuración del servidor",
+    "tokenHint": "Sustituye <API_TOKEN> por un token emitido en la pestaña Tokens que tenga solo los permisos que el agente necesite. Cuantos menos, mejor."
+  }
+}

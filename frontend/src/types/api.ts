@@ -423,6 +423,67 @@ export interface OAuthAuthorizationResponse {
   expires_in: number
 }
 
+/**
+ * Un permiso de la API pública, tal y como lo expone el backend.
+ *
+ * `isPrivileged` viene del catálogo, no se deduce en el cliente: la lista de permisos
+ * que exigen confirmación la decide el backend, y recalcularla en el panel haría que
+ * ambas cosas se desincronizasen en cuanto se añadiera un scope.
+ */
+export interface ApiScopeDefinition {
+  scope: string
+  action: string
+  group: string
+  label_key: string
+  is_privileged: boolean
+}
+
+/** Los 46 scopes, agrupados por recurso y en el orden en que los muestra el panel. */
+export interface ApiScopeGroup {
+  group: string
+  scopes: ApiScopeDefinition[]
+}
+
+export interface ApiScopeCatalog {
+  groups: ApiScopeGroup[]
+  total: number
+}
+
+export interface ApiToken {
+  id: string
+  name: string
+  token_prefix: string
+  scopes: string[]
+  created_at: string
+  expires_at: string | null
+  last_used_at: string | null
+  revoked_at: string | null
+}
+
+/**
+ * Respuesta del alta, y la única vez que existe el secreto en el navegador.
+ *
+ * Es un tipo aparte de `ApiToken` a propósito: el campo `raw_token` no puede confundirse
+ * con un dato de listado, donde no existe. Si se fusionaran, un `ApiToken` fingido en
+ * cualquier parte del panel dejaria pensar que hay un secreto disponible.
+ */
+export interface ApiTokenCreated extends ApiToken {
+  raw_token: string
+}
+
+export interface ApiTokenPage {
+  items: ApiToken[]
+  total: number
+  include_revoked: boolean
+}
+
+export interface ApiTokenCreatePayload {
+  name: string
+  scopes: string[]
+  /** Días hasta la caducidad. El backend impone un techo de 365. */
+  expires_in_days: number
+}
+
 export interface RepositoryConnectResponse {
   repository: Repository
   webhook_registered: boolean
