@@ -294,3 +294,143 @@ def test_git_clients_do_not_expose_access_token_in_errors() -> None:
         assert "github-secret" not in str(error)
     else:
         raise AssertionError("Se esperaba un error del cliente Git")
+
+
+def test_github_client_identifies_the_token_owner() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/user"
+        return httpx.Response(
+            200,
+            json={
+                "id": 583231,
+                "login": "octocat",
+                "name": "The Octocat",
+                "email": "octocat@github.com",
+                "avatar_url": "https://example.com/a.png",
+            },
+        )
+
+    client = GitHubClient(
+        access_token="github-token",
+        organization_id=uuid.uuid4(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    identity = client.get_authenticated_user()
+
+    assert identity.login == "octocat"
+    assert identity.provider_user_id == "583231"
+    assert identity.email == "octocat@github.com"
+    client.close()
+
+
+def test_github_identity_treats_a_null_email_as_absent() -> None:
+    """GitHub devuelve `"email": null` cuando el correo es privado.
+
+    Sin normalizar, el panel pintaría un campo de correo con formato de correo y
+    contenido vacío, que es peor que no mostrarlo.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"id": 1, "login": "anon", "email": None})
+
+    client = GitHubClient(
+        access_token="github-token",
+        organization_id=uuid.uuid4(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.get_authenticated_user().email is None
+    client.close()
+
+
+def test_github_rejects_a_200_without_identity() -> None:
+    """Un 200 que no es la respuesta de `/user` no se guarda como credencial válida."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"unexpected": "payload"})
+
+    client = GitHubClient(
+        access_token="github-token",
+        organization_id=uuid.uuid4(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(GitClientError, match="identidad"):
+        client.get_authenticated_user()
+    client.close()
+
+
+def test_gitlab_identity_maps_username_to_login_and_hides_the_internal_email() -> None:
+    """GitLab llama `username` a lo que GitHub llama `login`.
+
+    Y su `email` interno es la dirección de registro, no la pública: mandarlo al panel
+    expondría un dato que el usuario no piensa compartir. Solo se usa `public_email`.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v4/user"
+        return httpx.Response(
+            200,
+            json={
+                "id": 7,
+                "username": "root",
+                "name": "Administrator",
+                "email": "admin@corp-interno.example",
+                "public_email": "root@example.com",
+                "avatar_url": "https://example.com/g.png",
+            },
+        )
+
+    client = GitLabClient(
+        access_token="gitlab-token",
+        organization_id=uuid.uuid4(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    identity = client.get_authenticated_user()
+
+    assert identity.login == "root"
+    assert identity.email == "root@example.com"
+    assert identity.provider_user_id == "7"
+    client.close()
+
+
+def test_gitlab_identity_falls_back_to_the_scoped_email() -> None:
+    """Sin `read_user` no hay `public_email`; el `email` visible sí está disponible."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"id": 7, "username": "root", "email": "root@example.com"}
+        )
+
+    client = GitLabClient(
+        access_token="gitlab-token",
+        organization_id=uuid.uuid4(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.get_authenticated_user().email == "root@example.com"
+    client.close()
+
+
+def test_a_revoked_token_is_rejected_before_it_can_be_stored() -> None:
+    """El caso que justifica verificar: un PAT revocado falla en el borde.
+
+    Sin esta comprobación, la credencial se cifraría y guardaría, el panel diría que la
+    conexión funcionó y el fallo aparecería en mitad de una sincronización, sin nada que
+    señalara la causa real.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"message": "Bad credentials"})
+
+    client = GitHubClient(
+        access_token="token-revocado",
+        organization_id=uuid.uuid4(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(GitClientError):
+        client.get_authenticated_user()
+    client.close()

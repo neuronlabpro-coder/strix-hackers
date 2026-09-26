@@ -38,6 +38,8 @@ import type {
   RemoteRepositoryPage,
   Repository,
   RepositoryConnectPayload,
+  PersonalTokenConnectPayload,
+  PersonalTokenConnectResponse,
   RepositoryConnectResponse,
   RepositoryUpdatePayload,
   ScanMode,
@@ -187,6 +189,26 @@ export function connectRepository(
 ): Promise<RepositoryConnectResponse> {
   return request<RepositoryConnectResponse>(
     '/api/v1/repositories/connect',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+/**
+ * Conecta una credencial con un Token Personal de acceso.
+ *
+ * El token viaja en el cuerpo y el backend lo verifica contra el proveedor antes de
+ * cifrarlo. Es la alternativa al flujo OAuth, que exige registrar una OAuth App en
+ * GitHub o GitLab: un trámite manual fuera del producto que bloquea el trabajo local.
+ */
+export function connectPersonalToken(
+  token: string,
+  organizationId: string,
+  payload: PersonalTokenConnectPayload,
+): Promise<PersonalTokenConnectResponse> {
+  return request<PersonalTokenConnectResponse>(
+    '/api/v1/repositories/credentials/token',
     { method: 'POST', body: JSON.stringify(payload) },
     token,
     organizationId,

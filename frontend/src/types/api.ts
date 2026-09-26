@@ -429,6 +429,27 @@ export interface RepositoryConnectResponse {
   created: boolean
 }
 
+export interface PersonalTokenConnectPayload {
+  provider: GitProvider
+  token: string
+  name: string
+}
+
+/**
+ * Identidad de la cuenta conectada, sin rastro del secreto.
+ *
+ * `account_login` es lo que el panel muestra antes de sincronizar nada: conectar el
+ * repositorio equivocado es el error caro, y se detecta en cuanto se ve de quién es
+ * la credencial en lugar de descubrirlo un escaneo después.
+ */
+export interface PersonalTokenConnectResponse {
+  provider: GitProvider
+  account_login: string
+  account_display_name: string | null
+  account_email: string | null
+  replaced_existing: boolean
+}
+
 export interface RepositoryUpdatePayload {
   pr_reviews_enabled?: boolean
   default_branch?: string

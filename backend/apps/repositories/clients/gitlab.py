@@ -8,7 +8,12 @@ from uuid import UUID
 
 import httpx
 
-from backend.apps.repositories.clients.base import BaseGitClient, GitClientError
+from backend.apps.repositories.clients.base import (
+    BaseGitClient,
+    GitClientError,
+    GitUserIdentity,
+    optional_text,
+)
 from backend.apps.repositories.models import GitProviderEnum
 from backend.apps.repositories.patches import AutofixPatchError, apply_patch, parse_patch
 
@@ -49,6 +54,27 @@ class GitLabClient(BaseGitClient):
 
     def get_clone_token(self) -> str:
         return self.access_token
+
+    def get_authenticated_user(self) -> GitUserIdentity:
+        response = self._request("GET", "user", headers=self._headers)
+        payload = self._json_object(response)
+        # GitLab llama `username` a lo que GitHub llama `login`. Normalizarlo aquí es
+        # lo que permite que el panel muestre la misma etiqueta con ambos proveedores.
+        login = payload.get("username")
+        if not isinstance(login, str) or not login:
+            raise GitClientError("GitLab no devolvió una identidad para la credencial")
+        user_id = payload.get("id")
+        return GitUserIdentity(
+            provider_user_id=str(user_id) if user_id is not None else "",
+            login=login,
+            display_name=optional_text(payload.get("name")),
+            # `public_email` solo viene si el PAT lleva el ámbito `read_user`; el
+            # `email` interno nunca se expone por la API. Por eso se mira el primero.
+            email=optional_text(payload.get("public_email")) or optional_text(
+                payload.get("email")
+            ),
+            avatar_url=optional_text(payload.get("avatar_url")),
+        )
 
     def get_repository(self, remote_repo_id: str) -> dict[str, object]:
         self._validate_remote_repo_id(remote_repo_id)

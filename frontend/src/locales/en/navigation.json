@@ -11,10 +11,10 @@
   "assetDiscovery": "Asset Discovery",
   "networks": "Networks",
   "knowledge": "Knowledge",
+  "cve": "CVE Database",
   "integrations": "Integrations",
   "apiAccess": "API",
   "settings": "Settings",
-  "cve": "CVE Database",
   "workspace": "Workspace",
   "locked": "Locked",
   "comingSoon": "This view will be available in a later phase."

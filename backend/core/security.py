@@ -1,6 +1,7 @@
 """Hash de contraseñas y emisión segura de tokens JWT."""
 
 import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -77,3 +78,50 @@ def decode_access_token(token: str) -> dict[str, Any]:
     if not isinstance(claims, dict):
         raise InvalidTokenError("El token no contiene claims válidos")
     return claims
+
+
+# --------------------------------------------------------------------------- #
+# Credenciales de la API pública
+# --------------------------------------------------------------------------- #
+#
+# Las primitivas de un token de API viven aquí y no en `apps/api_access` porque son
+# criptografía, no lógica de negocio: el mismo par `generate`/`hash` lo usan el router
+# que crea el token y la dependencia que lo valida, y si vivieran en la app, la
+# dependencia tendría que importarse a sí misma.
+
+
+def generate_api_token(
+    prefix: str,
+    secret_bytes: int,
+) -> str:
+    """Genera un secreto de token de API con el prefijo indicado.
+
+    `secrets.token_hex` usa el generador criptográfico del sistema operativo, no el
+    Mersenne Twister de `random`. Es la diferencia entre un token que nadie puede
+    adivinar y uno que se puede predecir observando otros.
+
+    El secreto se devuelve una sola vez y no se guarda en ninguna parte del proceso: el
+    llamante lo mete en la respuesta HTTP y se pierde. Si se perdiera ahí, la única
+    salida es revocar el token y emitir otro.
+    """
+
+    return f"{prefix}{secrets.token_hex(secret_bytes)}"
+
+
+def hash_api_token(raw_token: str) -> str:
+    """Devuelve el SHA-256 hexadecimal del token en claro.
+
+    ## Por qué SHA-256 y no argon2 o bcrypt
+
+    `argon2` y `bcrypt` existen paracontraseñas: valores que elige una persona y que
+    tienen pocos bits de entropía, de modo que hay que ralentizar el ataque por fuerza
+    bruta. Un token de API se genera con 256 bits aleatorios: no existe nadie que
+    pueda recorrer ese espacio, y una función lenta solo añadiría latencia a cada
+    petición autenticada de la plataforma.
+
+    Lo que sí es imprescindible, y aquí se cumple, es que el secreto no sea
+    recuperable desde la base: solo se guarda su resumen, y `verify` compara resumen
+    contra resumen.
+    """
+
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()

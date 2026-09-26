@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link2, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { KeyRound, Link2, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
   ApiError,
+  connectPersonalToken,
   connectRepository,
   getOAuthAuthorizationUrl,
   getRemoteRepositories,
@@ -17,6 +18,16 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   { provider: 'GITHUB', labelKey: 'modal.connectGitHub' },
   { provider: 'GITLAB', labelKey: 'modal.connectGitLab' },
 ]
+
+/**
+ * Vías de conexión, en el orden en que se ofrecen.
+ *
+ * OAuth va primero porque es el camino de producción: no exige que el usuario tenga
+ * que fabricar un token. El PAT va después y no como alternativa escondida, porque sin
+ * una OAuth App registrada en GitHub y en GitLab no hay forma de probar la
+ * sincronización en local, y eso convierte un trámite externo en un bloqueo.
+ */
+type ConnectMethod = 'oauth' | 'token'
 
 function providerName(provider: GitProvider): string {
   return provider === 'GITHUB' ? 'GitHub' : 'GitLab'
@@ -43,6 +54,10 @@ export function ConnectRepositoryModal({
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
   const [pendingRemoteId, setPendingRemoteId] = useState<string | null>(null)
   const [isStartingOAuth, setIsStartingOAuth] = useState<GitProvider | null>(null)
+  const [connectMethod, setConnectMethod] = useState<ConnectMethod>('oauth')
+  const [personalToken, setPersonalToken] = useState('')
+  const [credentialName, setCredentialName] = useState('')
+  const [isSavingToken, setIsSavingToken] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
 
   const loadInventory = useCallback(
@@ -143,8 +158,47 @@ export function ConnectRepositoryModal({
     }
   }
 
-  const importRepository = async (remote: RemoteRepository) => {
+  const savePersonalToken = async () => {
     if (!token || !selectedOrganizationId) {
+      return
+    }
+    const trimmed = personalToken.trim()
+    if (trimmed.length < 20) {
+      // Se comprueba aquí y no solo en el backend para no gastar una llamada con un
+      // campo vacío. El backend vuelve a validarlo: esta es cortesía, no la garantía.
+      setNotice({ kind: 'error', text: t('modal.patFailed') })
+      return
+    }
+    setIsSavingToken(true)
+    setNotice(null)
+    try {
+      const result = await connectPersonalToken(token, selectedOrganizationId, {
+        provider,
+        token: trimmed,
+        name: credentialName.trim() || providerName(provider),
+      })
+      // El secreto se borra de memoria en cuanto el backend responde. Dejarlo en el
+      // campo haría que siga en el DOM, en el historial de autocompletado del
+      // navegador y en cualquier captura del modal mientras el usuario eligiese repositorio.
+      setPersonalToken('')
+      setConnectMethod('oauth')
+      setNotice({
+        kind: 'success',
+        text: result.replaced_existing
+          ? t('modal.patReplaced', { login: result.account_login })
+          : t('modal.patConnected', { login: result.account_login }),
+      })
+      // El paso 2 se recarga con la credencial nueva para que el listado real aparezca
+      // sin que el usuario tenga que pedirlo: conectar es el gesto, no recargar después.
+      loadInventory(provider)
+    } catch {
+      setNotice({ kind: 'error', text: t('modal.patFailed') })
+    } finally {
+      setIsSavingToken(false)
+    }
+  }
+
+  const importRepository = async (remote: RemoteRepository) => {    if (!token || !selectedOrganizationId) {
       return
     }
     setPendingRemoteId(remote.remote_repo_id)
@@ -202,24 +256,135 @@ export function ConnectRepositoryModal({
         <section className="modal-section">
           <h3 className="modal-section-title">{t('modal.oauthTitle')}</h3>
           <p className="modal-section-caption">{t('modal.oauthDescription')}</p>
-          <div className="oauth-grid">
-            {PROVIDER_OPTIONS.map(({ provider: oauthProvider, labelKey }) => (
+
+          {/*
+            Selector de vía. Se usa `role="group"` con `aria-pressed` en lugar de un
+            `<select>` porque son dos opciones excluyentes con texto explicativo
+            propio, y un desplegable escondería precisamente la nota que dice que OAuth
+            necesita una app registrada.
+          */}
+          <div className="provider-switch" role="group" aria-label={t('modal.patMethod')}>
+            {(['oauth', 'token'] as const).map((method) => (
               <button
-                key={oauthProvider}
-                className="oauth-button"
+                key={method}
+                className={
+                  method === connectMethod
+                    ? 'provider-option provider-option-active'
+                    : 'provider-option'
+                }
                 type="button"
-                disabled={isStartingOAuth !== null}
-                onClick={() => void startOAuth(oauthProvider)}
+                aria-pressed={method === connectMethod}
+                onClick={() => setConnectMethod(method)}
               >
-                {isStartingOAuth === oauthProvider ? (
-                  <LoaderCircle size={18} className="spin" aria-hidden="true" />
-                ) : (
-                  <Link2 size={18} aria-hidden="true" />
-                )}
-                <span>{t(labelKey)}</span>
+                <span>
+                  {t(
+                    method === 'oauth' ? 'modal.patMethodOauth' : 'modal.patMethodToken',
+                  )}
+                </span>
               </button>
             ))}
           </div>
+          <p className="modal-section-caption">
+            {t(
+              connectMethod === 'oauth'
+                ? 'modal.patMethodOauthHint'
+                : 'modal.patMethodTokenHint',
+            )}
+          </p>
+
+          {connectMethod === 'oauth' ? (
+            <div className="oauth-grid">
+              {PROVIDER_OPTIONS.map(({ provider: oauthProvider, labelKey }) => (
+                <button
+                  key={oauthProvider}
+                  className="oauth-button"
+                  type="button"
+                  disabled={isStartingOAuth !== null}
+                  onClick={() => void startOAuth(oauthProvider)}
+                >
+                  {isStartingOAuth === oauthProvider ? (
+                    <LoaderCircle size={18} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Link2 size={18} aria-hidden="true" />
+                  )}
+                  <span>{t(labelKey)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <form
+              className="pat-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void savePersonalToken()
+              }}
+            >
+              <p className="modal-section-caption">{t('modal.patDescription')}</p>
+              <div className="form-field">
+                {/*
+                  `type="password"` con el texto oculto: es un secreto y su valor acaba en
+                  el DOM de todas formas. `autoComplete="off"` evita que un gestor de
+                  contraseñas lo sugiera en un sitio donde no tiene nada que ver, que es
+                  como un token acaba guardado en el gestor equivocado.
+                */}
+                <label htmlFor="pat-token">{t('modal.patLabel')}</label>
+                <input
+                  id="pat-token"
+                  name="pat-token"
+                  type="password"
+                  value={personalToken}
+                  placeholder={t('modal.patPlaceholder')}
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(event) => setPersonalToken(event.target.value)}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="pat-name">{t('modal.patName')}</label>
+                <input
+                  id="pat-name"
+                  name="pat-name"
+                  type="text"
+                  value={credentialName}
+                  placeholder={t('modal.patNamePlaceholder')}
+                  onChange={(event) => setCredentialName(event.target.value)}
+                />
+              </div>
+              <div className="inventory-controls">
+                <div className="provider-switch" role="group" aria-label={t('modal.selectProvider')}>
+                  {PROVIDER_OPTIONS.map((option) => (
+                    <button
+                      key={option.provider}
+                      className={
+                        option.provider === provider
+                          ? 'provider-option provider-option-active'
+                          : 'provider-option'
+                      }
+                      type="button"
+                      aria-pressed={option.provider === provider}
+                      onClick={() => setProvider(option.provider)}
+                    >
+                      <span className="mono">{providerName(option.provider)}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={isSavingToken}
+                >
+                  {isSavingToken ? (
+                    <LoaderCircle size={16} className="spin" aria-hidden="true" />
+                  ) : (
+                    <KeyRound size={16} aria-hidden="true" />
+                  )}
+                  <span>
+                    {t(isSavingToken ? 'modal.patSubmitting' : 'modal.patSubmit')}
+                  </span>
+                </button>
+              </div>
+            </form>
+          )}
         </section>
 
         <section className="modal-section">

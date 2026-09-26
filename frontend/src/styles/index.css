@@ -1061,6 +1061,25 @@ code.mono,
   flex-wrap: wrap;
 }
 
+/*
+  Formulario de Token Personal.
+
+  `display: grid` con hueco propio en vez de reutilizar el flujo del modal porque los
+  campos y el pie de acciones necesitan separarse como bloques, mientras que el pie es
+  una fila. Se apoya en `form-field` para los campos, que ya resuelve etiqueta, input y
+  estado de foco con los tokens del tema.
+*/
+.pat-form {
+  display: grid;
+  gap: 14px;
+}
+
+.pat-form .form-field input {
+  /* Los tokens de acceso son largos y no se leen de un vistazo. */
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
 .oauth-button,
 .provider-option {
   display: inline-flex;

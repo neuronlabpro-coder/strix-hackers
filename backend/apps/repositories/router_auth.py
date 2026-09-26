@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from urllib.parse import urlencode
@@ -15,6 +16,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.organizations.models import Membership, Organization, RoleEnum, User
+from backend.apps.repositories.clients.base import GitClientError, GitUserIdentity
+from backend.apps.repositories.clients.factory import (
+    UnsupportedGitProviderError,
+    build_client_for_token,
+)
 from backend.apps.repositories.models import GitCredential, GitProviderEnum
 from backend.apps.repositories.oauth import (
     OAuthAuthorizeResponse,
@@ -32,6 +38,10 @@ from backend.apps.repositories.oauth import (
 )
 from backend.apps.repositories.oauth import (
     get_oauth_provider_settings as load_oauth_provider_settings,
+)
+from backend.apps.repositories.schemas import (
+    PersonalTokenConnectRequest,
+    PersonalTokenConnectResponse,
 )
 from backend.apps.repositories.services import encrypt_organization_credential
 from backend.core.config import settings
@@ -332,3 +342,126 @@ async def git_oauth_callback(
         credential.token_expires_at = expires_at
     await session.commit()
     return _frontend_redirect(selected)
+
+
+def verify_provider_token(
+    token: str,
+    provider: GitProviderEnum,
+    organization_id: UUID,
+) -> GitUserIdentity:
+    """Consulta al proveedor quién es el dueño del token.
+
+    Se ejecuta en un hilo porque el cliente Git es síncrono sobre `httpx.Client`. Es un
+    módulo a nivel de nombre y no una clase por un motivo concreto: es el punto donde
+    las pruebas sustituyen la red, y un módulo se puede parchear entero sin tener que
+    saber qué clase interna lo envuelve.
+    """
+
+    client = build_client_for_token(provider, token, organization_id)
+    try:
+        return client.get_authenticated_user()
+    finally:
+        # El cierre va en `finally` a propósito: el cliente sostiene un socket TLS y un
+        # fallo de red no lo libera por sí solo. Sin esto, cada PAT verificado filtraría
+        # una conexión del pool del sistema.
+        client.close()
+
+
+@router.post(
+    "/api/v1/repositories/credentials/token",
+    response_model=PersonalTokenConnectResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_repository_management_rate_limit)],
+)
+async def connect_personal_token(
+    payload: PersonalTokenConnectRequest,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> PersonalTokenConnectResponse:
+    """Conecta una credencial enviando un Token Personal de acceso.
+
+    El flujo OAuth de arriba cubre el caso normal de producción, pero exige registrar
+    una OAuth App en GitHub o GitLab: un trámite manual, fuera del producto, que
+    bloquea el trabajo en local. Esta ruta existe para eso, y como efecto secundario
+    evita que el primer uso de la plataforma dependa de tener una app registrada en dos
+    sitios externos.
+
+    ## Por qué se verifica antes de cifrar
+
+    Un PAT no caduca por sí solo: sigue teniendo el formato correcto mucho después de
+    que el usuario lo haya revocado en GitHub. Si se aceptara sin comprobarlo, el
+    fallo aparecería en mitad de una sincronización, con el panel mostrando un error
+    que no señala la causa real. Verificar en el borde cuesta una llamada y convierte
+    un diagnóstico tardío en un mensaje inmediato.
+
+    ## Por qué sustituir en lugar de acumular
+
+    `git_credentials` es única por `(organization_id, provider)`, igual que en el flujo
+    OAuth: mantener dos credenciales vivas obligaría a elegir cuál usar en cada
+    sincronización, y esa elección no está en ninguna parte de la interfaz.
+    """
+
+    if tenant.role != RoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere permiso de administrador para gestionar credenciales",
+        )
+
+    try:
+        identity = await asyncio.to_thread(
+            verify_provider_token,
+            payload.token,
+            payload.provider,
+            tenant.organization.id,
+        )
+    except UnsupportedGitProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="El proveedor todavía no tiene conector de gestión",
+        ) from error
+    except GitClientError as error:
+        # El mensaje del cliente ya viene saneado: nunca incluye el token. Se traduce
+        # a `400` y no a `502` porque la causa es la credencial, no el proveedor: un
+        # `401` del proveedor no es un problema de la plataforma que se pueda reintentar.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El proveedor rechazó la credencial: {error}",
+        ) from error
+
+    encrypted_access_token = encrypt_organization_credential(
+        payload.token,
+        tenant.organization.id,
+        payload.provider,
+        field="access",
+    )
+    result = await session.execute(
+        select(GitCredential).where(
+            GitCredential.organization_id == tenant.organization.id,
+            GitCredential.provider == payload.provider,
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing is None:
+        session.add(
+            GitCredential(
+                organization_id=tenant.organization.id,
+                provider=payload.provider,
+                encrypted_access_token=encrypted_access_token,
+            )
+        )
+    else:
+        # Un PAT no tiene fecha de expiración conocida, así que se borra la anterior:
+        # dejarla puesta haría que un cliente usara un token ya sustituido por el
+        # usuario. La credencial OAuth tampoco se conserva porque tiene su propia fila
+        # única, y lo que se guarda aquí es exactamente lo que el usuario eligió.
+        existing.encrypted_access_token = encrypted_access_token
+        existing.token_expires_at = None
+    await session.commit()
+
+    return PersonalTokenConnectResponse(
+        provider=payload.provider,
+        account_login=identity.login,
+        account_display_name=identity.display_name,
+        account_email=identity.email,
+        replaced_existing=existing is not None,
+    )

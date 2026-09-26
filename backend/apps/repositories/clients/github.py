@@ -8,7 +8,12 @@ from uuid import UUID
 
 import httpx
 
-from backend.apps.repositories.clients.base import BaseGitClient, GitClientError
+from backend.apps.repositories.clients.base import (
+    BaseGitClient,
+    GitClientError,
+    GitUserIdentity,
+    optional_text,
+)
 from backend.apps.repositories.models import GitProviderEnum
 from backend.apps.repositories.patches import AutofixPatchError, apply_patch, parse_patch
 
@@ -53,6 +58,23 @@ class GitHubClient(BaseGitClient):
 
     def get_clone_token(self) -> str:
         return self.access_token
+
+    def get_authenticated_user(self) -> GitUserIdentity:
+        response = self._request("GET", "user", headers=self._headers)
+        payload = self._json_object(response)
+        login = payload.get("login")
+        if not isinstance(login, str) or not login:
+            # Un 200 sin `login` significa que la respuesta no es la de `/user`. Se
+            # trata como credencial inválida en lugar de guardar una fila sin dueño.
+            raise GitClientError("GitHub no devolvió una identidad para la credencial")
+        user_id = payload.get("id")
+        return GitUserIdentity(
+            provider_user_id=str(user_id) if user_id is not None else "",
+            login=login,
+            display_name=optional_text(payload.get("name")),
+            email=optional_text(payload.get("email")),
+            avatar_url=optional_text(payload.get("avatar_url")),
+        )
 
     def get_repository(self, remote_repo_id: str) -> dict[str, object]:
         self._validate_remote_repo_id(remote_repo_id)

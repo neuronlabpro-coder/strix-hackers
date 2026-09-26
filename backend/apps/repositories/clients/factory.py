@@ -44,6 +44,36 @@ def _construct_client(
     raise UnsupportedGitProviderError("El proveedor Git todavía no está soportado")
 
 
+def build_client_for_token(
+    provider: GitProviderEnum,
+    access_token: str,
+    organization_id: UUID,
+    *,
+    api_base_url: str | None = None,
+    http_client: httpx.Client | None = None,
+) -> BaseGitClient:
+    """Construye un cliente desde un token en claro, sin persistirlo.
+
+    Existe para el alta de credenciales: un token personal hay que **verificar** contra
+    la API del proveedor antes de decidir si se cifra y se guarda, y en ese momento
+    todavía no hay fila de la que descifrar nada.
+
+    Se mantiene separado de `get_client_for_credential` a propósito: aquele toma el
+    token de la base ya descifrado, y una firma que acepta cualquiera de los dos
+    acabaría con un token en claro entrando por un camino pensado para credenciales
+    almacenadas.
+    """
+
+    return _construct_client(
+        provider,
+        access_token,
+        organization_id,
+        api_base_url,
+        http_client,
+        allowed_repo_full_name=None,
+    )
+
+
 def get_client_for_credential(
     credential: GitCredential,
     organization_id: UUID,

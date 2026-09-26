@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import cast
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -34,6 +35,37 @@ class GitRateLimitError(GitClientError):
 
 class GitServerError(GitClientError):
     """El proveedor Git devolvió un error temporal 5xx."""
+
+
+def optional_text(value: object) -> str | None:
+    """Normaliza un campo de texto que el proveedor puede mandar vacío o ausente.
+
+    GitLab devuelve `"public_email": null` y omite `email` si al token le falta el
+    ámbito `read_user`. Tratar ambos casos como cadena vacía haría que la interfaz
+    mostrara un correo en blanco con formato de correo.
+    """
+
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+@dataclass(frozen=True, slots=True)
+class GitUserIdentity:
+    """Identidad de la cuenta a la que pertenece una credencial.
+
+    Normalizada porque GitHub y GitLab no coinciden ni en el nombre del campo de
+    usuario (`login` frente a `username`) ni en su disponibilidad: el correo de
+    GitLab solo aparece si el token tiene el ámbito `read_user`, así que es
+    opcional por diseño y no por descuido.
+    """
+
+    provider_user_id: str
+    login: str
+    display_name: str | None = None
+    email: str | None = None
+    avatar_url: str | None = None
 
 
 class BaseGitClient(ABC):
@@ -107,6 +139,17 @@ class BaseGitClient(ABC):
     @abstractmethod
     def get_clone_token(self) -> str:
         """Devuelve el token temporal que debe existir solo en memoria."""
+
+    @abstractmethod
+    def get_authenticated_user(self) -> GitUserIdentity:
+        """Devuelve la identidad de la cuenta a la que pertenece la credencial.
+
+        Es la única forma de saber si un token es válido sin esperar a una
+        sincronización: un PAT con formato válido pero revocado se acepta en el borde
+        y falla tres horas después, en mitad de un escaneo. También es lo que impide
+        conectar el repositorio equivocado: el panel muestra a quién pertenece la
+        credencial antes de que el usuario sincronice nada.
+        """
 
     @abstractmethod
     def get_repository(self, remote_repo_id: str) -> dict[str, object]:

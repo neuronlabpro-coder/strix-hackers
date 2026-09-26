@@ -84,6 +84,53 @@ async def get_current_user(
     return await _resolve_authenticated_user(credentials, session)
 
 
+async def resolve_tenant_for_user(
+    session: AsyncSession,
+    user: User,
+    organization_id: UUID,
+) -> TenantContext | None:
+    """Resuelve el contexto de tenant de un usuario ya autenticado, o `None`.
+
+    Se extrae de `get_current_tenant` para que la autenticación dual pueda reutilizar la
+    **misma** consulta en vez de copiarla. Copiarla保证aría que las dos rutas se
+    desincronizasen en cuanto se añadiera una condición —un tenant dado de baja, un
+    usuario desactivado— y el fallo aparecería solo en la ruta nueva, que es la que
+    nadie revisa porque la otra tiene años de tests.
+
+    `None` en lugar de excepción para que quien llama decida el código de salida: una
+    sesión web sin cabecera de organización y un token de API sin tenant no merecen el
+    mismo error.
+    """
+
+    result = await session.execute(
+        select(Organization, Membership, User)
+        .join(Membership, Membership.organization_id == Organization.id)
+        .join(User, User.id == Membership.user_id)
+        .where(
+            Organization.id == organization_id,
+            Membership.organization_id == organization_id,
+            Membership.user_id == user.id,
+            Membership.is_active.is_(True),
+            User.is_active.is_(True),
+            # Un tenant dado de baja lógicamente no resuelve contexto. La baja desactiva
+            # las membresías, así que esta condición es normalmente redundante; se declara
+            # igualmente porque es la que define el estado del workspace, y un tenant
+            # desactivado a mano sin pasar por la baja debe seguir siendo inaccesible.
+            Organization.is_active.is_(True),
+            Organization.deleted_at.is_(None),
+        )
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+    organization, membership, authenticated_user = row
+    return TenantContext(
+        organization=organization,
+        user=authenticated_user,
+        membership=membership,
+    )
+
+
 async def get_current_tenant(
     request: Request,
     credentials: CredentialsDependency,
@@ -107,37 +154,12 @@ async def get_current_tenant(
             detail="Acceso a la organización denegado",
         ) from error
 
-    result = await session.execute(
-        select(Organization, Membership, User)
-        .join(Membership, Membership.organization_id == Organization.id)
-        .join(User, User.id == Membership.user_id)
-        .where(
-            Organization.id == organization_id,
-            Membership.organization_id == organization_id,
-            Membership.user_id == user.id,
-            Membership.is_active.is_(True),
-            User.is_active.is_(True),
-            # Un tenant dado de baja lógicamente no resuelve contexto. La baja
-            # desactiva las membresías, así que esta condición es normalmente
-            # redundante; se declara igualmente porque es la que define el estado del
-            # workspace, y un tenant desactivado a mano sin pasar por la baja debe
-            # seguir siendo inaccesible.
-            Organization.is_active.is_(True),
-            Organization.deleted_at.is_(None),
-        )
-    )
-    row = result.one_or_none()
-    if row is None:
+    tenant_context = await resolve_tenant_for_user(session, user, organization_id)
+    if tenant_context is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acceso a la organización denegado",
         )
 
-    organization, membership, authenticated_user = row
-    tenant_context = TenantContext(
-        organization=organization,
-        user=authenticated_user,
-        membership=membership,
-    )
     request.state.current_tenant = tenant_context
     return tenant_context
