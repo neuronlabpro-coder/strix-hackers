@@ -20,7 +20,13 @@
     "credits": "{{count}} créditos",
     "empty": "No hay paquetes disponibles en este momento",
     "emptyCaption": "El catálogo comercial se define en el servidor. Si está vacío, el administrador de la plataforma tiene que configurarlo antes de que se pueda comprar.",
-    "redirectNotice": "Vas a salir de la plataforma para completar el pago."
+    "redirectNotice": "Vas a salir de la plataforma para completar el pago.",
+    "customTitle": "A medida",
+    "customCaption": "Cualquier cantidad entre el mínimo y el máximo.",
+    "customLabel": "Créditos",
+    "customHint": "El mínimo cubre el coste de la sesión de pago.",
+    "customInvalid": "Introduce una cantidad entre {min} y {max} créditos.",
+    "customBuy": "Comprar {count} créditos"
   },
   "ledger": {
     "title": "Movimientos",

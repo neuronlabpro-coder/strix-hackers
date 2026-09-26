@@ -155,7 +155,8 @@
       "superuser": "Superusuario",
       "verified": "Email verificado",
       "active": "Estado",
-      "created": "Alta"
+      "created": "Alta",
+      "roles": "Organizaciones y rol"
     },
     "yes": "Sí",
     "no": "No",
@@ -163,7 +164,28 @@
     "inactive": "Desactivado",
     "noOrganizations": "Sin organización",
     "empty": "Ningún usuario coincide con la búsqueda",
-    "total": "{{total}} usuarios en total"
+    "total": "{{total}} usuarios en total",
+    "noRoles": "Sin organización",
+    "actions": {
+      "toggleActive": "Activar",
+      "toggleInactive": "Desactivar",
+      "toggleSuper": "Quitar superusuario",
+      "grantSuper": "Dar superusuario"
+    },
+    "confirm": {
+      "title": "¿Desactivar {name}?",
+      "caption": "La cuenta deja de poder entrar. Su historial de escaneos, hallazgos y facturas se conserva, y se puede volver a activar.",
+      "confirm": "Desactivar"
+    },
+    "confirmReactivate": {
+      "title": "¿Reactivar {name}?",
+      "caption": "La cuenta vuelve a poder entrar con sus credenciales actuales.",
+      "confirm": "Reactivar"
+    },
+    "messages": {
+      "updated": "Cuenta actualizada",
+      "error": "No se pudo actualizar la cuenta"
+    }
   },
   "sales": {
     "title": "Ventas e ingresos",
@@ -174,7 +196,8 @@
       "tenant": "Tenant",
       "credits": "Créditos",
       "session": "Sesión de pago",
-      "created": "Procesado"
+      "created": "Procesado",
+      "amount": "Importe"
     },
     "purchase": "Compra",
     "notPurchase": "Sin créditos",
@@ -182,7 +205,9 @@
     "noSession": "—",
     "empty": "Todavía no se ha procesado ningún pago",
     "total": "{{count}} eventos · {{credits}} créditos en esta página",
-    "totalCaption": "La suma es de los importes registrados de esta página, no del histórico."
+    "totalCaption": "La suma es de los importes registrados de esta página, no del histórico.",
+    "notApplicable": "No aplica",
+    "totalAmount": "{{amount}} cobrados en esta página"
   },
   "audit": {
     "title": "Auditoría global",

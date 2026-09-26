@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     func,
@@ -107,6 +108,12 @@ class StripeEvent(Base):
     )
     session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     credits_granted: Mapped[Decimal | None] = mapped_column(_CREDIT_PRECISION, nullable=True)
+    #: Importe cobrado, en centavos, leído del payload en el momento de la ingestión.
+    #:
+    #: `None` cuando el evento no es un cobro. No es `0`: Stripe no cobra cero, y un cero
+    #: en una columna de importes se vería como una venta de $0 en la consola de
+    #: administración en vez de como un evento que no traía importe.
+    amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

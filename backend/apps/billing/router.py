@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEvent
 from backend.apps.billing.schemas import (
-    CREDIT_PACKS,
     BillingSummaryResponse,
     CheckoutSessionRequest,
     CheckoutSessionResponse,
@@ -31,11 +30,16 @@ from backend.apps.billing.stripe import (
 )
 from backend.apps.billing.summary import (
     available_packs,
-    best_unit_price,
-    cheapest_buy_price,
     credit_activity,
+    credits_to_usd,
+    custom_purchase_bounds,
 )
 from backend.apps.organizations.models import Organization, RoleEnum
+from backend.apps.webhooks.emission import (
+    EventType,
+    credits_purchased_payload,
+    publish_event,
+)
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.middleware import TenantContext, get_current_tenant
@@ -96,7 +100,9 @@ async def create_checkout_session(
             detail="El cobro no está disponible: falta configurar Stripe en el servidor",
         ) from error
 
-    amount = CREDIT_PACKS[payload.credits]
+    # cuanto vale una cantidad que no es un pack, y duplicar la regla aquí la haría
+    # divergir en cuanto el catálogo cambiara.
+    amount = payload.amount_usd
     # La organización viaja en metadata firmada por Stripe, nunca en la URL: la
     # URL de Checkout es pública y se puede compartir o interceptar.
     metadata = {
@@ -179,6 +185,35 @@ def _extract_credits(data_object: dict[str, Any]) -> int:
             detail="La sesión de Stripe declara una cantidad de créditos no válida",
         )
     return credits
+
+
+def _extract_amount_cents(data_object: dict[str, Any]) -> int | None:
+    """El importe cobrado, en centavos, o `None` si el evento no lo trae.
+
+    ## Por qué se guarda ahora y no se deducía después
+
+    La tabla `stripe_events` guardaba qué evento se procesó, a qué organización y cuántos
+    créditos acreditó, pero **no cuánto se cobró**. La consola de administración muestra las
+    ventas con su importe, y ese dato no estaba: había dos salidas, inventar un cero o
+    preguntarle a Stripe una fila cada vez que se abría la vista. Un cero en una columna de
+    importes informa de que no se ha facturado nada, que es una conclusión falsa.
+
+    Guardarlo **en el momento de la ingestión** es el único sitio donde el payload existe.
+    Después, el evento ya está procesado y el importe solo se obtendría llamando a Stripe
+    de nuevo.
+
+    ## Por qué devuelve `None` y no `0`
+
+    No todos los eventos de Stripe son un cobro. Una suscripción, un aviso de cuenta o una
+    sesión caducada no tienen importe, y `None` los distingue de un cobro de cero —que no
+    existe, porque Stripe no cobra cero— sin ensuciar la columna con un número inventado.
+    """
+
+    for clave in ("amount_total", "amount"):
+        valor = data_object.get(clave)
+        if isinstance(valor, int) and not isinstance(valor, bool) and valor >= 0:
+            return valor
+    return None
 
 
 @router.post("/webhooks", response_model=WebhookAckResponse)
@@ -282,6 +317,7 @@ async def receive_stripe_webhook(
         )
     credits = _extract_credits(data_object)
     session_id = _as_str(data_object.get("id"))
+    amount_cents = _extract_amount_cents(data_object)
 
     try:
         entry = await apply_credit_delta(
@@ -301,6 +337,7 @@ async def receive_stripe_webhook(
             organization_id=organization_id,
             session_id=session_id,
             credits_granted=entry.amount_delta,
+            amount_cents=amount_cents,
         )
     )
     try:
@@ -319,6 +356,19 @@ async def receive_stripe_webhook(
         organization_id,
         credits,
         session_id,
+    )
+    # Se emite **después** del commit y solo si no era duplicado: la rama de arriba
+    # devuelve antes para el perdedor de la carrera, y un evento `credits_purchased` de
+    # una compra ya acreditada haría que el receptor de turno confirmara dos veces.
+    await publish_event(
+        session,
+        EventType.CREDITS_PURCHASED,
+        organization_id,
+        credits_purchased_payload(
+            amount=entry.amount_delta,
+            balance_after=entry.balance_after,
+            session_id=session_id,
+        ),
     )
     return WebhookAckResponse(
         status="processed",
@@ -377,15 +427,18 @@ async def read_billing_summary(
     saldo, consumidos, comprados = await credit_activity(
         session, tenant.organization.id, now
     )
+    limites = custom_purchase_bounds()
     return BillingSummaryResponse(
         credit_balance=saldo,
-        credit_balance_usd=cheapest_buy_price(saldo),
-        best_unit_price_usd=best_unit_price(),
+        credit_balance_usd=credits_to_usd(saldo),
+        credits_per_usd=settings.credits_per_usd,
         spent_this_month=consumidos,
         purchased_this_month=comprados,
-        spent_this_month_usd=cheapest_buy_price(consumidos),
+        spent_this_month_usd=credits_to_usd(consumidos),
         period_start=now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
         packs=available_packs(),
+        custom_minimum=limites["minimum"],
+        custom_maximum=limites["maximum"],
     )
 
 

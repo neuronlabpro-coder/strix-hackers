@@ -120,14 +120,22 @@ a {
 }
 
 .app-shell {
-  display: flex;
   min-height: 100svh;
   background: var(--color-background);
   color: var(--color-primary);
 }
 
-/* Solo la caja. La posicion, el ancho y el fondo los fija el bloque de estructura de
-   layout mas abajo; aqui se queda lo que no cambia con la disposicion. */
+/* `display` **no** se declara aquí. El shell es un bloque, no un flex, y declararlo aquí
+   `display: flex` dejaban dos reglas compitiendo por la misma propiedad: la de este bloque
+   y la del bloque de estructura de layout más abajo, que es la que gana por orden. El
+   resultado era correcto y frágil —borrar la regla de abajo, en una limpieza, devolvía el
+   desbordamiento horizontal— y eso es peor que no tener la regla duplicada.
+
+   El `display: block` y el motivo de por qué el shell **no** debe ser flex están en el
+   bloque de estructura, junto al `position: fixed` del sidebar que provoca el problema. */
+
+/* La caja y el fondo. La posicion, el ancho y la disposicion los fija el bloque de
+   estructura de layout mas abajo; aqui se queda lo que no cambia con la disposicion. */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -459,9 +467,14 @@ a {
 
 .content-shell {
   display: flex;
-  min-width: 0;
-  flex: 1;
+  /* Columna: es lo que hace que la cabecera se pegue arriba y el contenido scrollee
+     debajo. Este flex es **interno** y no tiene nada que ver con el del shell. */
   flex-direction: column;
+  min-width: 0;
+  /* El ancho lo pone `margin-left` en bloque, más abajo. Aquí no hay `flex: 1`: como hijo
+     de un contenedor en bloque, `width: auto` ya da `ancho disponible - margen`, y un
+     `flex: 1` aquí no solo sería inerte: haría pensar que el ancho depende de la
+     disposición flex del shell, que es justo la suposición que causó el desbordamiento. */
 }
 
 .topbar {
@@ -2840,8 +2853,22 @@ code.mono,
  * ========================================================================= */
 
 .app-shell {
-  /* El flex se conserva para el eje vertical del documento, pero el sidebar ya no
-     participa: al ser `fixed` sale del flujo y su hermano se posiciona por margen. */
+  /* Bloque, **no** flex. El comentario anterior decia que el flex se conservaba "para el
+     eje vertical del documento", pero `display: flex` sin `flex-direction` es una fila, no
+     una columna, así que nunca hizo eso.
+
+     Y había un fallo real detrás. El sidebar es `position: fixed`, o sea que sale del
+     flujo y deja de ser ítem flex: `.content-shell` se queda como único hijo en flujo, con
+     `flex: 1` —`flex-basis: 0%` y `grow: 1`— que lo estira al ancho completo del
+     contenedor. El `margin-left: 256px` se le suma **fuera** de ese ancho, y el resultado
+     son 256 px de desbordamiento horizontal: la página hace scroll a la derecha y todo el
+     panel queda desplazado y sin centrar. No era solo la consola de administración;
+     afectaba a las dos rejillas.
+
+     En bloque, `width: auto` con `margin-left` da exactamente `ancho - 256px`, que es lo
+     que se quería, y sin una regla de flex que dependa de cuántos hijos haya en flujo.
+  */
+  display: block;
   min-height: 100svh;
 }
 
@@ -3722,6 +3749,15 @@ code.mono,
   font-size: 1.9rem;
   font-weight: 500;
   line-height: 1.1;
+}
+
+/*
+  El guion del pack a medida ocupa el hueco del precio mientras no hay cantidad. Va en
+  `--color-muted`, no en `--color-caption`, porque no es un dato atenuado: es la ausencia
+  de un dato, y tiene que leerse como ausencia y no como un precio que no se distingue.
+*/
+.pack-price-placeholder {
+  color: var(--color-muted);
 }
 
 .pack-unit {

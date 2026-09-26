@@ -33,7 +33,9 @@ from backend.apps.admin.schemas import (
     AdminOrganizationPlanUpdate,
     AdminOverviewResponse,
     AdminSalePage,
+    AdminUserItem,
     AdminUserPage,
+    AdminUserUpdate,
     InfrastructureHealthResponse,
 )
 from backend.apps.admin.service import check_infrastructure
@@ -47,7 +49,7 @@ from backend.apps.llm_router.schemas import (
     LLMUsageMetrics,
 )
 from backend.apps.llm_router.service import DuplicateLLMModelError, empty_usage, usage_metrics
-from backend.apps.organizations.models import Organization, PlanTierEnum
+from backend.apps.organizations.models import Organization, PlanTierEnum, User
 from backend.core.database import get_db
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -191,7 +193,7 @@ async def read_overview(
     )
 
 
-@router.get("/organizations", response_model=AdminOrganizationPage)
+@router.get("/tenants", response_model=AdminOrganizationPage)
 async def list_organizations(
     _superuser: SuperuserDependency,
     session: SessionDependency,
@@ -255,7 +257,7 @@ async def _find_organization(
     return organization
 
 
-@router.patch("/organizations/{organization_id}", response_model=AdminOrganizationItem)
+@router.patch("/tenants/{organization_id}", response_model=AdminOrganizationItem)
 async def update_organization(
     organization_id: UUID,
     payload: AdminOrganizationPlanUpdate,
@@ -269,7 +271,7 @@ async def update_organization(
 
 
 @router.post(
-    "/organizations/{organization_id}/credits",
+    "/tenants/{organization_id}/credits",
     response_model=AdminCreditGrantResult,
     status_code=status.HTTP_201_CREATED,
 )
@@ -308,7 +310,7 @@ async def grant_organization_credits(
 
 
 @router.delete(
-    "/organizations/{organization_id}", response_model=AdminOrganizationItem
+    "/tenants/{organization_id}", response_model=AdminOrganizationItem
 )
 async def deactivate_organization(
     organization_id: UUID,
@@ -369,6 +371,48 @@ async def list_users(
     )
 
 
+@router.patch("/users/{user_id}", response_model=AdminUserItem)
+async def update_user(
+    user_id: UUID,
+    payload: AdminUserUpdate,
+    _superuser: SuperuserDependency,
+    session: SessionDependency,
+) -> AdminUserItem:
+    """Activa o desactiva una cuenta, y le quita o le da el superusuario.
+
+    ## Por qué un `404` y no un `403` cuando no existe
+
+    La respuesta delata lo mismo que cualquier `404` de la plataforma: ese identificador no
+    corresponde a ninguna cuenta. Un superusuario **sí** puede tocar cualquier cuenta, así
+    que aquí la frontera no es el aislamiento por tenant sino el propio permiso.
+
+    ## Por qué no se puede quitar el superusuario al último
+
+    Ver `queries.LastSuperuserError`. La operación no tiene vuelta atrás desde la propia
+    consola, y el `409` lo dice en vez de dejar al operador descubriéndolo después.
+    """
+
+    usuario = (
+        await session.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
+        )
+
+    try:
+        return await queries.set_user_flags(
+            session,
+            usuario,
+            is_active=payload.is_active,
+            is_superuser=payload.is_superuser,
+        )
+    except queries.LastSuperuserError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
+
+
 @router.get("/sales", response_model=AdminSalePage)
 async def list_sales(
     _superuser: SuperuserDependency,
@@ -384,7 +428,7 @@ async def list_sales(
     )
 
 
-@router.get("/audit-log", response_model=AdminAuditPage)
+@router.get("/audit", response_model=AdminAuditPage)
 async def list_audit(
     _superuser: SuperuserDependency,
     session: SessionDependency,

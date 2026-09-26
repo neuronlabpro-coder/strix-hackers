@@ -38,6 +38,7 @@ from backend.apps.organizations.models import (
     RoleEnum,
     User,
 )
+from backend.core.config import settings
 from backend.core.security import create_access_token, hash_password
 from backend.main import app
 
@@ -47,10 +48,10 @@ pytestmark = pytest.mark.integration
 #: cubrir falle sola, y no desaparezca en un parametro mal escrito.
 ADMIN_RUTAS = [
     ("get", "/api/v1/admin/overview"),
-    ("get", "/api/v1/admin/organizations"),
+    ("get", "/api/v1/admin/tenants"),
     ("get", "/api/v1/admin/users"),
     ("get", "/api/v1/admin/sales"),
-    ("get", "/api/v1/admin/audit-log"),
+    ("get", "/api/v1/admin/audit"),
     ("get", "/api/v1/admin/health"),
     ("get", "/api/v1/admin/llm/"),
 ]
@@ -159,7 +160,7 @@ async def test_la_consola_ignora_la_cabecera_de_organizacion(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
-            "/api/v1/admin/organizations", headers={**headers, "X-Organization-Id": str(otro.id)}
+            "/api/v1/admin/tenants", headers={**headers, "X-Organization-Id": str(otro.id)}
         )
 
     assert response.status_code == 200
@@ -349,13 +350,13 @@ async def test_los_tenants_se_filtran_por_plan_y_estado(
 
     async with AsyncClient(transport=transporte, base_url="http://test") as client:
         libres = await client.get(
-            "/api/v1/admin/organizations?plan=FREE&limit=100", headers=headers
+            "/api/v1/admin/tenants?plan=FREE&limit=100", headers=headers
         )
         dados_de_baja = await client.get(
-            "/api/v1/admin/organizations?lifecycle=deleted&limit=100", headers=headers
+            "/api/v1/admin/tenants?lifecycle=deleted&limit=100", headers=headers
         )
         activos = await client.get(
-            "/api/v1/admin/organizations?lifecycle=active&limit=100", headers=headers
+            "/api/v1/admin/tenants?lifecycle=active&limit=100", headers=headers
         )
 
     assert libres.status_code == 200
@@ -387,7 +388,7 @@ async def test_un_estado_invalido_se_rechaza_nombrando_los_validos(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
-            "/api/v1/admin/organizations?lifecycle=inventado", headers=headers
+            "/api/v1/admin/tenants?lifecycle=inventado", headers=headers
         )
 
     assert response.status_code == 422
@@ -407,7 +408,7 @@ async def test_cambiar_de_plan_devuelve_el_tenant_con_el_plan_nuevo(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.patch(
-            f"/api/v1/admin/organizations/{objetivo.id}",
+            f"/api/v1/admin/tenants/{objetivo.id}",
             json={"plan_tier": "ENTERPRISE"},
             headers=headers,
         )
@@ -441,7 +442,7 @@ async def test_inyectar_creditos_escribe_el_asiento_de_ajuste_y_no_de_compra(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
-            f"/api/v1/admin/organizations/{objetivo.id}/credits",
+            f"/api/v1/admin/tenants/{objetivo.id}/credits",
             json={"amount": "125.5", "note": "prueba"},
             headers=headers,
         )
@@ -489,7 +490,7 @@ async def test_inyectar_creditos_a_un_tenant_dado_de_baja_se_rechaza(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
-            f"/api/v1/admin/organizations/{creados['baja'].id}/credits",
+            f"/api/v1/admin/tenants/{creados['baja'].id}/credits",
             json={"amount": "10"},
             headers=headers,
         )
@@ -514,7 +515,7 @@ async def test_inyectar_un_importe_negativo_se_rechaza(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
-            f"/api/v1/admin/organizations/{creados['pro'].id}/credits",
+            f"/api/v1/admin/tenants/{creados['pro'].id}/credits",
             json={"amount": "-50"},
             headers=headers,
         )
@@ -555,7 +556,7 @@ async def test_la_baja_desde_la_consola_escribe_el_rastro_y_revoca_el_acceso(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.delete(
-            f"/api/v1/admin/organizations/{objetivo.id}", headers=headers
+            f"/api/v1/admin/tenants/{objetivo.id}", headers=headers
         )
 
     assert response.status_code == 200
@@ -594,10 +595,10 @@ async def test_dar_de_baja_dos_veces_se_rechaza(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         primera = await client.delete(
-            f"/api/v1/admin/organizations/{objetivo.id}", headers=headers
+            f"/api/v1/admin/tenants/{objetivo.id}", headers=headers
         )
         segunda = await client.delete(
-            f"/api/v1/admin/organizations/{objetivo.id}", headers=headers
+            f"/api/v1/admin/tenants/{objetivo.id}", headers=headers
         )
 
     assert primera.status_code == 200
@@ -618,14 +619,22 @@ async def test_el_listado_de_usuarios_no_expone_el_hash_de_contrasena(
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/v1/admin/users", headers=headers)
+        respuesta = await client.get("/api/v1/admin/users", headers=headers)
 
-    assert response.status_code == 200
-    assert "hashed_password" not in response.text
-    assert "email_verification_token" not in response.text
-    cuerpo = response.json()
+    assert respuesta.status_code == 200
+    assert "hashed_password" not in respuesta.text
+    assert "email_verification_token" not in respuesta.text
+    cuerpo = respuesta.json()
     if cuerpo["items"]:
-        assert set(cuerpo["items"][0]) >= {"email", "full_name", "is_superuser", "organizations"}
+        # `roles` sustituye a `organizations`: el rol viaja **con** el nombre del workspace,
+        # porque un usuario puede ser admin en uno y miembro en otro, y una columna con un
+        # único rol obligaría al operador a adivinar cuál de los dos.
+        assert set(cuerpo["items"][0]) >= {
+            "email",
+            "full_name",
+            "is_superuser",
+            "roles",
+        }
 
 
 @pytest.mark.asyncio
@@ -670,10 +679,10 @@ async def test_el_visor_de_auditoria_filtra_por_accion_y_tenant(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         propio = await client.get(
-            f"/api/v1/admin/audit-log?organization_id={creados['pro'].id}", headers=headers
+            f"/api/v1/admin/audit?organization_id={creados['pro'].id}", headers=headers
         )
         vacio = await client.get(
-            "/api/v1/admin/audit-log?organization_id=" + str(uuid.uuid4()),
+            "/api/v1/admin/audit?organization_id=" + str(uuid.uuid4()),
             headers=headers,
         )
 
@@ -703,7 +712,7 @@ async def test_una_accion_de_auditoria_inexistente_no_revienta_el_servidor(
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         respuesta = await client.get(
-            "/api/v1/admin/audit-log?action=ACCION_INVENTADA", headers=headers
+            "/api/v1/admin/audit?action=ACCION_INVENTADA", headers=headers
         )
 
     assert respuesta.status_code == 422, respuesta.text
@@ -730,10 +739,10 @@ async def test_el_filtro_de_auditoria_acepta_una_accion_real(
 
     async with AsyncClient(transport=transporte, base_url="http://test") as client:
         baja = await client.delete(
-            f"/api/v1/admin/organizations/{objetivo.id}", headers=headers
+            f"/api/v1/admin/tenants/{objetivo.id}", headers=headers
         )
         filtrada = await client.get(
-            f"/api/v1/admin/audit-log?action={AuditActionEnum.ORGANIZATION_DELETED.value}"
+            f"/api/v1/admin/audit?action={AuditActionEnum.ORGANIZATION_DELETED.value}"
             f"&organization_id={objetivo.id}",
             headers=headers,
         )
@@ -744,6 +753,82 @@ async def test_el_filtro_de_auditoria_acepta_una_accion_real(
     assert cuerpo["total"] >= 1
     for entrada in cuerpo["items"]:
         assert entrada["action"] == AuditActionEnum.ORGANIZATION_DELETED.value
+
+
+async def _sesion_de_usuario(
+    session: AsyncSession, organization: Organization
+) -> dict[str, str]:
+    """Une un usuario nuevo a un tenant y devuelve sus cabeceras autenticadas."""
+
+    user = User(
+        email=f"miembro-{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password=hash_password("NoSeUsa"),
+        full_name="Miembro",
+        email_verified=True,
+    )
+    session.add(user)
+    await session.flush()
+    session.add(
+        Membership(organization_id=organization.id, user_id=user.id, role=RoleEnum.MEMBER)
+    )
+    await session.commit()
+    return {
+        "Authorization": f"Bearer {create_access_token({'sub': str(user.id)})}",
+        "X-Organization-Id": str(organization.id),
+    }
+
+
+@pytest.mark.asyncio
+async def test_los_organizaciones_derivadas_llegan_al_cliente(
+    integration_session: AsyncSession,
+) -> None:
+    """`organizations` se deriva con `@computed_field`, y por eso **sí** viaja.
+
+    Un `@property` a secas existe en Python pero Pydantic no lo serializa: el cliente
+    recibía `organizations: null` mientras el backend creía que lo estaba mandando. Solo
+    se descubrió leyendo el JSON de una respuesta real, y por eso esta prueba mira el JSON
+    y no el modelo en memoria —que sí tendría el atributo y no lo delataría.
+    """
+
+    assert integration_session is not None
+    organization = (await _varios_tenants(integration_session))["pro"]
+    await _sesion_de_usuario(integration_session, organization)
+    _super, headers = await _superuser(integration_session)
+
+    transporte = ASGITransport(app=app)
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        respuesta = await client.get("/api/v1/admin/users?limit=100", headers=headers)
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["items"], "no hay usuarios que comprobar"
+    propias = [u for u in cuerpo["items"] if organization.name in " ".join(u["roles"])]
+    assert propias, "el usuario de la prueba no salio en la pagina"
+    usuario = propias[0]
+    # El rol es `member`: `_sesion_de_usuario` une al usuario como miembro, y el texto
+    # debe llevar el rol real y no uno supuesto.
+    assert usuario["roles"] == [f"{organization.name} (member)"]
+    assert usuario["organizations"] == [organization.name]
+
+
+@pytest.mark.asyncio
+async def test_editar_usuarios_exige_superusuario(
+    integration_session: AsyncSession,
+) -> None:
+    assert integration_session is not None
+    organization = (await _varios_tenants(integration_session))["pro"]
+    cabeceras = await _sesion_de_usuario(integration_session, organization)
+    objetivo = (await integration_session.execute(select(User).limit(1))).scalar_one()
+    transporte = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        respuesta = await client.patch(
+            f"/api/v1/admin/users/{objetivo.id}",
+            json={"is_superuser": True},
+            headers=cabeceras,
+        )
+
+    assert respuesta.status_code == 403
 
 
 # --------------------------------------------------------------------------- #
@@ -789,21 +874,22 @@ async def test_el_resumen_de_facturacion_trae_el_catalogo_real(
 
 
 @pytest.mark.asyncio
-async def test_el_equivalente_en_dolares_no_inventa_un_precio(
+async def test_el_equivalente_en_dolares_es_comprobable_por_el_cliente(
     integration_session: AsyncSession,
 ) -> None:
-    """La cifra en dólares es un precio de compra, no el valor del saldo.
+    """La cifra en dólares es la **paridad declarada**, no una estimación.
 
-    El catalogo tiene descuento por volumen —500 creditos a $0,038 y 15000 a $0,0266— asi
-    que no hay una paridad unica. La primera version dividia por el precio del pack
-    pequeno y daba 1000 creditos = $26.315,79: un numero que no corresponde a nada que se
-    pueda comprar y que ademas acompana a un saldo real, asi que el cliente lo leeria como
-    "esto es lo que pago".
+    El catálogo tuvo descuento por volumen —500 créditos a $0,038 y 15000 a $0,0266— y en
+    medio de un descuento no existe un precio por crédito: «100 créditos» no tenía un
+    precio, tenía un rango. La primera versión de esta vista dividía por el precio del
+    pack pequeño y daba 1000 créditos = **$26.315,79**: un número que no correspondía a
+    nada comprable y que además acompañaba a un saldo real, así que el cliente lo leía
+    como «esto es lo que pago por lo que ya compré».
 
-    Aqui se fija la propiedad que importa: la cifra es el saldo por el **mejor** precio
-    unitario del catalogo, y por tanto siempre esta entre el valor al precio del pack mas
-    pequeno y el valor al precio del pack mas grande. Con los precios reales, 1000 creditos
-    dan $26,60, que es un numero que el usuario puede comprobar contra los packs.
+    Ahora el catálogo está a la paridad de `settings.credits_per_usd`, y sin descuento el
+    precio de cualquier cantidad es su cantidad. Eso permite una afirmación mucho más
+    fuerte que «está dentro de un rango»: el saldo en dólares es exactamente el saldo por
+    la paridad, y el cliente puede comprobarlo.
     """
 
     assert integration_session is not None
@@ -822,22 +908,18 @@ async def test_el_equivalente_en_dolares_no_inventa_un_precio(
     assert respuesta.status_code == 200
     cuerpo = respuesta.json()
     saldo = Decimal(cuerpo["credit_balance"])
-    estimacion = Decimal(cuerpo["credit_balance_usd"])
-    unitario = Decimal(cuerpo["best_unit_price_usd"])
+    importe = Decimal(cuerpo["credit_balance_usd"])
+    paridad = Decimal(cuerpo["credits_per_usd"])
 
-    precios = sorted(amount / Decimal(credits) for credits, amount in CREDIT_PACKS.items())
-    precio_mas_barato, precio_mas_caro = precios[0], precios[-1]
-
-    # El precio unitario declarado es el mas barato del catalogo, no uno inventado.
-    assert unitario == precio_mas_barato.quantize(Decimal("0.0001"))
-    # Y la estimacion es exactamente saldo * ese precio.
-    assert estimacion == (saldo * unitario).quantize(Decimal("0.01"))
-    # Y cae dentro del rango que dan los precios reales del catalogo: nunca por debajo
-    # del pack mas barato —seria un precio que no existe— ni por encima del pack mas caro.
-    assert (saldo * precio_mas_barato).quantize(Decimal("0.01")) <= estimacion
-    assert estimacion <= (saldo * precio_mas_caro).quantize(Decimal("0.01"))
-    # Y da en la zona de la decena, no en las cuatro cifras que daba la paridad unica.
-    assert estimacion < Decimal("100"), f"1000 creditos salen en {estimacion} USD"
+    # La paridad que viaja es la de la configuración, no una constante del módulo.
+    assert paridad == settings.credits_per_usd
+    # Y el importe es exactamente saldo por la paridad. Comprobable, no estimable.
+    assert importe == (saldo * paridad).quantize(Decimal("0.01"))
+    # Con la paridad 1:1, 1000 créditos son 1000 dólares. Y no $26.315.
+    assert importe == Decimal("1000.00")
+    # Los packs respetan la misma paridad, que es lo que hace coherente la pantalla.
+    for pack in cuerpo["packs"]:
+        assert Decimal(pack["amount_usd"]) == Decimal(pack["credits"]) * paridad
 
 
 @pytest.mark.asyncio

@@ -20,7 +20,13 @@
     "credits": "{{count}} credits",
     "empty": "No packs available right now",
     "emptyCaption": "The commercial catalog is defined on the server. If it is empty, the platform administrator has to configure it before anyone can buy.",
-    "redirectNotice": "You are leaving the platform to complete the payment."
+    "redirectNotice": "You are leaving the platform to complete the payment.",
+    "customTitle": "Custom",
+    "customCaption": "Any amount between the minimum and the maximum.",
+    "customLabel": "Credits",
+    "customHint": "The minimum covers the cost of the payment session.",
+    "customInvalid": "Enter an amount between {min} and {max} credits.",
+    "customBuy": "Buy {count} credits"
   },
   "ledger": {
     "title": "Movements",

@@ -22,6 +22,11 @@ from backend.apps.vulnerabilities.schemas import (
     VulnerabilityTriageRequest,
     VulnerabilityTriageResponse,
 )
+from backend.apps.webhooks.emission import (
+    EventType,
+    publish_event,
+    vulnerability_status_payload,
+)
 from backend.core.database import get_db
 from backend.core.middleware import TenantContext, get_current_tenant
 from backend.core.rate_limit import enforce_autofix_rate_limit
@@ -165,6 +170,18 @@ async def triage_vulnerability(
         )
     )
     await session.commit()
+    await publish_event(
+        session,
+        EventType.VULNERABILITY_STATUS_CHANGED,
+        tenant.organization.id,
+        vulnerability_status_payload(
+            vulnerability_id=vulnerability.id,
+            previous_status=previous_status.value,
+            new_status=payload.status.value,
+            severity=vulnerability.severity,
+            title=vulnerability.title,
+        ),
+    )
     await session.refresh(vulnerability)
     logger.info(
         "Triaje de vulnerabilidad %s: %s -> %s por usuario %s",

@@ -8,26 +8,23 @@ propia lista de packs, habría dos catálogos: uno que el servidor acepta y otro
 panel ofrece, y el síntoma sería un botón «comprar» que devuelve `422` para un pack que el
 propio panel enseñó. El panel pinta lo que le mandan.
 
-## Por qué el equivalente en dólares usa el mejor precio unitario
+## Por qué el equivalente en dólares ya no necesita el "mejor precio"
 
-El catálogo **descuento por volumen**:
+La primera versión de este módulo dividía el saldo por una paridad única sacada del pack
+más barato, y daba 1000 créditos = **$26.315,79**: un número que no correspondía a nada
+comprable. La causa era que el catálogo tenía descuento por volumen —$0,038 por crédito en
+el pack pequeño y $0,0266 en el grande—, y en medio de un descuento **no existe** un
+precio por crédito: "100 créditos" no tenía un precio, tenía un rango.
 
-    500 créditos  → $19,00  →  $0,0380 por crédito
-    1500 créditos → $49,00  →  $0,0327 por crédito
-    5000 créditos → $149,00 →  $0,0298 por crédito
-    15000 créditos→ $399,00 →  $0,0266 por crédito
+El catálogo ahora está a la paridad declarada en `core.config` (`credits_per_usd = 1.00`),
+que es lo que hace el resto de la plataforma coherente, y sin descuento el precio de
+cualquier cantidad es su cantidad. Por eso este módulo ya no busca el "mejor precio
+unitario": usa `settings.credits_per_usd`, que es la **única** declaración de la paridad
+en todo el backend.
 
-No hay una única paridad crédito-dólar, y la primera versión de este módulo fingía que sí la
-había: dividía por el precio del pack pequeño y daba 1000 créditos = **$26.315,79**, una
-cifra que no corresponde a nada que se pueda comprar. Convertir un saldo con una paridad
-lineal sobre un catálogo con descuento no da un precio aproximado: da un precio **falso**,
-y además acompaña a un saldo real, así que el cliente lo lee como lo que tendría que pagar
-por lo que ya compró.
-
-Lo que sí es cierto, y es lo que se devuelve, es lo que **costaría comprar** esa cantidad
-de créditos hoy al precio unitario más barato del catálogo. Para 1000 créditos, $26,60: un
-número que el cliente puede comprobar comparándolo con los packs de la misma pantalla. Es
-una estimación y la interfaz la etiqueta como tal, no como el valor de su saldo.
+Consecuencia útil: el saldo en dólares de un tenant es ahora una cifra que el cliente
+puede comprobar —1000 créditos, 1000 dólares— y no una estimación. La interfaz sigue
+etiquetándola como equivalente, pero ya no necesita un `≈`.
 """
 
 from __future__ import annotations
@@ -40,41 +37,26 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum
-from backend.apps.billing.schemas import CREDIT_PACKS, CreditPackResponse
-from backend.apps.organizations.models import Organization
-
-#: El precio unitario más barato del catálogo, y el pack que lo ofrece.
-#:
-#: Se calcula **a partir de `CREDIT_PACKS`** y no se escribe a mano. Fijarlo en una
-#: constante obligaría a recordarlo cambiarlo en dos sitios cada vez que se toca un precio,
-#: y el que se olvida es el que hace que la pantalla dé una cifra distinta de los packs que
-#: tiene al lado.
-BEST_UNIT_PRICE: tuple[Decimal, int] = min(
-    (amount / Decimal(credits), credits) for credits, amount in CREDIT_PACKS.items()
+from backend.apps.billing.schemas import (
+    CREDIT_PACKS,
+    CUSTOM_CREDITS_MINIMUM,
+    CreditPackResponse,
+    price_for_credits,
 )
+from backend.apps.organizations.models import Organization
+from backend.core.config import settings
 
 
-def cheapest_buy_price(credits: Decimal) -> Decimal:
-    """Lo que costaría comprar `credits` créditos al mejor precio unitario del catálogo.
+def credits_to_usd(credits: Decimal | int) -> Decimal:
+    """Equivalente en dólares de una cantidad de créditos.
 
-    Redondeado a dos decimales porque es dinero que se muestra. Para una cantidad pequeña
-    el redondeo puede dejar la cifra en $0,00 —250 créditos a $0,0266 son $6,65, pero 20
-    créditos son $0,53—, y eso es preferible a mostrar cuatro decimales que el cliente
-    interpretaría como un precio exacto cuando es una estimación.
+    Se redondea **aquí** y no en el cliente. Un saldo de 250 créditos son $250,00, y
+    redondear en el navegador con `toFixed` depende de la coma decimal del sistema y da
+    resultados distintos según el navegador del cliente.
     """
 
-    unit_price, _pack = BEST_UNIT_PRICE
-    return (Decimal(credits) * unit_price).quantize(Decimal("0.01"))
-
-
-def best_unit_price() -> Decimal:
-    """Precio unitario más barato del catálogo, redondeado a cuatro decimales.
-
-    Viaja en la respuesta para que el panel pueda mostrar de dónde sale la estimación sin
-    tener que deducirlo de los packs.
-    """
-
-    return BEST_UNIT_PRICE[0].quantize(Decimal("0.0001"))
+    unitario = settings.credits_per_usd
+    return (Decimal(credits) * unitario).quantize(Decimal("0.01"))
 
 
 async def credit_activity(
@@ -140,3 +122,34 @@ def available_packs() -> list[CreditPackResponse]:
         )
         for credits, amount in sorted(CREDIT_PACKS.items())
     ]
+
+
+def custom_purchase_bounds() -> dict[str, int]:
+    """Límites del pack a medida, para que el panel configure su campo.
+
+    Viajan como enteros porque son **cantidades de créditos**, no importes. El panel pinta
+    el mínimo como créditos para que el número que el usuario teclea sea el mismo que se
+    cobra, y no una conversión que tendría que hacer el cliente mentalmente.
+    """
+
+    return {"minimum": CUSTOM_CREDITS_MINIMUM, "maximum": 1_000_000}
+
+
+def is_commercializable(credits: int) -> bool:
+    """Si una cantidad es vendible: pack del catálogo o cantidad a medida válida.
+
+    Lo consulta el panel para habilitar o desactivar el botón de compra sin que el usuario
+    descubra la regla al pulsar y reciba un `422`.
+    """
+
+    return credits in CREDIT_PACKS or credits >= CUSTOM_CREDITS_MINIMUM
+
+
+__all__ = [
+    "available_packs",
+    "credit_activity",
+    "credits_to_usd",
+    "custom_purchase_bounds",
+    "is_commercializable",
+    "price_for_credits",
+]

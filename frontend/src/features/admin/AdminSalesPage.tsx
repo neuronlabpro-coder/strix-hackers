@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { getAdminSales } from '../../lib/adminApi'
-import {activeLocale, formatCredits} from '../../lib/format'
+import { activeLocale, formatCents, formatCredits } from '../../lib/format'
 import type { AdminSale } from '../../types/api'
 import { useAuth } from '../auth/useAuth'
 import { PaginationBar } from './PaginationBar'
@@ -40,16 +40,19 @@ export function AdminSalesPage() {
       // El hook recibe `disabled` y no pide nada sin sesión; esta guarda solo evita pasar
       // un token inexistente y devuelve una página vacía en vez de lanzar la petición.
       token === null
-        ? Promise.resolve({ items: [], total: 0, total_credits: '0' })
+        ? Promise.resolve({ items: [], total: 0, total_credits: '0', total_amount_cents: 0 })
         : getAdminSales(token, { limit, offset }),
     [token],
   )
 
-  const page = useAdminPage<AdminSale, { total_credits: string }>(load, {
-    pageSize: 25,
-    filterKey: token ?? '',
-    disabled: !token || user?.is_superuser !== true,
-  })
+  const page = useAdminPage<AdminSale, { total_credits: string; total_amount_cents: number }>(
+    load,
+    {
+      pageSize: 25,
+      filterKey: token ?? '',
+      disabled: !token || user?.is_superuser !== true,
+    },
+  )
 
   return (
     <section className="page-section" aria-labelledby="admin-sales-title">
@@ -92,8 +95,8 @@ export function AdminSalesPage() {
                 <th scope="col">{t('sales.columns.event')}</th>
                 <th scope="col">{t('sales.columns.type')}</th>
                 <th scope="col">{t('sales.columns.tenant')}</th>
+                <th scope="col">{t('sales.columns.amount')}</th>
                 <th scope="col">{t('sales.columns.credits')}</th>
-                <th scope="col">{t('sales.columns.session')}</th>
                 <th scope="col">{t('sales.columns.created')}</th>
               </tr>
             </thead>
@@ -104,11 +107,24 @@ export function AdminSalesPage() {
                     <span className="mono">{sale.event_id}</span>
                   </th>
                   <td>
-                    <span className="mono table-secondary">{sale.event_type}</span>
+                    <span className="mono cell-muted">{sale.event_type}</span>
                   </td>
                   <td>
                     {sale.organization_name ?? (
                       <span className="cell-muted">{t('sales.noTenant')}</span>
+                    )}
+                  </td>
+                  {/*
+                    El importe viene en centavos y se pinta como dólares con el separador
+                    del idioma activo. `null` —un evento que no fue un cobro— se muestra
+                    como «no aplica» y **no** como $0,00: un cero en una columna de
+                    importes se lee como una venta de nada, que es una conclusión falsa.
+                  */}
+                  <td>
+                    {sale.amount_cents === null ? (
+                      <span className="cell-muted">{t('sales.notApplicable')}</span>
+                    ) : (
+                      <span className="mono">{formatCents(sale.amount_cents)}</span>
                     )}
                   </td>
                   <td>
@@ -121,15 +137,11 @@ export function AdminSalesPage() {
                     )}
                   </td>
                   <td>
-                    <span className="mono table-secondary">
-                      {sale.session_id ?? t('sales.noSession')}
-                    </span>
-                  </td>
-                  <td>
                     <span className="mono timestamp">
-                      {new Intl.DateTimeFormat(activeLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-                        new Date(sale.created_at),
-                      )}
+                      {new Intl.DateTimeFormat(activeLocale(), {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }).format(new Date(sale.created_at))}
                     </span>
                   </td>
                 </tr>
@@ -145,6 +157,11 @@ export function AdminSalesPage() {
         {t('sales.total', {
           count: page.total,
           credits: formatCredits(page.extra?.total_credits ?? '0'),
+        })}
+      </p>
+      <p className="chart-empty">
+        {t('sales.totalAmount', {
+          amount: formatCents(page.extra?.total_amount_cents ?? 0),
         })}
       </p>
       <p className="chart-empty">{t('sales.totalCaption')}</p>

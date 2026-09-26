@@ -18,23 +18,29 @@ export interface CreditPack {
 export interface BillingSummary {
   credit_balance: string
   /**
-   * **Estimación, no el valor del saldo.** Es lo que costaría comprar esta cantidad de
-   * créditos al precio unitario más barato del catálogo.
+   * Equivalente en dólares del saldo.
    *
-   * El catálogo aplica descuento por volumen —500 créditos a $0,038 y 15000 a $0,0266— así
-   * que no hay una paridad crédito-dólar única. Convertir con una sola daría cifras que no
-   * corresponden a ningún producto: 1000 créditos a la paridad del pack pequeño saldrían en
-   * $26.315,79. El panel lo rotula como estimación y el usuario puede comprobarlo contra los
-   * packs de la misma pantalla.
+   * El catálogo está a la paridad declarada en la configuración (`credits_per_usd`), sin
+   * descuento por volumen, así que esto es un número **comprobable**: 1000 créditos son
+   * 1000 dólares, y el cliente puede contrastarlo con los packs de la misma pantalla.
+   *
+   * Cuando el catálogo tenía descuento —$0,038 en el pack pequeño y $0,0266 en el grande—
+   * no existía un precio por crédito y este campo tenía que ser una estimación al mejor
+   * precio. Con descuento, 1000 créditos salían en $26.315,79: una cifra que no
+   * correspondía a ningún producto y que el usuario leía como su saldo.
    */
   credit_balance_usd: string
-  /** Precio unitario con el que se calculó la estimación, para que sea comprobable. */
-  best_unit_price_usd: string
+  /** La paridad usada. Viaja para que el panel no la vuelva a derivar por su cuenta. */
+  credits_per_usd: string
   spent_this_month: string
   purchased_this_month: string
   spent_this_month_usd: string
   period_start: string
   packs: CreditPack[]
+  /** Mínimo del pack a medida, **en créditos**. El número que teclea el usuario. */
+  custom_minimum: number
+  /** Máximo del pack a medida, en créditos. */
+  custom_maximum: number
 }
 
 export type LedgerReason =

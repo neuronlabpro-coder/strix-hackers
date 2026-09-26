@@ -35,13 +35,13 @@
     "noData": "Sin datos"
   },
   "pending": {
-    "chat": "Requiere el modelo de conversaciones y el agente conversacional del servidor MCP. Esta pantalla se construyó sobre datos que la plataforma todavía no produce, y un formulario de chat sin agente detrás sería una caja vacía.",
+    "chat": "Fenix audita lo que le pidas, con el contexto de tu workspace y el motor de análisis detrás. Esta pantalla necesita el modelo de conversaciones y el agente del servidor MCP: se construyó sobre datos que la plataforma todavía no produce, y un chat sin agente detrás sería una caja vacía.",
     "domains": "Requiere el modelo de dominios con verificación de propiedad por DNS TXT o archivo HTTP. Sin esa verificación no se puede escanear nada desde fuera, así que la tabla se implementará junto al endpoint, no antes.",
-    "assetDiscovery": "Requiere el modelo de descubrimientos y su cuota diaria. El descubrimiento se apoya en los dominios verificados, de modo que no puede existir antes que ellos.",
+    "assetDiscovery": "Fenix mapea los activos pertenecientes a tus dominios verificados y los cruza con lo que encuentra en cada repositorio. Requiere el modelo de descubrimientos y su cuota diaria: el descubrimiento se apoya en los dominios verificados, de modo que no puede existir antes que ellos.",
     "supplyChain": "Requiere que el motor de análisis exponga el SBOM de dependencias. Hoy no lo publica, así que no hay nada que mostrar aunque el plan lo cubra.",
     "containers": "Requiere el inventario de contenedores y su acceso al runtime del host, que todavía no está implementado.",
     "networks": "Requiere el escáner de red y el modelo de subdominios. Ambas cosas llegan con la Fase 6.",
-    "integrations": "Requiere el almacenamiento de conexiones y los flujos OAuth de Jira y Linear. El motor de webhooks salientes ya funciona, y es sobre el que se construirán esas integraciones: cada una será un endpoint al que Fenix entregue eventos.",
+    "integrations": "Conecta Fenix a tus herramientas: Jira para abrir incidencias desde un hallazgo, Linear para seguirlas, y un servidor MCP para que un asistente de IA consulte tus resultados. Requiere el almacenamiento de conexiones y los flujos OAuth. El motor de webhooks salientes ya funciona, y es sobre el que se construirán esas integraciones: cada una será un endpoint al que Fenix entregue eventos.",
     "settings": "La vista se construye ahora sobre operaciones que ya existen: baja lógica del workspace, emisión y revocación de tokens de API, y configuración de webhooks salientes. Quedan por delante el renombrado de la organización y la facturación, que se entregan con su propio bloque."
   },
   "cancel": "Cancelar",

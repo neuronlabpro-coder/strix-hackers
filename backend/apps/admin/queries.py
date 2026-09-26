@@ -44,12 +44,25 @@ from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEv
 from backend.apps.billing.service import apply_credit_delta
 from backend.apps.organizations.models import Membership, Organization, PlanTierEnum, User
 from backend.apps.pentests.models import PentestRun
+from backend.core.config import settings
 
-#: Créditos por dólar. Con 1 crédito = 1 USD, el importe en dólares de un saldo es el
-#: propio saldo. Se declara como constante y no se deriva en el cliente para que las dos
-#: cifras —la del panel y la del resumen global— no puedan divergir si alguien cambia la
-#: paridad en uno de los dos.
-CREDITS_PER_USD = Decimal("1")
+#: Créditos por dólar del resumen global.
+#:
+#: Se lee de `settings.credits_per_usd` y no se escribe como constante propia. La primera
+#: versión de este módulo declaraba `Decimal("1")` aquí, y el panel de facturación declaraba
+#: la suya: dos sitios con la misma regla y ninguna fuente de verdad. Cuando cambiara la
+#: paridad, el resumen global y el saldo del cliente dirían cosas distintas sin que nada
+#: fallara. Ahora ambos leen la configuración.
+CREDITS_PER_USD = settings.credits_per_usd
+
+
+class LastSuperuserError(RuntimeError):
+    """Se intentó dejar la plataforma sin ningún superusuario.
+
+    Es una excepción de **dominio** y no un `HTTPException` porque la decisión la toma el
+    servicio, no la ruta: la misma comprobación tiene que aplicarse venga de donde venga la
+    petición. La ruta la traduce a `409`.
+    """
 
 
 def _start_of_month(now: datetime) -> datetime:
@@ -440,7 +453,7 @@ async def list_users(
     if not usuarios:
         return AdminUserPage(items=[], total=total, limit=limit, offset=offset)
 
-    por_usuario = await _organizations_of_users(session, [u.id for u in usuarios])
+    por_usuario = await _roles_of_users(session, [u.id for u in usuarios])
     return AdminUserPage(
         items=[
             AdminUserItem(
@@ -451,7 +464,7 @@ async def list_users(
                 is_active=usuario.is_active,
                 email_verified=usuario.email_verified,
                 created_at=usuario.created_at,
-                organizations=por_usuario.get(usuario.id, []),
+                roles=por_usuario.get(usuario.id, []),
                 organization_count=len(por_usuario.get(usuario.id, [])),
             )
             for usuario in usuarios
@@ -462,19 +475,23 @@ async def list_users(
     )
 
 
-async def _organizations_of_users(
+async def _roles_of_users(
     session: AsyncSession, user_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, list[str]]:
-    """Workspaces por usuario, en una sola consulta para toda la página.
+    """Workspaces y rol del usuario, en una sola consulta para toda la página.
 
     Solo se incluyen membresías activas y tenants no dados de baja: un workspace en el que
     el usuario ya no está, o que se dio de baja, no es una organización a la que pertenezca
     hoy, y listarlo haría que el operador creyera que tiene acceso a algo que no tiene.
+
+    El rol viaja **con** el nombre y no en una columna aparte porque se muestran juntos en
+    la misma celda, y concatenarlos aquí evita que cada vista los junte por su cuenta y de
+    que una lo haga en el orden equivocado.
     """
 
     filas = (
         await session.execute(
-            select(Membership.user_id, Organization.name)
+            select(Membership.user_id, Organization.name, Membership.role)
             .join(Organization, Organization.id == Membership.organization_id)
             .where(
                 Membership.user_id.in_(user_ids),
@@ -485,9 +502,67 @@ async def _organizations_of_users(
         )
     ).all()
     agrupado: dict[uuid.UUID, list[str]] = {}
-    for user_id, nombre in filas:
-        agrupado.setdefault(user_id, []).append(nombre)
+    for user_id, nombre, rol in filas:
+        etiqueta = f"{nombre} ({rol.value})"
+        agrupado.setdefault(user_id, []).append(etiqueta)
     return agrupado
+
+
+async def set_user_flags(
+    session: AsyncSession,
+    user: User,
+    *,
+    is_active: bool | None,
+    is_superuser: bool | None,
+) -> AdminUserItem:
+    """Aplica los conmutadores administrativos y devuelve el usuario resultante.
+
+    ## Por qué desactivar al propio superusuario se rechaza
+
+    Un superusuario que se desactiva a sí mismo pierde el acceso a la consola en la misma
+    operación, y si era el último, la plataforma se queda **sin nadie** que pueda recuperar
+    esa cuenta. El `409` no es un capricho: es la única situación en la que la operación no
+    tiene vuelta atrás desde la propia consola.
+
+    Quitarle el superusuario a otro sí se permite. Puede quedar una cuenta sin acceso a la
+    consola, pero quien lo hizo es otro superusuario, y eso es una decisión de dos
+    cerebros y no un accidente de uno solo.
+    """
+
+    if is_superuser is False and user.is_superuser:
+        otros = int(
+            (
+                await session.execute(
+                    select(func.count(User.id)).where(
+                        User.is_superuser.is_(True), User.id != user.id
+                    )
+                )
+            ).scalar_one()
+        )
+        if otros == 0:
+            raise LastSuperuserError(
+                "No se puede quitar el superusuario al último que queda en la plataforma"
+            )
+
+    if is_active is not None:
+        user.is_active = is_active
+    if is_superuser is not None:
+        user.is_superuser = is_superuser
+    await session.commit()
+    await session.refresh(user)
+
+    roles = (await _roles_of_users(session, [user.id])).get(user.id, [])
+    return AdminUserItem(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        is_superuser=user.is_superuser,
+        is_active=user.is_active,
+        email_verified=user.email_verified,
+        created_at=user.created_at,
+        roles=roles,
+        organization_count=len(roles),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -545,9 +620,12 @@ async def list_sales(
 
     items: list[AdminSaleItem] = []
     total_credits = Decimal("0")
+    total_amount_cents = 0
     for evento, organizacion in filas:
         if evento.credits_granted is not None:
             total_credits += Decimal(evento.credits_granted)
+        if evento.amount_cents is not None:
+            total_amount_cents += evento.amount_cents
         items.append(
             AdminSaleItem(
                 id=evento.id,
@@ -561,6 +639,7 @@ async def list_sales(
                     if evento.credits_granted is not None
                     else None
                 ),
+                amount_cents=evento.amount_cents,
                 created_at=evento.created_at,
             )
         )
@@ -570,6 +649,7 @@ async def list_sales(
         limit=limit,
         offset=offset,
         total_credits=total_credits,
+        total_amount_cents=total_amount_cents,
     )
 
 

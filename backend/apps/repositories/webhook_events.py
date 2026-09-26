@@ -29,6 +29,11 @@ from backend.apps.repositories.models import (
 )
 from backend.apps.repositories.pipeline import _default_session_provider
 from backend.apps.repositories.services import build_client_for_repository
+from backend.apps.webhooks.emission import (
+    EventType,
+    pr_review_payload,
+    publish_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +317,24 @@ async def _process_git_webhook_event(
                 review.status = PRReviewStatusEnum.ERROR
                 review.finished_at = datetime.now(UTC)
                 await session.commit()
+                # La revisión llegó a un estado terminal confirmado, así que se anuncia
+                # antes de propagar el error. Sin esto, quien esté suscrito a
+                # `pr_review.failed` se queda sin saber que la revisión murió: el error
+                # que sube por la cadena es de encolado, no de revisión.
+                await publish_event(
+                    session,
+                    EventType.PR_REVIEW_FAILED,
+                    review.organization_id,
+                    pr_review_payload(
+                        review_id=review.id,
+                        repository_id=review.repository_id,
+                        pr_number=review.pr_number,
+                        status=PRReviewStatusEnum.ERROR.value,
+                        findings_count=0,
+                        blocking=True,
+                        error_code="REVIEW_ENQUEUE_FAILED",
+                    ),
+                )
                 raise WebhookEventError("No se pudo encolar la revisión PR") from error
         return {
             "accepted": True,

@@ -128,6 +128,17 @@ class Settings(BaseSettings):
     credits_per_usd: Decimal = Field(default=Decimal("1.00"), gt=0, le=1000)
     scan_credit_cost: Decimal = Field(default=Decimal("10"), gt=0, le=10000)
     quick_scan_credit_multiplier: Decimal = Field(default=Decimal("0.5"), gt=0, le=1)
+    #: Umbral por debajo del cual se emite el aviso de saldo bajo. Cero lo desactiva.
+    #:
+    #: Es configuración y no una constante porque es política comercial por tenant, no
+    #: comportamiento del motor: el mismo aviso tiene sentido a 50 créditos para un
+    #: workspace que consume diez por escaneo y no para uno que consume quinientos.
+    #:
+    #: El valor por defecto es **cero, es decir, desactivado**, y no un umbral arbitrario.
+    #: Emitir por defecto un aviso a quien no lo ha pedido es ruido que entrena al receptor
+    #: a ignorar el evento; para encenderlo hay que decidir la cifra, y esa cifra es una
+    #: decisión comercial, no un valor por defecto técnico.
+    low_credit_balance_threshold: Decimal = Field(default=Decimal("0"), ge=0, le=1_000_000)
     stripe_secret_key: SecretStr | None = Field(default=None, repr=False)
     stripe_publishable_key: str = ""
     stripe_webhook_secret: SecretStr | None = Field(default=None, repr=False)

@@ -24,6 +24,7 @@ import type {
   AdminSalePage,
   AdminUser,
   AdminUserPage,
+  AdminUserUpdate,
   InfrastructureHealth,
   PlanTierAdmin,
   TenantLifecycle,
@@ -98,7 +99,7 @@ export function getAdminOrganizations(
   } = {},
 ): Promise<AdminOrganizationPage> {
   return adminRequest(
-    `/api/v1/admin/organizations${query({ limit: 50, offset: 0, ...params })}`,
+    `/api/v1/admin/tenants${query({ limit: 50, offset: 0, ...params })}`,
     {},
     token,
   )
@@ -110,7 +111,7 @@ export function updateAdminOrganizationPlan(
   planTier: PlanTierAdmin,
 ): Promise<AdminOrganization> {
   return adminRequest(
-    `/api/v1/admin/organizations/${organizationId}`,
+    `/api/v1/admin/tenants/${organizationId}`,
     { method: 'PATCH', body: JSON.stringify({ plan_tier: planTier }) },
     token,
   )
@@ -123,7 +124,7 @@ export function grantAdminCredits(
   note = '',
 ): Promise<AdminCreditGrantResult> {
   return adminRequest(
-    `/api/v1/admin/organizations/${organizationId}/credits`,
+    `/api/v1/admin/tenants/${organizationId}/credits`,
     { method: 'POST', body: JSON.stringify({ amount, note }) },
     token,
   )
@@ -134,7 +135,7 @@ export function deactivateAdminOrganization(
   organizationId: string,
 ): Promise<AdminOrganization> {
   return adminRequest(
-    `/api/v1/admin/organizations/${organizationId}`,
+    `/api/v1/admin/tenants/${organizationId}`,
     { method: 'DELETE' },
     token,
   )
@@ -151,6 +152,25 @@ export function getAdminUsers(
   return adminRequest(
     `/api/v1/admin/users${query({ limit: 50, offset: 0, ...params })}`,
     {},
+    token,
+  )
+}
+
+/**
+ * Activa o desactiva una cuenta, y le da o le quita el superusuario.
+ *
+ * Un campo ausente no se manda, y `false` sí. El backend los distingue —desactivar es
+ * `{"is_active": false}` y "no cambiar" es `{}`— y confundirlos convertiría una baja de
+ * cuenta en una promoción de permisos.
+ */
+export function updateAdminUser(
+  token: string,
+  userId: string,
+  changes: AdminUserUpdate,
+): Promise<AdminUser> {
+  return adminRequest(
+    `/api/v1/admin/users/${userId}`,
+    { method: 'PATCH', body: JSON.stringify(changes) },
     token,
   )
 }
@@ -189,7 +209,7 @@ export function getAdminAuditLog(
   filters: AdminAuditFilters = {},
 ): Promise<{ items: AdminAuditEntry[]; total: number; limit: number; offset: number }> {
   return adminRequest(
-    `/api/v1/admin/audit-log${query({
+    `/api/v1/admin/audit${query({
       limit: 50,
       offset: 0,
       organization_id: filters.organizationId,

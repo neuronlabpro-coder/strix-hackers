@@ -35,13 +35,13 @@
     "noData": "No data"
   },
   "pending": {
-    "chat": "Requires the conversation model and the MCP server conversational agent. This screen was built on data the platform does not produce yet, and a chat form with no agent behind it would be an empty box.",
+    "chat": "Fenix audits whatever you ask, with your workspace context and the analysis engine behind it. This screen needs the conversation model and the MCP server agent: it was built on data the platform does not produce yet, and a chat with no agent behind it would be an empty box.",
     "domains": "Requires the domain model with ownership verification over DNS TXT or an HTTP file. Without that verification nothing can be scanned from the outside, so the table will be built together with the endpoint, not before it.",
-    "assetDiscovery": "Requires the discovery model and its daily quota. Discovery builds on verified domains, so it cannot exist before them.",
+    "assetDiscovery": "Fenix maps everything that belongs to your verified domains and cross-checks it against what it finds in each repository. It requires the discovery model and its daily quota: discovery builds on verified domains, so it cannot exist before them.",
     "supplyChain": "Requires the analysis engine to expose the dependency SBOM. It does not publish it today, so there is nothing to show even when the plan covers it.",
     "containers": "Requires the container inventory and access to the host runtime, which is not implemented yet.",
     "networks": "Requires the network scanner and the subdomain model. Both arrive with Phase 6.",
-    "integrations": "Requires connection storage and the OAuth flows for Jira and Linear. The outgoing webhook engine already works, and it is what those integrations will be built on.",
+    "integrations": "Connect Fenix to your tools: Jira to open issues straight from a finding, Linear to track them, and an MCP server so an AI assistant can query your results. It requires connection storage and the OAuth flows. The outgoing webhook engine already works, and it is what those integrations will be built on: each one becomes an endpoint Fenix delivers events to.",
     "settings": "The view is now built on operations that exist: soft-deletion of the workspace, issuing and revoking API tokens, and outgoing webhook configuration. Renaming the organization and billing still to come, each in its own block."
   },
   "cancel": "Cancel",

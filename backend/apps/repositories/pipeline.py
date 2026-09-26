@@ -37,6 +37,13 @@ from backend.apps.repositories.models import (
 from backend.apps.repositories.services import build_client_for_repository
 from backend.apps.repositories.workspace import materialize_pr_workspace
 from backend.apps.vulnerabilities.models import SeverityEnum, Vulnerability
+from backend.apps.webhooks.emission import (
+    EventType,
+    pentest_payload,
+    pr_review_payload,
+    publish_event,
+    vulnerability_created_payload,
+)
 from backend.core.config import settings
 from backend.core.database import create_database_engine
 from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output
@@ -60,6 +67,26 @@ Materializer = Callable[..., Awaitable[list[str]]]
 
 @dataclass(frozen=True, slots=True)
 class PipelineClaim:
+    """Lo que el pipeline necesita para trabajar, y lo que necesita para **anunciar**.
+
+    ## Por qué los identificadores están duplicados
+
+    Los objetos de ORM (`review`, `repository`, `run`) soneya convenientes mientras la
+    sesión está viva, pero **no sobreviven a un `commit` o un `rollback` con
+    `expire_on_commit=True`**: sus atributos pasan a pedir una recarga, y en SQLAlchemy
+    asíncrono esa recarga necesita un contexto verde. Leerlos fuera de una operación de base
+    de datos —que es exactamente lo que se hace al construir un payload de evento— falla con
+    `MissingGreenlet`.
+
+    Los UUID van aparte por eso. Son valores planos, ya resueltos, y funcionan en cualquier
+    punto del flujo: después de un commit, después de un rollback, dentro de un `except`.
+
+    La alternativa —leer `claim.repository.id` y confiar en que nadie expire la sesión— es
+    lo que produjo el fallo: la sesión de los tests usa el valor por defecto de SQLAlchemy y
+    el pipeline de producción usa `expire_on_commit=False`, así que el mismo código pasaba
+    en un sitio y reventaba en otro.
+    """
+
     review: PullRequestReview
     repository: Repository
     credential: GitCredential
@@ -67,6 +94,8 @@ class PipelineClaim:
     review_id: UUID
     organization_id: UUID
     run_id: UUID
+    #: Plano, a propósito. Ver la nota de la clase.
+    repository_id: UUID
     repository_full_name: str
     commit_sha: str
     pr_number: int
@@ -133,7 +162,24 @@ async def _claim_review(
     if not repository.pr_reviews_enabled:
         review.status = PRReviewStatusEnum.ERROR
         review.finished_at = datetime.now(UTC)
+        # El payload se construye **antes** del commit. Con una sesión que expira al
+        # confirmar, leer `review.organization_id` después es una recarga que necesita
+        # contexto verde: `MissingGreenlet` sobre una revisión que ya está guardada como
+        # fallida, que es una operación correcta reportada como error.
+        payload = pr_review_payload(
+            review_id=review.id,
+            repository_id=repository.id,
+            pr_number=review.pr_number,
+            status=PRReviewStatusEnum.ERROR.value,
+            findings_count=0,
+            blocking=True,
+            error_code="PR_REVIEWS_DISABLED",
+        )
+        tenant_id = review.organization_id
         await session.commit()
+        # Aquí todavía no existe `claim`: esta función lo construye. Se usan las filas que
+        # acaba de leer, que son la misma revisión y el mismo repositorio.
+        await publish_event(session, EventType.PR_REVIEW_FAILED, tenant_id, payload)
         raise PRPipelineError("Las revisiones automáticas están deshabilitadas")
 
     run: PentestRun | None = None
@@ -184,6 +230,7 @@ async def _claim_review(
         review.id,
         review.organization_id,
         run.id,
+        repository.id,
         repository.full_name,
         review.commit_sha,
         review.pr_number,
@@ -211,14 +258,67 @@ async def _mark_pipeline_error(
         .with_for_update()
     )
     run = run_result.scalar_one_or_none()
-    if review is not None and review.status == PRReviewStatusEnum.SCANNING:
+    # Las banderas dicen si la transición **ocurrió ahora**, no si el objeto tiene el
+    # campo puesto. La función se llama también con un run que ya estaba en estado
+    # terminal, y preguntar por `finished_at is not None` daría un falso positivo en
+    # cuanto una segunda ejecución pasara por aquí.
+    review_transiciono = review is not None and review.status == PRReviewStatusEnum.SCANNING
+    run_transiciono = run is not None and run.status in {
+        ScanStatusEnum.QUEUED,
+        ScanStatusEnum.RUNNING,
+    }
+    if review is not None and review_transiciono:
         review.status = PRReviewStatusEnum.ERROR
         review.finished_at = datetime.now(UTC)
-    if run is not None and run.status in {ScanStatusEnum.QUEUED, ScanStatusEnum.RUNNING}:
+    if run is not None and run_transiciono:
         run.status = ScanStatusEnum.FAILED
         run.finished_at = datetime.now(UTC)
         run.error_message = error_code
+    # Los payloads se construyen **antes** del commit. Después, con una sesión que expire
+    # al confirmar, leer `review.id` o `run.target_identifier` dispara una recarga que en
+    # SQLAlchemy asíncrono necesita un contexto verde y revienta con `MissingGreenlet` —
+    # sobre un pipeline que ya está guardado como fallido. Es el mismo modo de fallo que
+    # `_persist_findings`: una operación de dominio correcta reportada como error.
+    #
+    # Solo se construyen los payloads de las transiciones que **ocurrieron**: repetir un
+    # fallo que el receptor ya recibió con su código original lo haría parecer que hay dos
+    # incidentes.
+    review_payload: dict[str, object] | None = None
+    if review is not None and review_transiciono:
+        review_payload = pr_review_payload(
+            review_id=review.id,
+            repository_id=claim.repository_id,
+            pr_number=claim.pr_number,
+            status=PRReviewStatusEnum.ERROR.value,
+            findings_count=0,
+            blocking=True,
+            error_code=error_code,
+        )
+    run_payload: dict[str, object] | None = None
+    if run is not None and run_transiciono:
+        run_payload = pentest_payload(
+            run_id=run.id,
+            status=ScanStatusEnum.FAILED.value,
+            target_type=run.target_type,
+            target_value=run.target_identifier,
+            scan_mode=run.scan_mode,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            error_code=error_code,
+        )
+
     await session.commit()
+    # El tenant se toma de `claim`, que es un `dataclass` de valores planos leídos antes
+    # del commit. Leerlo de `run` o de `review` después de confirmar pediría sus atributos
+    # a la sesión, y con una que expira eso es una recarga que necesita contexto verde.
+    if review_payload is not None:
+        await publish_event(
+            session, EventType.PR_REVIEW_FAILED, claim.organization_id, review_payload
+        )
+    if run_payload is not None:
+        await publish_event(
+            session, EventType.PENTEST_FAILED, claim.organization_id, run_payload
+        )
 
 
 async def _set_cleanup_pending(session: AsyncSession, claim: PipelineClaim) -> None:
@@ -307,7 +407,27 @@ async def _persist_findings(
     run.status = ScanStatusEnum.COMPLETED
     run.finished_at = datetime.now(UTC)
     run.exit_code = str(result.exit_code)
+    # El payload se construye **antes** del commit. Después, los objetos de ORM quedan
+    # expirados y leer `finding.id` dispara una recarga que en SQLAlchemy asíncrono necesita
+    # un contexto verde: sin él, la lectura del payload revienta con `MissingGreenlet` y el
+    # escaneo —que ya está confirmado— se reporta como fallido.
+    #
+    # Además es lo correcto por otro motivo: el cuerpo del evento describe lo que se
+    # acaba de guardar, y leerlo antes de confirmar lo lee de los objetos que se van a
+    # persistir, no de una recarga que podría devolver otra cosa.
+    payload = vulnerability_created_payload(
+        [
+            {
+                "id": str(finding.id),
+                "severity": finding.severity,
+                "title": finding.title,
+                "run_id": str(claim.run_id),
+            }
+            for finding in findings
+        ]
+    )
     await session.commit()
+    await publish_event(session, EventType.VULNERABILITY_CREATED, claim.organization_id, payload)
     return findings
 
 
@@ -354,8 +474,25 @@ async def _finalize_review(
         )
         claim.review.comment_id = comment_id
     await _publish_status(client, claim, state, description)
+    # El payload y el valor de retorno se resuelven **antes** del commit. Después, con una
+    # sesión que expire, `claim.review.id` o `claim.review.status` piden una recarga que
+    # necesita contexto verde: la revisión quedaría guardada como completada y el pipeline
+    # se reportaría como fallido al leer su propio resultado.
+    payload = pr_review_payload(
+        review_id=claim.review_id,
+        repository_id=claim.repository_id,
+        pr_number=claim.pr_number,
+        status=claim.review.status.value,
+        findings_count=len(findings),
+        blocking=blocked,
+    )
+    status_final = claim.review.status.value
+
     await session.commit()
-    return claim.review.status.value
+    await publish_event(
+        session, EventType.PR_REVIEW_COMPLETED, claim.organization_id, payload
+    )
+    return status_final
 
 
 async def _run_pr_security_pipeline(

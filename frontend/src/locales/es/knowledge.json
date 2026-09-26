@@ -1,7 +1,7 @@
 {
   "title": "Base de conocimiento",
   "eyebrow": "Catálogo técnico",
-  "description": "Apuntes de remediación de las familias de vulnerabilidad que detecta el motor, con el patrón vulnerable, el patrón seguro y la mitigación aplicable.",
+  "description": "Fenix aprende el contexto y las reglas de negocio de tus aplicaciones para no marcar como vulnerabilidad lo que es una decisión de diseño. Aquí está el catálogo técnico con el que contrasta cada hallazgo: la familia, el riesgo, el código vulnerable y el corregido.",
   "searchLabel": "Buscar en el catálogo",
   "searchPlaceholder": "Título, CWE, resumen del riesgo o categoría OWASP",
   "filters": {

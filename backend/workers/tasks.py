@@ -32,6 +32,13 @@ from backend.apps.repositories.models import (
     Repository,
 )
 from backend.apps.vulnerabilities.models import Vulnerability
+from backend.apps.webhooks.emission import (
+    EventType,
+    pentest_payload,
+    pr_review_payload,
+    publish_event,
+    vulnerability_created_payload,
+)
 from backend.core.config import settings
 from backend.core.database import create_database_engine
 from backend.workers.celery_app import celery_app
@@ -117,6 +124,21 @@ async def _mark_failed(
             run.finished_at = datetime.now(UTC)
             run.error_message = error_code
             await session.commit()
+            await publish_event(
+                session,
+                EventType.PENTEST_FAILED,
+                run.organization_id,
+                pentest_payload(
+                    run_id=run.id,
+                    status=ScanStatusEnum.FAILED.value,
+                    target_type=run.target_type,
+                    target_value=run.target_identifier,
+                    scan_mode=run.scan_mode,
+                    started_at=run.started_at,
+                    finished_at=run.finished_at,
+                    error_code=error_code,
+                ),
+            )
     finally:
         await engine.dispose()
 
@@ -144,6 +166,21 @@ async def mark_run_timed_out(
     run.finished_at = datetime.now(UTC)
     run.error_message = "STRIX_TIMEOUT"
     await session.commit()
+    await publish_event(
+        session,
+        EventType.PENTEST_TIMED_OUT,
+        run.organization_id,
+        pentest_payload(
+            run_id=run.id,
+            status=ScanStatusEnum.TIMED_OUT.value,
+            target_type=run.target_type,
+            target_value=run.target_identifier,
+            scan_mode=run.scan_mode,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            error_code=run.error_message,
+        ),
+    )
     return True
 
 
@@ -441,6 +478,42 @@ async def _ingest_output(
                 run.status = ScanStatusEnum.COMPLETED
                 run.finished_at = datetime.now(UTC)
                 await session.commit()
+                # Los dos eventos van **después** del commit y en este orden: primero los
+                # hallazgos y después la finalización del escaneo. Al revés, un receptor
+                # que reaccione a `pentest.completed` buscando las vulnerabilidades de ese
+                # run se las encontraría ya, porque se emiten después; en el orden inverso
+                # las recibiría antes de existir.
+                await publish_event(
+                    session,
+                    EventType.VULNERABILITY_CREATED,
+                    run.organization_id,
+                    vulnerability_created_payload(
+                        [
+                            {
+                                "id": str(finding.id),
+                                "severity": finding.severity,
+                                "title": finding.title,
+                                "run_id": str(run.id),
+                            }
+                            for finding in findings
+                        ]
+                    ),
+                )
+                await publish_event(
+                    session,
+                    EventType.PENTEST_COMPLETED,
+                    run.organization_id,
+                    pentest_payload(
+                        run_id=run.id,
+                        status=ScanStatusEnum.COMPLETED.value,
+                        target_type=run.target_type,
+                        target_value=run.target_identifier,
+                        scan_mode=run.scan_mode,
+                        started_at=run.started_at,
+                        finished_at=run.finished_at,
+                        findings_count=len(findings),
+                    ),
+                )
                 return len(findings)
             except Exception:
                 await session.rollback()
@@ -694,6 +767,12 @@ async def reconcile_orphaned_runs(
         .with_for_update()
     )
     stale_runs = list(result.scalars().all())
+    # Las listas se declaran **antes** del bucle porque se leen después del commit, y una
+    # variable declarada dentro del bucle no existe si el bucle no llegó a ejecutarse.
+    # Adentro se bajarían a ámbito del último run, que es justo el caso en el que el
+    # watchdog no encuentra nada huérfano y no debe emitir nada.
+    reviews_por_avisar: list[PullRequestReview] = []
+    runs_para_avisar: list[PentestRun] = []
     for run in stale_runs:
         cleanup_succeeded = True
         container_reference = run.container_id or StrixSandboxManager.container_name_for_run(
@@ -721,10 +800,15 @@ async def reconcile_orphaned_runs(
             cleanup_succeeded = False
             logger.exception("No se pudo purgar el workspace huérfano %s", run.id)
         run.cleanup_pending = not cleanup_succeeded
+        # Las revisiones que el watchdog marca se guardan para emitirlas **después** del
+        # commit de más abajo. Emitir dentro del bucle sería emitir antes de confirmar, y
+        # un receptor que consultara la API en ese instante no vería el estado que el
+        # evento anuncia.
         if run.status == ScanStatusEnum.RUNNING:
             run.status = ScanStatusEnum.FAILED
             run.finished_at = current_time
             run.error_message = "WORKER_WATCHDOG_ORPHANED"
+            runs_para_avisar.append(run)
             review_result = await session.execute(
                 select(PullRequestReview)
                 .where(
@@ -740,6 +824,7 @@ async def reconcile_orphaned_runs(
                 }:
                     review.status = PRReviewStatusEnum.ERROR
                     review.finished_at = current_time
+                    reviews_por_avisar.append(review)
     queued_before = current_time - timedelta(seconds=settings.pr_review_stale_after_seconds)
     terminal_review_result = await session.execute(
         select(PullRequestReview)
@@ -763,6 +848,7 @@ async def reconcile_orphaned_runs(
     for terminal_review in terminal_review_result.scalars().all():
         terminal_review.status = PRReviewStatusEnum.ERROR
         terminal_review.finished_at = current_time
+        reviews_por_avisar.append(terminal_review)
     queued_result = await session.execute(
         select(PullRequestReview)
         .join(Repository, Repository.id == PullRequestReview.repository_id)
@@ -787,6 +873,41 @@ async def reconcile_orphaned_runs(
                 queued_review.id,
             )
     await session.commit()
+    # Todo el aviso del watchdog va después del commit, y **solo** por lo que esta pasada
+    # transitó de verdad. La lista `reviews_por_avisar` se llenó únicamente en las
+    # asignaciones de arriba, así que un run que ya estaba terminal no produce ni un
+    # evento: repetiría un fallo que el receptor ya tiene.
+    for run in runs_para_avisar:
+        await publish_event(
+            session,
+            EventType.PENTEST_FAILED,
+            run.organization_id,
+            pentest_payload(
+                run_id=run.id,
+                status=ScanStatusEnum.FAILED.value,
+                target_type=run.target_type,
+                target_value=run.target_identifier,
+                scan_mode=run.scan_mode,
+                started_at=run.started_at,
+                finished_at=run.finished_at,
+                error_code=run.error_message,
+            ),
+        )
+    for review in reviews_por_avisar:
+        await publish_event(
+            session,
+            EventType.PR_REVIEW_FAILED,
+            review.organization_id,
+            pr_review_payload(
+                review_id=review.id,
+                repository_id=review.repository_id,
+                pr_number=review.pr_number,
+                status=PRReviewStatusEnum.ERROR.value,
+                findings_count=0,
+                blocking=True,
+                error_code="WORKER_WATCHDOG_STALE",
+            ),
+        )
     return len(stale_runs)
 
 

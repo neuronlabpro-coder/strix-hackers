@@ -59,7 +59,7 @@ async def test_superuser_lists_organizations_with_plan_and_credits(
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/v1/admin/organizations", headers=headers)
+        response = await client.get("/api/v1/admin/tenants", headers=headers)
 
     assert response.status_code == 200
     payload = response.json()
@@ -82,7 +82,7 @@ async def test_admin_routes_reject_regular_users(integration_session: AsyncSessi
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        organizations = await client.get("/api/v1/admin/organizations", headers=headers)
+        organizations = await client.get("/api/v1/admin/tenants", headers=headers)
         health = await client.get("/api/v1/admin/health", headers=headers)
 
     assert organizations.status_code == 403
@@ -94,7 +94,7 @@ async def test_admin_routes_require_authentication() -> None:
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/v1/admin/organizations")
+        response = await client.get("/api/v1/admin/tenants")
 
     assert response.status_code == 401
 

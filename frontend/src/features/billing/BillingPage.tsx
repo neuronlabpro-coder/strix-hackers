@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { CreditCard, RefreshCw, TrendingDown, Wallet } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -171,6 +171,17 @@ export function BillingPage() {
                 </button>
               </article>
             ))}
+            {/*
+              El pack a medida va **en la misma rejilla** que los otros, no debajo. Es la
+              cuarta vía de comprar y el operador la recorre igual que las otras: ponerla
+              aparte la convierte en un caso especial que parece menos/widgets.
+            */}
+            <CustomPackCard
+              minimum={summary.custom_minimum}
+              maximum={summary.custom_maximum}
+              isBuying={purchasingCredits !== null}
+              onBuy={buyPack}
+            />
           </div>
         )}
         <p className="chart-empty">{t('packs.redirectNotice')}</p>
@@ -204,6 +215,92 @@ export function BillingPage() {
         )}
       </section>
     </section>
+  )
+}
+
+/**
+ * Campo libre del pack a medida.
+ *
+ * ## Por qué el precio se calcula en la tarjeta y no se pide al backend
+ *
+ * El catálogo está a la paridad declarada por el servidor, sin descuento por volumen, así
+ * que el precio de cualquier cantidad es la cantidad. Mostrarlo mientras el usuario teclea
+ * es lo que hace útil el campo: si el precio solo apareciera después de confirmar, la
+ * tarjeta se parecería a un formulario de pedido en el que no se sabe cuánto va a costar.
+ *
+ * La paridad **se pide** en la respuesta del resumen y no se escribe aquí. Si mañana cambia,
+ * esta tarjeta muestra el precio nuevo sin tocar una línea.
+ * ## Por qué el botón se deshabilita en vez de dejar que el servidor rechace
+ *
+ * El mínimo cubre el coste fijo de la sesión de pago, y es una regla del servidor. La
+ * tarjeta la refleja para que el usuario no descubra el límite Pulsando y leyendo un
+ * `422`. El backend vuelve a validarla igual: el botón deshabilitado es cortesía, no la
+ * garantía.
+ */
+function CustomPackCard({
+  minimum,
+  maximum,
+  isBuying,
+  onBuy,
+}: {
+  minimum: number
+  maximum: number
+  isBuying: boolean
+  onBuy: (credits: number) => Promise<boolean>
+}) {
+  const { t } = useTranslation('billing')
+  const [raw, setRaw] = useState('')
+
+  // Solo dígitos. Se filtra en la entrada y no al enviar, para que el usuario pueda
+  // escribir «250» sin que el campo le borre el carácter mientras teclea.
+  const digits = raw.replace(/\D/g, '')
+  const credits = digits === '' ? 0 : Number(digits)
+  const isValid = credits >= minimum && credits <= maximum
+
+  const price =
+    isValid && digits !== '' ? formatUsd(String(credits)) : null
+
+  return (
+    <article className="pack-card">
+      <p className="pack-credits">{t('packs.customTitle')}</p>
+      {price === null ? (
+        <>
+          <p className="pack-price pack-price-placeholder">—</p>
+          <p className="pack-unit">{t('packs.customCaption')}</p>
+        </>
+      ) : (
+        <>
+          <p className="pack-price">{price}</p>
+          <p className="pack-unit">
+            {t('packs.credits', { count: formatCredits(String(credits)) })}
+          </p>
+        </>
+      )}
+      <label className="form-field">
+        <span className="">{t('packs.customLabel')}</span>
+        <input
+          className="text-input"
+          value={raw}
+          onChange={(event) => setRaw(event.target.value)}
+          inputMode="numeric"
+          placeholder={String(minimum)}
+          maxLength={6}
+        />
+        <span className="form-hint">
+          {isValid && digits !== '' ? t('packs.customHint') : t('packs.customInvalid', { min: minimum, max: maximum })}
+        </span>
+      </label>
+      <button
+        className="primary-button"
+        type="button"
+        disabled={!isValid || digits === '' || isBuying}
+        onClick={() => void onBuy(credits)}
+      >
+        <span>
+          {t('packs.customBuy', { count: formatCredits(String(credits)) })}
+        </span>
+      </button>
+    </article>
   )
 }
 

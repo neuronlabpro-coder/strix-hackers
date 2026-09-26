@@ -155,7 +155,8 @@
       "superuser": "Superuser",
       "verified": "Email verified",
       "active": "Status",
-      "created": "Created"
+      "created": "Created",
+      "roles": "Organizations and role"
     },
     "yes": "Yes",
     "no": "No",
@@ -163,7 +164,28 @@
     "inactive": "Deactivated",
     "noOrganizations": "No organization",
     "empty": "No user matches the search",
-    "total": "{{total}} users in total"
+    "total": "{{total}} users in total",
+    "noRoles": "No organization",
+    "actions": {
+      "toggleActive": "Enable",
+      "toggleInactive": "Disable",
+      "toggleSuper": "Remove superuser",
+      "grantSuper": "Grant superuser"
+    },
+    "confirm": {
+      "title": "Disable {name}?",
+      "caption": "The account will no longer be able to sign in. Its scan, finding and billing history is kept, and it can be enabled again.",
+      "confirm": "Disable"
+    },
+    "confirmReactivate": {
+      "title": "Enable {name}?",
+      "caption": "The account will be able to sign in again with its current credentials.",
+      "confirm": "Enable"
+    },
+    "messages": {
+      "updated": "Account updated",
+      "error": "The account could not be updated"
+    }
   },
   "sales": {
     "title": "Sales and revenue",
@@ -174,7 +196,8 @@
       "tenant": "Tenant",
       "credits": "Credits",
       "session": "Payment session",
-      "created": "Processed"
+      "created": "Processed",
+      "amount": "Amount"
     },
     "purchase": "Purchase",
     "notPurchase": "No credits",
@@ -182,7 +205,9 @@
     "noSession": "—",
     "empty": "No payment has been processed yet",
     "total": "{{count}} events · {{credits}} credits on this page",
-    "totalCaption": "The sum covers this page's recorded amounts, not the full history."
+    "totalCaption": "The sum covers this page's recorded amounts, not the full history.",
+    "notApplicable": "Not applicable",
+    "totalAmount": "{{amount}} charged on this page"
   },
   "audit": {
     "title": "Global audit",

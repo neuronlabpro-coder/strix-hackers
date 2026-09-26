@@ -103,6 +103,22 @@ export function formatUsd(valor: string | number): string {
   )
 }
 
+/**
+ * Centavos como dólares.
+ *
+ * Los importes de Stripe vienen **en centavos** porque es la unidad con la que esa API
+ * trabaja: el entero `2500` son $25,00, no $2.500,00. La conversión se divide aquí y en un
+ * solo sitio, porque hacerlo en la vista era el modo natural de que una de las dos se
+ * olvidara.
+ *
+ * Dividir por cien en coma flotante no pierde nada relevante: el resultado se redondea a
+ * dos decimales, y un error de coma flotante en la parte de los centavos es de mil
+ * veces menor que ese redondeo.
+ */
+export function formatCents(valor: number): string {
+  return formatUsd(valor / 100)
+}
+
 /** Un entero con separadores de miles, para recuentos que no son dinero. */
 export function formatCount(valor: number): string {
   return formatWith(new Intl.NumberFormat(activeLocale(), { maximumFractionDigits: 0 }), valor)

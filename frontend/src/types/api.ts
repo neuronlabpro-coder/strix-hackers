@@ -418,8 +418,22 @@ export interface AdminUser {
   is_active: boolean
   email_verified: boolean
   created_at: string
-  organizations: string[]
+  /**
+   * Workspaces con su rol, en el formato `"Nombre (admin)"`.
+   *
+   * El rol viaja **con** el nombre porque un usuario puede ser `admin` en un workspace y
+   * `member` en otro, y una columna con un único rol obligaría al operador a adivinar cuál.
+   */
+  roles: string[]
   organization_count: number
+  /** Los nombres sin el rol, derivados en el servidor. */
+  organizations: string[]
+}
+
+export interface AdminUserUpdate {
+  /** Ausente = no tocar. `false` **sí** es un valor. */
+  is_active?: boolean
+  is_superuser?: boolean
 }
 
 export interface AdminUserPage {
@@ -438,6 +452,14 @@ export interface AdminSale {
   organization_name: string | null
   /** `null` cuando el evento no acreditó créditos. No es `0`: un `0` sería una venta. */
   credits_granted: string | null
+  /**
+   * Importe cobrado en centavos, o `null` cuando el evento no fue un cobro.
+   *
+   * `null` y no `0` porque Stripe no cobra cero: un cero en una columna de importes se
+   * vería como una venta de $0,00. Los eventos anteriores a la columna que la añadió
+   * muestran «no registrado», que es exactamente lo cierto.
+   */
+  amount_cents: number | null
   created_at: string
 }
 
@@ -446,7 +468,10 @@ export interface AdminSalePage {
   total: number
   limit: number
   offset: number
+  /** Suma de los créditos **de la página**, no del histórico. */
   total_credits: string
+  /** Suma de los importes conocidos **de la página**. */
+  total_amount_cents: number
 }
 
 export interface AdminAuditEntry {

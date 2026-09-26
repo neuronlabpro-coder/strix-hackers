@@ -1,7 +1,7 @@
 {
   "title": "Knowledge base",
   "eyebrow": "Technical catalog",
-  "description": "Remediation notes for the vulnerability families the engine detects, with the vulnerable pattern, the secure pattern and the applicable mitigation.",
+  "description": "Fenix learns your apps, context, and business logic so it does not flag your own design decisions as vulnerabilities. This is the technical catalog it checks every finding against: the family, the risk, the vulnerable code and the fixed one.",
   "searchLabel": "Search the catalog",
   "searchPlaceholder": "Title, CWE, risk summary or OWASP category",
   "filters": {

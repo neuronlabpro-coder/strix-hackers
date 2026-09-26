@@ -38,7 +38,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from backend.apps.organizations.models import PlanTierEnum
 
@@ -155,7 +155,13 @@ class AdminCreditGrantResult(BaseModel):
 
 
 class AdminUserItem(BaseModel):
-    """Usuario registrado, con los workspaces a los que pertenece."""
+    """Usuario registrado, con los workspaces a los que pertenece.
+
+    `roles` lleva el rol **dentro** de cada organización, y no un rol suelto: un usuario
+    puede ser `ADMIN` en un workspace y `MEMBER` en otro, y una columna con un único rol
+    obligaría al operador a adivinar cuál de los dos era. El formato es
+    `"Nombre del workspace (admin)"` porque la vista lo muestra en una celda.
+    """
 
     id: UUID
     email: str
@@ -165,10 +171,49 @@ class AdminUserItem(BaseModel):
     email_verified: bool
     created_at: datetime
 
-    #: Nombres de los workspaces. Un usuario puede pertenecer a varios y el panel los
-    #: muestra en una celda en vez de una columna con un `JOIN` que repetiría el email.
-    organizations: list[str] = Field(default_factory=list)
+    #: Workspaces con su rol. Vacío cuando el usuario no pertenece a ninguno.
+    roles: list[str] = Field(default_factory=list)
     organization_count: int = Field(default=0, ge=0)
+
+    @computed_field  # pyright: ignore[reportGeneralTypeIssues]
+    @property
+    def organizations(self) -> list[str]:
+        """Los nombres de los workspaces, sin el rol.
+
+        ## Por qué `@computed_field` y no un `@property` a secas
+
+        Un `@property` normal existe en Python pero **no se serializa**: Pydantic solo
+        incluye en la respuesta los campos declarados y los marcados como
+        `@computed_field`. Sin el decorador el cliente recibe `organizations: null` —que es
+        exactamente lo que pasó en la primera versión— mientras el backend cree que lo está
+        mandando. Solo se descubrió al leer el JSON de una respuesta real.
+
+        Se deriva de `roles` y no se guarda: es el mismo dato en otro formato, y dos copias
+        divergirían en cuanto se editara una.
+        """
+
+        return [texto.rsplit(" (", 1)[0] for texto in self.roles]
+
+
+class AdminUserUpdate(BaseModel):
+    """Cambios administrativos sobre una cuenta.
+
+    ## Por qué solo dos conmutadores y no un reemplazo completo
+
+    `is_active` e `is_superuser` son los dos estados que un operador necesita apagar en
+    caliente: una cuenta comprometida o un superusuario que deja de serlo. Los demás
+    campos —nombre, email— los gestiona el usuario, y permitir que el admin los escriba
+    desde aquí haría que dos caminos distintos maintainsen el mismo registro.
+
+    Un campo ausente significa "no tocar". No hay forma de decir "ponlo a `null`" porque los
+    dos son booleanos no nulos, y `false` **sí** es un valor: desactivar y "no cambiar" son
+    cosas distintas y el esquema las distingue.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    is_active: bool | None = None
+    is_superuser: bool | None = None
 
 
 class AdminUserPage(BaseModel):
@@ -181,21 +226,25 @@ class AdminUserPage(BaseModel):
 
 
 class AdminSaleItem(BaseModel):
-    """Un evento de Stripe ya procesado, con los créditos que acreditó.
+    """Un evento de Stripe ya procesado, con lo que acreditó y lo que costó.
 
-    ## Por qué no hay importe en dólares
+    ## `amount_cents` es `None` cuando el evento no fue un cobro
 
-    `stripe_events` no guarda cuánto se cobró: guarda qué evento se procesó, a qué
-    organización y cuántos créditos acreditó. El importe **no está en la tabla** y
-    sacarlo obligaría a preguntar a Stripe por cada fila de la vista.
+    No todos los eventos de Stripe cobran: una suscripción, un aviso de cuenta o una
+    sesión caducada no traen importe. `None` los distingue de un cobro, y `0` se reserva
+    para un caso que no existe —Stripe no cobra cero— en vez de ser un relleno que se
+    confunda con un dato. La vista lo muestra como «no aplica».
 
-    El campo se declara igualmente y llega a `None` siempre, en vez de omitirse del
-    esquema, para que el cliente pueda distinguir "este dato no existe" de "el backend se
-    olvidó de mandarlo". Un `0` en su lugar se vería como una venta de $0.
+    ## Por qué antes no había importe
 
-    `credits_granted` viene de la propia columna del evento y no de un `JOIN` con el
-    ledger: esa desnormalización ya existía, y enlazarla por `session_id` añadiría una
-    consulta y la posibilidad de que las dos copias diverjan.
+    Esta tabla guardaba qué evento se procesó, a qué organización y cuántos créditos
+    acreditó, pero **no cuánto se cobró**. Las dos salidas eran inventar un $0,00 en una
+    columna de ventas, o preguntar a Stripe por cada fila al pintar la vista. La columna se
+    añadió después y se rellena **en la ingestión del webhook**, que es el único momento en
+    que el payload está disponible.
+
+    Los eventos anteriores a la migración muestran «importe no registrado», que es
+    exactamente lo cierto: su payload se descartó y no hay de dónde recuperarlo.
     """
 
     id: UUID
@@ -205,6 +254,7 @@ class AdminSaleItem(BaseModel):
     organization_id: UUID | None
     organization_name: str | None
     credits_granted: Decimal | None
+    amount_cents: int | None
     created_at: datetime
 
     @property
@@ -220,7 +270,18 @@ class AdminSaleItem(BaseModel):
 
 
 class AdminSalePage(BaseModel):
-    """Historial de transacciones de Stripe."""
+    """Historial de transacciones de Stripe.
+
+    Los dos totales son **de la página**, no del histórico. El pie lo dice con la frase
+    «en esta página»: sin ese matiz, el operador lee una suma parcial como la facturación
+    total y toma una decisión comercial sobre ella.
+
+    `total_amount_cents` suma solo los importes conocidos. Un evento anterior a la columna
+    `amount_cents` no cuenta, así que la cifra es **menor** que el real cuando coexisten
+    eventos antiguos y nuevos. Es la única suma honesta disponible sin ir a preguntar a
+    Stripe por cada evento histórico, y por eso el pie lo rotula como «de los importes
+    registrados» en vez de presentarlo como la facturación del periodo.
+    """
 
     items: list[AdminSaleItem]
     total: int = Field(ge=0)
@@ -230,6 +291,7 @@ class AdminSalePage(BaseModel):
     #: sumar sobre la tabla entera para pintar una página es un `SUM` que crece sin que
     #: el usuario pueda nunca ver la diferencia.
     total_credits: Decimal
+    total_amount_cents: int = Field(ge=0)
 
 
 class AdminMetric(BaseModel):
