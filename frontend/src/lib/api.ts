@@ -4,6 +4,10 @@ import type {
   AuditLogPage,
   AutofixRequest,
   AutofixResponse,
+  CVEDetail,
+  CVEPage,
+  CVESearchParams,
+  CVEYearsResponse,
   DashboardSummary,
   EmailResendResponse,
   EmailVerificationResponse,
@@ -15,6 +19,10 @@ import type {
   KnowledgeDetail,
   KnowledgePage,
   KnowledgeSeverity,
+  LLMModelConfig,
+  LLMModelCreatePayload,
+  LLMModelPage,
+  LLMModelUpdatePayload,
   LoginPayload,
   OAuthAuthorizationResponse,
   OnboardingStatus,
@@ -22,7 +30,9 @@ import type {
   PentestCreatePayload,
   PentestRun,
   PentestRunPage,
+  PRReviewMetrics,
   PRReviewPage,
+  PRReviewStatus,
   RegisterPayload,
   RegisterResponse,
   RemoteRepositoryPage,
@@ -366,6 +376,47 @@ export function getOnboardingStatus(
   return request<OnboardingStatus>('/api/v1/onboarding/status', {}, token, organizationId)
 }
 
+// --------------------------------------------------------------------------- //
+// Revisiones de pull request de toda la organización (MENU-MAP §4).
+//
+// El listado global es un endpoint distinto del por repositorio a propósito: la vista
+// global no conoce de antemano qué repositorio quiere el usuario, y filtrar en el
+// cliente obligaría a traer todos los repositorios para descartar filas ajenas al filtro.
+// --------------------------------------------------------------------------- //
+
+export interface PRReviewQuery {
+  status?: PRReviewStatus
+  repositoryId?: string
+  limit?: number
+  offset?: number
+}
+
+export function getPRReviews(
+  token: string,
+  organizationId: string,
+  query: PRReviewQuery = {},
+): Promise<PRReviewPage> {
+  const params = new URLSearchParams()
+  if (query.status) params.set('status', query.status)
+  if (query.repositoryId) params.set('repository_id', query.repositoryId)
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  const encoded = params.toString()
+  return request<PRReviewPage>(
+    `/api/v1/pr-reviews/${encoded ? `?${encoded}` : ''}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getPRReviewMetrics(
+  token: string,
+  organizationId: string,
+): Promise<PRReviewMetrics> {
+  return request<PRReviewMetrics>('/api/v1/pr-reviews/metrics', {}, token, organizationId)
+}
+
 export interface PentestQuery {
   limit?: number
   offset?: number
@@ -453,4 +504,98 @@ export function getInfrastructureHealth(
     token,
     organizationId,
   )
+}
+
+export function getLLMModels(
+  token: string,
+  organizationId: string,
+): Promise<LLMModelPage> {
+  return request<LLMModelPage>('/api/v1/admin/llm/?limit=100', {}, token, organizationId)
+}
+
+export function createLLMModel(
+  token: string,
+  organizationId: string,
+  payload: LLMModelCreatePayload,
+): Promise<LLMModelConfig> {
+  return request<LLMModelConfig>(
+    '/api/v1/admin/llm/',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export function updateLLMModel(
+  token: string,
+  organizationId: string,
+  modelId: string,
+  payload: LLMModelUpdatePayload,
+): Promise<LLMModelConfig> {
+  return request<LLMModelConfig>(
+    `/api/v1/admin/llm/${modelId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+// --------------------------------------------------------------------------- //
+// Catálogo CVE de referencia.
+//
+// R3 no aplica: el catálogo es público y no pertenece a ningún tenant. La cabecera
+// `X-Organization-Id` se envía igualmente porque el endpoint exige contexto de
+// tenant para autorizar la petición, no para filtrar los datos.
+// --------------------------------------------------------------------------- //
+
+function buildCveSearch(params: CVESearchParams): string {
+  const search = new URLSearchParams()
+  if (params.query) search.set('query', params.query)
+  if (params.severity) search.set('severity', params.severity)
+  if (params.is_kev_only) search.set('is_kev_only', 'true')
+  if (params.year !== undefined) search.set('year', String(params.year))
+  if (params.limit !== undefined) search.set('limit', String(params.limit))
+  if (params.offset !== undefined) search.set('offset', String(params.offset))
+  const encoded = search.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+export function searchCVE(
+  token: string,
+  organizationId: string,
+  params: CVESearchParams,
+): Promise<CVEPage> {
+  return request<CVEPage>(
+    `/api/v1/cve/search${buildCveSearch(params)}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getTrendingKEV(
+  token: string,
+  organizationId: string,
+  limit = 10,
+): Promise<CVEPage> {
+  return request<CVEPage>(`/api/v1/cve/trending-kev?limit=${limit}`, {}, token, organizationId)
+}
+
+export function getCVERecord(
+  token: string,
+  organizationId: string,
+  cveId: string,
+): Promise<CVEDetail> {
+  // El identificador va codificado: un `CVE-` mal formado con barra se interpretaría
+  // como otra ruta y devolvería un 404 en lugar del detalle normalizado.
+  return request<CVEDetail>(
+    `/api/v1/cve/${encodeURIComponent(cveId)}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getCVEYears(token: string, organizationId: string): Promise<CVEYearsResponse> {
+  return request<CVEYearsResponse>('/api/v1/cve/years', {}, token, organizationId)
 }

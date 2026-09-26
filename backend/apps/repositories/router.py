@@ -32,6 +32,7 @@ from backend.apps.repositories.models import (
     generate_webhook_secret,
 )
 from backend.apps.repositories.schemas import (
+    PRReviewMetrics,
     PRReviewPage,
     PRReviewResponse,
     RemoteRepositoryPage,
@@ -385,6 +386,94 @@ async def list_repository_reviews(
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get("/api/v1/pr-reviews/", response_model=PRReviewPage)
+async def list_pr_reviews(
+    tenant: TenantDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
+    review_status: Annotated[PRReviewStatusEnum | None, Query(alias="status")] = None,
+    repository_id: UUID | None = None,
+) -> PRReviewPage:
+    """Historial paginado de revisiones de pull request de toda la organización.
+
+    El filtro por `organization_id` no es opcional: es R3 aplicado a una vista global,
+    que es donde más fácil sería colarse una fuga entre tenants si se leyera por
+    repositorio solamente. Por eso ambas columnas entran en el `JOIN` y en el `WHERE`:
+    `pull_request_reviews.organization_id` es una desnormalización que debe coincidir
+    con la del repositorio, y filtrar solo por una dejaría pasar filas inconsistentes.
+    """
+
+    filters = [PullRequestReview.organization_id == tenant.organization.id]
+    if review_status is not None:
+        filters.append(PullRequestReview.status == review_status)
+    join_condition = Repository.id == PullRequestReview.repository_id
+    if repository_id is not None:
+        # Un repositorio de otro tenant no devuelve `403`: no se le dice al llamador si
+        # existe o no. La lista simplemente sale vacía, igual que si el filtro fuese suyo
+        # y no tuviera revisiones.
+        filters.extend(
+            [PullRequestReview.repository_id == repository_id, join_condition]
+        )
+        filters.append(Repository.organization_id == tenant.organization.id)
+
+    count_query = select(func.count()).select_from(PullRequestReview).where(*filters)
+    rows_query = select(PullRequestReview, Repository.full_name)
+    if repository_id is not None:
+        rows_query = rows_query.join(Repository, join_condition)
+
+    total = int((await session.execute(count_query)).scalar_one())
+    result = await session.execute(
+        rows_query.where(*filters)
+        .order_by(PullRequestReview.created_at.desc(), PullRequestReview.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return PRReviewPage(
+        items=[
+            PRReviewResponse.from_review(review, repository_name=repository_name)
+            for review, repository_name in result.all()
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/api/v1/pr-reviews/metrics", response_model=PRReviewMetrics)
+async def read_pr_review_metrics(
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> PRReviewMetrics:
+    """Indicadores de cabecera de la vista global.
+
+    Se resuelven en una sola consulta agregada en lugar de tres `COUNT` separados: la
+    cabecera se pinta en cada carga de la vista y tres viajes a la base por tres
+    números que salen de la misma fila es trabajo desperdiciado.
+    """
+
+    result = await session.execute(
+        select(
+            func.count(PullRequestReview.id),
+            func.count(PullRequestReview.id).filter(
+                PullRequestReview.status == PRReviewStatusEnum.PASSED,
+                PullRequestReview.merge_blocked.is_(False),
+            ),
+            func.count(PullRequestReview.id).filter(PullRequestReview.merge_blocked.is_(True)),
+            func.coalesce(func.sum(PullRequestReview.issues_caught_critical), 0),
+            func.coalesce(func.sum(PullRequestReview.issues_caught_high), 0),
+        ).where(PullRequestReview.organization_id == tenant.organization.id)
+    )
+    total, clean, blocking, critical, high = result.one()
+    return PRReviewMetrics(
+        total=int(total),
+        clean=int(clean),
+        blocking=int(blocking),
+        issues_critical=int(critical),
+        issues_high=int(high),
     )
 
 

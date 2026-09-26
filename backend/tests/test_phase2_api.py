@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -17,8 +18,12 @@ pytestmark = pytest.mark.integration
 async def test_phase2_endpoints_are_tenant_isolated(integration_session: AsyncSession) -> None:
     assert integration_session is not None
     suffix = uuid.uuid4().hex
-    organization_a = Organization(name=f"Phase2 Alpha {suffix}", slug=f"phase2-alpha-{suffix}")
-    organization_b = Organization(name=f"Phase2 Beta {suffix}", slug=f"phase2-beta-{suffix}")
+    organization_a = Organization(
+        name=f"Phase2 Alpha {suffix}", slug=f"phase2-alpha-{suffix}", credit_balance=Decimal("1000")
+    )
+    organization_b = Organization(
+        name=f"Phase2 Beta {suffix}", slug=f"phase2-beta-{suffix}", credit_balance=Decimal("1000")
+    )
     user_a = User(
         email=f"phase2-alpha-{suffix}@example.com",
         hashed_password="not-used-in-this-test",

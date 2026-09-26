@@ -1,0 +1,53 @@
+{
+  "eyebrow": "Seguridad en pull requests",
+  "title": "PR Reviews",
+  "description": "Cada pull request analizado por el motor en tus repositorios conectados, con los hallazgos que bloquearon el merge.",
+  "metrics": {
+    "audited": "PRs auditados",
+    "clean": "PRs limpios",
+    "blocking": "PRs con hallazgos bloqueantes",
+    "issues": "Hallazgos"
+  },
+  "filters": {
+    "status": "Estado del escaneo",
+    "allStatuses": "Todos los estados"
+  },
+  "table": {
+    "repository": "Repositorio",
+    "pullRequest": "Pull request",
+    "author": "Autor",
+    "status": "Estado",
+    "issues": "Hallazgos",
+    "finishedAt": "Fecha",
+    "noIssues": "Ninguno",
+    "inProgress": "En curso"
+  },
+  "status": {
+    "PASSED": "Superado",
+    "FAILED": "Fallido",
+    "SCANNING": "Analizando",
+    "QUEUED": "En cola",
+    "ERROR": "Error"
+  },
+  "row": {
+    "APPROVED": "Aprobado",
+    "BLOCKED": "Bloqueado",
+    "PENDING": "Pendiente",
+    "ERROR": "Error"
+  },
+  "severity": {
+    "CRITICAL": "Crítica",
+    "HIGH": "Alta"
+  },
+  "actions": {
+    "retry": "Actualizar"
+  },
+  "states": {
+    "loading": "Cargando el historial de revisiones",
+    "empty": "Aún no hay pull requests revisados",
+    "emptyDescription": "Conecta un repositorio y activa las revisiones de PR para empezar a recoger resultados aquí.",
+    "noResults": "Ningún pull request coincide con el estado",
+    "error": "No se pudo cargar el historial de revisiones",
+    "retry": "Reintentar"
+  }
+}

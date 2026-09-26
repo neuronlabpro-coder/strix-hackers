@@ -85,7 +85,34 @@ def build_environment_values() -> dict[str, str | int | float | bool | None]:
         "smtp_password": None,
         "smtp_use_tls": True,
         "smtp_timeout_seconds": 10,
+        # Stripe se deja sin credenciales en desarrollo a propósito: la plataforma
+        # debe arrancar sin cobro. Las pruebas de producción lo vuelven a
+        # configurar, igual que hacen con SMTP.
+        "stripe_secret_key": None,
+        "stripe_publishable_key": "",
+        "stripe_webhook_secret": None,
+        "credits_per_usd": "1",
+        "scan_credit_cost": "10",
+        "quick_scan_credit_multiplier": "0.5",
     }
+
+
+def production_values() -> dict[str, str | int | float | bool | None]:
+    """Valores base de un despliegue de producción con SMTP y Stripe completos."""
+
+    values = build_environment_values()
+    values["environment"] = "production"
+    values["debug"] = False
+    values["email_verification_delivery_mode"] = "smtp"
+    values["smtp_host"] = "smtp.example.com"
+    values["smtp_username"] = "smtp-user"
+    values["smtp_password"] = "smtp-password"
+    values["frontend_base_url"] = "https://app.example.com"
+    values["api_public_base_url"] = "https://api.example.com"
+    values["stripe_secret_key"] = "sk_test_placeholder_no_es_una_clave_real"
+    values["stripe_publishable_key"] = "pk_test_placeholder"
+    values["stripe_webhook_secret"] = "whsec_placeholder"
+    return values
 
 
 def test_env_file_is_resolved_from_project_root() -> None:
@@ -157,9 +184,7 @@ def test_settings_rejects_debug_mode_in_production() -> None:
 
 
 def test_settings_rejects_development_email_delivery_in_production() -> None:
-    values = build_environment_values()
-    values["environment"] = "production"
-    values["debug"] = False
+    values = production_values()
     values["email_verification_delivery_mode"] = "development"
 
     with pytest.raises(ValidationError, match="smtp"):
@@ -167,11 +192,8 @@ def test_settings_rejects_development_email_delivery_in_production() -> None:
 
 
 def test_settings_rejects_insecure_production_smtp_transport() -> None:
-    values = build_environment_values()
-    values["environment"] = "production"
-    values["debug"] = False
-    values["email_verification_delivery_mode"] = "smtp"
-    values["smtp_host"] = "smtp.example.com"
+    values = production_values()
+    values = production_values()
     values["frontend_base_url"] = "http://app.example.com"
 
     with pytest.raises(ValidationError, match="HTTPS"):
@@ -198,15 +220,7 @@ def test_settings_rejects_shared_redis_database_for_celery() -> None:
 
 
 def test_settings_accepts_secure_production_smtp_configuration() -> None:
-    values = build_environment_values()
-    values["environment"] = "production"
-    values["debug"] = False
-    values["email_verification_delivery_mode"] = "smtp"
-    values["smtp_host"] = "smtp.example.com"
-    values["smtp_username"] = "smtp-user"
-    values["smtp_password"] = "smtp-password"
-    values["frontend_base_url"] = "https://app.example.com"
-    values["api_public_base_url"] = "https://api.example.com"
+    values = production_values()
 
     settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
@@ -215,14 +229,7 @@ def test_settings_accepts_secure_production_smtp_configuration() -> None:
 
 
 def test_settings_rejects_insecure_public_api_base_url_in_production() -> None:
-    values = build_environment_values()
-    values["environment"] = "production"
-    values["debug"] = False
-    values["email_verification_delivery_mode"] = "smtp"
-    values["smtp_host"] = "smtp.example.com"
-    values["smtp_username"] = "smtp-user"
-    values["smtp_password"] = "smtp-password"
-    values["frontend_base_url"] = "https://app.example.com"
+    values = production_values()
     values["api_public_base_url"] = "http://api.example.com"
 
     with pytest.raises(ValidationError, match="API_PUBLIC_BASE_URL"):
@@ -256,6 +263,52 @@ def test_settings_rejects_invalid_webhook_subscription_events() -> None:
     values["git_webhook_subscription_events"] = "pull request;drop table"
 
     with pytest.raises(ValidationError, match="GIT_WEBHOOK_SUBSCRIPTION_EVENTS"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+def test_settings_requires_stripe_in_production() -> None:
+    """Sin secreto de Stripe, produccion no arranca: el webhookReload quede abierto."""
+
+    values = production_values()
+    values["stripe_secret_key"] = None
+
+    with pytest.raises(ValidationError, match="STRIPE_SECRET_KEY"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_requires_stripe_webhook_secret_in_production() -> None:
+    values = production_values()
+    values["stripe_webhook_secret"] = None
+
+    with pytest.raises(ValidationError, match="STRIPE_WEBHOOK_SECRET"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_rejects_publishable_key_with_wrong_prefix() -> None:
+    values = production_values()
+    values["stripe_publishable_key"] = "sk_esto_no_es_publicable"
+
+    with pytest.raises(ValidationError, match="STRIPE_PUBLISHABLE_KEY"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_allows_missing_stripe_in_development() -> None:
+    """En local la plataforma arranca sin cobro: solo falla al intentar cobrar."""
+
+    settings = Settings(_env_file=None, **build_environment_values())  # pyright: ignore[reportCallIssue]
+
+    assert settings.stripe_secret_key is None
+    assert settings.stripe_webhook_secret is None
+    assert settings.scan_credit_cost > 0
+    assert settings.credits_per_usd > 0
+
+
+def test_settings_rejects_quick_scan_multiplier_above_one() -> None:
+    """Un escaneo rápido no puede costar más que uno estándar."""
+
+    values = build_environment_values()
+    values["quick_scan_credit_multiplier"] = "1.5"
+
+    with pytest.raises(ValidationError, match="quick_scan_credit_multiplier"):
         Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
 

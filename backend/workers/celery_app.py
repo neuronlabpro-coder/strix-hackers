@@ -34,5 +34,12 @@ celery_app.conf.update(
             "task": "pentests.watchdog_orphaned_runs",
             "schedule": timedelta(seconds=settings.strix_watchdog_interval_seconds),
         },
+        "sync-cve-catalog": {
+            "task": "cve.sync_catalog",
+            "schedule": timedelta(hours=settings.cve_sync_interval_hours),
+        },
     },
+    # La tarea de CVE se registra en este módulo para que Celery pueda descubrirla
+    # por nombre; sin el import, `cve.sync_catalog` no existiría en el worker.
+    imports=("backend.workers.tasks", "backend.apps.cve_database.feeds"),
 )

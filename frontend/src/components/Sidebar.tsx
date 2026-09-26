@@ -1,21 +1,12 @@
-import { useEffect, useRef, useState, type ComponentType } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  BookOpen,
+  BrainCircuit,
   ChevronDown,
   CircleDot,
-  Container,
-  FolderGit2,
-  GitPullRequest,
-  LayoutDashboard,
   LogOut,
-  Network,
-  PackageSearch,
   Plus,
-  Settings,
+  Server,
   ShieldCheck,
-  TestTube2,
-  TriangleAlert,
-  type LucideProps,
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -25,15 +16,13 @@ import {
   EnterpriseGateModal,
   type EnterpriseFeature,
 } from '../features/enterprise/EnterpriseGateModal'
-import { LanguageSwitcher } from './LanguageSwitcher'
-
-type Icon = ComponentType<LucideProps>
-
-interface NavigationItem {
-  labelKey: string
-  path: string
-  icon: Icon
-}
+import {
+  assetNavigation,
+  hasEnterpriseAccess,
+  isNavigationItemLocked,
+  primaryNavigation,
+  type NavigationItem,
+} from './navigation'
 
 interface SidebarProps {
   organizations: Organization[]
@@ -43,25 +32,6 @@ interface SidebarProps {
   onCreateWorkspace: () => void
   onLogout: () => void
 }
-
-const primaryNavigation: NavigationItem[] = [
-  { labelKey: 'dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { labelKey: 'pentests', path: '/pentests', icon: TestTube2 },
-  { labelKey: 'issues', path: '/issues', icon: TriangleAlert },
-  { labelKey: 'prReviews', path: '/pr-reviews', icon: GitPullRequest },
-]
-
-const assetNavigation: NavigationItem[] = [
-  { labelKey: 'repositories', path: '/repositories', icon: FolderGit2 },
-  { labelKey: 'knowledge', path: '/knowledge', icon: BookOpen },
-  { labelKey: 'settings', path: '/settings', icon: Settings },
-]
-
-const enterpriseNavigation: { feature: EnterpriseFeature; labelKey: string; icon: Icon }[] = [
-  { feature: 'networks', labelKey: 'networks', icon: Network },
-  { feature: 'containers', labelKey: 'containers', icon: Container },
-  { feature: 'supplyChain', labelKey: 'supplyChain', icon: PackageSearch },
-]
 
 export function Sidebar({
   organizations,
@@ -75,6 +45,7 @@ export function Sidebar({
   const { t: tNavigation } = useTranslation('navigation')
   const { t: tEnterprise } = useTranslation('enterprise')
   const { t: tAdmin } = useTranslation('admin')
+  const { t: tLlm } = useTranslation('llm')
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<EnterpriseFeature | null>(null)
   const workspaceSelectorRef = useRef<HTMLDivElement>(null)
@@ -84,6 +55,11 @@ export function Sidebar({
   const displayName = user?.full_name || tCommon('userFallback')
   const displayEmail = user?.email || tCommon('userFallback')
   const initials = (user?.full_name || tCommon('userInitials')).slice(0, 2).toUpperCase()
+
+  const enterpriseAccess = hasEnterpriseAccess(
+    selectedOrganization?.plan_tier,
+    user?.is_superuser === true,
+  )
 
   useEffect(() => {
     if (!isWorkspaceMenuOpen) {
@@ -103,6 +79,32 @@ export function Sidebar({
     return () => document.removeEventListener('pointerdown', handleOutsidePointer)
   }, [isWorkspaceMenuOpen])
 
+  const renderItem = (item: NavigationItem) => {
+    if (isNavigationItemLocked(item, selectedOrganization?.plan_tier, enterpriseAccess)) {
+      return (
+        <li key={item.path}>
+          <button
+            className="nav-link locked-nav-link"
+            type="button"
+            onClick={() => setLockedFeature(item.enterpriseFeature ?? null)}
+          >
+            <item.icon size={17} aria-hidden="true" />
+            <span>{tNavigation(item.labelKey)}</span>
+            <span className="locked-tag">{tEnterprise('locked')}</span>
+          </button>
+        </li>
+      )
+    }
+    return (
+      <li key={item.path}>
+        <NavLink className="nav-link" to={item.path}>
+          <item.icon size={17} aria-hidden="true" />
+          <span>{tNavigation(item.labelKey)}</span>
+        </NavLink>
+      </li>
+    )
+  }
+
   return (
     <aside className="sidebar" aria-label={tCommon('organizationSelector')}>
       <div className="sidebar-header">
@@ -115,7 +117,6 @@ export function Sidebar({
             <p className="brand-caption">{tCommon('appDescription')}</p>
           </div>
         </div>
-        <LanguageSwitcher />
       </div>
 
       <div className="workspace-selector" ref={workspaceSelectorRef}>
@@ -153,71 +154,37 @@ export function Sidebar({
                     }}
                   >
                     <span>{organization.name}</span>
-                    <span className="workspace-role">{organization.role}</span>
                   </button>
                 </li>
               ))
-            ) : (
-              <li className="workspace-empty">{tCommon('noOrganizations')}</li>
-            )}
+            ) : null}
+            <li className="workspace-menu-create">
+              <button
+                className="workspace-option"
+                type="button"
+                onClick={() => {
+                  onCreateWorkspace()
+                  setIsWorkspaceMenuOpen(false)
+                }}
+              >
+                <Plus size={14} aria-hidden="true" />
+                <span>{tCommon('createWorkspace')}</span>
+              </button>
+            </li>
           </ul>
         ) : null}
-        <button
-          className="create-workspace-button"
-          type="button"
-          onClick={() => {
-            setIsWorkspaceMenuOpen(false)
-            onCreateWorkspace()
-          }}
-        >
-          <Plus size={15} aria-hidden="true" />
-          <span>{tCommon('createWorkspace')}</span>
-        </button>
       </div>
 
       <nav className="sidebar-navigation" aria-label={tCommon('mainNavigation')}>
         <p className="eyebrow navigation-label">{tCommon('mainNavigation')}</p>
-        <ul>
-          {primaryNavigation.map((item) => (
-            <li key={item.path}>
-              <NavLink className="nav-link" to={item.path}>
-                <item.icon size={17} aria-hidden="true" />
-                <span>{tNavigation(item.labelKey)}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+        <ul>{primaryNavigation.map(renderItem)}</ul>
+
+        <div className="navigation-divider" role="separator" />
+
         <p className="eyebrow navigation-label navigation-label-spaced">
           {tCommon('assetsNavigation')}
         </p>
-        <ul>
-          {assetNavigation.map((item) => (
-            <li key={item.path}>
-              <NavLink className="nav-link" to={item.path}>
-                <item.icon size={17} aria-hidden="true" />
-                <span>{tNavigation(item.labelKey)}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-        <p className="eyebrow navigation-label navigation-label-spaced">
-          {tEnterprise('locked')}
-        </p>
-        <ul>
-          {enterpriseNavigation.map((item) => (
-            <li key={item.feature}>
-              <button
-                className="nav-link locked-nav-link"
-                type="button"
-                onClick={() => setLockedFeature(item.feature)}
-              >
-                <item.icon size={17} aria-hidden="true" />
-                <span>{tEnterprise(`nav.${item.labelKey}`)}</span>
-                <span className="locked-tag">{tEnterprise('locked')}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <ul>{assetNavigation.map(renderItem)}</ul>
       </nav>
 
       <div className="sidebar-footer">
@@ -232,10 +199,16 @@ export function Sidebar({
           <CircleDot size={12} className="status-dot" aria-hidden="true" />
         </div>
         {user?.is_superuser ? (
-          <NavLink className="nav-link" to="/admin">
-            <ShieldCheck size={16} aria-hidden="true" />
-            <span>{tAdmin('nav')}</span>
-          </NavLink>
+          <>
+            <NavLink className="nav-link" to="/admin" end>
+              <Server size={16} aria-hidden="true" />
+              <span>{tAdmin('nav')}</span>
+            </NavLink>
+            <NavLink className="nav-link" to="/admin/llm">
+              <BrainCircuit size={16} aria-hidden="true" />
+              <span>{tLlm('nav')}</span>
+            </NavLink>
+          </>
         ) : null}
         <button className="logout-button" type="button" onClick={onLogout}>
           <LogOut size={16} aria-hidden="true" />
@@ -243,7 +216,16 @@ export function Sidebar({
         </button>
       </div>
 
-      <EnterpriseGateModal feature={lockedFeature} onClose={() => setLockedFeature(null)} />
+      {/*
+        El modal se anula en el render en lugar de cerrarse con un efecto. Si el
+        superusuario cambia de workspace a uno FREE con el modal abierto, el efecto
+        tardaría un render en cerrarlo y la persona vería un modal de venta sobre una
+        organización que ya tiene acceso. Derivar en render no tiene esa ventana.
+      */}
+      <EnterpriseGateModal
+        feature={enterpriseAccess ? null : lockedFeature}
+        onClose={() => setLockedFeature(null)}
+      />
     </aside>
   )
 }

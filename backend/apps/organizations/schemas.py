@@ -1,6 +1,7 @@
 """Esquemas Pydantic estrictos para autenticación y organizaciones."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -52,7 +53,7 @@ class OrganizationResponse(BaseModel):
     name: str
     slug: str
     plan_tier: PlanTierEnum
-    credit_balance: float
+    credit_balance: Decimal
     role: RoleEnum
     created_at: datetime
     updated_at: datetime
@@ -63,6 +64,26 @@ class RegisterResponse(BaseModel):
     organization: OrganizationResponse
     verification_required: bool
     verification_token: str | None = None
+
+
+class OrganizationDeletionResponse(BaseModel):
+    """Resultado de una baja lógica.
+
+    Expone los contadores de lo revocado para que el panel pueda decir qué ha pasado
+    en lugar de un "operación completada" genérico. Un usuario que da de baja un
+    workspace con tres compañeros tiene que ver que a los tres se les ha revocado el
+    acceso, porque si no no habra manera de recuperarlo.
+    """
+
+    organization_id: UUID
+    deleted_at: datetime
+    revoked_memberships: int = Field(ge=0)
+    cancelled_subscriptions: int = Field(ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def revoked_access(self) -> int:
+        return self.revoked_memberships
 
 
 class EmailVerificationRequest(StrictSchema):

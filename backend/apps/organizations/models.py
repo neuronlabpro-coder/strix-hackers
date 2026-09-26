@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, func
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -44,21 +45,58 @@ class TimestampMixin:
 
 
 class Organization(TimestampMixin, Base):
-    """Entidad raíz de aislamiento multi-tenant."""
+    """Entidad raíz de aislamiento multi-tenant.
+
+    ## Borrado lógico, no físico
+
+    Un tenant **nunca** se borra físicamente. R4 vuelve imposible: los triggers
+    `BEFORE DELETE` sobre `credit_ledger` y `audit_log` bloquean la cascada que
+    eliminaría el rastro financiero y forense, y con él la validez probatoria de cada
+    asiento.
+
+    La baja es, por tanto, lógica: `deleted_at` marca la fecha y `is_active` apaga el
+    tenant. La fila sobrevive porque el ledger y el rastro de auditoría apuntan a ella, y
+    porque un asiento financiero que pierde a su organización deja de ser explicable.
+
+    `is_active` e `is_active` de `Membership` son cosas distintas y las dos hacen falta:
+    el primero apaga el espacio de trabajo entero, el segundo revoca a una persona
+    concreta sin tocar a las demás.
+    """
 
     __tablename__ = "organizations"
+    __table_args__ = (Index("ix_organizations_deleted_at", "deleted_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     slug: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    # `NULL` significa tenant vivo. No se usa un centinela tipo epoch porque
+    # `deleted_at` tiene que distinguir "nunca se dio de baja" de "se dio de baja en
+    # algún momento", y ambas cosas tienen consecuencias distintas en un informe.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    # Cliente de Stripe asociado. Sin este campo la plataforma no puede localizar al
+    # cliente para cancelar una suscripción: cada sesión de Checkout crearía un
+    # cliente nuevo y la organización quedaría sin identidad en el proveedor de pago.
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True, default=None
+    )
     plan_tier: Mapped[PlanTierEnum] = mapped_column(
         SQLEnum(PlanTierEnum, name="plan_tier_enum"),
         nullable=False,
         default=PlanTierEnum.PRO,
         server_default=PlanTierEnum.PRO.name,
     )
-    credit_balance: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0.0, server_default="0.0"
+    # Numérico exacto, no coma flotante: es la caché denormalizada del ledger de
+    # créditos y un saldo que deriva de centavo hace que el historial no cuadre.
+    # Numérico exacto, no coma flotante: es la caché denormalizada del ledger de
+    # créditos y un saldo que deriva de centavo hace que el historial no cuadre.
+    # Con 1 crédito = 1 USD, `Numeric(12, 4)` cubre 99.999.999,99 créditos.
+    credit_balance: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, default=Decimal("0"), server_default="0"
     )
 
     memberships: Mapped[list[Membership]] = relationship(

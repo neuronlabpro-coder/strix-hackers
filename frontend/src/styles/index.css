@@ -1,22 +1,54 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
+/* ------------------------------------------------------------------------- *
+ * Tokens de color.
+ *
+ * Escala de obsidiana: cuatro niveles de superficie separados por 3 a 4 unidades de
+ * rojo, de modo que la jerarquía se lea por *profundidad* y no por borde. Un gris
+ * medio entre dos superficies aplana la界面; un escalón de 3 unidades se percibe.
+ *
+ * Todos los valores de texto están verificados contra WCAG 2.1 AA sobre la superficie
+ * más clara del sistema (#16181B), que es donde el contraste es peor. Los tonos que
+ * el encargo original pedía y no llegaban a 4,5:1 se levantaron conservando el matiz
+ * —ver `docs/design/contrast-audit.md`—, porque bajar el contraste para ajustarse a un
+ * valor nominal es perder accesibilidad sin ganar nada visual.
+ * ------------------------------------------------------------------------- */
 @theme {
-  --color-background: #1c1c1c;
-  --color-surface: #2a2a2a;
-  --color-primary: #ededed;
-  --color-secondary: #8a8f8a;
+  /* Superficies, de más profunda a más elevada. */
+  --color-background: #0b0c0e; /* Lienzo de la aplicación. Negro carbón mate. */
+  --color-raised: #0e1012; /* Sidebar, topbar y encabezados de tabla. */
+  --color-surface: #121316; /* Tarjetas, modales y paneles. */
+  --color-surface-elevated: #16181b; /* Inputs, hovers de fila y superficies activas. */
+
+  /* Línea. Hairline de 1 px: existe para separar, no para aportar peso visual. */
+  --color-border: #1e2024;
+  /* Un escalón por encima para el hover. No es el acento: el hover dice «puedes
+     tocar esto» y el acento dice «esto está activo», y confundirlos hace que
+     toda la interfaz parezca seleccionada. */
+  --color-border-hover: #2a2d33;
+
+  /* Texto. */
+  --color-primary: #f3f4f6; /* Títulos y valores clave. 16,2:1 sobre elevada. */
+  --color-secondary: #79818f; /* Texto secundario. 4,53:1 — el mínimo AA. */
+  --color-caption: #a8aeb9; /* Texto terciario y descripciones. 6,9:1. */
+  --color-muted: #5e6575; /* Etiquetas supremas, 3,04:1: aptas para texto grande. */
+  --color-placeholder: #798193; /* Placeholders. 4,55:1 — no bajan de AA. */
+
+  /* Acento esmeralda. */
   --color-accent: #17a163;
-  --color-on-primary: #1c1c1c;
-  /* Derivado: #ededed al 70 % sobre la superficie. Sube el contraste de
-     #8a8f8a sobre #2a2a2a de 4.36:1 (fallo AA) a 6.77:1 sin añadir un tono. */
-  --color-caption: #b2b2b2;
-  /* Rampa de severidad autorizada para visualizacion de datos. */
-  --color-critical: #ef4444;
-  --color-high: #f97316;
-  --color-medium: #f59e0b;
-  --color-low: #3b82f6;
-  --color-info: #8a8f8a;
+  --color-accent-bright: #10b981; /* Variante clara para anillos de foco. */
+  --color-on-primary: #06120c; /* Texto sobre esmeralda. */
+
+  /* Rampa de severidad en tonos 400: los 500 originales pasaban AA solo como
+    relleno, no como texto. Sobre negro, texto saturado de 500 vibra; 400 es el tono
+     correcto para leer. */
+  --color-critical: #f87171;
+  --color-high: #fb923c;
+  --color-medium: #fbbf24;
+  --color-low: #60a5fa;
+  --color-info: #9ca3af;
+
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   --radius-sm: 4px;
@@ -94,15 +126,13 @@ a {
   color: var(--color-primary);
 }
 
+/* Solo la caja. La posicion, el ancho y el fondo los fija el bloque de estructura de
+   layout mas abajo; aqui se queda lo que no cambia con la disposicion. */
 .sidebar {
   display: flex;
-  width: 280px;
-  flex: 0 0 280px;
   flex-direction: column;
-  min-height: 100svh;
   padding: 24px 16px 16px;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-secondary);
+  border-right: 1px solid var(--color-border);
 }
 
 .sidebar-header,
@@ -145,7 +175,7 @@ a {
   place-items: center;
   color: var(--color-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
   font-size: 0.95rem;
@@ -203,7 +233,7 @@ a {
   padding: 6px 8px;
   color: var(--color-secondary);
   background: transparent;
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-mono);
@@ -227,7 +257,7 @@ a {
   padding: 12px;
   color: var(--color-primary);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
@@ -263,7 +293,7 @@ a {
   overflow-y: auto;
   list-style: none;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -359,7 +389,7 @@ a {
   display: grid;
   gap: 12px;
   padding-top: 20px;
-  border-top: 1px solid var(--color-secondary);
+  border-top: 1px solid var(--color-border);
 }
 
 .user-profile {
@@ -375,7 +405,7 @@ a {
   place-items: center;
   color: var(--color-on-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
   font-family: var(--font-mono);
   font-size: 0.65rem;
@@ -409,7 +439,9 @@ a {
   width: 7px;
   height: 7px;
   flex: 0 0 7px;
-  background: var(--color-secondary);
+  /* Punto de estado saludable en esmeralda. El color de acento es el único que
+     significa "todo bien" en este panel, así que un gris neutro aquí sería ambiguo. */
+  background: var(--color-accent);
   border-radius: 50%;
 }
 
@@ -437,7 +469,7 @@ a {
   justify-content: space-between;
   gap: 20px;
   padding: 16px 32px;
-  border-bottom: 1px solid var(--color-secondary);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .topbar-status,
@@ -473,8 +505,13 @@ a {
   background: var(--color-accent);
 }
 
+/* El hover movia el relleno con `filter: brightness()`. Ese filtro se queda en el
+ * pipeline cuando el hover posterior cambia `background`, de modo que el boton suffer
+ * doble realce y se aparta del esmeralda de marca. Se sustituye por un token claro
+ * explicito, que ademas es medible: un filtro no se puede auditar con un ratio. */
 .primary-button:hover {
-  filter: brightness(1.08);
+  background: var(--color-accent-bright);
+  border-color: var(--color-accent-bright);
 }
 
 .primary-button:disabled {
@@ -485,7 +522,7 @@ a {
 .secondary-button {
   color: var(--color-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
 }
 
 .main-content {
@@ -525,7 +562,7 @@ a {
 .auth-card,
 .empty-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
@@ -635,7 +672,7 @@ a {
 .chart-placeholder {
   margin-top: 12px;
   background: var(--color-background);
-  border: 1px dashed var(--color-secondary);
+  border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -665,7 +702,7 @@ code.mono,
   padding: 0 12px;
   color: var(--color-secondary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -689,7 +726,7 @@ code.mono,
 .table-wrapper {
   overflow-x: auto;
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
@@ -709,7 +746,7 @@ code.mono,
 
 .data-table thead th {
   color: var(--color-caption);
-  border-bottom: 1px solid var(--color-secondary);
+  border-bottom: 1px solid var(--color-border);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 500;
@@ -718,7 +755,7 @@ code.mono,
 }
 
 .data-table tbody tr + tr td {
-  border-top: 1px solid var(--color-secondary);
+  border-top: 1px solid var(--color-border);
 }
 
 .data-table tbody tr:hover {
@@ -752,7 +789,7 @@ code.mono,
   padding: 3px 9px;
   color: var(--color-primary);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.68rem;
@@ -795,7 +832,63 @@ code.mono,
 .badge-status-ignored {
   color: var(--color-caption);
   border-style: dashed;
-  border-color: var(--color-secondary);
+  border-color: var(--color-border);
+}
+
+/* Badge de severidad de una vulnerabilidad.
+   Aqui el color si es informativo y no compite con nada: la celda comunica una sola
+   escala, la de severidad. El del panel de remediation sigue monocromo porque ahi
+   conviven la severidad y el estado en la misma celda, y dos escalas en una celda
+   son dos escalas que nadie puede leer. */
+.badge-status-critical {
+  color: var(--color-critical);
+  border-color: var(--color-critical);
+}
+
+.badge-status-high {
+  color: var(--color-high);
+  border-color: var(--color-high);
+}
+
+.badge-status-medium {
+  color: var(--color-medium);
+  border-color: var(--color-medium);
+}
+
+.badge-status-low {
+  color: var(--color-low);
+  border-color: var(--color-low);
+}
+
+/* Panel lateral del catalogo CVE y tarjetas de seccion equivalentes. */
+.panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.panel-caption {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.panel-promo .primary-button {
+  justify-content: center;
+  text-decoration: none;
 }
 
 .toggle {
@@ -817,8 +910,8 @@ code.mono,
   display: inline-block;
   width: 38px;
   height: 20px;
-  background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  background: var(--color-raised);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
 }
 
@@ -828,7 +921,10 @@ code.mono,
   left: 2px;
   width: 14px;
   height: 14px;
-  background: var(--color-secondary);
+  /* Apagado el pulgar es neutro, no gris medio: el color de estado lo lleva la pista
+     cuando se activa, y un gris saturado en el pulgar haría creer que ya está
+     encendido. */
+  background: var(--color-muted);
   border-radius: 50%;
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
@@ -861,7 +957,7 @@ code.mono,
 }
 
 .inline-notice-warning {
-  border-color: var(--color-secondary);
+  border-color: var(--color-border);
   border-style: dashed;
   color: var(--color-secondary);
 }
@@ -873,7 +969,7 @@ code.mono,
   place-items: center;
   color: var(--color-secondary);
   background: transparent;
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
@@ -901,7 +997,7 @@ code.mono,
   padding: 24px;
   overflow-y: auto;
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
@@ -922,7 +1018,7 @@ code.mono,
   display: grid;
   gap: 12px;
   padding-top: 20px;
-  border-top: 1px solid var(--color-secondary);
+  border-top: 1px solid var(--color-border);
 }
 
 .modal-section-header {
@@ -957,7 +1053,7 @@ code.mono,
 .modal-notice-warning,
 .modal-notice-error {
   color: var(--color-caption);
-  border-color: var(--color-secondary);
+  border-color: var(--color-border);
   border-style: dashed;
 }
 
@@ -973,7 +1069,7 @@ code.mono,
   padding: 10px 14px;
   color: var(--color-primary);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 0.8rem;
@@ -1008,7 +1104,7 @@ code.mono,
 .remote-item {
   padding: 12px;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -1045,7 +1141,7 @@ code.mono,
 .repository-widget-item {
   padding: 10px 12px;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-size: 0.8rem;
 }
@@ -1099,7 +1195,7 @@ code.mono,
   padding: 8px 12px;
   color: var(--color-caption);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   font-family: var(--font-mono);
@@ -1141,7 +1237,7 @@ code.mono,
   display: inline-flex;
   padding: 3px;
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -1188,7 +1284,7 @@ code.mono,
   padding: 8px 10px;
   color: var(--color-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-size: 0.82rem;
 }
@@ -1213,7 +1309,7 @@ code.mono,
   min-height: 140px;
   padding: 12px;
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -1235,7 +1331,7 @@ code.mono,
   padding: 10px;
   color: var(--color-primary);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   text-align: left;
   cursor: pointer;
@@ -1292,7 +1388,7 @@ code.mono,
 .code-panel {
   overflow: hidden;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -1302,7 +1398,7 @@ code.mono,
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--color-secondary);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .code-panel-title {
@@ -1396,7 +1492,7 @@ code.mono,
   overflow: auto;
   color: var(--color-primary);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -1438,7 +1534,7 @@ code.mono,
   margin-top: 3px;
   place-items: center;
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
 }
 
@@ -1473,7 +1569,7 @@ code.mono,
   gap: 8px;
   padding: 16px;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -1499,7 +1595,7 @@ code.mono,
   padding: 2px 6px;
   color: var(--color-caption);
   background: var(--color-background);
-  border: 1px dashed var(--color-secondary);
+  border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.6rem;
@@ -1548,7 +1644,7 @@ code.mono,
   padding: 4px 6px;
   color: var(--color-caption);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.66rem;
@@ -1581,7 +1677,7 @@ code.mono,
   place-items: center;
   color: var(--color-caption);
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
 }
 
@@ -1602,7 +1698,7 @@ code.mono,
 .audit-state {
   padding: 2px 6px;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: 0.68rem;
 }
@@ -1624,7 +1720,7 @@ code.mono,
   padding: 16px;
   color: var(--color-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   text-align: left;
   cursor: pointer;
@@ -1676,6 +1772,211 @@ code.mono,
   color: var(--color-accent);
 }
 
+/* ------------------------------------------------------------------------- *
+ * Catálogo CVE.
+ *
+ * Rejilla de dos columnas: la tabla a la izquierda y la navegación a la derecha.
+ * Por debajo de 1024px la columna lateral se coloca debajo, porque una tabla de
+ * seis columnas no se lee bien en 700px y obligaría a_scroll horizontal en la
+ * parte del catálogo que más importa.
+ * ------------------------------------------------------------------------- */
+
+.cve-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  align-items: start;
+  gap: 16px;
+}
+
+.cve-main {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.cve-sidebar {
+  display: grid;
+  gap: 12px;
+}
+
+.cve-count {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.cve-description {
+  max-width: 420px;
+  color: var(--color-caption);
+  line-height: 1.5;
+}
+
+.cve-kev-icon {
+  margin-left: 6px;
+  vertical-align: middle;
+  color: var(--color-critical);
+}
+
+.badge-kev {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  color: var(--color-critical);
+  border-color: var(--color-critical);
+}
+
+.link-button {
+  padding: 0;
+  color: var(--color-primary);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-button:hover {
+  color: var(--color-accent);
+}
+
+.cve-year-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cve-year {
+  min-width: 52px;
+  padding: 6px 8px;
+  color: var(--color-caption);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+.cve-year:hover {
+  color: var(--color-primary);
+  border-color: var(--color-accent);
+}
+
+.cve-year[aria-pressed='true'] {
+  color: var(--color-on-primary);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.cve-kev-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cve-kev-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.filter-field-check {
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+  padding-top: 18px;
+  gap: 8px;
+}
+
+.filter-field-check input[type='checkbox'] {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--color-accent);
+}
+
+.filter-field-check label {
+  text-transform: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .cve-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cve-description {
+    max-width: none;
+  }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Navegación por bloques.
+ *
+ * El separador entre bloque principal y bloque de activos es una regla horizontal
+ * y no un segundo encabezado: los dos bloques comparten título de sección y el
+ * corte visual es lo que dice «aquí cambia la categoría de cosa».
+ * ------------------------------------------------------------------------- */
+
+.navigation-divider {
+  height: 1px;
+  margin: 16px 0 12px;
+  background: var(--color-border);
+  border: 0;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Vista global de revisiones de pull request.
+ * ------------------------------------------------------------------------- */
+
+.table-secondary {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  color: var(--color-caption);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El estado de merge bloqueado es el único que se pinta en color de la rampa de
+   severidad: es el único estado de la fila que implica una acción, y el color
+   comunica "no merges esto" antes de que la persona termine de leer la celda. */
+.badge-review-blocked {
+  color: var(--color-critical);
+  border-color: var(--color-critical);
+}
+
+.badge-review-approved {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.badge-review-pending {
+  color: var(--color-medium);
+  border-color: var(--color-medium);
+}
+
 .onboarding {
   display: grid;
   gap: 14px;
@@ -1704,7 +2005,7 @@ code.mono,
   height: 4px;
   overflow: hidden;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 2px;
 }
 
@@ -1730,7 +2031,7 @@ code.mono,
   align-items: center;
   padding: 12px;
   background: var(--color-background);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -1745,7 +2046,7 @@ code.mono,
   place-items: center;
   color: var(--color-on-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
 }
 
@@ -1786,7 +2087,7 @@ code.mono,
   padding: 12px 14px;
   color: var(--color-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: 0 18px 48px rgb(28 28 28 / 55%);
   pointer-events: auto;
@@ -1827,6 +2128,53 @@ code.mono,
 
 .toast-close:hover {
   color: var(--color-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   Bloque 5.1: consola de modelos de LLM. Bordes de 1px y tokens de
+   `design-dark.md`; ningún color nuevo.
+   --------------------------------------------------------------------------- */
+
+.priority-badge {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--color-on-primary);
+  background: var(--color-accent);
+  border-radius: 50%;
+  font-size: 0.72rem;
+}
+
+.row-inactive {
+  opacity: 0.55;
+}
+
+.row-inactive .priority-badge {
+  color: var(--color-caption);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+}
+
+.margin-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.margin-field input {
+  width: 96px;
+  min-height: 34px;
+  padding: 6px 8px;
+  color: var(--color-primary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+}
+
+.margin-field input:hover:not(:disabled) {
+  border-color: var(--color-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1925,7 +2273,7 @@ code.mono,
   place-items: center;
   color: var(--color-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
   font-family: var(--font-mono);
 }
@@ -2092,7 +2440,7 @@ code.mono,
     width: 100%;
     min-height: auto;
     border-right: 0;
-    border-bottom: 1px solid var(--color-secondary);
+    border-bottom: 1px solid var(--color-border);
   }
 
   /* La navegación se convierte en una tira desplazable: ninguna ruta queda
@@ -2160,5 +2508,536 @@ code.mono,
 
   .topbar-workspace {
     display: none;
+  }
+}
+
+/* ========================================================================= *
+ * Bloque 5.4 · Densidad y componentes.
+ *
+ * Va al final del fichero a propósito: estas reglas refinan el sistema anterior en
+ * lugar de redefinirlo, y colocarlas al final hace que ganen por cascada sin tener
+ * que subir especificidades a base de selectores largos. Si una regla de aquí
+ * contradice a una de arriba, es un bug de orden, no una decisión de diseño.
+ * ========================================================================= */
+
+/* ------------------------------------------------------------------------- *
+ * Controles de formulario.
+ *
+ * Altura de 34 px en lugar de 40: en una tabla con diez filas, seis píxeles por
+ * control son sesenta píxeles de aire que nadie pidió. La compactación se compensa
+ * con más contraste en el anillo de foco, para que el control siga siendo
+ * localizable con precisión.
+ * ------------------------------------------------------------------------- */
+
+.search-field,
+.filter-field select,
+.filter-field input {
+  min-height: 34px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.search-field input,
+.filter-field select,
+.filter-field input {
+  color: var(--color-primary);
+  font-size: 0.8rem;
+}
+
+/* El foco usa anillo, no solo cambio de color: el cambio de color de borde no lo
+   distingue quien no separa bien rojo y verde, y el anillo sí. */
+.search-field:focus-within,
+.filter-field select:focus,
+.filter-field input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.search-field:hover,
+.filter-field select:hover,
+.filter-field input:hover {
+  border-color: var(--color-border-hover);
+}
+
+.search-field input::placeholder,
+.filter-field input::placeholder,
+.filter-field select:invalid {
+  color: var(--color-placeholder);
+}
+
+/* El texto de la etiqueta superior es la pieza que más se leía como gris
+   sucio: 11 px, monoespaciado, versalitas y el gris más tenue de la escala. Es la
+   convención que la pide el sistema de diseño, y se lee como jerarquía de etiqueta
+   de instrumento, no como texto disabled. */
+.filter-field label,
+.eyebrow,
+.navigation-label {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Píldoras de filtro de severidad.
+ *
+ * Sustituyen a los botones inflados por un patrón compacto: punto de color +
+ * etiqueta. El punto no es decorativo, es el que permite escanear una columna de
+ * veinte filas buscando rojo sin leer veinte palabras.
+ * ------------------------------------------------------------------------- */
+
+.severity-pill {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.severity-pill::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 999px;
+  background: currentcolor;
+  content: '';
+}
+
+.severity-pill-critical {
+  color: var(--color-critical);
+  background: color-mix(in srgb, var(--color-critical) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-critical) 20%, transparent);
+}
+
+.severity-pill-high {
+  color: var(--color-high);
+  background: color-mix(in srgb, var(--color-high) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-high) 20%, transparent);
+}
+
+.severity-pill-medium {
+  color: var(--color-medium);
+  background: color-mix(in srgb, var(--color-medium) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-medium) 20%, transparent);
+}
+
+.severity-pill-low {
+  color: var(--color-low);
+  background: color-mix(in srgb, var(--color-low) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-low) 20%, transparent);
+}
+
+.severity-pill-info {
+  color: var(--color-info);
+  background: color-mix(in srgb, var(--color-info) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-info) 20%, transparent);
+}
+
+.severity-pill:hover {
+  border-color: currentcolor;
+}
+
+.severity-pill[aria-pressed='true'] {
+  border-color: currentcolor;
+  box-shadow: inset 0 0 0 1px currentcolor;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Tablas de datos.
+ *
+ * El encabezado deja de ser texto sobre la superficie y pasa a ser una banda
+ * ligeramente más oscura: es lo que separa "rótulo" de "contenido" sin gastar un
+ * borde. Las filas se separan con una línea de 1 px y se iluminan al pasar por
+ * encima, de modo que seguir una fila a lo largo de seis columnas es posible.
+ * ------------------------------------------------------------------------- */
+
+.data-table,
+.table-scroll {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.data-table thead th {
+  padding: 10px 14px;
+  color: var(--color-muted);
+  background: var(--color-raised);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.data-table th,
+.data-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+}
+
+.data-table tbody tr:last-child td,
+.data-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.data-table tbody tr:hover td,
+.data-table tbody tr:hover th {
+  background: var(--color-surface-elevated);
+}
+
+/* ------------------------------------------------------------------------- *
+ * Tarjetas, paneles y estados vacíos.
+ * ------------------------------------------------------------------------- */
+
+.content-card,
+.empty-card,
+.metric-card,
+.panel,
+.modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.empty-card-mark {
+  color: var(--color-muted);
+}
+
+.empty-card h2 {
+  color: var(--color-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.empty-card p {
+  color: var(--color-caption);
+  font-size: 0.82rem;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Sidebar y topbar.
+ *
+ * El sidebar deja de ser una tarjeta más y pasa a ser el plano del fondo: su
+ * superficie es la elevada respecto al lienzo, con un solo hairline a la derecha y
+ * nada más. El topbar se funde con el lienzo y se separa solo por su borde inferior,
+ * porque va pegado al contenido y un fondo distinto partiría la pantalla en dos.
+ * ------------------------------------------------------------------------- */
+
+.sidebar {
+  background: var(--color-raised);
+  border-right: 1px solid var(--color-border);
+}
+
+.topbar {
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nav-link {
+  color: var(--color-secondary);
+  border: 1px solid transparent;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.nav-link:hover {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+}
+
+.nav-link-active,
+.nav-link[aria-current='page'] {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 7%, transparent);
+  font-weight: 500;
+}
+
+/* El acento del ítem activo es una línea de 2 px a la izquierda. Un icono o un
+   fondo saturados competirían con el color de la severidad de la fila enlazada. */
+.nav-link-active::before,
+.nav-link[aria-current='page']::before {
+  position: absolute;
+  left: 0;
+  width: 2px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  content: '';
+}
+
+.nav-link {
+  position: relative;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Botones primarios y estados saludables.
+ * ------------------------------------------------------------------------- */
+
+/* El hover ya vive junto a la regla base, arriba, donde estaba antes del refactor. No
+   se repite aqui: dos reglas de hover para el mismo elemento hacen que cualquiera de
+   las dos se puede borrar sin que nadie lo note, y una de las dos se queda obsoleta. */
+.primary-button {
+  border: 1px solid var(--color-accent);
+}
+
+.secondary-button {
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.secondary-button:hover {
+  border-color: var(--color-border-hover);
+}
+
+/* ========================================================================= *
+ * Bloque 5.5 · Estructura de layout.
+ *
+ * El sidebar pasa de ser una columna en flex a ser un plano fijo. La diferencia no
+ * es cosmética: como columna flex crecía con el contenido y empujaba al resto de la
+ * página, de modo que una lista larga de navegación alargaba también el documento.
+ * Fijo, el sidebar se mantiene en su sitio y lo que scrollea es la navegación, que es
+ * lo único que puede crecer sin límite.
+ * ========================================================================= */
+
+.app-shell {
+  /* El flex se conserva para el eje vertical del documento, pero el sidebar ya no
+     participa: al ser `fixed` sale del flujo y su hermano se posiciona por margen. */
+  min-height: 100svh;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  width: 256px;
+  height: 100svh;
+  min-height: 0;
+  /* Vuelve al tono del lienzo. Un sidebar de un gris más claro que el contenido
+     divide la pantalla en dos mitades y resta espacio útil a la vista de trabajo. */
+  background: var(--color-background);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.content-shell {
+  margin-left: 256px;
+}
+
+/* La navegación es la única zona del sidebar que puede desbordar, así que es la
+   única que scrollea. */
+.sidebar-navigation {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Scrollbar de 4 px con pulgar invisible hasta que la zona recibe el foco o el
+   hover. Un thumb gris sobre fondo casi negro dibuja una segunda columna gris al
+   borde del panel; la barra sigue existiendo para quien la necesite. */
+.sidebar-navigation {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-navigation:hover,
+.sidebar-navigation:focus-within {
+  scrollbar-color: var(--color-border-hover) transparent;
+}
+
+.sidebar-navigation::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-navigation::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-navigation::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+
+.sidebar-navigation:hover::-webkit-scrollbar-thumb,
+.sidebar-navigation:focus-within::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+}
+
+.sidebar-header,
+.sidebar-footer {
+  flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Desplegable de workspace.
+ *
+ * Pasa a ser una capa flotante con sombra profunda. Un menú sin sombra sobre una
+ * lista de dos entradas se lee como parte de la barra lateral en lugar de como una
+ * capa encima, y el usuario no sabe si el click ha creado un elemento o ha
+ * desplazado el resto.
+ * ------------------------------------------------------------------------- */
+
+.workspace-menu {
+  z-index: 50;
+  top: calc(100% + 6px);
+  max-height: 320px;
+  padding: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.75);
+}
+
+/* «+ Crear workspace» vive dentro del desplegable, separado por un hairline. Fuera
+   del menú era una acción de creación mezclada con la navegación, que es donde nadie
+   la busca. */
+.workspace-menu-create {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border);
+}
+
+.workspace-menu-create .workspace-option {
+  color: var(--color-caption);
+}
+
+.workspace-menu-create .workspace-option:hover {
+  color: var(--color-primary);
+}
+
+/* ------------------------------------------------------------------------- *
+ * Contenido centrado.
+ *
+ * El ancho máximo se centra con márgenes automáticos y el padding es simétrico. Sin
+ * `margin-inline: auto` el `max-width` solo tope, y la página queda pegada a la
+ * izquierda con un vacío enorme a la derecha en pantallas anchas.
+ * ------------------------------------------------------------------------- */
+
+.main-content {
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
+  padding: 32px 24px;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Controles de filtro alineados a la base.
+ *
+ * `align-items: flex-end` alinea los fondos, no los tops: los campos llevan etiqueta
+ * encima y el buscador no, así que alinear por arriba dejaría el buscador 20 px más
+ * alto que sus vecinos. Alineando por abajo, la fila de campos queda recta.
+ * ------------------------------------------------------------------------- */
+
+.filter-bar {
+  align-items: flex-end;
+}
+
+.filter-field {
+  min-width: 168px;
+}
+
+/* Altura única para buscador y desplegables. El buscador es un `label` envolvente
+   con el input dentro, así que su altura se fija en el contenedor y el input cede. */
+.search-field,
+.filter-field select,
+.filter-field input {
+  height: 36px;
+  min-height: 36px;
+  padding: 6px 12px;
+  background: var(--color-surface);
+  font-size: 0.75rem;
+}
+
+.search-field input {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+.filter-field label {
+  margin-bottom: 6px;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Conmutador tabla / tablero.
+ *
+ * Sin `display: flex` los botones dependían del flujo en línea, y con el icono y la
+ * etiqueta al lado el navegador podía partir la línea y dejar el texto debajo del
+ * icono. Fijar la dirección y la alineación elimina esa decisión del motor.
+ * ------------------------------------------------------------------------- */
+
+.segmented-button {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Fila de control del inventario en el modal de conectar repositorio.
+ *
+ * Las pestañas de proveedor y el botón de recarga vivían en dos filas distintas: la
+ * recarga en la cabecera de la sección y las pestañas debajo. Un par de controles que
+ * se usan juntos —cambiar de proveedor y recargar su lista— pertenece a una fila.
+ * ------------------------------------------------------------------------- */
+
+.inventory-controls {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.inventory-controls .provider-switch {
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 900px) {
+  .content-shell {
+    margin-left: 0;
+  }
+
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+  }
+
+  .sidebar-navigation {
+    overflow-y: visible;
+  }
+
+  .main-content {
+    padding: 24px 16px;
   }
 }

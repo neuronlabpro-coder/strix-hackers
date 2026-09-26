@@ -3,9 +3,19 @@ import { useTranslation } from 'react-i18next'
 
 interface PlaceholderPageProps {
   titleKey: string
+  /**
+   * Razón concreta por la que la vista aún no existe, en el namespace `common`.
+   *
+   * Se muestra siempre. Una pantalla placeholder que solo dice «disponible en una fase
+   * posterior» es indistinguible de un fallo, y quien la ve no puede decidir si
+   * esperar, reportar un bug o buscar la alternativa. Nombrar el bloqueo real
+   * —«requiere el modelo de datos de dominios»— convierte una pantalla muerta en
+   * información accionable.
+   */
+  reasonKey?: string
 }
 
-export function PlaceholderPage({ titleKey }: PlaceholderPageProps) {
+export function PlaceholderPage({ titleKey, reasonKey }: PlaceholderPageProps) {
   const { t } = useTranslation(['common', 'navigation'])
 
   return (
@@ -21,7 +31,7 @@ export function PlaceholderPage({ titleKey }: PlaceholderPageProps) {
         <span className="empty-card-mark" aria-hidden="true">
           <CircleDot size={18} />
         </span>
-        <p>{t('navigation:comingSoon')}</p>
+        <p>{reasonKey ? t(`common:${reasonKey}`) : t('navigation:comingSoon')}</p>
       </section>
     </section>
   )

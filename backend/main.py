@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 from backend.apps.admin.router import router as admin_router
 from backend.apps.audit.router import router as audit_router
+from backend.apps.billing.router import router as billing_router
+from backend.apps.cve_database.router import router as cve_router
 from backend.apps.dashboard.router import router as dashboard_router
 from backend.apps.knowledge.router import router as knowledge_router
 from backend.apps.onboarding.router import router as onboarding_router
@@ -71,3 +73,5 @@ app.include_router(admin_router)
 app.include_router(audit_router)
 app.include_router(knowledge_router)
 app.include_router(onboarding_router)
+app.include_router(billing_router)
+app.include_router(cve_router)

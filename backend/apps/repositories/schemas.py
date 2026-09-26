@@ -201,9 +201,29 @@ class PRReviewResponse(BaseModel):
 
 
 class PRReviewPage(BaseModel):
-    """Página de revisiones de un repositorio concreto."""
+    """Página de revisiones de un repositorio concreto o de toda la organización."""
 
     items: list[PRReviewResponse]
     total: int = Field(ge=0)
     limit: int = Field(ge=1)
     offset: int = Field(ge=0)
+
+
+class PRReviewMetrics(BaseModel):
+    """Indicadores de cabecera de la vista global de revisiones de pull request.
+
+    `total`, `clean` y `blocking` cuentan **revisiones**, no hallazgos: una revisión
+    con doce hallazgos sigue siendo una revisión. `issues_critical` e `issues_high` sí
+    cuentan hallazgos, porque la pregunta que responde el KPI es distinto.
+
+    Una revisión cuenta como `blocking` cuando `merge_blocked` es cierto, sea cual sea
+    el estado del escaneo. Lo que impide el merge es la bandera, no el estado: un
+    escaneo que terminó en `PASSED` con un hallazgo de severidad alta sigue bloqueando
+    el merge, y un `FAILED` sin hallazgos relevantes no debería hacerlo.
+    """
+
+    total: int = Field(ge=0)
+    clean: int = Field(ge=0)
+    blocking: int = Field(ge=0)
+    issues_critical: int = Field(ge=0)
+    issues_high: int = Field(ge=0)

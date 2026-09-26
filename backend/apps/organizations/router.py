@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.apps.organizations.deletion import _soft_delete_organization
 from backend.apps.organizations.models import Organization, RoleEnum, User
 from backend.apps.organizations.schemas import (
     EmailResendRequest,
@@ -19,6 +20,7 @@ from backend.apps.organizations.schemas import (
     InvitationResponse,
     LoginRequest,
     OrganizationCreate,
+    OrganizationDeletionResponse,
     OrganizationResponse,
     RegisterRequest,
     RegisterResponse,
@@ -271,6 +273,51 @@ async def create_organization(
         ) from error
 
     return _organization_response(organization, membership.role)
+
+
+@router.delete(
+    "/api/v1/organizations/{organization_id}",
+    response_model=OrganizationDeletionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_organization(
+    organization_id: UUID,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> OrganizationDeletionResponse:
+    """Da de baja el workspace actual de forma lógica.
+
+    No borra la fila. R4 hace el borrado físico imposible: los triggers append-only
+    sobre `credit_ledger` y `audit_log` bloquean la cascada, y con ella desaparecería
+    el rastro financiero y forense que da validez a cada asiento. La baja marca
+    `deleted_at`, apaga el tenant, asienta el motivo y revoca el acceso.
+
+    Solo un administrador del propio tenant puede darlo de baja, y el tenant se toma
+    del contexto: un `organization_id` de la URL que no coincide con el contexto no
+    entra ni se comprueba, para no filtrar la existencia de otros workspaces.
+    """
+
+    if tenant.role != RoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere permiso de administrador para dar de baja el workspace",
+        )
+    if organization_id != tenant.organization.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace no encontrado",
+        )
+
+    report = await _soft_delete_organization(
+        session, tenant.organization, tenant.user.id
+    )
+    return OrganizationDeletionResponse(
+        organization_id=report.organization_id,
+        deleted_at=report.deleted_at,
+        revoked_memberships=report.revoked_memberships,
+        cancelled_subscriptions=report.cancelled_subscriptions,
+        warnings=report.warnings,
+    )
 
 
 @router.post(

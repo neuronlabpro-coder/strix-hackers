@@ -2,9 +2,30 @@
 
 > **Documento de especificación ejecutable.** Define el modelo financiero híbrido en Stripe (asientos recurrentes + créditos prepago + tarificación por uso de PRs), el balance inmutable en `credit_ledger` (R4), la gestión de tokens de API con matriz de 46 scopes granulares, los webhooks salientes firmados criptográficamente y el servidor remoto MCP (`/mcp`) para asistentes de desarrollo (Cursor, Claude Code, ChatGPT).
 >
-> **Estado:** `[ ]` Pendiente de ejecución  
+> **Estado:** `[~]` En ejecución (Bloques 5.1 y 5.2 entregados)  
 > **Dependencias previas:** Fase 1 (Organizaciones, RBAC y Auth), Fase 2 (Runs de escaneo) y Fase 4 (Vistas de UI de Facturación, Tokens y Ajustes).  
-> **Autoridades que rigen esta fase:** `ARCHITECTURE.md` (§1 R4, §6, §7), `MENU-MAP.md` (§8.4, §9, §10.3) y `AGENTS.md` (Reglas de Oro R1, R3 y R4).
+> **Autoridades que rigen esta fase:** `ARCHITECTURE.md` (§1 R4, §6, §7), `MENU-MAP.md` (§8.4, §9, §10.3, §7.b) y `AGENTS.md` (Reglas de Oro R1, R3 y R4).
+>
+> **Bloques entregados**
+> * **5.1** — Orquestador dinámico de LLMs con margen auditable, ledger de créditos inmutable con saldo atómico, scaffolding de Stripe y consola SuperAdmin en `/admin/llm`.
+> * **5.2** — Catálogo oficial de OpenRouter con `markup_pct`, enlace del orquestador al runner de Strix con fallback encadenado y telemetría de consumo, y base de datos CVE de referencia con `/cve` y sincronización periódica de los feeds oficiales.
+>
+> **Bloque 5.2 · decisiones que se apartan del enunciado y por qué**
+>
+> * La tabla es `llm_model_configs` y no `llm_models_config`. Renombrarla por coherencia de singular sería una migración sin ningún beneficio funcional, así que se documenta la diferencia en lugar de pagar el coste.
+> * Las tareas de Strix viven en `backend/workers/tasks.py`, no en `backend/apps/pentests/tasks.py`. `apps/` contiene código de aplicación síncrono y `workers/` el proceso que lanza contenedores; el runner es lo segundo por definición.
+> * El fallback no reacciona a un `429` en el momento, porque el contenedor de Strix habla con OpenRouter por su cuenta y el worker no ve los códigos HTTP del proveedor. Lo que sí puede observar es que la ejecución falló, así que reencola con el siguiente modelo de la cadena. Es menos granular que un reintento dentro del contenedor, pero es lo que la arquitectura permite sin exponer la credencial al proceso supervisor.
+> * La tarificación solo cobra cuando el reporte de Strix publica consumo de tokens. `results.json` no incluye ese bloque hoy, así que `extract_token_usage` devuelve `None` —no cero— y la reserva del tenant se mantiene intacta. Un cero significaría «el motor consumió tokens gratis» y `None` significa «no lo sabemos»; cobrar en función de la segunda lectura sería tarificar al aire.
+> * `organizations.credit_balance` se estrecha a `numeric(12,4)`. Con 1 crédito = 1 USD, 99.999.999,99 créditos cubren cualquier saldo de una plataforma de por vida y un saldo no negativo solo necesita un dígito entero.
+>
+> **Bloque 5.2 · Sustitución del catálogo por el listado del Owner (migración `d5e6f7a8b9c0`).** Ocho modelos con `z-ai/glm-5.3` como primario de prioridad 1, inyectado al contenedor como `STRIX_LLM` en las cuatro cadenas. Los seis modelos del catálogo anterior quedan desactivados sin borrarse, para no perder su historial de consumo.
+> * El cambio es una migración **nueva**, no una edición de `b3c4d5e6f7a8`: esa ya estaba aplicada en la base remota, y reescribir su seed dejaría el repositorio y la base discrepando sin que `alembic check` lo detecte.
+> * `z-ai/glm-5.3` se declara `use_case = ALL`. El Owner lo pidió como primario de `ALL / DEEP_PENTEST`, pero `model_id` es único y una fila solo admite un caso de uso. `ALL` cumple el efecto pedido porque `resolve_model_chain` incluye los modelos `ALL` en cada cadena.
+> * La variable inyectada es `STRIX_LLM`, que es la que lee el motor. `STRIX_LLM_MODEL` no existiría para él y el contenedor caería **en silencio** a su modelo por defecto, con cada escaneo fuera del catálogo y sin telemetría.
+> * Los precios base son los fijados por el Owner, sin contrastar con la carta de OpenRouter. El margen se audita contra los números que se declararon.
+> * **Pendiente de decisión:** con el primario en prioridad 1 y transversal, `deepseek/deepseek-v4.1-flash` ($0,15) queda al final de la cadena y nunca es primario, así que los escaneos rápidos no usan el modelo barato.
+
+> **Pendiente:** Tareas 3.4 a 3.6 (46 scopes, webhooks salientes y servidor MCP) y el resto del DoD.
 
 ---
 
@@ -372,7 +393,7 @@ def strix_apply_autofix(vulnerability_id: str, ctx=None) -> str:
 
 Para dar por concluida la Fase 5, se deben validar y marcar todas las casillas siguientes:
 
-- [ ] **Inmutabilidad Financiera Demostrada:** Un intento deliberado de ejecutar `UPDATE` o `DELETE` sobre la tabla `credit_ledger` en PostgreSQL falla con error lanzado por el trigger `trg_credit_ledger_immutable`.
+- [x] **Inmutabilidad Financiera Demostrada:** Un intento deliberado de ejecutar `UPDATE` o `DELETE` sobre la tabla `credit_ledger` en PostgreSQL falla con error lanzado por el trigger `trg_credit_ledger_immutable`. *(Bloque 5.1: `trg_protect_credit_ledger_append_only` `FOR EACH STATEMENT` sobre `UPDATE OR DELETE OR TRUNCATE`.)*
 - [ ] **Balance Calculado Dinámicamente:** El saldo visible en la UI y API coincide con la suma de `delta_credits` de la organización.
 - [ ] **Integración de Webhooks de Stripe:** El flujo de compra de créditos y cobro de suscripción recurrente se valida localmente utilizando Stripe CLI (`stripe listen --forward-to ...` y `stripe trigger checkout.session.completed`), actualizando el balance sin intervención manual.
 - [ ] **Bloqueo por Saldo Insuficiente:** Intentar lanzar un pentest profundo sin saldo suficiente es rechazado con excepción controlada (`InsufficientCreditsError`) y mensaje explicativo al usuario.

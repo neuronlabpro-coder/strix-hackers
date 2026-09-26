@@ -4,27 +4,33 @@ import { initReactI18next } from 'react-i18next'
 import authEn from './locales/en/auth.json'
 import adminEn from './locales/en/admin.json'
 import commonEn from './locales/en/common.json'
+import cveEn from './locales/en/cve.json'
 import dashboardEn from './locales/en/dashboard.json'
 import enterpriseEn from './locales/en/enterprise.json'
 import errorsEn from './locales/en/errors.json'
 import issuesEn from './locales/en/issues.json'
+import llmEn from './locales/en/llm.json'
 import knowledgeEn from './locales/en/knowledge.json'
 import navigationEn from './locales/en/navigation.json'
 import onboardingEn from './locales/en/onboarding.json'
 import pentestsEn from './locales/en/pentests.json'
+import prReviewsEn from './locales/en/prReviews.json'
 import repositoriesEn from './locales/en/repositories.json'
 import triageEn from './locales/en/triage.json'
 import authEs from './locales/es/auth.json'
 import adminEs from './locales/es/admin.json'
 import commonEs from './locales/es/common.json'
+import cveEs from './locales/es/cve.json'
 import dashboardEs from './locales/es/dashboard.json'
 import enterpriseEs from './locales/es/enterprise.json'
 import errorsEs from './locales/es/errors.json'
 import issuesEs from './locales/es/issues.json'
+import llmEs from './locales/es/llm.json'
 import knowledgeEs from './locales/es/knowledge.json'
 import navigationEs from './locales/es/navigation.json'
 import onboardingEs from './locales/es/onboarding.json'
 import pentestsEs from './locales/es/pentests.json'
+import prReviewsEs from './locales/es/prReviews.json'
 import repositoriesEs from './locales/es/repositories.json'
 import triageEs from './locales/es/triage.json'
 
@@ -52,9 +58,12 @@ void i18n.use(initReactI18next).init({
       repositories: repositoriesEs,
       issues: issuesEs,
       pentests: pentestsEs,
+      cve: cveEs,
+      prReviews: prReviewsEs,
       admin: adminEs,
       enterprise: enterpriseEs,
       triage: triageEs,
+      llm: llmEs,
       knowledge: knowledgeEs,
       onboarding: onboardingEs,
     },
@@ -67,9 +76,12 @@ void i18n.use(initReactI18next).init({
       repositories: repositoriesEn,
       issues: issuesEn,
       pentests: pentestsEn,
+      cve: cveEn,
+      prReviews: prReviewsEn,
       admin: adminEn,
       enterprise: enterpriseEn,
       triage: triageEn,
+      llm: llmEn,
       knowledge: knowledgeEn,
       onboarding: onboardingEn,
     },
@@ -85,9 +97,12 @@ void i18n.use(initReactI18next).init({
     'repositories',
     'issues',
     'pentests',
+    'cve',
+    'prReviews',
     'admin',
     'enterprise',
     'triage',
+    'llm',
     'knowledge',
     'onboarding',
   ],

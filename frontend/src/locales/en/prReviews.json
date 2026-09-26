@@ -1,0 +1,53 @@
+{
+  "eyebrow": "Pull request security",
+  "title": "PR Reviews",
+  "description": "Every pull request analysed by the engine across your connected repositories, with the findings that blocked the merge.",
+  "metrics": {
+    "audited": "PRs audited",
+    "clean": "Clean PRs",
+    "blocking": "Blocking findings",
+    "issues": "Issues caught"
+  },
+  "filters": {
+    "status": "Scan status",
+    "allStatuses": "All statuses"
+  },
+  "table": {
+    "repository": "Repository",
+    "pullRequest": "Pull request",
+    "author": "Author",
+    "status": "Status",
+    "issues": "Findings",
+    "finishedAt": "Finished",
+    "noIssues": "None",
+    "inProgress": "In progress"
+  },
+  "status": {
+    "PASSED": "Passed",
+    "FAILED": "Failed",
+    "SCANNING": "Scanning",
+    "QUEUED": "Queued",
+    "ERROR": "Error"
+  },
+  "row": {
+    "APPROVED": "Approved",
+    "BLOCKED": "Blocked",
+    "PENDING": "Pending",
+    "ERROR": "Error"
+  },
+  "severity": {
+    "CRITICAL": "Critical",
+    "HIGH": "High"
+  },
+  "actions": {
+    "retry": "Refresh"
+  },
+  "states": {
+    "loading": "Loading the review history",
+    "empty": "No pull requests reviewed yet",
+    "emptyDescription": "Connect a repository and enable PR reviews to start collecting results here.",
+    "noResults": "No pull request matches the status",
+    "error": "The review history could not be loaded",
+    "retry": "Retry"
+  }
+}

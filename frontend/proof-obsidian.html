@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auditoría visual · obsidiana y layout</title>
+    <!--
+      Se enlaza al CSS fuente y no al bundle: el nombre del bundle lleva un hash que
+      cambia en cada build, así que apuntar a él deja esta hoja rota al primer
+      `npm run build`. Servida por Vite desde la raíz del proyecto, lee el fichero
+      real y no hay nada que actualizar.
+    -->
+    <link rel="stylesheet" href="/src/styles/index.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand-lockup sidebar-brand">
+            <div class="brand-mark"><span style="font-size: 11px">MG</span></div>
+            <div>
+              <p class="eyebrow">Mind Guard Fenix Team</p>
+              <p class="brand-caption">Plataforma de seguridad ofensiva continua</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace-selector">
+          <button class="workspace-trigger" type="button">
+            <span class="workspace-trigger-copy">
+              <span class="eyebrow">Workspace</span>
+              <strong>Acme Security</strong>
+            </span>
+            <span aria-hidden="true">&#9662;</span>
+          </button>
+          <!-- Desplegable abierto a propósito: hay que ver que flota, que lleva sombra
+               y que el alta de workspace queda dentro, separada por un hairline. -->
+          <ul class="workspace-menu" role="listbox">
+            <li>
+              <button class="workspace-option workspace-option-selected" type="button">Acme Security</button>
+            </li>
+            <li><button class="workspace-option" type="button">Beta Labs</button></li>
+            <li class="workspace-menu-create">
+              <button class="workspace-option" type="button">+ Crear workspace</button>
+            </li>
+          </ul>
+        </div>
+
+        <nav class="sidebar-navigation">
+          <p class="eyebrow navigation-label">Navegación principal</p>
+          <ul>
+            <li><a class="nav-link nav-link-active" href="#">Dashboard</a></li>
+            <li><a class="nav-link" href="#">Pentests</a></li>
+            <li><a class="nav-link" href="#">Issues</a></li>
+            <li><a class="nav-link" href="#">PR Reviews</a></li>
+            <li>
+              <button class="nav-link locked-nav-link" type="button">
+                Supply Chain <span class="locked-tag">Bloqueado</span>
+              </button>
+            </li>
+            <li><a class="nav-link" href="#">Chat</a></li>
+          </ul>
+          <div class="navigation-divider" role="separator"></div>
+          <p class="eyebrow navigation-label navigation-label-spaced">Activos y configuración</p>
+          <ul>
+            <li><a class="nav-link" href="#">Repositories</a></li>
+            <li><a class="nav-link" href="#">Domains</a></li>
+            <li><a class="nav-link" href="#">Asset Discovery</a></li>
+            <li><a class="nav-link" href="#">Knowledge</a></li>
+            <li><a class="nav-link" href="#">Integrations</a></li>
+            <li><a class="nav-link" href="#">API</a></li>
+            <li><a class="nav-link" href="#">Settings</a></li>
+          </ul>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="user-profile">
+            <div class="avatar">VG</div>
+            <div class="user-copy"><strong>Vector Admin</strong><span>admin@example.com</span></div>
+            <span class="status-dot"></span>
+          </div>
+        </div>
+      </aside>
+
+      <div class="content-shell">
+        <header class="topbar">
+          <div class="topbar-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>Control de seguridad conectado</span>
+          </div>
+          <div class="topbar-actions">
+            <button class="language-switcher" type="button">EN</button>
+            <span class="topbar-workspace">Workspace activo</span>
+            <button class="primary-button" type="button">+ Nuevo pentest</button>
+          </div>
+        </header>
+
+        <main class="main-content">
+          <section class="page-section">
+            <div class="page-header">
+              <div>
+                <p class="eyebrow">Gestor de vulnerabilidades</p>
+                <h1>Issues</h1>
+                <p class="page-description">
+                  Comprobación de layout: sidebar fijo, contenido centrado, conmutador
+                  horizontal y fila de filtros alineada a la base.
+                </p>
+              </div>
+              <div class="page-actions">
+                <div class="segmented" role="group" aria-label="Modo de vista">
+                  <button class="segmented-button" type="button" aria-pressed="true">
+                    <span aria-hidden="true">&#9776;</span><span>Tabla</span>
+                  </button>
+                  <button class="segmented-button" type="button" aria-pressed="false">
+                    <span aria-hidden="true">&#9638;</span><span>Tablero</span>
+                  </button>
+                </div>
+                <button class="secondary-button" type="button">Actualizar</button>
+              </div>
+            </div>
+
+            <div class="filter-bar">
+              <label class="search-field">
+                <span aria-hidden="true">&#9906;</span>
+                <span class="visually-hidden">Buscar</span>
+                <input type="search" placeholder="Título, CWE o archivo afectado" />
+              </label>
+              <div class="filter-field">
+                <label for="f-sev">Severidad</label>
+                <select id="f-sev"><option>Todas</option></select>
+              </div>
+              <div class="filter-field">
+                <label for="f-sta">Estado</label>
+                <select id="f-sta"><option>Todos</option></select>
+              </div>
+              <div class="filter-field">
+                <label for="f-tar">Target</label>
+                <input id="f-tar" type="text" value="" />
+              </div>
+            </div>
+
+            <div class="severity-strip">
+              <button class="severity-pill severity-pill-critical" aria-pressed="true">Crítica 4</button>
+              <button class="severity-pill severity-pill-high">Alta 11</button>
+              <button class="severity-pill severity-pill-medium">Media 27</button>
+              <button class="severity-pill severity-pill-low">Baja 63</button>
+              <button class="severity-pill severity-pill-info">Info 8</button>
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Hallazgo</th>
+                    <th scope="col">Severidad</th>
+                    <th scope="col">CVSS</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Target</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row"><span class="link-button">Inyección SQL en el login</span></th>
+                    <td><span class="badge badge-status-critical">Crítica</span></td>
+                    <td class="mono">9.80</td>
+                    <td><span class="badge badge-status-open">Abierto</span></td>
+                    <td class="mono">api.example.com</td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><span class="link-button">CORS permisivo</span></th>
+                    <td><span class="badge badge-status-high">Alta</span></td>
+                    <td class="mono">7.60</td>
+                    <td><span class="badge badge-status-snoozed">Aplazado</span></td>
+                    <td class="mono">app.example.com</td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><span class="link-button">Headers de versión</span></th>
+                    <td><span class="badge badge-status-low">Baja</span></td>
+                    <td class="mono">3.30</td>
+                    <td><span class="badge badge-status-fixed">Corregido</span></td>
+                    <td class="mono">cdn.example.com</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Fila de control del inventario, extraida del modal de conectar
+                 repositorio: pestañas de proveedor a la izquierda y recarga a la
+                 derecha, en la misma linea. -->
+            <div class="modal" style="max-width: 720px">
+              <section class="modal-section">
+                <h3 class="modal-section-title">2. Elige un repositorio</h3>
+                <p class="modal-section-caption">
+                  Inventario de repositorios accesibles con la cuenta conectada.
+                </p>
+                <div class="inventory-controls">
+                  <div class="provider-switch" role="group">
+                    <button class="provider-option provider-option-active" type="button" aria-pressed="true">
+                      <span class="mono">GitHub</span>
+                    </button>
+                    <button class="provider-option" type="button" aria-pressed="false">
+                      <span class="mono">GitLab</span>
+                    </button>
+                  </div>
+                  <button class="secondary-button" type="button">
+                    <span aria-hidden="true">&#8635;</span><span>Recargar</span>
+                  </button>
+                </div>
+                <ul class="remote-list">
+                  <li class="remote-item">
+                    <div class="remote-copy">
+                      <strong>acme/payments-service</strong>
+                      <span class="remote-meta">main · privado</span>
+                    </div>
+                    <button class="primary-button" type="button">Conectar</button>
+                  </li>
+                </ul>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

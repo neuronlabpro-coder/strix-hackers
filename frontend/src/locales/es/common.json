@@ -33,5 +33,16 @@
     "never": "Nunca",
     "unknown": "Desconocido",
     "noData": "Sin datos"
+  },
+  "pending": {
+    "chat": "Requiere el modelo de conversaciones y el agente conversacional del servidor MCP. La pantalla se construyó en Strix con datos que esta plataforma todavía no produce, y un formulario de chat sin agente detrás sería una caja vacía.",
+    "domains": "Requiere el modelo de dominios con verificación de propiedad por DNS TXT o archivo HTTP. Sin esa verificación no se puede escanear nada desde fuera, así que la tabla se implementará junto al endpoint, no antes.",
+    "assetDiscovery": "Requiere el modelo de descubrimientos y su cuota diaria. El descubrimiento se apoya en los dominios verificados, de modo que no puede existir antes que ellos.",
+    "supplyChain": "Requiere que Strix exponga el SBOM de dependencias. Hoy el motor no lo publica, así que no hay nada que mostrar aunque el plan lo cubra.",
+    "containers": "Requiere el inventario de contenedores y su acceso al runtime del host, que todavía no está implementado.",
+    "networks": "Requiere el escáner de red y el modelo de subdominios. Ambas cosas llegan con la Fase 6.",
+    "integrations": "Requiere el almacenamiento de conexiones MCP y los flujos OAuth de Jira y Linear, que son la Tarea 3.4 de la Fase 5.",
+    "apiAccess": "Requiere la matriz de 46 scopes y el almacenamiento con hash de los tokens, que es la Tarea 3.4 de la Fase 5. Crear el formulario ahora dejaría un botón que no guarda nada.",
+    "settings": "Requiere los endpoints de renombrado y borrado de organización, que aún no existen. La vista se construirá completa cuando pueda confirmar esas operaciones."
   }
 }

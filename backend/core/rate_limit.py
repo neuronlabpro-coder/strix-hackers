@@ -292,6 +292,46 @@ async def enforce_pentest_rate_limit(
     )
 
 
+async def enforce_checkout_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita la creaci\u00f3n de sesiones de pago por organizaci\u00f3n.
+
+    El l\u00edmite es por tenant y no por usuario porque el coste real de una sesi\u00f3n
+    de Checkout es cero para nosotros: el l\u00edmite protege a Stripe de una r\u00e1faga
+    desde una cuenta comprometida, no a la plataforma de un abuso interno.
+    """
+
+    await _apply_rate_limit(
+        client,
+        "checkout-session",
+        str(tenant.organization.id),
+        settings.checkout_rate_limit,
+        settings.checkout_rate_window_seconds,
+    )
+
+
+async def enforce_cve_query_rate_limit(
+    _user: CurrentUserDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita las consultas al catalogo CVE por usuario.
+
+    El catalogo es publico y compartido, asi que el limite es por usuario y no
+    por organizacion: dos personas de la misma empresa consultando a la vez son
+    uso legitimo, mientras que un bucle de scraping salta siempre a uno solo.
+    """
+
+    await _apply_rate_limit(
+        client,
+        "cve-query",
+        str(_user.id),
+        settings.cve_query_rate_limit,
+        settings.cve_query_rate_window_seconds,
+    )
+
+
 async def enforce_invitation_rate_limit(
     tenant: TenantDependency,
     client: RedisDependency,

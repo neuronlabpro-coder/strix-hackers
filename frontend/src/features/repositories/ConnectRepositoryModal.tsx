@@ -223,28 +223,19 @@ export function ConnectRepositoryModal({
         </section>
 
         <section className="modal-section">
-          <div className="modal-section-header">
-            <div>
-              <h3 className="modal-section-title">{t('modal.inventoryTitle')}</h3>
-              <p className="modal-section-caption">{t('modal.inventoryDescription')}</p>
-            </div>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => loadInventory(provider)}
-              disabled={isLoadingInventory}
-            >
-              {isLoadingInventory ? (
-                <LoaderCircle size={16} className="spin" aria-hidden="true" />
-              ) : (
-                <RefreshCw size={16} aria-hidden="true" />
-              )}
-              <span>{t('modal.reload')}</span>
-            </button>
+          <div>
+            <h3 className="modal-section-title">{t('modal.inventoryTitle')}</h3>
+            <p className="modal-section-caption">{t('modal.inventoryDescription')}</p>
           </div>
 
-          <div className="provider-switch" role="group" aria-label={t('modal.selectProvider')}>
-            {PROVIDER_OPTIONS.map((option) => (
+          {/*
+            Pestañas de proveedor y recarga en una sola fila. Se usan juntas —cambiar de
+            GitHub a GitLab obliga a recargar la lista—, y separadas obligaban a saltar
+            la vista de un control al otro para ejecutar un gesto único.
+          */}
+          <div className="inventory-controls">
+            <div className="provider-switch" role="group" aria-label={t('modal.selectProvider')}>
+              {PROVIDER_OPTIONS.map((option) => (
               <button
                 key={option.provider}
                 className={
@@ -259,6 +250,20 @@ export function ConnectRepositoryModal({
                 <span className="mono">{providerName(option.provider)}</span>
               </button>
             ))}
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => loadInventory(provider)}
+              disabled={isLoadingInventory}
+            >
+              {isLoadingInventory ? (
+                <LoaderCircle size={16} className="spin" aria-hidden="true" />
+              ) : (
+                <RefreshCw size={16} aria-hidden="true" />
+              )}
+              <span>{t('modal.reload')}</span>
+            </button>
           </div>
 
           {notice ? (

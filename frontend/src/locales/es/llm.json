@@ -1,0 +1,72 @@
+{
+  "nav": "Modelos de LLM",
+  "title": "Orquestador de modelos",
+  "eyebrow": "Margen y fallbacks",
+  "description": "Catálogo de modelos de OpenRouter con su coste base, el margen comercial aplicado y la cadena de fallback que usa el motor.",
+  "table": {
+    "model": "Modelo",
+    "cost": "Coste base por 1M",
+    "margin": "Margen",
+    "price": "Precio al cliente",
+    "priority": "Orden",
+    "useCase": "Caso de uso",
+    "usage": "Consumo",
+    "status": "Estado"
+  },
+  "useCase": {
+    "ALL": "Todos los casos",
+    "QUICK_SCAN": "Escaneo rápido",
+    "DEEP_PENTEST": "Pentest profundo",
+    "AUTOFIX": "Autofix"
+  },
+  "priorityLabel": {
+    "1": "Primario",
+    "2": "Fallback 1",
+    "3": "Fallback 2"
+  },
+  "columns": {
+    "input": "entrada",
+    "output": "salida"
+  },
+  "metrics": {
+    "title": "Consumo agregado",
+    "runs": "Llamadas",
+    "tokens": "Tokens",
+    "cost": "Coste base",
+    "profit": "Beneficio neto",
+    "marginEffective": "Margen efectivo",
+    "noUsage": "Sin consumo registrado"
+  },
+  "form": {
+    "title": "Añadir modelo",
+    "modelId": "Identificador de OpenRouter",
+    "modelIdHint": "Formato `proveedor/modelo`, por ejemplo `anthropic/claude-3.5-sonnet`.",
+    "displayName": "Nombre visible",
+    "costInput": "Coste de entrada por 1M",
+    "costOutput": "Coste de salida por 1M",
+    "margin": "Margen comercial",
+    "marginHint": "Recargo sobre el coste base. Un margen de 150 significa que el cliente paga 2,5 veces el coste.",
+    "priority": "Orden de prioridad",
+    "priorityHint": "1 es el primario; los siguientes son fallbacks en caso de fallo transitorio.",
+    "useCase": "Caso de uso",
+    "submit": "Añadir al catálogo",
+    "submitting": "Guardando",
+    "close": "Cancelar",
+    "error": "No se pudo añadir el modelo",
+    "success": "Modelo añadido al catálogo"
+  },
+  "actions": {
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "save": "Guardar margen"
+  },
+  "states": {
+    "loading": "Cargando catálogo",
+    "error": "No se pudo cargar el catálogo de modelos",
+    "retry": "Reintentar"
+  },
+  "hints": {
+    "fallback": "Un modelo apagado sale de la cadena de fallback sin perder su historial de consumo.",
+    "immutableId": "El identificador del modelo no se puede cambiar: el historial de consumo lo cita."
+  }
+}

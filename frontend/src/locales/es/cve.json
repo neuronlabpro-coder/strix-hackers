@@ -1,0 +1,61 @@
+{
+  "title": "Base de datos CVE",
+  "eyebrow": "Catálogo de referencia",
+  "description": "Vulnerabilidades públicas conocidas con su CVSS, su probabilidad de explotación EPSS y el catálogo KEV de CISA. Úsala para medir el impacto real de un hallazgo antes de decidir su prioridad.",
+  "search": {
+    "label": "Buscar por ID de CVE o palabra clave",
+    "placeholder": "Buscar por ID de CVE o palabra clave...",
+    "submit": "Buscar",
+    "clear": "Limpiar filtros",
+    "severity": "Severidad",
+    "allSeverities": "Todas las severidades",
+    "kevOnly": "Solo KEV",
+    "kevOnlyHint": "Únicamente vulnerabilidades con explotación activa confirmada",
+    "resultsOne": "{{count}} vulnerabilidad",
+    "resultsOther": "{{count}} vulnerabilidades",
+    "filtered": "{{count}} coinciden con los filtros",
+    "noResults": "Ninguna vulnerabilidad coincide con los filtros",
+    "noResultsDescription": "Prueba con una palabra más corta, otra severidad o quita el filtro KEV."
+  },
+  "table": {
+    "cveId": "ID CVE",
+    "severity": "Severidad",
+    "cvss": "CVSS",
+    "epss": "EPSS",
+    "published": "Publicado",
+    "description": "Descripción"
+  },
+  "sidebar": {
+    "browseByYear": "Explorar por año",
+    "allYears": "Todos los años",
+    "kevTitle": "Vulnerabilidades explotadas conocidas",
+    "kevDescription": "Catalogadas por CISA porque su explotación está confirmada en producción.",
+    "kevEmpty": "Sin explotación activa registrada",
+    "promoTitle": "Comprueba si eres vulnerable",
+    "promoDescription": "Escanea tu código y obtén cada problema de dependencias y configuración mapeado a su CVE.",
+    "promoAction": "Escanea tu código ahora"
+  },
+  "detail": {
+    "cvss": "Puntuación CVSS",
+    "epss": "Probabilidad EPSS",
+    "epssUnknown": "No publicada",
+    "kevBadge": "KEV",
+    "kevTitle": "Explotación activa confirmada",
+    "published": "Publicado",
+    "notKev": "No figura en el catálogo KEV de CISA",
+    "back": "Volver a la búsqueda",
+    "notFound": "Esa CVE no existe en el catálogo",
+    "notFoundDescription": "Revisa el identificador o ejecuta la sincronización del catálogo para traer las últimas entradas."
+  },
+  "severity": {
+    "CRITICAL": "Crítica",
+    "HIGH": "Alta",
+    "MEDIUM": "Media",
+    "LOW": "Baja"
+  },
+  "states": {
+    "loading": "Cargando el catálogo",
+    "error": "No se pudo cargar el catálogo",
+    "retry": "Reintentar"
+  }
+}

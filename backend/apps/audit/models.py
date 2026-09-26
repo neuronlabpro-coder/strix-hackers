@@ -21,6 +21,11 @@ class AuditActionEnum(StrEnum):
     REPOSITORY_POLICY_UPDATED = "REPOSITORY_POLICY_UPDATED"
     REPOSITORY_CONNECTED = "REPOSITORY_CONNECTED"
     REPOSITORY_DISCONNECTED = "REPOSITORY_DISCONNECTED"
+    # La baja lógica de un tenant. Es la entrada que justifica por qué el rastro
+    # financiero de esa organización sigue existiendo años después de que dejó de
+    # operar: el asiento se escribe antes de revocar los accesos, y por eso tiene que
+    # poder emitirse aunque la revocación falle a mitad.
+    ORGANIZATION_DELETED = "ORGANIZATION_DELETED"
 
 
 class AuditLogEntry(Base):
@@ -41,7 +46,10 @@ class AuditLogEntry(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id", ondelete="CASCADE"),
+        # RESTRICT por el mismo motivo que `credit_ledger`: el rastro forense no
+        # desaparece con la organización que lo originó. El tenant se da de baja
+        # lógicamente y su auditoría se conserva.
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )

@@ -87,20 +87,25 @@ export function IssuesPage() {
         {SEVERITIES.map((severity) => (
           <button
             key={severity}
-            className="severity-chip"
+            className={`severity-pill severity-pill-${severity.toLowerCase()}`}
             type="button"
             aria-pressed={query.severity === severity}
             onClick={() =>
               setQuery({ ...query, severity: query.severity === severity ? null : severity })
             }
           >
-            <span className={`severity-swatch ${SEVERITY_CLASS[severity]}`} aria-hidden="true" />
             <span>{t(`severityCounts.${severity}`)}</span>
             <span>{severityTotals[severity]}</span>
           </button>
         ))}
       </div>
 
+      {/*
+        `align-items: flex-end` vive en la clase, no aquí. Los tres desplegables llevan
+        etiqueta encima y el buscador no, así que alinear por arriba dejaba el buscador
+        20 px más alto que sus vecinos: alineando los fondos, la fila de campos queda
+        recta y las etiquetas conservan su separación respecto a su campo.
+      */}
       <div className="filter-bar">
         <label className="search-field">
           <Search size={16} aria-hidden="true" />

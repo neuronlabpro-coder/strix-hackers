@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import unquote, urlsplit, urlunsplit
@@ -120,6 +121,27 @@ class Settings(BaseSettings):
     default_strix_llm: str = Field(min_length=1)
     llm_api_key: SecretStr = Field(min_length=1, repr=False)
     llm_api_base: str = ""
+    # R1: ni el margen, ni la conversión a créditos, ni el precio de un escaneo
+    # viven en el código de las rutas. Son política comercial y cambian por
+    # acuerdo comercial, no por despliegue de software.
+    # 1 crédito = 1,00 USD de precio al cliente (ya con markup aplicado).
+    credits_per_usd: Decimal = Field(default=Decimal("1.00"), gt=0, le=1000)
+    scan_credit_cost: Decimal = Field(default=Decimal("10"), gt=0, le=10000)
+    quick_scan_credit_multiplier: Decimal = Field(default=Decimal("0.5"), gt=0, le=1)
+    stripe_secret_key: SecretStr | None = Field(default=None, repr=False)
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: SecretStr | None = Field(default=None, repr=False)
+    checkout_rate_limit: int = Field(default=10, ge=1, le=100)
+    checkout_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    cve_query_rate_limit: int = Field(default=120, ge=1, le=1000)
+    cve_query_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    cve_sync_interval_hours: int = Field(default=12, ge=1, le=168)
+    cve_sync_http_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    cve_kev_feed_url: str = Field(default="https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json", min_length=1)  # noqa: E501
+    cve_nvd_feed_url: str = Field(
+        default="https://cve.circl.lu/api/last",
+        min_length=1,
+    )
     email_verification_ttl_minutes: int = Field(gt=0, le=10080)
     email_verification_delivery_mode: Literal["development", "smtp"]
     email_verification_from: EmailStr
@@ -220,7 +242,7 @@ class Settings(BaseSettings):
         if self.pr_scan_soft_timeout_seconds >= self.pr_scan_hard_timeout_seconds:
             raise ValueError("El timeout suave del scan PR debe ser menor que el duro")
         if not self.git_allowed_clone_hosts:
-            raise ValueError("GIT_ALLOWED_CLONE_HOSTS debe contener al menos un host")
+            raise ValueError("GIT_ALLOWED_CLONE_HOSTS_CSV debe contener al menos un host")
         subscription_events = [
             event.strip()
             for event in self.git_webhook_subscription_events.split(",")
@@ -258,6 +280,26 @@ class Settings(BaseSettings):
 
         if self.email_verification_delivery_mode == "smtp" and not self.smtp_host:
             raise ValueError("SMTP_HOST es obligatorio cuando el modo de email es smtp")
+
+        # Stripe se valida de forma suave en local: la plataforma debe arrancar
+        # sin credenciales de cobro para que un desarrollador pueda trabajar. En
+        # staging y producción, el webhook sin secreto sería un endpoint de
+        # recarga abierto a cualquiera que adivine el formato del evento.
+        stripe_secret_configured = self.stripe_secret_key is not None and bool(
+            self.stripe_secret_key.get_secret_value()
+        )
+        stripe_webhook_configured = self.stripe_webhook_secret is not None and bool(
+            self.stripe_webhook_secret.get_secret_value()
+        )
+        if self.environment in {"staging", "production"}:
+            if not stripe_secret_configured:
+                raise ValueError("Producción y staging requieren STRIPE_SECRET_KEY")
+            if not stripe_webhook_configured:
+                raise ValueError("Producción y staging requieren STRIPE_WEBHOOK_SECRET")
+            if self.stripe_publishable_key and not self.stripe_publishable_key.startswith("pk_"):
+                raise ValueError("STRIPE_PUBLISHABLE_KEY debe empezar por pk_")
+        if self.quick_scan_credit_multiplier > 1:
+            raise ValueError("El multiplicador de escaneo rápido no puede superar 1")
 
         if self.environment in {"staging", "production"}:
             if self.email_verification_delivery_mode != "smtp":

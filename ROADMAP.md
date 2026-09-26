@@ -204,13 +204,54 @@
 **Pantallas de MENU-MAP.md que cubre:** §8.4 (Conexiones MCP), §9 (Tokens de API, Webhooks salientes y visor MCP) y §10.3 (Panel de Facturación, Créditos y métodos de pago).
 
 **Definición de Hecho (DoD):**
-- [ ] Webhooks de Stripe probados localmente con Stripe CLI (`checkout.session.completed`, `invoice.paid`); saldo de créditos acreditado con precisión matemática.
-- [ ] La tabla `credit_ledger` rechaza a nivel de base de datos cualquier intento de `UPDATE` o `DELETE` (R4 verificado).
-- [ ] Al iniciar un pentest profundo, el backend descuenta los créditos correspondientes; si el saldo es insuficiente, la acción se bloquea con mensaje informativo.
-- [ ] Creación de API Tokens operativa: los 46 permisos limitan estrictamente las operaciones permitidas por el llamador.
+- [~] Webhooks de Stripe ejecutados contra la API real con Stripe CLI. *Bloque 5.3: `stripe listen` reenvía eventos reales al backend local y la firma se verifica con el `whsec_` que genera el CLI; `POST /api/v1/billing/checkout-session` publica una sesión real en modo test (`cs_test_...`, 1900 cents, `metadata.organization_id` presente). Ejecutar la llamada real destapó un bug que ningún doble podía ver: `create_checkout_session` pasaba argumentos con nombre y la firma real de `stripe` 15.x es un único dict posicional, así que no podía crear ni una sesión; queda corregido y con prueba de contrato del SDK. Falta completar el pago para ver `checkout.session.completed` con `payment_status: paid` y acreditar créditos de verdad.*
+- [x] La tabla `credit_ledger` rechaza a nivel de base de datos cualquier intento de `UPDATE` o `DELETE` (R4 verificado). *Trigger `trg_protect_credit_ledger_append_only` `FOR EACH STATEMENT` sobre `UPDATE OR DELETE OR TRUNCATE`, con prueba que bloquea las tres vías y comprueba que la fila sobrevive. `organizations.credit_balance` pasó de `float` a `numeric(18,4)`: un saldo con coma flotante deriva de centavo.*
+- [ ] Al iniciar un pentest profundo, el backend descuenta los créditos correspondientes; si el saldo es insuficiente, la acción se bloquea con mensaje informativo. *Bloque 5.1: el descuento ocurre antes del encolado y un saldo insuficiente devuelve `402` con el coste y el disponible. Falta la ejecución contra la cola de Celery real y la calibración del precio por escaneo frente al consumo real de tokens.*
+- [~] Creación de API Tokens operativa: los 46 permisos limitan estrictamente las operaciones permitidas por el llamador.
 - [ ] Webhooks salientes entregan payloads firmados y manejan caídas del receptor con reintentos.
 - [ ] Un cliente MCP externo (ej. Cursor o `fastmcp client`) conecta a `/mcp`, se autentica y ejecuta herramientas de pentesting con éxito.
-- [ ] **Test de aislamiento en facturación y API:** Una clave de API de la Organización A no puede ser utilizada para ejecutar acciones o consultar saldo de la Organización B.
+- [~] **Test de aislamiento en facturación y API:** Una clave de API de la Organización A no puede ser utilizada para ejecutar acciones o consultar saldo de la Organización B.
+
+> **Nota de estado (2026-09-26):** la Fase 5 está activa. El **Bloque 5.1** entrega el orquestador dinámico de LLMs (`backend/apps/llm_router/`) con catálogo versionable, cadena de resolución por prioridad y caso de uso, clasificación de fallos transitorios para el fallback y una calculadora de margen pura y auditable; el ledger de créditos con saldo atómico bajo bloqueo pesimista y rechazo `402`; el scaffolding de Stripe con checkout, webhook firmado e idempotencia por evento; y la consola de SuperAdmin en `/admin/llm`.
+>
+> El **Bloque 5.2** cierra el cableado que el 5.1 dejó pendiente. `profit_margin_pct` pasa a llamarse `markup_pct` porque es un recargo sobre coste y no un margen sobre precio: con la definición habitual de margen, un 150 % sería imposible. Se amplía `/admin/llm` con alta de cualquier slug, toggle y prioridad. El worker de Strix resuelve ahora la cadena de modelos según el `use_case` del modo de escaneo e inyecta el slug elegido en el contenedor en lugar de `DEFAULT_STRIX_LLM`, con reintento encadenado cuando un fallo mejora cambiando de modelo. Tras el run se extrae el consumo de tokens del reporte, se tarifica con `compute_charge` y se ajusta la diferencia contra la reserva en el `credit_ledger`. Por último, `backend/apps/cve_database/` publica el catálogo CVE de referencia con `/cve` en el panel: búsqueda por identificador, palabra clave, severidad, año y KEV; navegación por años; lista de explotación activa de CISA; y sincronización periódica Celery beat desde los feeds oficiales.
+>
+> **Catálogo de modelos (decisión del Owner, migración `d5e6f7a8b9c0`).** Ocho modelos con `z-ai/glm-5.3` como primario de prioridad 1, inyectado al contenedor como `STRIX_LLM` en las cuatro cadenas (`ALL`, `DEEP_PENTEST`, `QUICK_SCAN`, `AUTOFIX`). Los seis modelos del catálogo anterior quedan desactivados, conservando su historial de consumo. Tres decisiones que conviene tener presentes: el cambio es una migración nueva y no una edición de la anterior, porque `b3c4d5e6f7a8` ya estaba aplicada en la base remota; `z-ai/glm-5.3` se declara `use_case = ALL` porque `model_id` es único y esa es la única forma de que sea primario de todas sin duplicar la fila; y los precios base son los que fijó el Owner, sin verificar contra la carta de precios de OpenRouter, así que el margen se audita contra los números que se déclararon.
+>
+> **Consecuencia a revisar:** con `z-ai/glm-5.3` en prioridad 1 y transversal, `deepseek/deepseek-v4.1-flash` ($0,15) queda en prioridad 8 y por tanto nunca es primario de nada: los escaneos rápidos empiezan por un modelo de $0,40 y solo llegarían al flash como último recurso. Si la intención era que el rápido use el modelo barato, hay que subir el flash por encima del 1 o declarar el primario con caso de uso `QUICK_SCAN`. Está anotado y es una decisión de producto, no un defecto.
+>
+> Quedan abiertos y anotados: la equivalencia entre créditos y dólares (`CREDITS_PER_USD = 1`) implica que un pentest de 500 k tokens cuesta bastante menos al cliente que los 10 créditos que se le cobran, algo que conviene recalibrar cuando se sepa cuántas llamadas hace un pentest real; el refund solo cubre el fallo de encolado y no el escaneo que falla *después* de arrancar el contenedor; y el token de consumo de Strix solo se recoge si el reporte lo publica, porque el formato de `results.json` no lo incluye hoy y el sistema de telemetría no lo inventa.
+
+> **Bloque 5.3 · Alineación de navegación con Strix.** La barra lateral pasa a dos
+> bloques con separador visual: principal (Dashboard, Pentests, Issues, PR Reviews,
+> Supply Chain, Containers, Chat) y de activos y configuración (Repositories, Domains,
+> Asset Discovery, Networks, Knowledge, Integrations, API, Settings). El candado
+> Enterprise se levanta con `plan_tier === ENTERPRISE` **o** `is_superuser`, y el
+> superusuario además accede por URL sin pasar por el modal de venta. El pie mantiene
+> los enlaces a la consola SuperAdmin y a los modelos de LLM solo para superusuarios.
+> `GET /api/v1/pr-reviews/` y `GET /api/v1/pr-reviews/metrics` sustituyen al
+> placeholder de `/pr-reviews`, con aislamiento multi-tenant verificado.
+>
+> **Vistas del §4 que siguen sin construir, y por qué.** Las rutas existen y navigation
+> las enlaza, pero cada una muestra un placeholder que *nombra el bloqueo real* en
+> lugar del genérico «disponible en una fase posterior»:
+>
+> | Ruta | Bloqueo |
+> | :--- | :--- |
+> | `/domains`, `/asset-discovery` | Modelo de dominios con verificación de propiedad. El descubrimiento se apoya en dominios verificados, así que no puede existir antes. |
+> | `/chat` | Modelo de conversaciones y agente conversacional del servidor MCP. |
+> | `/integrations`, `/api-access` | Tarea 3.4 de la Fase 5: matriz de 46 scopes, hash de tokens y almacenamiento de conexiones MCP. |
+> | `/supply-chain` | Strix aún no expone el SBOM de dependencias. |
+> | `/containers`, `/networks` | Inventario de contenedores y escáner de red; llegan con la Fase 6. |
+> | `/settings` | Faltan los endpoints de renombrado y borrado de organización. |
+>
+> Ninguna se implementó como maqueta con datos falsos: un formulario de token que no
+> guarda nada, o un chat sin agente detrás, se ven terminados hasta que alguien los usa
+> en producción.
+>
+> **`/cve` ha quedado fuera de la barra lateral.** El listado de 15 entradas del Owner no
+> lo incluye, así que se respetó el orden exacto pedido. La ruta y la vista siguen
+> operativos por URL; falta decidir en qué bloque encaja.
 
 ---
 

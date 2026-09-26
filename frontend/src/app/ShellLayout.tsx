@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Sidebar } from '../components/Sidebar'
 import { useAuth } from '../features/auth/useAuth'
 
@@ -33,6 +34,13 @@ export function ShellLayout() {
             <span>{t('headerStatus')}</span>
           </div>
           <div className="topbar-actions">
+            {/*
+              El conmutador de idioma vive arriba y no junto al logo. En la cabecera del
+              sidebar competía con el nombre del producto por el mismo corner, y en
+              pantallas estrechas el bloque de marca se comía el ancho que necesita el
+              selector de workspace, que es un control con función y no un ajuste.
+            */}
+            <LanguageSwitcher />
             <span className="topbar-workspace">{t('workspaceReady')}</span>
             <button className="primary-button" type="button" onClick={() => navigate('/pentests')}>
               <Plus size={17} aria-hidden="true" />

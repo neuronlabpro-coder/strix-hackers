@@ -58,6 +58,7 @@ class StrixSandboxManager:
         client: DockerClient | None = None,
         workspace_root: Path | str | None = None,
         image: str | None = None,
+        llm_model: str | None = None,
     ) -> None:
         self.run_id = str(UUID(str(run_id)))
         self.target = target
@@ -66,6 +67,13 @@ class StrixSandboxManager:
         )
         self.included_files = included_files or []
         self.scan_mode = scan_mode.lower()
+        if llm_model is not None and not llm_model.strip():
+            raise ValueError("El slug del modelo de LLM no puede estar vacío")
+        # El modelo llega resuelto por el orquestador. Si no hay ninguno (catálogo
+        # vacío o fallo de resolución), se recurre al `DEFAULT_STRIX_LLM`: es
+        # preferible un modelo con tarificación desconocida a no ejecutar el
+        # escaneo, y el worker deja constancia del slug usado.
+        self.llm_model = (llm_model or settings.default_strix_llm).strip()
         self.client = client if client is not None else create_docker_client()
         self.workspace_root = Path(workspace_root or settings.strix_workspace_root)
         self.image = image or settings.strix_sandbox_image
@@ -116,9 +124,16 @@ class StrixSandboxManager:
                 logger.exception("No se pudo matar el contenedor tras el timeout")
         raise SandboxTimeoutError("Strix superó el timeout de ejecución")
 
-    def _container_environment(self) -> dict[str, str]:
+    def container_environment(self) -> dict[str, str]:
+        """Variables de entorno con las que arranca el contenedor efímero.
+
+        Es parte del contrato del sandbox, no un detalle interno: el modelo que
+        inyecta el orquestador y la clave que consume Strix se deciden aquí, y las
+        pruebas necesitan poder comprobarlo sin levantar un contenedor.
+        """
+
         environment = {
-            "STRIX_LLM": settings.default_strix_llm,
+            "STRIX_LLM": self.llm_model,
             "LLM_API_KEY": settings.llm_api_key.get_secret_value(),
             "LLM_API_BASE": settings.llm_api_base,
             "STRIX_NON_INTERACTIVE": "1",
@@ -235,7 +250,7 @@ class StrixSandboxManager:
             self.container = self.client.containers.run(
                 image=self.image,
                 command=command,
-                environment=self._container_environment(),
+                environment=self.container_environment(),
                 volumes=volumes,
                 mem_limit=settings.strix_memory_limit,
                 memswap_limit=settings.strix_memory_limit,

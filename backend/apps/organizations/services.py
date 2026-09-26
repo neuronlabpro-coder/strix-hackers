@@ -220,7 +220,14 @@ async def list_organizations_for_user(
     session: AsyncSession,
     user_id: uuid.UUID,
 ) -> list[tuple[Organization, RoleEnum]]:
-    """Lista únicamente organizaciones con membresía activa del usuario."""
+    """Lista únicamente organizaciones con membresía activa del usuario.
+
+    Filtra además por `deleted_at IS NULL`. La baja lógica desactiva las membresías,
+    así que el filtro de `Membership.is_active` ya lo excluye en la práctica; el
+    `deleted_at` se comprueba igualmente porque es la condición que **declara** el
+    estado del tenant, y depender de un efecto secundario para que un workspace
+    desapareciera sería confiar en que nada reintroduce la fila.
+    """
 
     result = await session.execute(
         select(Organization, Membership.role)
@@ -228,6 +235,8 @@ async def list_organizations_for_user(
         .where(
             Membership.user_id == user_id,
             Membership.is_active.is_(True),
+            Organization.deleted_at.is_(None),
+            Organization.is_active.is_(True),
         )
         .order_by(Organization.created_at.asc())
     )

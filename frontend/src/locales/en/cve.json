@@ -1,0 +1,61 @@
+{
+  "title": "CVE Database",
+  "eyebrow": "Reference catalog",
+  "description": "Publicly known vulnerabilities with CVSS, EPSS probability of exploitation and the CISA KEV catalog. Use it to judge the real impact of a finding before triaging it.",
+  "search": {
+    "label": "Search by CVE ID or keyword",
+    "placeholder": "Search by CVE ID or keyword...",
+    "submit": "Search",
+    "clear": "Clear filters",
+    "severity": "Severity",
+    "allSeverities": "All severities",
+    "kevOnly": "KEV only",
+    "kevOnlyHint": "Only vulnerabilities with confirmed active exploitation",
+    "resultsOne": "{{count}} vulnerability",
+    "resultsOther": "{{count}} vulnerabilities",
+    "filtered": "{{count}} matching the filters",
+    "noResults": "No vulnerability matches the filters",
+    "noResultsDescription": "Try a shorter keyword, another severity or clear the KEV filter."
+  },
+  "table": {
+    "cveId": "CVE ID",
+    "severity": "Severity",
+    "cvss": "CVSS",
+    "epss": "EPSS",
+    "published": "Published",
+    "description": "Description"
+  },
+  "sidebar": {
+    "browseByYear": "Browse by year",
+    "allYears": "All years",
+    "kevTitle": "Known exploited vulnerabilities",
+    "kevDescription": "Catalogued by CISA because exploitation is confirmed in the wild.",
+    "kevEmpty": "No active exploitation on record",
+    "promoTitle": "Check if you're vulnerable",
+    "promoDescription": "Scan your code and get every dependency and configuration issue mapped to its CVE.",
+    "promoAction": "Scan your code now"
+  },
+  "detail": {
+    "cvss": "CVSS score",
+    "epss": "EPSS probability",
+    "epssUnknown": "Not published",
+    "kevBadge": "KEV",
+    "kevTitle": "Confirmed active exploitation",
+    "published": "Published",
+    "notKev": "Not in the CISA KEV catalog",
+    "back": "Back to the search",
+    "notFound": "That CVE does not exist in the catalog",
+    "notFoundDescription": "Check the identifier, or run the catalog synchronization to pull the latest entries."
+  },
+  "severity": {
+    "CRITICAL": "Critical",
+    "HIGH": "High",
+    "MEDIUM": "Medium",
+    "LOW": "Low"
+  },
+  "states": {
+    "loading": "Loading the catalog",
+    "error": "The catalog could not be loaded",
+    "retry": "Retry"
+  }
+}

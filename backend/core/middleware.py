@@ -117,6 +117,13 @@ async def get_current_tenant(
             Membership.user_id == user.id,
             Membership.is_active.is_(True),
             User.is_active.is_(True),
+            # Un tenant dado de baja lógicamente no resuelve contexto. La baja
+            # desactiva las membresías, así que esta condición es normalmente
+            # redundante; se declara igualmente porque es la que define el estado del
+            # workspace, y un tenant desactivado a mano sin pasar por la baja debe
+            # seguir siendo inaccesible.
+            Organization.is_active.is_(True),
+            Organization.deleted_at.is_(None),
         )
     )
     row = result.one_or_none()

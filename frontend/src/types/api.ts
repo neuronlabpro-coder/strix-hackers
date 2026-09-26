@@ -148,6 +148,59 @@ export interface PentestCreatePayload {
 
 export type PlanTierAdmin = 'FREE' | 'PRO' | 'ENTERPRISE'
 
+export type LLMUseCase = 'ALL' | 'QUICK_SCAN' | 'DEEP_PENTEST' | 'AUTOFIX'
+
+export interface LLMUsageMetrics {
+  runs: number
+  prompt_tokens: number
+  completion_tokens: number
+  base_cost_usd: string
+  net_profit_usd: string
+}
+
+export interface LLMModelConfig {
+  id: string
+  model_id: string
+  display_name: string
+  base_cost_input_m: string
+  base_cost_output_m: string
+  markup_pct: string
+  priority_order: number
+  is_active: boolean
+  use_case: LLMUseCase
+  created_at: string
+  updated_at: string
+  usage: LLMUsageMetrics
+}
+
+export interface LLMModelPage {
+  items: LLMModelConfig[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface LLMModelCreatePayload {
+  model_id: string
+  display_name: string
+  base_cost_input_m: string
+  base_cost_output_m: string
+  markup_pct: string
+  priority_order: number
+  is_active: boolean
+  use_case: LLMUseCase
+}
+
+export interface LLMModelUpdatePayload {
+  display_name?: string
+  base_cost_input_m?: string
+  base_cost_output_m?: string
+  markup_pct?: string
+  priority_order?: number
+  is_active?: boolean
+  use_case?: LLMUseCase
+}
+
 export interface TriageResponse {
   id: string
   status: IssueStatus
@@ -155,8 +208,41 @@ export interface TriageResponse {
   changed: boolean
 }
 
-export type AuditAction = 'STATUS_CHANGED' | 'REPOSITORY_POLICY_UPDATED' | 'REPOSITORY_CONNECTED' | 'REPOSITORY_DISCONNECTED'
+export type CVESeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
+export interface CVESummary {
+  cve_id: string
+  severity: CVESeverity
+  cvss_score: string
+  epss_score: string | null
+  is_kev: boolean
+  published_at: string
+  description: string
+}
+
+export type CVEDetail = CVESummary
+
+export interface CVEPage {
+  items: CVESummary[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface CVEYearsResponse {
+  years: number[]
+}
+
+export interface CVESearchParams {
+  query?: string
+  severity?: CVESeverity
+  is_kev_only?: boolean
+  year?: number
+  limit?: number
+  offset?: number
+}
+
+export type AuditAction = 'STATUS_CHANGED' | 'REPOSITORY_POLICY_UPDATED' | 'REPOSITORY_CONNECTED' | 'REPOSITORY_DISCONNECTED'
 export interface AuditLogEntry {
   id: string
   organization_id: string
@@ -200,6 +286,14 @@ export interface PRReviewPage {
   total: number
   limit: number
   offset: number
+}
+
+export interface PRReviewMetrics {
+  total: number
+  clean: number
+  blocking: number
+  issues_critical: number
+  issues_high: number
 }
 
 export type PRReviewStatus = 'QUEUED' | 'SCANNING' | 'PASSED' | 'FAILED' | 'ERROR'

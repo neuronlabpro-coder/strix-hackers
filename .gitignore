@@ -104,3 +104,11 @@ strix/
 node_modules/
 .venv/
 containers/
+
+# Binarios de herramientas descargados en local.
+#
+# `stripe.exe` pesa ~11 MB y se reinstala con scripts\install-stripe-cli.ps1, que lo
+# descarga del release oficial y verifica su SHA-256. Commitear un binario de 11 MB
+# en cada rama no aporta nada que el script no resuelva, y su copia en el historial
+# ya no se puede enmendar si hubiera que retirarlo.
+tools/

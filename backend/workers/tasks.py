@@ -7,7 +7,9 @@ import logging
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
+from typing import NamedTuple
 from uuid import UUID
 
 from billiard.exceptions import SoftTimeLimitExceeded, TimeLimitExceeded
@@ -15,7 +17,15 @@ from celery.signals import worker_ready
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from backend.apps.pentests.models import PentestRun, ScanStatusEnum
+from backend.apps.billing.models import LedgerReasonEnum
+from backend.apps.billing.pricing import scan_credit_cost
+from backend.apps.billing.service import apply_credit_delta
+from backend.apps.llm_router.models import LLMModelConfig, LLMUseCaseEnum
+from backend.apps.llm_router.routing import (
+    LLMAllModelsInactiveError,
+    resolve_model_chain,
+)
+from backend.apps.pentests.models import PentestRun, ScanModeEnum, ScanStatusEnum
 from backend.apps.repositories.models import (
     PRReviewStatusEnum,
     PullRequestReview,
@@ -28,9 +38,18 @@ from backend.workers.celery_app import celery_app
 from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output
 from backend.workers.runner.exceptions import SandboxCleanupError, SandboxTimeoutError
 from backend.workers.runner.sandbox import StrixSandboxManager
+from backend.workers.runner.telemetry import (
+    LlmUsageTelemetry,
+    extract_token_usage,
+    select_runtime_models,
+)
 
 logger = logging.getLogger(__name__)
 KillContainer = Callable[[str], None]
+
+# Fallos que un cambio de modelo puede arreglar. Un contenedor que no arrancó o
+# un error de configuración no cambian por usar otro modelo, así que no se insiste.
+_FALLBACK_ELIGIBLE_ERRORS = frozenset({"STRIX_NONZERO_EXIT", "STRIX_EXECUTION_FAILED"})
 
 
 class StrixIngestionError(RuntimeError):
@@ -223,6 +242,99 @@ async def _claim_run_for_execution(
         await engine.dispose()
 
 
+def _use_case_for_scan_mode(scan_mode: str) -> LLMUseCaseEnum:
+    """Un escaneo `QUICK` enruta a los modelos rápidos; el resto, a los potentes."""
+
+    return (
+        LLMUseCaseEnum.QUICK_SCAN
+        if scan_mode.upper() == ScanModeEnum.QUICK.name
+        else LLMUseCaseEnum.DEEP_PENTEST
+    )
+
+
+async def _resolve_model_chain(scan_mode: str) -> list[LLMModelConfig]:
+    """Cadena de modelos para un run. Vacía si el catálogo no tiene ninguno activo."""
+
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            try:
+                chain = await resolve_model_chain(
+                    session, _use_case_for_scan_mode(scan_mode)
+                )
+            except LLMAllModelsInactiveError:
+                logger.warning(
+                    "No hay modelos de LLM activos; el run usará DEFAULT_STRIX_LLM"
+                )
+                return []
+            return list(chain)
+    finally:
+        await engine.dispose()
+
+
+async def _load_model_config(model_id: str) -> LLMModelConfig | None:
+    """Carga la configuración de un modelo para poder tarificar su consumo."""
+
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            result = await session.execute(
+                select(LLMModelConfig).where(LLMModelConfig.model_id == model_id)
+            )
+            return result.scalar_one_or_none()
+    finally:
+        await engine.dispose()
+
+
+async def _charge_run_usage(
+    organization_id: UUID,
+    run_id: UUID,
+    model_id: str,
+    scan_mode: str,
+    output_json: str,
+    reserved_credits: Decimal,
+) -> None:
+    """Tarifica el consumo real del run y ajusta la reserva del tenant.
+
+    La diferencia entre lo reservado y lo realmente consumido se ajusta en el
+    ledger: si el motor gastó de menos se devuelve el excedente y si gastó de más
+    se cobra. Un feed sin datos de tokens deja la reserva intacta, que es la
+    opción conservadora.
+    """
+
+    usage = extract_token_usage(output_json)
+    model = await _load_model_config(model_id)
+    if usage is None or model is None:
+        logger.info(
+            "Run %s sin telemetria de tokens utilizable; la reserva se mantiene", run_id
+        )
+        return
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            await LlmUsageTelemetry(
+                model=model,
+                use_case=_use_case_for_scan_mode(scan_mode),
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+            ).charge(
+                session=session,
+                organization_id=organization_id,
+                run_id=run_id,
+                credits_per_usd=settings.credits_per_usd,
+                reserved_credits=reserved_credits,
+            )
+    except Exception:
+        # La tarificación es posterior al escaneo: un fallo aquí no debe
+        # invalidar un run que ya terminó correctamente. Queda registrado para
+        # que el operador pueda reconciliarlo.
+        await engine.dispose()
+        logger.exception("No se pudo ajustar el consumo del run %s", run_id)
+        raise
+    finally:
+        await engine.dispose()
+
+
 def _same_immutable_evidence(
     stored: Vulnerability,
     incoming: Vulnerability,
@@ -337,16 +449,153 @@ async def _ingest_output(
         await engine.dispose()
 
 
+class _AttemptOutcome(NamedTuple):
+    """Desenlace de un intento de ejecución con un modelo concreto.
+
+    Es un `NamedTuple` y no un `dict[str, object]` porque los tres campos se leen en
+    cada iteración de la cadena de fallback: con un diccionario habría que asserting
+    el tipo en cada lectura, y un `str` olvidado en un `outcome["output_json"]`
+    acabaría en un cargo sin salida de informe.
+    """
+
+    result: str  # "COMPLETED" | "FAILED" | "ABORTED"
+    output_json: str | None
+    error_code: str | None
+
+
 async def _execute_pentest_run(run_id: UUID) -> str:
     claimed = await _claim_run_for_execution(run_id)
     if claimed is None:
         return "SKIPPED"
     organization_id, target, scan_mode, target_type = claimed
+    chain = select_runtime_models(await _resolve_model_chain(scan_mode))
+    reserved = scan_credit_cost(ScanModeEnum(scan_mode))
+    last_error: str | None = None
+
+    # Con el catálogo vacío se recurre al modelo por defecto de configuración: es
+    # preferible un modelo de tarificación desconocida a no ejecutar el escaneo.
+    for attempt, model_id in enumerate(chain or [settings.default_strix_llm]):
+        outcome = await _run_attempt(
+            run_id,
+            organization_id,
+            target,
+            scan_mode,
+            target_type,
+            model_id,
+        )
+        if outcome.result == "ABORTED":
+            return "ABORTED"
+        if outcome.result == "COMPLETED":
+            if outcome.output_json is not None:
+                await _charge_run_usage(
+                    organization_id,
+                    run_id,
+                    model_id,
+                    scan_mode,
+                    outcome.output_json,
+                    reserved,
+                )
+            return "COMPLETED"
+        last_error = outcome.error_code
+        has_next_model = attempt + 1 < len(chain)
+        if not has_next_model:
+            break
+        # Fallback: el contenedor habla con OpenRouter por su cuenta, así que el
+        # worker no ve el 429 ni el 5xx. Lo que sí puede observar es que la
+        # ejecución falló, y reencolar con el siguiente modelo es la respuesta
+        # honesta. Un fallo no transitorio (contenedor que ni arrancó) no cambia con
+        # otro modelo, así que no se insiste.
+        if last_error not in _FALLBACK_ELIGIBLE_ERRORS:
+            logger.info(
+                "El run %s falló con %s, que no mejora cambiando de modelo",
+                run_id,
+                last_error,
+            )
+            break
+        logger.warning(
+            "El run %s falló con %s en %s; reintentando con %s",
+            run_id,
+            last_error,
+            model_id,
+            chain[attempt + 1],
+        )
+        await _reopen_run_for_retry(run_id)
+
+    await _mark_failed(organization_id, run_id, last_error or "STRIX_EXECUTION_FAILED")
+    await _refund_reserved_credits(organization_id, run_id, reserved)
+    return "FAILED"
+
+
+async def _reopen_run_for_retry(run_id: UUID) -> None:
+    """Devuelve el run a QUEUED para que el siguiente modelo pueda reintentarlo."""
+
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            result = await session.execute(
+                select(PentestRun).where(PentestRun.id == run_id).with_for_update()
+            )
+            run = result.scalar_one_or_none()
+            if run is None:
+                return
+            run.status = ScanStatusEnum.QUEUED
+            run.started_at = None
+            run.error_message = None
+            run.exit_code = None
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+
+async def _refund_reserved_credits(
+    organization_id: UUID, run_id: UUID, reserved: Decimal
+) -> None:
+    """Devuelve la reserva cuando el escaneo no llegó a producir consumo.
+
+    El reembolso no puede propagar el fallo: el run ya está marcado como fallido y
+    que el ajuste de créditos no se escriba dejaría al tenant sin sus créditos, así que
+    se registra la excepción y el proceso sigue. El `rollback` va sobre la sesión, no
+    sobre el motor: `AsyncEngine` no tiene ese método, y llamarlo dejaría el error
+    real del reembolso enterrado bajo un `AttributeError`.
+    """
+
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            try:
+                await apply_credit_delta(
+                    session=session,
+                    organization_id=organization_id,
+                    amount=reserved,
+                    reason=LedgerReasonEnum.SCAN_CONSUMPTION,
+                    reference_id=f"{run_id}:refund",
+                )
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+    except Exception:
+        logger.exception("No se pudo reembolsar la reserva del run %s", run_id)
+    finally:
+        await engine.dispose()
+
+
+async def _run_attempt(
+    run_id: UUID,
+    organization_id: UUID,
+    target: str,
+    scan_mode: str,
+    target_type: str,
+    model_id: str,
+) -> _AttemptOutcome:
+    """Ejecuta el sandbox con un modelo concreto y devuelve el desenlace."""
+
     manager = StrixSandboxManager(
         str(run_id),
         target,
         scan_mode,
         target_type=target_type,
+        llm_model=model_id,
     )
     started_event = threading.Event()
     started_container_ids: list[str] = []
@@ -384,7 +633,7 @@ async def _execute_pentest_run(run_id: UUID) -> str:
                 logger.exception("El sandbox abortado %s terminó con error", run_id)
             if manager.cleanup_pending:
                 await _set_cleanup_pending(organization_id, run_id, True)
-            return "ABORTED"
+            return _AttemptOutcome(result="ABORTED", output_json=None, error_code=None)
 
     try:
         result = await manager_task
@@ -400,7 +649,9 @@ async def _execute_pentest_run(run_id: UUID) -> str:
             exit_code=str(result.exit_code),
             container_id=result.container_id,
         )
-        return "FAILED"
+        return _AttemptOutcome(
+            result="FAILED", output_json=None, error_code="STRIX_NONZERO_EXIT"
+        )
     expected_scan_id = extract_strix_scan_id(result.output_json)
     await _ingest_output(
         organization_id,
@@ -410,7 +661,9 @@ async def _execute_pentest_run(run_id: UUID) -> str:
         exit_code=str(result.exit_code),
         container_id=result.container_id,
     )
-    return "COMPLETED"
+    return _AttemptOutcome(
+        result="COMPLETED", output_json=result.output_json, error_code=None
+    )
 
 
 async def reconcile_orphaned_runs(

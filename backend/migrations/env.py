@@ -15,7 +15,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from backend.apps.audit import models as audit_models  # noqa: F401
+from backend.apps.billing import models as billing_models  # noqa: F401
+from backend.apps.cve_database import models as cve_database_models  # noqa: F401
 from backend.apps.knowledge import models as knowledge_models  # noqa: F401
+from backend.apps.llm_router import models as llm_router_models  # noqa: F401
 from backend.apps.organizations import models as organization_models  # noqa: F401
 from backend.apps.pentests import models as pentest_models  # noqa: F401
 from backend.apps.repositories import models as repository_models  # noqa: F401
@@ -30,6 +33,23 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Índices de expresión que Alembic no sabe comparar.
+#
+# `alembic check` no puede emparejar un índice funcional (sobre `to_tsvector`)
+# entre el modelo y la base de datos: lo反映 como un índice eliminado en cada
+# ejecución, lo que hace que la puerta de calidad sea inútil. Se excluyen de la
+# comparación en lugar de silenciar el error, y la definición real vive en la
+# migración `c4d5e6f7a8b9`, que es donde se revisa.
+_UNCOMPARABLE_EXPRESSION_INDEXES = frozenset({"ix_cve_records_search"})
+
+
+def include_object(object_, name, type_, reflected, compare_to) -> bool:
+    """Excluye de la comparación los índices funcionales declarados en migración."""
+
+    if type_ == "index" and name in _UNCOMPARABLE_EXPRESSION_INDEXES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """Genera SQL sin abrir una conexión, usando la URL validada del entorno."""
@@ -41,6 +61,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -55,6 +76,7 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():

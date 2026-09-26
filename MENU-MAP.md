@@ -121,16 +121,28 @@
 
 ---
 
-## 4. Revisiones en Pull Requests (`/pr-reviews`)
+## 4. Revisiones en Pull Requests (`/pr-reviews`)  _(Bloque 5.3)_
 
-- [ ] **4.0 · Pestaña Reviews (Historial de PRs auditados)**
-  - [ ] Banner informativo: `Tag @fenix-team on any pull request to run a security review`
-  - [ ] Filtros por estado del PR: `All`, `Awaiting merge`, `Needs attention`, `Merged with open findings`, `Passed`
-  - [ ] Botones de cabecera: `Settings`, `+ Connect repository`, `Review a pull request`
-  - [ ] Tabla: `Status`, `Pull request` (Número, título y rama), `Repository`, `Issues` detectados, `Created`
+- [x] **4.0 · Vista global de revisiones**
+  - [x] KPIs de cabecera: `PRs auditados`, `PRs limpios`, `PRs con hallazgos bloqueantes` y `Hallazgos` (críticos + altos sumados)
+  - [x] Filtro por estado del escaneo: `Passed`, `Failed`, `Scanning`, `Queued`, `Error`
+  - [x] Tabla: `Repositorio`, `Pull request` (número y título), `Autor`, `Estado`, `Hallazgos` y `Fecha`
+  - [x] Badge de estado de merge: `Aprobado`, `Bloqueado`, `Pendiente`, `Error`
+  - [x] Endpoint global `GET /api/v1/pr-reviews/` con aislamiento por tenant y filtro opcional por repositorio
+  - [x] Indicadores agregados en `GET /api/v1/pr-reviews/metrics`, resueltos en una sola consulta
+  - [x] Estado vacío con explicación de cómo habilitar las revisiones desde un repositorio
 - [ ] **4.1 · Pestaña Issues Caught (Vulnerabilidades frenadas en CI)**
-  - [ ] Métricas de prevención: `PRs reviewed`, `Issues caught`, `Critical / High`, `Merges blocked`
-  - [ ] Tabla de fallos detectados antes de llegar a producción con filtro de severidad y estado del PR
+  - [ ] Vista de vulnerabilities que bloquean un merge, con filtro por severidad y PR de origen
+- [ ] **4.2 · Banner y acciones de cabecera**
+  - [ ] Banner informativo: `Tag @fenix-team on any pull request to run a security review`
+  - [ ] Botones de cabecera: `Settings`, `+ Connect repository`, `Review a pull request`
+
+> **Nota de vocabulario.** El dominio persiste `QUEUED | SCANNING | PASSED | FAILED |
+> ERROR` porque son los estados que escriben el worker y los webhooks. La tabla muestra
+> `Aprobado | Bloqueado | Pendiente | Error` mediante un mapeo de presentación, porque
+> lo que le importa a quien lee la fila es si el merge está bloqueado. `merge_blocked`
+> manda sobre el estado del escaneo: un escaneo `PASSED` con un hallazgo de alta
+> severidad sigue bloqueando el merge.
 
 ---
 
@@ -190,8 +202,30 @@
 
 ---
 
-## 8. Integraciones (`/integrations`)
+## 7.b Base de Datos CVE de Referencia (`/cve`)  _(Bloque 5.2)_
 
+Catálogo público de vulnerabilidades conocidas. No pertenece a ningún tenant (R3 no
+aplica sobre los datos), pero la ruta exige autenticación porque describe técnicas de
+explotación en detalle, y lleva rate limit por usuario para que no se use como
+buscador masivo.
+
+- [x] Buscador central: `Search by CVE ID or keyword...` con selector de severidades y checkbox `KEV only`
+- [x] Tabla de resultados:
+  - [x] `CVE ID` (enlace al detalle, también desde la lista lateral)
+  - [x] `Severity` con badges cromáticos sobre la rampa tokenizada de `design-dark.md`
+  - [x] `CVSS` y `EPSS` (EPSS en porcentaje; `—` cuando el feed no la publica)
+  - [x] `Published` e icono de explotación activa para las que están en el catálogo KEV
+  - [x] `Description`
+- [x] Columna lateral:
+  - [x] `Browse by Year` con los años presentes en el catálogo, más `All years`
+  - [x] `Known Exploited Vulnerabilities` con los últimos CVEs explotados según CISA
+  - [x] Card promocional `Check if you're vulnerable` con enlace a `/pentests`
+- [x] Modal de detalle con CVSS, EPSS, fecha de publicación y estado KEV
+- [x] Sincronización periódica Celery beat desde los feeds oficiales (CVE y KEV de CISA)
+
+---
+
+## 8. Integraciones (`/integrations`)
 - [ ] **8.0 · Proveedores de Código (Code Providers)**
   - [ ] `GitHub`: Estado (`Connected` con nombre de usuario/org), Botón `Configure`, Menú de desconexión
   - [ ] `GitLab`: Botón `Connect` (Flujo OAuth2 / Personal Access Token)

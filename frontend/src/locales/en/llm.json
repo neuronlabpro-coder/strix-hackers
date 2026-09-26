@@ -1,0 +1,72 @@
+{
+  "nav": "LLM models",
+  "title": "Model orchestrator",
+  "eyebrow": "Margin and fallbacks",
+  "description": "OpenRouter model catalog with its base cost, the commercial margin applied and the fallback chain the engine uses.",
+  "table": {
+    "model": "Model",
+    "cost": "Base cost per 1M",
+    "margin": "Margin",
+    "price": "Client price",
+    "priority": "Order",
+    "useCase": "Use case",
+    "usage": "Usage",
+    "status": "Status"
+  },
+  "useCase": {
+    "ALL": "All use cases",
+    "QUICK_SCAN": "Quick scan",
+    "DEEP_PENTEST": "Deep pentest",
+    "AUTOFIX": "Autofix"
+  },
+  "priorityLabel": {
+    "1": "Primary",
+    "2": "Fallback 1",
+    "3": "Fallback 2"
+  },
+  "columns": {
+    "input": "input",
+    "output": "output"
+  },
+  "metrics": {
+    "title": "Aggregate usage",
+    "runs": "Calls",
+    "tokens": "Tokens",
+    "cost": "Base cost",
+    "profit": "Net profit",
+    "marginEffective": "Effective margin",
+    "noUsage": "No recorded usage"
+  },
+  "form": {
+    "title": "Add model",
+    "modelId": "OpenRouter identifier",
+    "modelIdHint": "`provider/model` format, for example `anthropic/claude-3.5-sonnet`.",
+    "displayName": "Display name",
+    "costInput": "Input cost per 1M",
+    "costOutput": "Output cost per 1M",
+    "margin": "Commercial margin",
+    "marginHint": "Markup over the base cost. A margin of 150 means the client pays 2.5 times the cost.",
+    "priority": "Priority order",
+    "priorityHint": "1 is the primary; the rest are fallbacks on transient failure.",
+    "useCase": "Use case",
+    "submit": "Add to catalog",
+    "submitting": "Saving",
+    "close": "Cancel",
+    "error": "The model could not be added",
+    "success": "Model added to the catalog"
+  },
+  "actions": {
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "save": "Save margin"
+  },
+  "states": {
+    "loading": "Loading catalog",
+    "error": "The model catalog could not be loaded",
+    "retry": "Retry"
+  },
+  "hints": {
+    "fallback": "A deactivated model leaves the fallback chain without losing its usage history.",
+    "immutableId": "The model identifier cannot be changed: the usage history cites it."
+  }
+}
