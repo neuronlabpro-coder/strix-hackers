@@ -48,5 +48,8 @@
   "close": "Cerrar",
   "save": "Guardar",
   "delete": "Eliminar",
-  "confirm": "Confirmar"
+  "confirm": "Confirmar",
+  "sessionLoadFailedTitle": "No pudimos cargar tu workspace",
+  "sessionLoadFailedDescription": "Tu sesión sigue activa: el problema es de conexión con el servidor, no tu cuenta. Puedes reintentar sin volver a identificarte.",
+  "sessionRetry": "Reintentar"
 }

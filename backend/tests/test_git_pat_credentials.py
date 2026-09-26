@@ -1,4 +1,4 @@
-"""Pruebas de la conexión por Token Personal de acceso.
+﻿"""Pruebas de la conexión por Token Personal de acceso.
 
 El flujo OAuth ya existe y funciona, pero exige registrar una OAuth App en GitHub o
 GitLab, que es un trámite manual fuera del producto. El PAT permite conectar y probar
@@ -39,9 +39,9 @@ VALID_GITLAB_PAT = "glpat-0123456789abcdefghij"
 VALID_PAT_SEGUNDO = "ghp_" + "a" * 36
 
 
-async def _tenant(session: AsyncSession, *, role: RoleEnum = RoleEnum.ADMIN) -> tuple[
-    Organization, dict[str, str]
-]:
+async def _tenant(
+    session: AsyncSession, *, role: RoleEnum = RoleEnum.ADMIN
+) -> tuple[User, Organization, dict[str, str]]:
     suffix = uuid.uuid4().hex
     organization = Organization(name=f"PAT {suffix}", slug=f"pat-{suffix}")
     user = User(
@@ -54,7 +54,7 @@ async def _tenant(session: AsyncSession, *, role: RoleEnum = RoleEnum.ADMIN) -> 
     await session.flush()
     session.add(Membership(organization_id=organization.id, user_id=user.id, role=role))
     await session.commit()
-    return organization, {
+    return user, organization, {
         "Authorization": f"Bearer {create_access_token({'sub': str(user.id)})}",
         "X-Organization-Id": str(organization.id),
     }
@@ -88,7 +88,7 @@ async def test_pat_is_stored_encrypted_and_never_in_clear(
     integration_session: AsyncSession,
 ) -> None:
     assert integration_session is not None
-    organization, headers = await _tenant(integration_session)
+    _user, organization, headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -138,7 +138,7 @@ async def test_pat_replaces_the_previous_credential_of_the_same_provider(
     """
 
     assert integration_session is not None
-    organization, headers = await _tenant(integration_session)
+    _user, organization, headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -191,7 +191,7 @@ async def test_pat_rejected_when_the_provider_refuses_it(
     """
 
     assert integration_session is not None
-    organization, headers = await _tenant(integration_session)
+    _user, organization, headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -221,7 +221,7 @@ async def test_pat_rejects_malformed_tokens_without_calling_the_provider(
     """Un token con formato inválido se rechaza en el borde, sin gastar una llamada."""
 
     assert integration_session is not None
-    _organization, headers = await _tenant(integration_session)
+    _user, _organization, headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -241,7 +241,7 @@ async def test_pat_rejects_malformed_tokens_without_calling_the_provider(
 @pytest.mark.asyncio
 async def test_only_admin_can_store_a_credential(integration_session: AsyncSession) -> None:
     assert integration_session is not None
-    _organization, headers = await _tenant(integration_session, role=RoleEnum.MEMBER)
+    _user, _organization, headers = await _tenant(integration_session, role=RoleEnum.MEMBER)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -261,7 +261,7 @@ async def test_only_admin_can_store_a_credential(integration_session: AsyncSessi
 @pytest.mark.asyncio
 async def test_pat_requires_authentication(integration_session: AsyncSession) -> None:
     assert integration_session is not None
-    _organization, _headers = await _tenant(integration_session)
+    _user, _organization, _headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -280,8 +280,8 @@ async def test_pat_from_another_tenant_cannot_overwrite(
     """R3: un tenant no puede pisar la credencial de otro."""
 
     assert integration_session is not None
-    _victim, victim_headers = await _tenant(integration_session)
-    _attacker, attacker_headers = await _tenant(integration_session)
+    _victim, victim_org, victim_headers = await _tenant(integration_session)
+    _attacker, attacker_org, attacker_headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -302,13 +302,29 @@ async def test_pat_from_another_tenant_cannot_overwrite(
 
     assert response.status_code == 201
     # Cada tenant tiene la suya, y la del atacante no se ha escrito en la de la víctima.
+    #
+    # La consulta filtra **por los dos tenants de este test**, no por la tabla entera. Con un
+    # `select(GitCredential)` a secas la aserción depende de cuántas credenciales hayan
+    # dejado los tests anteriores en la base compartida: pasó dos veces y falló a la
+    # tercera, con un `len(by_org) == 2` sobre un total global que ya era 3. Un recuento
+    # absoluto sobre una base compartida mide el estado previo, no lo que se quiere probar.
+    #
+    # Lo que se afirma es lo mismo de siempre, con la forma correcta: la víctima tiene su
+    # GITHUB, el atacante tiene su GITLAB, y ninguno tiene la del otro.
     stored = (
-        await integration_session.execute(select(GitCredential))
+        await integration_session.execute(
+            select(GitCredential).where(
+                GitCredential.organization_id.in_([victim_org.id, attacker_org.id])
+            )
+        )
     ).scalars().all()
     by_org: dict[uuid.UUID, set[GitProviderEnum]] = {}
     for credential in stored:
         by_org.setdefault(credential.organization_id, set()).add(credential.provider)
-    assert len(by_org) == 2
+    assert by_org == {
+        victim_org.id: {GitProviderEnum.GITHUB},
+        attacker_org.id: {GitProviderEnum.GITLAB},
+    }
 
 
 @pytest.mark.asyncio
@@ -324,7 +340,7 @@ async def test_a_gitlab_token_sent_as_github_is_rejected_with_a_usable_message(
     """
 
     assert integration_session is not None
-    _organization, headers = await _tenant(integration_session)
+    _user, _organization, headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(
@@ -355,7 +371,7 @@ async def test_a_github_token_sent_as_gitlab_is_rejected_too(
     """El mismo error se detecta en el sentido contrario."""
 
     assert integration_session is not None
-    _organization, headers = await _tenant(integration_session)
+    _user, _organization, headers = await _tenant(integration_session)
     transport = ASGITransport(app=app)
 
     with patch(

@@ -74,6 +74,15 @@ function LoadingScreen() {
 }
 
 /**
+ * Recarga de sesión en marcha, sin tocar el token.
+ *
+ * Va en `ProtectedShell` y no en el error del propio `AuthContext` porque la pantalla de
+ * "no pude cargar" es del shell: el shell es quien sabe que sigue habiendo sesión. Que la
+ * decisión de reintentar la tome quien la ofrece evita que la aplicación tenga un camino
+ * para reintentarlo por su cuenta y se repita en bucle.
+ */
+
+/**
  * Marcador de carga de las secciones que llegan bajo demanda.
  *
  * Reutiliza la misma pantalla de carga que el arranque en vez de inventar un esqueleto de
@@ -85,9 +94,36 @@ function LazySection() {
   return <LoadingScreen />
 }
 
+/**
+ * Puerta de las páginas del panel.
+ *
+ * Distingue tres estados y no dos. La distinción que importa es `loadFailed`: con un token
+ * presente que **no** se pudo validar, la respuesta no es mandar al login, porque el token
+ * sigue ahí y funciona. Mandar al login en ese caso obliga a identificarse de nuevo para
+ * conseguir un token idéntico, y es exactamente lo que pasaba al volver de GitHub o
+ * GitLab cuando la primera petición fallaba por la red.
+ */
 function ProtectedShell() {
-  const { token } = useAuth()
-  return token ? <ShellLayout /> : <Navigate to="/login" replace />
+  const { t } = useTranslation('common')
+  const { token, isLoading, loadFailed, retrySession } = useAuth()
+
+  if (token) {
+    if (loadFailed) {
+      return (
+        <section className="page-section">
+          <div className="empty-card">
+            <h2>{t('sessionLoadFailedTitle')}</h2>
+            <p>{t('sessionLoadFailedDescription')}</p>
+            <button className="primary-button" type="button" onClick={retrySession}>
+              <span>{t('sessionRetry')}</span>
+            </button>
+          </div>
+        </section>
+      )
+    }
+    return isLoading ? <LoadingScreen /> : <ShellLayout />
+  }
+  return <Navigate to="/login" replace />
 }
 
 export default function App() {
