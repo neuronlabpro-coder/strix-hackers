@@ -51,16 +51,16 @@ def _token() -> str:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_catalog_has_exactly_forty_six_scopes() -> None:
+def test_the_catalog_has_exactly_forty_seven_scopes() -> None:
     """El número es parte del contrato, no un resultado de contar.
 
     Se afirma el número exacto y no `len(ALL_SCOPES)`, porque una prueba que compara un
     valor consigo misma sigue pasando cuando alguien borra un permiso por error.
     """
 
-    assert len(ALL_SCOPES) == 46, f"el catálogo tiene {len(ALL_SCOPES)} scopes y son 46"
-    # Y los 46 se reparten en 16 grupos, que son los que ve el panel.
-    assert len(SCOPE_CATALOG) == 16
+    assert len(ALL_SCOPES) == 47, f"el catálogo tiene {len(ALL_SCOPES)} scopes y son 47"
+    # Y los 47 se reparten en 17 grupos, que son los que ve el panel.
+    assert len(SCOPE_CATALOG) == 17
 
 
 def test_every_group_declares_the_scopes_the_owner_asked_for() -> None:
@@ -75,6 +75,7 @@ def test_every_group_declares_the_scopes_the_owner_asked_for() -> None:
         "pentests": {"read", "create", "abort", "delete"},
         "vulnerabilities": {"read", "triage", "export"},
         "repositories": {"read", "connect", "sync", "delete"},
+        "assets": {"read"},
         "pr_reviews": {"read", "trigger"},
         "knowledge": {"read", "write", "delete"},
         "cve": {"read", "search"},
@@ -100,8 +101,8 @@ def test_every_group_declares_the_scopes_the_owner_asked_for() -> None:
         grupo: {scope.action for scope in scopes} for grupo, scopes in SCOPE_CATALOG.items()
     }
     assert real == esperado
-    # 16 grupos. Se afirma para que un grupo nuevo obligue a decidir si suma o no.
-    assert len(SCOPE_CATALOG) == 16
+    # 17 grupos. Se afirma para que un grupo nuevo obligue a decidir si suma o no.
+    assert len(SCOPE_CATALOG) == 17
 
 
 def test_the_scope_string_is_group_and_action() -> None:

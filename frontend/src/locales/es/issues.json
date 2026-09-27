@@ -36,6 +36,7 @@
   "status": {
     "OPEN": "Abierto",
     "IN_PROGRESS": "En curso",
+    "REMEDIATION_PROPOSED": "Remediación propuesta",
     "FIXED": "Corregido",
     "SNOOZED": "Aplazado",
     "IGNORED": "Ignorado"
@@ -101,6 +102,30 @@
       "success": "Remediación abierta en el proveedor",
       "error": "No se pudo abrir la remediación",
       "notSupported": "El proveedor no admite apertura de Pull Request todavía"
+    },
+    "remediation": {
+      "eyebrow": "Remediación asistida",
+      "title": "Generar una propuesta de corrección",
+      "description": "Fenix redacta un parche a partir de la evidencia del hallazgo y abre una pull request en tu repositorio. Es una propuesta: revísala antes de fusionarla.",
+      "button": "Generar Fix PR con Fenix",
+      "working": "Generando la corrección…",
+      "proposed": "Remediación propuesta",
+      "proposedNote": "El hallazgo sigue abierto. Una pull request sin fusionar no lo resuelve, y el parche se ha generado a partir de la evidencia, no sobre el código desplegado.",
+      "openPr": "Abrir la pull request",
+      "willRegenerate": "Ya hay una propuesta abierta. Al generar otra, esta se sustituirá en el panel; la pull request anterior seguirá en el repositorio.",
+      "engineDiff": "Parche propuesto por el motor durante el escaneo",
+      "draftTitle": "Borrador de la corrección",
+      "error": "No se pudo generar la propuesta. Revisa que el hallazgo venga de un repositorio de tu espacio de trabajo y que el modelo esté disponible.",
+      "publishedFailedButCharged": "La corrección se generó y se cobró, pero no se pudo abrir la pull request. El saldo ya se ha descontado y el parche se conserva en la ficha.",
+      "dialog": {
+        "title": "Generar una propuesta de corrección",
+        "cost": "Esta acción consume créditos del saldo de tu espacio de trabajo.",
+        "branch": "Creará una rama nueva en tu repositorio y abrirá una pull request contra la rama base.",
+        "target": "El parche se redacta a partir del PoC y de la ubicación del hallazgo, sin desplegar el repositorio. Revísalo antes de fusionarlo.",
+        "replaceWarning": "Ya existe una propuesta abierta. Generar otra la sustituirá en el panel.",
+        "cancel": "Cancelar",
+        "confirm": "Generar y abrir la PR"
+      }
     }
   }
 }

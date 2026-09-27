@@ -783,11 +783,11 @@ async def test_the_scope_catalog_is_served_with_the_total_counted(
 
     assert response.status_code == 200
     cuerpo = response.json()
-    assert cuerpo["total"] == 46
-    assert len(cuerpo["groups"]) == 16
+    assert cuerpo["total"] == 47
+    assert len(cuerpo["groups"]) == 17
     planos = [s["scope"] for g in cuerpo["groups"] for s in g["scopes"]]
-    assert len(planos) == 46
-    assert len(set(planos)) == 46, "el catalogo devolvio scopes duplicados"
+    assert len(planos) == 47
+    assert len(set(planos)) == 47, "el catalogo devolvio scopes duplicados"
     assert Scope.PENTESTS_READ.value in planos
     assert Scope.ENTERPRISE_SUPPLY_CHAIN_WRITE.value in planos
 

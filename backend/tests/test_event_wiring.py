@@ -337,7 +337,9 @@ async def test_crear_un_escaneo_avisa_cuando_el_saldo_cruza_el_umbral(
     umbral = config_module.settings.model_copy(
         update={"low_credit_balance_threshold": Decimal("55")}
     )
-    monkeypatch.setattr("backend.apps.pentests.router.settings", umbral)
+    # El umbral lo lee el servicio, no el router: la logica de cobro y aviso salio de la
+    # ruta a un modulo compartido con el transporte MCP.
+    monkeypatch.setattr("backend.apps.pentests.service.settings", umbral)
 
     transporte = ASGITransport(app=app)
     async with AsyncClient(transport=transporte, base_url="http://test") as client:

@@ -36,9 +36,14 @@ def test_phase2_models_define_required_enums_and_indexes() -> None:
         "LOW",
         "INFO",
     ]
+    # El estado de remediación propuesta se añadió en la Fase 6. Va **entre** `IN_PROGRESS` y
+    # `FIXED` en la enumeración, y el orden importa: la aserción compara listas, no conjuntos,
+    # a propósito. Un conjunto no detectaría una enumeración reordenada, y el orden es
+    # contrato para quien migra datos y para los clientes que pintan el estado.
     assert [item.value for item in IssueStatusEnum] == [
         "OPEN",
         "IN_PROGRESS",
+        "REMEDIATION_PROPOSED",
         "FIXED",
         "SNOOZED",
         "IGNORED",

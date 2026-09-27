@@ -36,13 +36,43 @@ class SeverityEnum(StrEnum):
 
 
 class IssueStatusEnum(StrEnum):
-    """Estado de remediación de una vulnerabilidad."""
+    """Estado de remediación de una vulnerabilidad.
+
+    ## Por qué `REMEDIATION_PROPOSED` es un estado y no una marca
+
+    Porque "hay un PR abierto que lo arregla" y "está arreglado" son afirmaciones distintas
+    que se contradicen: el PR puede cerrarse sin fusionarse, o fusionarse y que el arreglo no
+    solucione. Un hallazgo con un PR abierto **sigue siendo un hallazgo abierto**, y meterlo
+    en `FIXED` al abrir el PR haría que el panel dijera que está resuelto cuando lo único que
+    ha pasado es que alguien ha propuesto una solución.
+
+    El estado dice exactamente lo que es cierto: hay una propuesta. Cerrar el PR sin fusionar
+    devuelve el hallazgo a `OPEN`, y eso es una transición que el cliente puede hacer
+    explícitamente.
+    """
 
     OPEN = "OPEN"
     IN_PROGRESS = "IN_PROGRESS"
+    REMEDIATION_PROPOSED = "REMEDIATION_PROPOSED"
     FIXED = "FIXED"
     SNOOZED = "SNOOZED"
     IGNORED = "IGNORED"
+
+    @property
+    def is_open_for_closure(self) -> bool:
+        """Si el hallazgo cuenta como abierto para el resumen de postura.
+
+        `REMEDIATION_PROPOSED` cuenta como abierto a propósito, por lo mismo que el estado
+        existe: un PR sin fusionar no arregla nada. Es el mismo criterio que usa la
+        herramienta MCP `get_vulnerability_summary`, y los dos leen de aquí para que no puedan
+        discrepar sobre qué es un hallazgo abierto.
+        """
+
+        return self in (
+            IssueStatusEnum.OPEN,
+            IssueStatusEnum.IN_PROGRESS,
+            IssueStatusEnum.REMEDIATION_PROPOSED,
+        )
 
 
 class Vulnerability(Base):
@@ -93,6 +123,37 @@ class Vulnerability(Base):
     affected_line: Mapped[str | None] = mapped_column(String(64), nullable=True)
     poc_reproduction_raw: Mapped[str] = mapped_column(Text, nullable=False)
     autofix_patch_diff: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Enlace a la Pull Request o Merge Request que propone la corrección.
+    #:
+    #: Vive **en** la vulnerabilidad y no en una tabla aparte de propuestas porque solo puede
+    #: haber una activa: una segunda propuesta sobre el mismo hallazgo se genera contra un
+    #: diff que ya existe, y el que está en la columna es el vigente. Guardar un histórico
+    #: exigiría una tabla con su propio ciclo de vida, y ese dato no lo necesita nadie: lo
+    #: que importa es dónde mirar hoy.
+    #:
+    #: Es una referencia **externa** y por eso no lleva clave foránea: la PR vive en GitHub o
+    #: GitLab, y una integridad referencial contra un servicio de terceros no es integridad,
+    #: es una dependencia que convierte un borrado de repositorio en un fallo de la base de
+    #: datos.
+    remediation_pr_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    #: El parche que generó la **plataforma** a partir de la evidencia, cuando existe.
+    #:
+    #: ## Por qué no se escribe en `autofix_patch_diff`
+    #:
+    #: Porque ese campo es **evidencia forense** y el trigger `trg_protect_vulnerability_evidence`
+    #: lo hace inmutable junto con el PoC, la línea afectada y el CVSS. Y tiene razón: lo que
+    #: escribió el motor dentro del contenedor durante el escaneo es lo que ocurrió, y no puede
+    #: cambiarse después porque eso invalidaría la auditoría.
+    #:
+    #: Un diff generado **después**, en la plataforma, desde esa evidencia y sin desplegar el
+    #: repositorio, es otra cosa: es un borrador. No ocurrió en el escaneo, no se ha aplicado y
+    #: se puede volver a generar. Meterlo en la columna de evidencia sería escribir una
+    #: propuesta sobre un registro forense, y ninguna de las dos cosas saldría bien: la
+    #: evidencia quedaría contaminada y la propuesta no podría rehacerse.
+    #:
+    #: No es, por tanto, una decisión de almacenamiento sino de significado: lo que se vio y lo
+    #: que se propone no son el mismo hecho y no pueden vivir en la misma columna.
+    remediation_patch_diff: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[IssueStatusEnum] = mapped_column(
         SQLEnum(IssueStatusEnum, name="issue_status_enum"),
         nullable=False,

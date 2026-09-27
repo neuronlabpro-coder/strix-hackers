@@ -13,9 +13,17 @@ from backend.apps.audit.models import AuditActionEnum, AuditLogEntry
 from backend.apps.organizations.models import RoleEnum
 from backend.apps.repositories.autofix import AutofixError, create_autofix_branch_and_pr
 from backend.apps.vulnerabilities.models import IssueStatusEnum, SeverityEnum, Vulnerability
+from backend.apps.vulnerabilities.remediation import (
+    NoModelAvailableError,
+    NoRepositoryLinkedError,
+    PublicarRemediationError,
+    RemediationError,
+    generar_y_publicar,
+)
 from backend.apps.vulnerabilities.schemas import (
     AutofixRequest,
     AutofixResponse,
+    RemediationResponse,
     VulnerabilityDetail,
     VulnerabilityListItem,
     VulnerabilityPage,
@@ -195,6 +203,86 @@ async def triage_vulnerability(
         status=vulnerability.status,
         updated_at=vulnerability.updated_at,
         changed=True,
+    )
+
+
+@router.post(
+    "/api/v1/vulnerabilities/{vulnerability_id}/remediate",
+    response_model=RemediationResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_autofix_rate_limit)],
+)
+async def propose_remediation(
+    vulnerability_id: UUID,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> RemediationResponse:
+    """Genera la corrección con el modelo de la cadena `AUTOFIX` y abre la pull request.
+
+    ## Por qué es una ruta nueva y no un campo más de `create-fix-pr`
+
+    Porque hacen cosas distintas y cobro distinto. `create-fix-pr` publica un diff **que ya
+    está en la base** —lo trajo el motor durante el escaneo— y no cuesta tokens. Esta genera
+    el diff, que sí los gasta, y por eso tiene su propio límite de tasa y su propio código de
+    error cuando el modelo no responde.
+
+    Fusionarlas habría dejado un endpoint cuyo comportamiento —y cuyo precio— depende de si
+    el campo `autofix_patch_diff` viene nulo, y eso no lo puede expresar un `422`.
+
+    ## Por qué la respuesta lleva la URL y no el diff
+
+    Por R4. El diff es evidencia inmutable y se lee desde la vulnerabilidad; devolverlo en la
+    respuesta de la acción lo expondría en cualquier log intermedio sin aportar nada.
+    """
+
+    if tenant.role != RoleEnum.ADMIN and not tenant.user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere permiso de administrador",
+        )
+
+    # El filtro de organización va en el `WHERE` junto al `id`, nunca después: traer la fila
+    # de otro workspace a memoria para decidir que no es suya es R3 resuelto tarde.
+    encontrado = await session.execute(
+        select(Vulnerability).where(
+            Vulnerability.id == vulnerability_id,
+            Vulnerability.organization_id == tenant.organization.id,
+        )
+    )
+    vulnerability = encontrado.scalar_one_or_none()
+    if vulnerability is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vulnerabilidad no encontrada"
+        )
+
+    try:
+        url = await generar_y_publicar(session, vulnerability)
+    except NoRepositoryLinkedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
+    except NoModelAvailableError as error:
+        # No es `503` sino `422`: el servicio está sano, lo que falta es configuración. Un
+        # `503` haría que un balanceador lo interpretara como una caída y dejara de enviar
+        # tráfico, y no hay nada que balancear.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+    except PublicarRemediationError as error:
+        # El consumo **ya** se cobró: los tokens se gastaron aunque la PR no se abriera. El
+        # mensaje lo dice para que la interfaz no ofrezca "reintentar" como si fuera gratis.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)
+        ) from error
+    except RemediationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+
+    return RemediationResponse(
+        vulnerability_id=vulnerability.id,
+        remediation_pr_url=url,
+        status=IssueStatusEnum.REMEDIATION_PROPOSED,
     )
 
 

@@ -77,6 +77,29 @@ class AutofixResponse(BaseModel):
     autofix_url: AnyHttpUrl
 
 
+class RemediationResponse(BaseModel):
+    """Lo que queda tras abrir una propuesta de remediación.
+
+    ## Por qué devuelve el `status` y no solo la URL
+
+    Porque el hallazgo ha cambiado de estado y quien llama necesita saberlo **sin** una
+    segunda petición. La URL sola obligaría al panel a recargar la ficha para descubrir que el
+    botón de generar propuesta ya no tiene sentido, y un panel que no se ha recargado sigue
+    ofreciendo una acción que ya está hecha.
+
+    Y por qué la URL es `str` y no `AnyHttpUrl` como en `AutofixResponse`: aquí la respuesta la
+    consume la interfaz para pintar un enlace, y `AnyHttpUrl` serializa a un objeto que en
+    algunos clientes llega como `{}`. `AutofixResponse` sí valida el formato porque la
+    validación es lo que garantiza que el enlace es navegable, y esa garantía no se pierde:
+    `create_autofix_branch_and_pr` rechaza una URL vacía y el cliente Git no devuelve otra
+    cosa.
+    """
+
+    vulnerability_id: UUID
+    remediation_pr_url: str
+    status: IssueStatusEnum
+
+
 class VulnerabilityPage(BaseModel):
     """Página de vulnerabilidades de un tenant."""
 

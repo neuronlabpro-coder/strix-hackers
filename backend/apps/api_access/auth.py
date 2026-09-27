@@ -33,7 +33,7 @@ cinco minutos" es todo lo que el panel necesita para decidir si un token está e
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -369,6 +369,67 @@ def require_scope(
         raise _forbidden("Se requiere permiso de administrador")
 
     dependency.__name__ = f"require_{required.value.replace(':', '_')}"
+    return dependency
+
+
+def require_all_scopes(
+    required: Iterable[Scope],
+    *,
+    allow_admin_user: bool = True,
+) -> Callable[..., object]:
+    """Construye una dependencia que exige **todos** los scopes indicados.
+
+    ## Por qué existe y por qué no se extiende `require_scope`
+
+    Porque exigir varios scopes es un caso distinto del de exigir uno, no un caso del mismo
+    con un argumento más. En `require_scope` hay exactamente una decisión —"¿tiene este
+    scope?"— y su fallo tiene un solo motivo. Aquí hay que responder "**¿tiene todos?**", y
+    la diferencia es que la respuesta es *parcialmente* verdadera: un token con
+    `mcp:connect` y sin `mcp:invoke` tiene la mitad. Devolver un `403` sin más sería
+    correcto, pero un `403` que solo nombra `mcp:invoke` se puede malinterpretar como "ese
+    scope no existe", y quien depura un MCP que no conecta acaba mirando el catálogo de
+    scopes en lugar de su token.
+
+    Convertir `require_scope` en variádico habría hecho que **todos** los endpoints tuvieran
+    que pasar una tupla de un elemento, que es ruido en cada declaración de ruta del
+    proyecto a cambio de no repetir cinco líneas aquí. La alternativa —componer dos
+    `Depends(require_scope(...))` en la misma ruta— resolvería la sesión dos veces y dejaría
+    la comprobación repartida por la declaración, que es justo lo que este módulo evita.
+
+    El detalle de seguridad es el mismo: un token nunca es administrador y un usuario web
+    nunca se filtra por scopes. La decisión se sigue tomando por clase de sujeto.
+    """
+
+    exigidos = tuple(required)
+    if not exigidos:
+        raise ValueError("require_all_scopes necesita al menos un scope")
+
+    async def dependency(
+        request: Request,
+        credentials: CredentialsDependency,
+        session: SessionDependency,
+    ) -> TenantPrincipal:
+        principal = await resolve_principal(request, credentials, session)
+
+        if isinstance(principal, TokenPrincipal):
+            faltan = [scope.value for scope in exigidos if not principal.has_scope(scope)]
+            if faltan:
+                # Se nombran los que faltan. El `403` de un único scope no lo hace porque
+                # no hay alternativa a la que atribuir el fallo; aquí sí, y nombrarlos es lo
+                # que convierte "algo va mal" en "te falta este permiso concreto".
+                logger.info(
+                    "Peticion denegada por scopes ausentes: %s", ", ".join(faltan)
+                )
+                raise _forbidden(INSUFFICIENT_SCOPE_DETAIL)
+            return principal
+
+        if allow_admin_user and principal.is_admin:
+            return principal
+        raise _forbidden("Se requiere permiso de administrador")
+
+    dependency.__name__ = "require_" + "_and_".join(
+        scope.value.replace(":", "_") for scope in exigidos
+    )
     return dependency
 
 

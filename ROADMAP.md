@@ -186,7 +186,7 @@
   - Detección y tarificación por uso de revisiones de PR que superen las 50 incluidas por desarrollador ($1/PR extra).
 - **Control de Acceso API & Tokens (`backend/apps/api_access/`):**
   - Generación de Personal Tokens y Service Keys con expiración configurable (prefijo `mgf_live_...`).
-  - Matriz de autorización granular con **46 scopes** evaluados en middleware antes de ejecutar cualquier acción.
+  - Matriz de autorización granular con **47 scopes** evaluados en middleware antes de ejecutar cualquier acción.
   - Almacenamiento seguro de tokens mediante hash SHA-256 (el secreto completo se muestra una sola vez).
 - **Webhooks Salientes:**
   - Sistema de despacho de eventos hacia endpoints configurados por el cliente (`scan.completed`, `vulnerability.created`).
@@ -207,7 +207,7 @@
 - [~] Webhooks de Stripe ejecutados contra la API real con Stripe CLI. *Bloque 5.3: `stripe listen` reenvía eventos reales al backend local y la firma se verifica con el `whsec_` que genera el CLI; `POST /api/v1/billing/checkout-session` publica una sesión real en modo test (`cs_test_...`, 1900 cents, `metadata.organization_id` presente). Ejecutar la llamada real destapó un bug que ningún doble podía ver: `create_checkout_session` pasaba argumentos con nombre y la firma real de `stripe` 15.x es un único dict posicional, así que no podía crear ni una sesión; queda corregido y con prueba de contrato del SDK. Falta completar el pago para ver `checkout.session.completed` con `payment_status: paid` y acreditar créditos de verdad.*
 - [x] La tabla `credit_ledger` rechaza a nivel de base de datos cualquier intento de `UPDATE` o `DELETE` (R4 verificado). *Trigger `trg_protect_credit_ledger_append_only` `FOR EACH STATEMENT` sobre `UPDATE OR DELETE OR TRUNCATE`, con prueba que bloquea las tres vías y comprueba que la fila sobrevive. `organizations.credit_balance` pasó de `float` a `numeric(18,4)`: un saldo con coma flotante deriva de centavo.*
 - [ ] Al iniciar un pentest profundo, el backend descuenta los créditos correspondientes; si el saldo es insuficiente, la acción se bloquea con mensaje informativo. *Bloque 5.1: el descuento ocurre antes del encolado y un saldo insuficiente devuelve `402` con el coste y el disponible. Falta la ejecución contra la cola de Celery real y la calibración del precio por escaneo frente al consumo real de tokens.*
-- [~] Creación de API Tokens operativa: los 46 permisos limitan estrictamente las operaciones permitidas por el llamador.
+- [~] Creación de API Tokens operativa: los 47 permisos limitan estrictamente las operaciones permitidas por el llamador.
 - [ ] Webhooks salientes entregan payloads firmados y manejan caídas del receptor con reintentos.
 - [ ] Un cliente MCP externo (ej. Cursor o `fastmcp client`) conecta a `/mcp`, se autentica y ejecuta herramientas de pentesting con éxito.
 - [~] **Test de aislamiento en facturación y API:** Una clave de API de la Organización A no puede ser utilizada para ejecutar acciones o consultar saldo de la Organización B.
@@ -239,7 +239,7 @@
 > | Ruta | Bloqueo |
 > | :--- | :--- |
 > | `/chat` | Modelo de conversaciones y agente conversacional del servidor MCP. |
-> | `/integrations`, `/api-access` | Tarea 3.4 de la Fase 5: matriz de 46 scopes, hash de tokens y almacenamiento de conexiones MCP. |
+> | `/integrations`, `/api-access` | Tarea 3.4 de la Fase 5: matriz de 47 scopes, hash de tokens y almacenamiento de conexiones MCP. |
 > | `/supply-chain` | Strix aún no expone el SBOM de dependencias. |
 > | `/containers`, `/networks` | Inventario de contenedores y escáner de red; llegan con la Fase 6. |
 > | `/settings` | Faltan los endpoints de renombrado y borrado de organización. |
@@ -265,8 +265,8 @@ sistema al que le faltan tres módulos audita menos de lo que parece.
 | 4 · Atribución LiteLLM | Cabeceras y las tres variables de entorno construidas desde una declaración inmutable | [x] |
 | 4 · CORS y multi-entorno | `cors_origins` con origen del frontend **añadido**, no exigido | [x] |
 | 2 · Dominios y superficie de ataque | Verificación TXT, descubrimiento, `/domains` y `/asset-discovery` | [x] |
-| 3 · Servidor MCP | `POST /api/v1/mcp` JSON-RPC 2.0 y pestaña MCP | pendiente |
-| 1 · Autofix One-Click | `REMEDIATION_PROPOSED`, rama y PR desde la plataforma | pendiente |
+| 3 · Servidor MCP | `POST /api/v1/mcp` JSON-RPC 2.0 y pestaña MCP | [x] |
+| 1 · Autofix One-Click | `REMEDIATION_PROPOSED`, rama y PR desde la plataforma | [x] |
 
 **Módulo 2 en detalle.** `backend/apps/assets/` con `VerifiedDomain` y `DiscoveredAsset`.
 Dos decisiones de integridad que conviene que no se pierdan al leer el código:
@@ -333,6 +333,51 @@ no ofrecer el método. El panel lo dice.
 - Frontend: `typecheck`, `lint` y `build` sin errores ni advertencias; 12 pruebas vitest.
 - i18n: 1332 hojas por idioma en paridad, con los marcadores de interpolación coincidentes,
   y cero literales en los JSX de los módulos nuevos.
+
+### Módulos 3 y 1 · Cerrados (2026-09-27)
+
+| Módulo | Entregado | Estado |
+| :--- | :--- | :--- |
+| 3 · Servidor MCP | `POST /api/v1/mcp` JSON-RPC 2.0, 4 herramientas, pestaña generadora | [x] |
+| 1 · Autofix One-Click | Generación con LLM, publicación de PR, liquidación y cobro | [x] |
+
+**Módulo 3.** `backend/apps/api_access/{mcp_protocol,mcp_tools,mcp_router}.py`. El protocolo
+vive aparte de las herramientas porque cambian por motivos distintos: el sobre lo define una
+especificación, el catálogo lo pide el roadmap. Cuatro decisiones:
+
+- **La respuesta es siempre `200` y el error va en el cuerpo**, salvo `401`/`403`. Un agente
+  que recibe un `4xx` lo trata como fallo de transporte sin leer el JSON; encerrarlo en un
+  `200` le impide distinguir "tu token no vale" de "la herramienta no existe".
+- **`mcp:connect` y `mcp:invoke` se exigen los dos**, y además cada herramienta comprueba el
+  scope de su recurso. `mcp:invoke` es la puerta, no el permiso: leer repositorios y lanzar
+  escaneos son cosas distintas y un token con el primero no debería poder lo segundo.
+- **`assets:read` es un scope nuevo** (47 en total), no reutilización de `repositories:read`.
+  El inventario de la superficie de ataque es evidencia de qué se escaneó para el cliente, y
+  eso no es lo mismo que leer repositorios.
+- **La misma dependencia de encolado** la usan `POST /api/v1/pentests/` y la herramienta
+  `trigger_pentest`. Dos despachadores distintos mandarían un escaneo a una cola que el
+  panel no vigila, y nada lo señalaría.
+
+**Módulo 1.** `backend/apps/vulnerabilities/{autofix,remediation}.py`, migración
+`f4a5b6c7d8e9`. La decisión que gobierna todo lo demás:
+
+> **El diff generado por la plataforma no es evidencia, y por eso no va en la columna de
+> evidencia.**
+
+`autofix_patch_diff` es lo que escribió el motor dentro del contenedor, y el trigger
+`trg_protect_vulnerability_evidence` lo hace inmutable junto con el PoC y el CVSS — con razón:
+es registro forense. Escribir ahí un diff generado después habría contaminado la evidencia
+y, además, sería imposible rehacerlo. La propuesta vive en `remediation_patch_diff`, que es un
+borrador: se puede regenerar, y el hallazgo pasa a `REMEDIATION_PROPOSED`, que **sigue
+contando como abierto** —un PR sin fusionar no arregla nada, y `is_open_for_closure` lo declara
+para que el resumen de postura y la herramienta MCP no puedan discrepar.
+
+El consumo se cobra aunque la PR no se abra, porque los tokens ya se gastaron, y el error
+`502` lo dice para que la interfaz no ofrezca «reintentar» como si fuera gratis. El coste se
+calcula con **el catálogo propio** y no con un `cost_usd` del proveedor: fiarse de la
+aritmética de un tercero para fijar lo que se le cobra al cliente haría el margen inauditable.
+
+---
 
 ## Fase 6 · Auditoría de Seguridad End-to-End, Hardening Dokploy & Despliegue
 
@@ -409,7 +454,7 @@ Verificación de que ninguna sección funcional del producto queda sin fase de d
 | §6.2 Dominios, APIs & Verificación de Propiedad | Fase 4 |
 | §7 Knowledge Base de Aplicaciones | Fase 4 |
 | §8 Integraciones (Git, Slack, Jira, MCP Sources) | Fase 3 (Git) y Fase 5 (MCP/Gestión) |
-| §9 Tokens de API (46 Scopes) & Webhooks Salientes | Fase 5 |
+| §9 Tokens de API (47 Scopes) & Webhooks Salientes | Fase 5 |
 | §9.2 Servidor MCP Remoto (`/mcp`) | Fase 5 |
 | §10.0 / §10.2 Gestión de Cuenta, Miembros & Roles | Fase 1 |
 | §10.3 Facturación, Créditos Stripe & Auto top-up | Fase 5 |

@@ -86,6 +86,29 @@ async def test_phase2_endpoints_are_tenant_isolated(integration_session: AsyncSe
     integration_session.add_all([vulnerability_a, vulnerability_b])
     await integration_session.flush()
 
+    # El escaneo tiene que apuntar a un repositorio **de esta** organizacion.
+    #
+    # Antes no hacia falta: `target_identifier` llegaba a la cola sin comprobar nada y el
+    # worker lo clonaba tal cual, de modo que cualquier texto —incluida una URL ajena—
+    # servia como destino. Eso era un agujero de R3 y de robo de credenciales que la prueba
+    # de aislamiento no cubria porque no sembraba ningun repositorio contra el que
+    # comprobar. `queue_pentest` rechaza ahora lo que no es propio, y esta prueba necesita
+    # un repo propio para seguir midiendo lo que pretendia: el aislamiento del escaneo.
+    from backend.apps.repositories.models import GitProviderEnum, Repository
+
+    repositorio = Repository(
+        organization_id=organization_a.id,
+        provider=GitProviderEnum.GITHUB,
+        remote_repo_id="fase2",
+        name="repository",
+        full_name="tenant-a/repository",
+        clone_url="https://example.test/repository",
+        default_branch="main",
+    )
+    integration_session.add(repositorio)
+    await integration_session.commit()
+    clone_url = repositorio.clone_url
+
     token_a = create_access_token({"sub": str(user_a.id)})
     headers_a = {
         "Authorization": f"Bearer {token_a}",
@@ -99,7 +122,7 @@ async def test_phase2_endpoints_are_tenant_isolated(integration_session: AsyncSe
             headers=headers_a,
             json={
                 "target_type": "REPOSITORY",
-                "target_identifier": "https://example.test/repository",
+                "target_identifier": clone_url,
                 "scan_mode": "QUICK",
             },
         )

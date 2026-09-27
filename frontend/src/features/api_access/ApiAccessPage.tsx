@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-  Boxes,
   KeyRound,
   LoaderCircle,
   Plus,
@@ -12,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import type { ApiToken, ApiTokenCreated } from '../../types/api'
 import { CreateTokenModal, SecretRevealModal } from './CreateTokenModal'
 import { useApiAccess } from './useApiAccess'
+import { McpTab } from './McpTab'
 import { WebhooksTab } from './WebhooksTab'
 
 type Tab = 'tokens' | 'webhooks' | 'mcp'
@@ -119,7 +119,7 @@ export function ApiAccessPage() {
       )}
 
       {tab === 'webhooks' && <WebhooksTab />}
-      {tab === 'mcp' && <McpTab />}
+      {tab === 'mcp' && <McpTab tokens={tokens} />}
 
       <CreateTokenModal
         catalog={catalog}
@@ -376,60 +376,6 @@ function RevokeConfirmModal({
       </div>
     </div>
   )
-}
-
-function McpTab() {
-  const { t } = useTranslation('apiAccess')
-  return (
-    <section role="tabpanel" aria-label={t('tabs.mcp')}>
-      <div className="mcp-card">
-        <div className="mcp-card-header">
-          <Boxes size={22} aria-hidden="true" />
-          <div>
-            <h2>{t('mcp.title')}</h2>
-            <p>{t('mcp.description')}</p>
-          </div>
-        </div>
-
-        <div className="form-field">
-          <span className="eyebrow">{t('mcp.quickstartLabel')}</span>
-          <code className="mcp-command mono">{t('mcp.quickstart')}</code>
-        </div>
-
-        <div className="form-field">
-          <span className="eyebrow">{t('mcp.configLabel')}</span>
-          <pre className="mcp-config">
-            <code className="mono">
-              {JSON.stringify(
-                {
-                  mcpServers: {
-                    'mind-guard': {
-                      type: 'http',
-                      url: `${mcpUrl()}/mcp`,
-                      headers: { Authorization: 'Bearer <API_TOKEN>' },
-                    },
-                  },
-                },
-                null,
-                2,
-              )}
-            </code>
-          </pre>
-        </div>
-
-        {/*
-          Se muestra un marcador de autenticación, no un token real. Poner un token de
-          ejemplo que pareciese utilizable invitaría a copiarlo sin saber que no sirve, y
-          el `401` llegaría después, en el agente del usuario.
-        */}
-        <p className="mcp-note">{t('mcp.tokenHint')}</p>
-      </div>
-    </section>
-  )
-}
-
-function mcpUrl(): string {
-  return typeof window === 'undefined' ? 'https://api.fenix.local' : window.location.origin
 }
 
 function formatDate(value: string): string {

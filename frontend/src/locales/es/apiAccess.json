@@ -205,9 +205,22 @@
   "mcp": {
     "title": "Model Context Protocol",
     "description": "Conecta agentes de IA para que consulten tus escaneos, vulnerabilidades y CVE con tus mismos permisos.",
-    "quickstartLabel": "Arranque rápido",
-    "quickstart": "npx -y @mind-guard/mcp-server --url https://TU-DOMINIO/mcp",
-    "configLabel": "Configuración del servidor",
-    "tokenHint": "Sustituye <API_TOKEN> por un token emitido en la pestaña Tokens que tenga solo los permisos que el agente necesite. Cuantos menos, mejor."
+    "tokenHint": "Sustituye <API_TOKEN> por un token emitido en la pestaña Tokens que tenga solo los permisos que el agente necesite. Cuantos menos, mejor.",
+    "endpointLabel": "Endpoint",
+    "tokenLabel": "Token del agente",
+    "availableTokens": "Tokens vigentes de este espacio de trabajo",
+    "tokenScopes": "{{count}} permiso(s) concedido(s)",
+    "tokenScopes_other": "{{count}} permisos concedidos",
+    "recommendedScopes": "Permisos habituales para un agente de solo lectura:",
+    "noTokens": "No tienes tokens vigentes. Crea uno en la pestaña Tokens con los scopes mcp:connect y mcp:invoke, y pégalo arriba.",
+    "downloadWarning": "Has pegado un token: la configuración que copies o descargues lo llevará en claro. Guárdala fuera de cualquier repositorio y revoca el token si se filtra.",
+    "claudeLabel": "Claude Desktop — claude_desktop_config.json",
+    "cursorLabel": "Cursor — .cursorrules",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "downloadClaude": "Descargar claude_desktop_config.json",
+    "downloadCursor": "Descargar .cursorrules",
+    "cursorIntro": "Este espacio de trabajo expone un servidor Model Context Protocol. Úsalo para consultar el estado de seguridad del proyecto sin salir del editor.",
+    "scopesNote": "El token decide qué puede hacer el agente. Concederle todo por comodidad convierte al editor en una vía de escaneo y de gasto de créditos que nadie está mirando."
   }
 }

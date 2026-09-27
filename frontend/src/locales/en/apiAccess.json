@@ -205,9 +205,22 @@
   "mcp": {
     "title": "Model Context Protocol",
     "description": "Connect AI agents so they can query your scans, vulnerabilities and CVEs with the same permissions you do.",
-    "quickstartLabel": "Quick start",
-    "quickstart": "npx -y @mind-guard/mcp-server --url https://YOUR-DOMAIN/mcp",
-    "configLabel": "Server configuration",
-    "tokenHint": "Replace <API_TOKEN> with a token from the Tokens tab holding only the permissions the agent needs. Fewer is better."
+    "tokenHint": "Replace <API_TOKEN> with a token from the Tokens tab holding only the permissions the agent needs. Fewer is better.",
+    "endpointLabel": "Endpoint",
+    "tokenLabel": "Agent token",
+    "availableTokens": "Active tokens in this workspace",
+    "tokenScopes": "{{count}} granted permission(s)",
+    "tokenScopes_other": "{{count}} granted permissions",
+    "recommendedScopes": "Usual permissions for a read-only agent:",
+    "noTokens": "You have no active tokens. Create one in the Tokens tab with the mcp:connect and mcp:invoke scopes, then paste it above.",
+    "downloadWarning": "You pasted a token: the configuration you copy or download will carry it in clear. Keep it outside any repository, and revoke the token if it leaks.",
+    "claudeLabel": "Claude Desktop — claude_desktop_config.json",
+    "cursorLabel": "Cursor — .cursorrules",
+    "copy": "Copy",
+    "copied": "Copied",
+    "downloadClaude": "Download claude_desktop_config.json",
+    "downloadCursor": "Download .cursorrules",
+    "cursorIntro": "This workspace exposes a Model Context Protocol server. Use it to check the project security posture without leaving the editor.",
+    "scopesNote": "The token decides what the agent may do. Granting everything for convenience turns the editor into a path for scanning and credit spending that nobody is watching."
   }
 }

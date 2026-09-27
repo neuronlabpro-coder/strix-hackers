@@ -71,7 +71,21 @@ export type RepositoryMonitoringStatus = 'NOT_TESTED' | 'TESTED' | 'SCANNING'
 
 export type VulnerabilitySeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
 
-export type IssueStatus = 'OPEN' | 'IN_PROGRESS' | 'FIXED' | 'SNOOZED' | 'IGNORED'
+/**
+ * Estado de remediación de un hallazgo.
+ *
+ * `REMEDIATION_PROPOSED` es un estado aparte y no una forma de `FIXED` porque un PR
+ * abierto no arregla nada: puede cerrarse sin fusionarse, o fusionarse y no
+ * resolver el problema. Marcar el hallazgo como cerrado al abrir la propuesta haría que
+ * el panel afirmara algo que todavía no ha pasado.
+ */
+export type IssueStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'REMEDIATION_PROPOSED'
+  | 'FIXED'
+  | 'SNOOZED'
+  | 'IGNORED'
 
 export type ScanMode = 'QUICK' | 'STANDARD' | 'DEEP'
 
@@ -108,7 +122,12 @@ export interface VulnerabilityDetail extends VulnerabilityListItem {
   description: string
   affected_line: string | null
   poc_reproduction_raw: string
+  /** El diff que escribió el motor durante el escaneo. Es evidencia forense e inmutable. */
   autofix_patch_diff: string | null
+  /** El diff que generó la plataforma a partir de esa evidencia. Es un borrador. */
+  remediation_patch_diff: string | null
+  /** Enlace a la pull request de la propuesta de remediación. */
+  remediation_pr_url: string | null
   updated_at: string
 }
 
@@ -119,6 +138,21 @@ export interface AutofixRequest {
 export interface AutofixResponse {
   autofix_url: string
 }
+
+/**
+ * Lo que queda tras generar la corrección y abrir la pull request.
+ *
+ * Devuelve el `status` además de la URL porque el hallazgo ha cambiado de estado y quien
+ * llama necesita saberlo **sin** una segunda petición. Solo la URL obligaría al panel a
+ * recargar la ficha para descubrir que el botón de generar propuesta ya no tiene sentido,
+ * y un panel sin recargar sigue ofreciendo una acción que ya está hecha.
+ */
+export interface RemediationResponse {
+  vulnerability_id: string
+  remediation_pr_url: string
+  status: IssueStatus
+}
+
 
 export interface PentestRun {
   id: string
@@ -566,7 +600,7 @@ export interface ApiScopeDefinition {
   is_privileged: boolean
 }
 
-/** Los 46 scopes, agrupados por recurso y en el orden en que los muestra el panel. */
+/** Los 47 scopes, agrupados por recurso y en el orden en que los muestra el panel. */
 export interface ApiScopeGroup {
   group: string
   scopes: ApiScopeDefinition[]

@@ -15,8 +15,6 @@ import { IssuesPage } from '../features/issues/IssuesPage'
 import { VulnerabilityDetailPage } from '../features/issues/VulnerabilityDetailPage'
 import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 import { CvePage } from '../features/cve/CvePage'
-import { DomainsPage } from '../features/domains/DomainsPage'
-import { AssetDiscoveryPage } from '../features/assetDiscovery/AssetDiscoveryPage'
 import { PrReviewsPage } from '../features/prReviews/PrReviewsPage'
 import { PentestsPage } from '../features/pentests/PentestsPage'
 import { PentestRunPage } from '../features/pentests/PentestRunPage'
@@ -31,6 +29,35 @@ import { SupportTicketsPage } from '../features/support/SupportTicketsPage'
 import { SupportTicketPage } from '../features/support/SupportTicketPage'
 import { ToastProvider } from '../features/shared/ToastProvider'
 import { ShellLayout } from './ShellLayout'
+
+/**
+ * La superficie de ataque se carga bajo demanda, por el mismo motivo que la consola de
+ * SuperAdmin y no por moda.
+ *
+ * ## Por qué
+ *
+ * Dos pantallas completas más en el bundle principal lo empujaron por encima del umbral que
+ * avisa en el build. Medido: el paquete que descarga el 100 % de los clientes pasó de 495 a
+ * 504 kB para servir dos rutas a las que se entra desde un escaneo, nunca desde el arranque.
+ *
+ * Subir `chunkSizeWarningLimit` habría silenciado el aviso sin mejorar nada: el peso sigue
+ * ahí y lo sigue pagando quien no entra nunca. Partirlo lo quita del camino crítico de
+ * verdad.
+ *
+ * ## Por qué aquí y no en todas las pantallas
+ *
+ * Porque casi nadie abre `/domains` sin venir del panel de un escaneo. Un cliente que entra
+ * por `/dashboard` no debería pagar por la lista de activos ni por el inventario de
+ * superficie; y quien sí entra, ya está navegando y un fragmento de red no se nota.
+ */
+const DomainsPage = lazy(() =>
+  import('../features/domains/DomainsPage').then((m) => ({ default: m.DomainsPage })),
+)
+const AssetDiscoveryPage = lazy(() =>
+  import('../features/assetDiscovery/AssetDiscoveryPage').then((m) => ({
+    default: m.AssetDiscoveryPage,
+  })),
+)
 
 /**
  * La consola de SuperAdmin se carga bajo demanda.

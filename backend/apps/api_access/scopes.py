@@ -52,6 +52,16 @@ class Scope(StrEnum):
     REPOSITORIES_SYNC = "repositories:sync"
     REPOSITORIES_DELETE = "repositories:delete"
 
+    # Superficie de ataque: dominios verificados y activos descubiertos.
+    #
+    # Existe porque es un recurso de **lectura** distinto del de los repositorios, y
+    # reutilizar `repositories:read` para leer el inventario de activos sería mentir sobre
+    # lo que el scope concede: quien lo tiene puede leer el inventario de la superficie de
+    # ataque de la organización, y eso no es lo mismo que leer repositorios. La diferencia
+    # no es simbólica —el inventario es la evidencia de qué se escaneó para el cliente—, así
+    # que tiene su propio permiso y se concede por separado.
+    ASSETS_READ = "assets:read"
+
     # Revisiones de PR
     PR_REVIEWS_READ = "pr_reviews:read"
     PR_REVIEWS_TRIGGER = "pr_reviews:trigger"
@@ -163,6 +173,12 @@ SCOPE_CATALOG: Final[MappingProxyType[str, tuple[ScopeDefinition, ...]]] = (
                 (Scope.REPOSITORIES_CONNECT, "scopes.repositories.connect", True),
                 (Scope.REPOSITORIES_SYNC, "scopes.repositories.sync", True),
                 (Scope.REPOSITORIES_DELETE, "scopes.repositories.delete", True),
+            ),
+            "assets": _definitions(
+                # De solo lectura, y no por prudencia sino por el estado del recurso: el
+                # descubrimiento de superficie de ataque se lanza desde el panel, donde hay
+                # una sesión con rol. Un token puede consultar el inventario, no generarlo.
+                (Scope.ASSETS_READ, "scopes.assets.read", False),
             ),
             "pr_reviews": _definitions(
                 (Scope.PR_REVIEWS_READ, "scopes.prReviews.read", False),

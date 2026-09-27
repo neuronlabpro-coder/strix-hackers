@@ -61,6 +61,7 @@ import type {
   VulnerabilityDetail,
   VulnerabilityPage,
   VulnerabilitySeverity,
+  RemediationResponse,
 } from '../types/api'
 
 export class ApiError extends Error {
@@ -396,6 +397,33 @@ export function getVulnerability(
   return request<VulnerabilityDetail>(
     `/api/v1/vulnerabilities/${vulnerabilityId}`,
     {},
+    token,
+    organizationId,
+  )
+}
+
+/**
+ * Pide a la plataforma que **genere** la corrección y abra la pull request.
+ *
+ * ## Por qué es distinta de `createFixPullRequest`
+ *
+ * Porque hacen dos cosas y cuestan dos cosas distintas. Esta **gasta tokens**: genera el
+ * parche con un modelo y por eso tiene su propio límite de tasa y su propio error cuando el
+ * modelo no responde. `createFixPullRequest` publica un diff que ya estaba en la base —lo
+ * trajo el motor durante el escaneo— y no cuesta nada.
+ *
+ * Un único endpoint cuyo comportamiento dependiera de si el campo `autofix_patch_diff` venía
+ * nulo no podría expresar esa diferencia en el código de estado, y quien lo usara no sabría
+ * si reintentar cuesta dinero.
+ */
+export function proposeRemediation(
+  token: string,
+  organizationId: string,
+  vulnerabilityId: string,
+): Promise<RemediationResponse> {
+  return request<RemediationResponse>(
+    `/api/v1/vulnerabilities/${vulnerabilityId}/remediate`,
+    { method: 'POST' },
     token,
     organizationId,
   )

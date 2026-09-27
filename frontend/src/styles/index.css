@@ -1014,6 +1014,19 @@ code.mono,
   border-radius: var(--radius-lg);
 }
 
+/*
+ * Pie de un modal: las acciones a la derecha y con separación del contenido.
+ *
+ * A la derecha porque la acción principal es la última que se lee y la que se busca con el
+ * cursor al final de la lectura; a la izquierda cerraría el recorrido y la acción destructiva
+ * acabaría siendo la primera que se pisa sin querer.
+ */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;

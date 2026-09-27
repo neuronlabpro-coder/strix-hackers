@@ -36,6 +36,7 @@
   "status": {
     "OPEN": "Open",
     "IN_PROGRESS": "In progress",
+    "REMEDIATION_PROPOSED": "Remediation proposed",
     "FIXED": "Fixed",
     "SNOOZED": "Snoozed",
     "IGNORED": "Ignored"
@@ -101,6 +102,30 @@
       "success": "Remediation opened on the provider",
       "error": "The remediation could not be opened",
       "notSupported": "The provider does not support pull request creation yet"
+    },
+    "remediation": {
+      "eyebrow": "Assisted remediation",
+      "title": "Generate a remediation proposal",
+      "description": "Fenix drafts a patch from the finding evidence and opens a pull request in your repository. It is a proposal: review it before merging.",
+      "button": "Generate Fix PR with Fenix",
+      "working": "Generating the fix…",
+      "proposed": "Remediation proposed",
+      "proposedNote": "The finding is still open. An unmerged pull request does not fix it, and the patch was generated from the evidence, not from deployed code.",
+      "openPr": "Open the pull request",
+      "willRegenerate": "A proposal is already open. Generating another replaces it in the panel; the previous pull request stays in the repository.",
+      "engineDiff": "Patch proposed by the engine during the scan",
+      "draftTitle": "Draft of the fix",
+      "error": "The proposal could not be generated. Check that the finding comes from a repository in your workspace and that a model is available.",
+      "publishedFailedButCharged": "The fix was generated and charged, but the pull request could not be opened. The balance has already been deducted and the patch is kept on the page.",
+      "dialog": {
+        "title": "Generate a remediation proposal",
+        "cost": "This action consumes credits from your workspace balance.",
+        "branch": "It will create a new branch in your repository and open a pull request against the base branch.",
+        "target": "The patch is drafted from the proof of concept and the finding location, without deploying the repository. Review it before merging.",
+        "replaceWarning": "A proposal is already open. Generating another replaces it in the panel.",
+        "cancel": "Cancel",
+        "confirm": "Generate and open the PR"
+      }
     }
   }
 }
