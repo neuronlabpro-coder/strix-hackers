@@ -613,9 +613,18 @@ export interface ApiScopeCatalog {
   total: number
 }
 
+/** De quién es el token. Los valores van en minúscula porque son los del API. */
+export type ApiTokenType = 'personal' | 'service_key'
+
 export interface ApiToken {
   id: string
   name: string
+  /**
+   * De quién es el token. El backend lo persiste y lo devuelve; el panel no lo deduce
+   * de los scopes, porque un token de servicio con un solo scope de lectura sigue siendo
+   * de servicio.
+   */
+  token_type: ApiTokenType
   token_prefix: string
   scopes: string[]
   created_at: string
@@ -644,8 +653,17 @@ export interface ApiTokenPage {
 export interface ApiTokenCreatePayload {
   name: string
   scopes: string[]
-  /** Días hasta la caducidad. El backend impone un techo de 365. */
+  /**
+   * Días hasta la caducidad. El backend impone un techo de 365.
+   *
+   * `0` significa **sin caducidad**, y no "caduca hoy". El backend lo traduce a
+   * `expires_at = null` con un validador que además rechaza el `0` con un `422` que no
+   * menciona la caducidad, que es el resultado que tendría un selector HTML cuya primera
+   * opción es "Sin expiración".
+   */
   expires_in_days: number
+  /** De quién es el token. El backend lo persiste y no lo deduce de los scopes. */
+  token_type: ApiTokenType
 }
 
 /**

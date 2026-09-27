@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +56,6 @@ async def create_api_token(
     """
 
     raw_token = generate_api_token(API_TOKEN_PREFIX, TOKEN_SECRET_BYTES)
-    now = datetime.now(UTC)
     token = ApiToken(
         organization_id=organization_id,
         name=payload.name,
@@ -64,7 +63,15 @@ async def create_api_token(
         # Nunca el token. Esta es la línea de la que depende todo el resto del módulo.
         token_hash=hash_api_token(raw_token),
         scopes=[scope.value for scope in payload.resolved_scopes()],
-        expires_at=now + timedelta(days=payload.expires_in_days),
+        # `personal` o `service_key`, persistido tal cual. No se deduce del nombre ni de los
+        # scopes: un token de servicio con un solo scope de lectura sigue siendo de servicio, y
+        # esa es justo la combinacion que un servicio de integracion tiene.
+        token_type=payload.token_type,
+        # La fecha la decide el esquema con `resolved_expiration`, y no aquí. La razón está
+        # escrita en ese método: si el cálculo viviera en dos sitios, el primero que se olvidara
+        # de tratar el `None` produciría un token que caduca el día que se crea, que es un token
+        # **válido** y por eso el fallo no se ve hasta que expira algo que debía durar un año.
+        expires_at=payload.resolved_expiration(),
     )
     session.add(token)
     await session.commit()

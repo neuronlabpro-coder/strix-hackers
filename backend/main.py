@@ -15,6 +15,7 @@ from backend.apps.billing.router import router as billing_router
 from backend.apps.cve_database.router import router as cve_router
 from backend.apps.dashboard.router import router as dashboard_router
 from backend.apps.knowledge.router import router as knowledge_router
+from backend.apps.knowledge.router_documents import router as knowledge_documents_router
 from backend.apps.onboarding.router import router as onboarding_router
 from backend.apps.organizations.router import router as organizations_router
 from backend.apps.pentests.router import router as pentests_router
@@ -125,6 +126,11 @@ app.include_router(admin_router)
 app.include_router(support_admin_router)
 app.include_router(support_router)
 app.include_router(audit_router)
+# El catalogo tecnico declara `/{entry_id}` bajo `/api/v1/knowledge`, asi que tiene que
+# declararse **despues** de los documentos: en caso contrario su comodin se queda con
+# `/knowledge/documents` y la peticion muere con un `422` de UUID invalido. El orden de
+# `include_router` es el orden de coincidencia, y decide que ruta gana.
+app.include_router(knowledge_documents_router)
 app.include_router(knowledge_router)
 app.include_router(onboarding_router)
 app.include_router(billing_router)

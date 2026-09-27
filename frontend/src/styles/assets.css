@@ -687,3 +687,80 @@
   padding-left: 12px;
   margin-left: 8px;
 }
+
+/* ---------------------------------------------------------------------------
+ * Selector de tipo de token.
+ *
+ * `fieldset` y no un `div`: los dos radio tienen que compartir un nombre de grupo para que
+ * sean excluyentes, y el `legend` es lo que un lector de pantalla anuncia antes de las
+ * opciones. Con un `div` y dos `label`, la pregunta "de qué tipo es" no aparece en ningún
+ * sitio de la lectura por teclado.
+ * --------------------------------------------------------------------------- */
+
+.token-type-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.token-type-field legend {
+  padding: 0;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.token-type-options {
+  display: grid;
+  gap: 8px;
+}
+
+.token-type-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.token-type-option:hover {
+  border-color: var(--color-border-hover);
+}
+
+/* El estado activo se marca con el acento en el borde, no solo con el radio. El radio
+ * marcado es un punto de 8 px: a tamaño normal se ve, pero no dice «elegido» con la fuerza
+ * que sí comunica un borde de color, y en esta pantalla la diferencia entre un token personal
+ * y uno de servicio es la que decide quién lo puede revocar. */
+.token-type-option-active {
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-background));
+  border-color: var(--color-accent);
+}
+
+.token-type-option input[type='radio'] {
+  margin-top: 2px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.token-type-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.token-type-copy strong {
+  color: var(--color-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.token-type-copy span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}

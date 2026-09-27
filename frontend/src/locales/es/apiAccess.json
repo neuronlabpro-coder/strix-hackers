@@ -55,7 +55,20 @@
     "scopes": "Permisos",
     "submit": "Emitir token",
     "submitHint": "El token se entrega una sola vez, justo después de emitirlo.",
-    "failed": "No se pudo emitir el token."
+    "failed": "No se pudo emitir el token.",
+    "type": "Tipo de token",
+    "neverExpiryWarning": "Este token no caducara. La revocacion es la unica forma de desactivarlo, asi que conviene anotarlo como secreto de la organizacion y no como una credencial de una persona.",
+    "types": {
+      "personal": {
+        "title": "Token personal",
+        "hint": "Actua como tu, limitado por tu rol en el momento de usarlo."
+      },
+      "serviceKey": {
+        "title": "Clave de servicio",
+        "hint": "Actua para la organizacion, no ligada a ninguna persona."
+      },
+      "service_key_warning": "Una clave de servicio sobrevive a que se marche quien la creo. Revocala a mano cuando esa integracion deje de usarse."
+    }
   },
   "reveal": {
     "title": "Token emitido",

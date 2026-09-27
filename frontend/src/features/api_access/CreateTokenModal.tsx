@@ -3,14 +3,21 @@ import { KeyRound, LoaderCircle, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { ApiScopeCatalog, ApiTokenCreated } from '../../types/api'
-import { DEFAULT_EXPIRY_DAYS, EXPIRY_CHOICES } from './useApiAccess'
+import type { ApiTokenType } from '../../types/api'
+import { DEFAULT_EXPIRY_DAYS, EXPIRY_CHOICES, TOKEN_TYPE_CHOICES } from './useApiAccess'
 import { ScopeSelector } from './ScopeSelector'
 
 export interface CreateTokenModalProps {
   catalog: ApiScopeCatalog
   isOpen: boolean
   onClose: () => void
-  onCreate: (input: { name: string; scopes: string[]; expiresInDays: number }) => Promise<ApiTokenCreated>
+  onCreate: (input: {
+    name: string
+    scopes: string[]
+    /** `0` significa sin caducidad; el backend lo traduce a `expires_at = null`. */
+    expiresInDays: number
+    tokenType: ApiTokenType
+  }) => Promise<ApiTokenCreated>
 }
 
 /**
@@ -39,9 +46,12 @@ export function CreateTokenModal({
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [expiresInDays, setExpiresInDays] = useState<number>(DEFAULT_EXPIRY_DAYS)
+  const [tokenType, setTokenType] = useState<ApiTokenType>('personal')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [failed, setFailed] = useState(false)
 
+  /** Sin caducidad. Se representa con `0` y no con `null` por lo que explica `EXPIRY_CHOICES`. */
+  const sinCaducidad = expiresInDays === 0
   const trimmedName = name.trim()
   const canSubmit = trimmedName.length > 0 && selected.size > 0 && !isSubmitting
 
@@ -56,7 +66,8 @@ export function CreateTokenModal({
         name: trimmedName,
         scopes: [...selected].sort(),
         expiresInDays,
-      })
+        tokenType,
+    })
     } catch {
       setFailed(true)
       setIsSubmitting(false)
@@ -104,6 +115,44 @@ export function CreateTokenModal({
             />
           </div>
 
+          {/*
+            El selector de tipo va antes del de caducidad, y no por gusto: el tipo responde a
+            de quién es el token y la caducidad a cuánto dura. Un token de servicio sin
+            caducidad es la combinación que más se usa en la práctica, y este orden la hace
+            legible en el mismo recorrido que cualquier otra.
+          */}
+          <fieldset className="form-field token-type-field">
+            <legend>{t('create.type')}</legend>
+            <div className="token-type-options">
+              {TOKEN_TYPE_CHOICES.map((choice) => (
+                <label
+                  key={choice.value}
+                  className={
+                    tokenType === choice.value
+                      ? 'token-type-option token-type-option-active'
+                      : 'token-type-option'
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="token-type"
+                    value={choice.value}
+                    checked={tokenType === choice.value}
+                    disabled={isSubmitting}
+                    onChange={() => setTokenType(choice.value)}
+                  />
+                  <span className="token-type-copy">
+                    <strong>{t(`create.types.${choice.key}.title`)}</strong>
+                    <span>{t(`create.types.${choice.key}.hint`)}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {tokenType === 'service_key' ? (
+              <p className="form-hint">{t('create.types.service_key_warning')}</p>
+            ) : null}
+          </fieldset>
+
           <div className="form-field">
             <label htmlFor="token-expiry">{t('create.expiry')}</label>
             {/*
@@ -123,7 +172,9 @@ export function CreateTokenModal({
                 </option>
               ))}
             </select>
-            <p className="form-hint">{t('create.expiryHint')}</p>
+            <p className="form-hint">
+              {sinCaducidad ? t('create.neverExpiryWarning') : t('create.expiryHint')}
+            </p>
           </div>
 
           <div className="form-field">

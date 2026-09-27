@@ -38,6 +38,15 @@ class LLMUseCaseEnum(StrEnum):
     QUICK_SCAN = "QUICK_SCAN"
     DEEP_PENTEST = "DEEP_PENTEST"
     AUTOFIX = "AUTOFIX"
+    #: Cadenas del chat con agentes.
+    #:
+    #: Es un valor mas y no una columna booleana aparte. Con `is_active_for_chat` y
+    #: `is_active_for_pentest` habria que responder a "puede este modelo usarse en el chat" y a
+    #: "puede usarse en un escaneo" por separado, y en cuanto un modelo valiera en los dos habria
+    #: que mantener las dos columnas coherentes a mano. Un unico `use_case` con la lista de
+    #: casos admittedidos, mas el transversal `ALL`, dice lo mismo sin ese segundo sitio donde
+    #: equivocarse.
+    CHAT = "CHAT"
 
 
 class LLMModelConfig(Base):

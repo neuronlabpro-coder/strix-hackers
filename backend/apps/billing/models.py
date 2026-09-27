@@ -35,6 +35,14 @@ class LedgerReasonEnum(StrEnum):
     STRIPE_PURCHASE = "STRIPE_PURCHASE"
     ADMIN_ADJUSTMENT = "ADMIN_ADJUSTMENT"
     SIGNUP_BONUS = "SIGNUP_BONUS"
+    #: Consumo de un paso del chat con agentes.
+    #:
+    #: Va en su propio motivo y no como un `SCAN_CONSUMPTION` mas porque el libro contable se
+    #: lee por motivo: sin esta distincion, "los escaneos me cuestan 200 creditos al mes" no
+    #: tiene respuesta, porque la partida mezcla el analisis ofensivo con las preguntas que un
+    #: analista le hace al asistente. Son dos decisiones de gasto distintas, con titulares
+    #: distintos y, cuando el gasto dispara, lugares distintos donde mirar.
+    CHAT_STEP_CONSUMPTION = "CHAT_STEP_CONSUMPTION"
 
 
 class CreditLedger(Base):

@@ -31,29 +31,66 @@ export interface ApiAccessState {
   revokeFailed: boolean
 }
 
+/**
+ * De quién es el token.
+ *
+ * Los valores van en minúscula porque son los que viajan por la API y los que lee el enum de
+ * PostgreSQL. El panel podría haberlos escrito en mayúsculas por estilo, y entonces el token
+ * creado sería rechazado con un `422` que no menciona el problema.
+ */
+export type ApiTokenType = 'personal' | 'service_key'
+
 export interface CreateTokenInput {
   name: string
   scopes: string[]
+  /** `0` significa sin caducidad; el backend lo traduce a `expires_at = null`. */
   expiresInDays: number
+  tokenType: ApiTokenType
 }
 
 /**
- * Vigencia sin caducidad.
+ * Opciones de vigencia.
  *
- * El backend impone un techo de 365 días, así que el valor máximo que se puede enviar es
- * ese. "Sin expiración" **no** existe como opción y no se implementa aquí a propósito:
- * una credencial permanente sobrevive a quien la creó, y el mecanismo de revocación es la
- * red de seguridad, no el plan. Ofrecerla y que el servidor la rechace con un `422` sería
- * hacer que el panel prometa algo que no puede cumplir.
+ * ## Por qué "sin caducidad" ahora sí existe, y antes no
+ *
+ * Porque antes el backend la rechazaba: `expires_in_days` tenía `ge=1`, así que la opción
+ * habría dado un `422` al guardar, y el panel no iba a ofrecer algo que no puede cumplir. Ese
+ * era el motivo, y era correcto.
+ *
+ * Ahora el esquema acepta `None` y traduce el `0` a `expires_at = null`. Se ofrece con un
+ * aviso al lado, no en silencio, porque una credencial permanente sobrevive a quien la creó y
+ * aviso al lado, no en silencio, porque una credencial permanente sobrevive a quien la
+ * creo y el unico mecanismo para desactivarla es la revocacion: es una decision
+ * legitima para una integracion y una mala idea para un token personal, y por eso el
+ * aviso nombra esa diferencia.
+ *
+ * ## Por qué el valor es `0` y no una cadena vacía
+ *
+ * Porque un `<select>` no puede tener `value={null}` sin que el navegador seleccione la
+ * primera opción. `0` es la forma de que el selector funcione, y el backend lo traduce. Es el
+ * mismo camino que el caso real de un HTML, y por eso su esquema tiene ese validador.
  */
 export const EXPIRY_CHOICES = [
   { days: 30, key: 'days30' },
   { days: 90, key: 'days90' },
   { days: 365, key: 'year' },
+  { days: 0, key: 'never' },
 ] as const
 
 /** Vigencia por defecto: 90 días cubren un trimestre de integración. */
 export const DEFAULT_EXPIRY_DAYS = 90
+
+/**
+ * Los dos tipos de token, en el orden en que se pintan.
+ *
+ * `personal` primero porque es el que se quiere en la mayoría de los casos: se revoca con
+ * criterio al darle de baja a la persona. `service_key` es la excepción deliberada, para
+ * integraciones que deben sobrevivir a la marcha de quien las creó.
+ */
+export const TOKEN_TYPE_CHOICES = [
+  { value: 'personal', key: 'personal' },
+  { value: 'service_key', key: 'serviceKey' },
+] as const satisfies readonly { value: ApiTokenType; key: string }[]
 
 const EMPTY_CATALOG: ApiScopeCatalog = { groups: [], total: 0 }
 
@@ -129,6 +166,9 @@ export function useApiAccess(): ApiAccessState {
         name: input.name,
         scopes: input.scopes,
         expires_in_days: input.expiresInDays,
+        // Viaja en la peticion y no se deduce el backend: un token de servicio con un solo
+        // scope de lectura sigue siendo de servicio, y deducirlo de los scopes daria personal.
+        token_type: input.tokenType,
       })
       // La tabla se actualiza con la fila recién creada en vez de recargando todo. Un
       // refetch volvería a pedir el catálogo de 46 permisos que no ha cambiado, y

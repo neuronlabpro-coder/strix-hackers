@@ -55,7 +55,20 @@
     "scopes": "Permissions",
     "submit": "Issue token",
     "submitHint": "The token is shown once, right after it is issued.",
-    "failed": "The token could not be issued."
+    "failed": "The token could not be issued.",
+    "type": "Token type",
+    "neverExpiryWarning": "This token will not expire. Revocation is the only way to disable it, so treat it as an organization secret rather than as somebody's credential.",
+    "types": {
+      "personal": {
+        "title": "Personal token",
+        "hint": "Acts as you, limited by your role at the time of use."
+      },
+      "serviceKey": {
+        "title": "Service key",
+        "hint": "Acts for the organization, not tied to any one person."
+      },
+      "service_key_warning": "A service key outlives whoever created it. Revoke it by hand when that integration stops being used."
+    }
   },
   "reveal": {
     "title": "Token issued",

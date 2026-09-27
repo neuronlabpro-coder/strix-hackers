@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 from typing import Final
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -62,6 +64,30 @@ def token_prefix_for(raw_token: str) -> str:
     """
 
     return raw_token[: len(API_TOKEN_PREFIX) + TOKEN_PREFIX_VISIBLE]
+
+
+class ApiTokenTypeEnum(StrEnum):
+    """Para quien actua el token.
+
+    ## Por que esto **no** es un adorno de la interfaz
+
+    Porque las dos clases tienen consecuencias distintas en el mismo sitio. Un `service_key`
+    representa a la organizacion y sobrevive a que la persona que lo creo se vaya; un
+    `personal` representa a la persona y deja de valer cuando se va. Sin distinguirlas, la
+    pregunta de si un token de integracion sobrevive a la marcha de su creador no tiene
+    respuesta en los datos, y se acaba contestando por costumbre en vez de por criterio.
+
+    ## Por que el enum vive en base de datos y no solo en Python
+
+    Porque son las dos unicas respuestas admitidas, y un `varchar` libre acabaria con
+    `service`, `service-key` y `SERVICIA` conviviendo. Un enum de PostgreSQL no lo permite, y
+    la restriccion se aplica al escribir, que es cuando se puede.
+    """
+
+    #: Actua como la persona que lo creo, limitado por su rol en el momento de usarlo.
+    PERSONAL = "personal"
+    #: Actua para la organizacion, no ligado a ninguna persona.
+    SERVICE_KEY = "service_key"
 
 
 class ApiToken(Base):
@@ -104,6 +130,30 @@ class ApiToken(Base):
     #: escribe y se lee enteras, nunca se filtra por elemento, así que un ARRAY de texto
     #: no aportaría nada y sí impediría esa consulta.
     scopes: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    #: Personal o de servicio. `server_default` a `personal` para que una fila creada por un
+    #: camino que no pase por el esquema siga siendo valida, en vez de fallar por un `NOT NULL`
+    #: que nadie declaro.
+    # `values_callable` **no es opcional aqui**, y es el fallo mas facil de no ver de todo este
+    # bloque. `sa.Enum` persiste el **nombre** del miembro de Python, no su valor: sin esta
+    # opcion la columna guardaria `PERSONAL` y `SERVICE_KEY`, mientras que el esquema de
+    # entrada, la API y el panel hablan de `personal` y `service_key`. La fila se crearia
+    # correctamente y la lectura fallaria al validar, con un error que senala al enum y no a la
+    # columna.
+    #
+    # Los enums de este proyecto que solo usan mayusculas —`KnowledgeDocTypeEnum`,
+    # `ChatRoleEnum`— no necesitan esto porque nombre y valor coinciden. Este los usa en
+    # minusculas porque son los valores que viajan por la API, y ahi manda la convencion de la
+    # API sobre la del enum.
+    token_type: Mapped[ApiTokenTypeEnum] = mapped_column(
+        SQLEnum(
+            ApiTokenTypeEnum,
+            name="api_token_type_enum",
+            values_callable=lambda enum_cls: [miembro.value for miembro in enum_cls],
+        ),
+        nullable=False,
+        # El valor, no el nombre: el `server_default` se compara contra lo que hay en la fila.
+        server_default=ApiTokenTypeEnum.PERSONAL.value,
+    )
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )

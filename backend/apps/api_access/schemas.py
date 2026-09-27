@@ -8,12 +8,12 @@ es el campo que no se puede recuperar.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from backend.apps.api_access.models import ApiToken
+from backend.apps.api_access.models import ApiToken, ApiTokenTypeEnum
 from backend.apps.api_access.scopes import (
     ALL_SCOPES,
     SCOPE_CATALOG,
@@ -41,7 +41,38 @@ class ApiTokenCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=100)
     scopes: list[str] = Field(min_length=1)
-    expires_in_days: int = Field(default=DEFAULT_EXPIRY_DAYS, ge=1, le=MAX_EXPIRY_DAYS)
+
+    #: Personal o de servicio. El valor por defecto es `personal` porque es lo que se quiere en
+    #: la mayoria de los casos: un token que caduca con la persona es el que se puede revocar
+    #: con criterio al darle de baja. `service_key` es la excepcion deliberada, para
+    #: integraciones que deben sobrevivir a que la persona se vaya.
+    token_type: ApiTokenTypeEnum = ApiTokenTypeEnum.PERSONAL
+
+    #: Días hasta la caducidad, o `None` para un token que **no** caduca.
+    #:
+    #: El máximo sigue acotado a `MAX_EXPIRY_DAYS` cuando hay número, porque "un año" es lo
+    #: que el backend sabe rotar. La ausencia de caducidad se pide con `null`, no con `0`: `0`
+    #: días significaría "caduca hoy mismo", que es un valor sin sentido y que un cliente que
+    #: lo enviara por error se llevaría un 422 sin explicación.
+    #:
+    #: `0` se acepta y se traduce a `None` a propósito, por el caso real de un selector HTML
+    #: cuya primera opción es "Sin expiración" y cuyo valor es `0`. Se acepta con un
+    #: `field_validator` que lo dice, en vez de con un `le=0` silencioso que dejaría pasar el
+    #: valor sin que nadie supiera que significaba otra cosa.
+    expires_in_days: int | None = Field(default=DEFAULT_EXPIRY_DAYS, ge=1, le=MAX_EXPIRY_DAYS)
+
+    @field_validator("expires_in_days", mode="before")
+    @classmethod
+    def _normalizar_sin_expiracion(cls, value: object) -> object:
+        """Traduce el `0` de un selector de "sin expiración" al `None` del dominio.
+
+        Sin este validador, el `ge=1` rechazaria el `0` con un `422` cuyo texto dice "input
+        should be greater than or equal to 1", que no dice ni qué se pidió ni por qué. Con el,
+        el cliente obtiene un token sin caducidad cuando eso es lo que quiso, y un `422` con un
+        texto que nombra el rango cuando lo que queria era otra cosa.
+        """
+
+        return None if value == 0 else value
 
     @field_validator("scopes")
     @classmethod
@@ -62,6 +93,25 @@ class ApiTokenCreate(BaseModel):
         if rechazados:
             raise ValueError(f"Scopes no reconocidos: {', '.join(rechazados)}")
         return list(dict.fromkeys(value))
+
+    def resolved_expiration(self) -> datetime | None:
+        """La fecha de caducidad, o `None` si el token no caduca.
+
+        ## Por qué la fecha se calcula aqui y no en el servicio
+
+        Porque "cuándo caduca" es una pregunta del **dominio** y su respuesta va en la fila. Si
+        el servicio la calculara, cada ruta que creara un token tendría que acordarse de la
+        conversión de días a fecha, y la primera que se olvidara produciría un token que caduca
+        a medianoche del día de creación —que es un token válido, y por eso el fallo no se ve.
+
+        Se calcula contra `datetime.now(UTC)` del servidor y no contra una fecha que llegue del
+        cliente: un token cuya caducidad depende de la hora de quien lo crea es un token cuyo
+        comportamiento no se puede reproducir.
+        """
+
+        if self.expires_in_days is None:
+            return None
+        return datetime.now(UTC) + timedelta(days=self.expires_in_days)
 
     def resolved_scopes(self) -> tuple[Scope, ...]:
         """Los scopes ya validados, en orden estable para que la fila sea comparable.
@@ -94,7 +144,12 @@ class ApiTokenResponse(BaseModel):
     name: str
     token_prefix: str
     scopes: list[str]
+    #: Personal o de servicio. Viaja en la respuesta y no se deduce el cliente.
+    token_type: ApiTokenTypeEnum
     created_at: datetime
+    #: `None` cuando el token no caduca, que es la forma de que el panel lo
+    #: distinga de una fecha de hace un segundo. Un token sin caducidad con la fecha a `None`
+#: se leeria como "caducado" en un cliente que compare con `new Date()` sin mirar.
     expires_at: datetime | None
     last_used_at: datetime | None
     revoked_at: datetime | None
@@ -115,6 +170,7 @@ class ApiTokenResponse(BaseModel):
             token_prefix=token.token_prefix,
             scopes=list(token.scopes),
             created_at=token.created_at,
+        token_type=token.token_type,
             expires_at=token.expires_at,
             last_used_at=token.last_used_at,
             revoked_at=token.revoked_at,
