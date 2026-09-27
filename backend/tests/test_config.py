@@ -236,6 +236,136 @@ def test_settings_rejects_insecure_public_api_base_url_in_production() -> None:
         Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
 
+
+def test_el_origen_del_frontend_se_annade_a_cors_solo() -> None:
+    """Un frontend nuevo no obliga a editar `CORS_ORIGINS`.
+
+    El olvido de esa sincronización produce el peor síntoma posible: el panel carga entero,
+    todas sus peticiones fallan, y el error del navegador no menciona CORS. Por eso el
+    origen se **añade** en vez de exigirse, y ese estado no es representable.
+    """
+
+    values = production_values()
+    values["frontend_base_url"] = "https://panel.nuevo.example.com"
+    values["cors_origins"] = ["https://mindguardredteam.com"]
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert "https://panel.nuevo.example.com" in settings.cors_origins
+    # Y no se duplica si ya estaba.
+    assert settings.cors_origins.count("https://panel.nuevo.example.com") == 1
+    # El origen declarado se conserva: la lista admite origenes adicionales.
+    assert "https://mindguardredteam.com" in settings.cors_origins
+
+
+def test_en_produccion_se_descartan_los_origenes_de_otro_esquema() -> None:
+    """Un origen `http` en producción se descarta, y el proceso **arranca**.
+
+    La lista por defecto mezcla a propósito los orígenes locales con los de producción. En
+    producción, un navegador del panel nunca enviará `Origin: http://localhost:5173`, así que
+    ese origen está muerto pero es inocuo.
+
+    Descartarlo en vez de fallar al arrancar es la diferencia entre un despliegue que no
+    rompe y uno que no arranca. La alternativa —exigir que la lista no mezcle esquemas—
+    obligaría a mantener una lista distinta por entorno, que es la sincronización que el
+    validador existe para evitar.
+    """
+
+    values = production_values()
+    values["cors_origins"] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://panel.mindguardredteam.com",
+    ]
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert "http://localhost:5173" not in settings.cors_origins
+    assert "http://127.0.0.1:5173" not in settings.cors_origins
+    assert "https://panel.mindguardredteam.com" in settings.cors_origins
+
+
+def test_el_origen_del_frontend_sobrevive_al_filtrado() -> None:
+    """El origen del panel se añade **después** de filtrar, nunca antes.
+
+    Es el orden que hace correcta la función. Si se añadiera antes, un frontend declarado en
+    `http` en producción se descartaría a sí mismo al filtrar y la lista acabaría vacía; si
+    se añadiera después, sobrevive. Comprobado con un frontend que no está en la lista
+    declarada: el resultado tiene que contenerlo.
+    """
+
+    values = production_values()
+    values["frontend_base_url"] = "https://panel.nuevo.example.com"
+    values["cors_origins"] = ["http://localhost:5173"]
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert settings.cors_origins == ["https://panel.nuevo.example.com"]
+
+
+def test_un_origen_con_ruta_no_se_considera_un_origen() -> None:
+    """`https://x.example.com/app` no es un origen, y se descarta.
+
+    Un origen no tiene ruta: `https://x.example.com/app` y `https://x.example.com/` son el
+    mismo origen. Declarar uno con ruta no autoriza nada —el navegador envía el origen sin
+    ruta en la cabecera— y dejarlo pasar daría la falsa impresión de que ese origen está
+    permitido.
+    """
+
+    values = production_values()
+    values["cors_origins"] = [
+        "https://panel.mindguardredteam.com",
+        "https://con-ruta.example.com/app",
+    ]
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert "https://con-ruta.example.com/app" not in settings.cors_origins
+    assert "https://panel.mindguardredteam.com" in settings.cors_origins
+
+
+def test_en_desarrollo_el_origen_del_frontend_no_se_annade() -> None:
+    """En local la lista significa "lo que el navegador vería sin proxy".
+
+    El proxy de Vite sirve `/api` desde el mismo origen, así que la lista no se usa. Dejar
+    que el validador la modificara haría que la lectura de "que origenes validos hay" mentía
+    justo en el entorno donde se lee para entender el comportamiento.
+    """
+
+    values = build_environment_values()
+    values["frontend_base_url"] = "http://localhost:4321"
+    values["cors_origins"] = ["http://localhost:5173"]
+
+    settings = Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+    assert settings.cors_origins == ["http://localhost:5173"]
+
+
+def test_cors_declarado_por_defecto_cubre_local_y_produccion() -> None:
+    """La lista por defecto trae los cuatro origenes que hacen falta.
+
+    Local por si alguien abre la API desde la pagina, y los dos dominios reales de
+    produccion. Es una lista de cuatro entradas y conviene que sea explicita: es la que se
+    lee cuando alguien pregunta "de donde se puede llamar a la API".
+
+    Se leen los valores por defecto **de la clase**, sin construir un `Settings`: la
+    composicion por entorno ocurre en el validador, y aqui lo que se comprueba es la
+    declaracion, no el resultado de la composicion.
+    """
+
+    from backend.core.config import Settings as ConfigSettings
+
+    declarados = ConfigSettings.model_fields["cors_origins"].get_default(call_default_factory=True)
+
+    for origen in (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://panel.mindguardredteam.com",
+        "https://mindguardredteam.com",
+    ):
+        assert origen in declarados, f"falta el origen {origen}"
+    assert len(declarados) == 4, "la lista por defecto deberia tener exactamente cuatro"
+
 def test_settings_rejects_partial_git_provider_oauth_credentials() -> None:
     values = build_environment_values()
     values["github_oauth_client_id"] = "github-client"

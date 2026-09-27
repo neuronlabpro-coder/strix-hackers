@@ -32,8 +32,9 @@ from backend.apps.llm_router import client as llm_client
 from backend.apps.llm_router.attribution import (
     APP_TITLE,
     ATTRIBUTION_HEADERS,
-    ENV_APP_TITLE,
-    ENV_HTTP_REFERER,
+    ENV_APP_NAME,
+    ENV_EXTRA_HEADERS,
+    ENV_SITE_URL,
     HEADER_APP_TITLE,
     HEADER_HTTP_REFERER,
     HTTP_REFERER,
@@ -74,10 +75,10 @@ def test_los_valores_declarados_son_los_requeridos() -> None:
     ambas tuvieran el valor equivocado, que es el fallo que hay que cazar.
     """
 
-    assert HTTP_REFERER == "https://mindguard.tech"
+    assert HTTP_REFERER == "https://mindguardredteam.com"
     assert APP_TITLE == "Mind Guard Fenix"
     assert dict(ATTRIBUTION_HEADERS) == {
-        "HTTP-Referer": "https://mindguard.tech",
+        "HTTP-Referer": "https://mindguardredteam.com",
         "X-Title": "Mind Guard Fenix",
     }
 
@@ -220,10 +221,17 @@ def test_el_entorno_del_contenedor_lleva_la_misma_atribucion() -> None:
     sandbox = _sandbox_de_prueba()
     entorno = sandbox.container_environment()
 
-    assert entorno[ENV_HTTP_REFERER] == attribution_headers()[HEADER_HTTP_REFERER]
-    assert entorno[ENV_APP_TITLE] == attribution_headers()[HEADER_APP_TITLE]
-    assert entorno[ENV_HTTP_REFERER] == HTTP_REFERER
-    assert entorno[ENV_APP_TITLE] == APP_TITLE
+    assert entorno[ENV_SITE_URL] == attribution_headers()[HEADER_HTTP_REFERER]
+    assert entorno[ENV_APP_NAME] == attribution_headers()[HEADER_APP_TITLE]
+    assert entorno[ENV_SITE_URL] == HTTP_REFERER
+    assert entorno[ENV_APP_NAME] == APP_TITLE
+
+    # `LITELLM_EXTRA_HEADERS` es el camino generico del cliente, y lleva las mismas dos
+    # cabeceras en JSON. Se comprueba **deserializando**, no comparando el texto: un JSON
+    # reordenado o con espacios es el mismo valor, y una comparacion de cadenas fallaria
+    # por el formato sin que hubiera ninguna diferencia real.
+    extra = json.loads(entorno[ENV_EXTRA_HEADERS])
+    assert extra == dict(ATTRIBUTION_HEADERS)
 
 
 def test_el_entorno_hereda_las_variables_nuevas() -> None:
@@ -244,6 +252,46 @@ def test_el_entorno_hereda_las_variables_nuevas() -> None:
     # La función no declara nada que el entorno no reciba.
     for clave in esperado:
         assert clave in entorno
+
+
+def test_el_json_del_entorno_es_legible_y_lleva_las_dos_cabeceras() -> None:
+    """`LITELLM_EXTRA_HEADERS` es un JSON válido con exactamente las dos cabeceras.
+
+    Se deserializa y se compara como diccionario. Una comparación de cadenasUtcfallaría
+    aunque el contenido fuese idéntico y dejaría pasar el fallo real, que es que el JSON
+    llevase una cabecera de menos y el contenedor la ignorase en silencio.
+    """
+
+    entorno = attribution_environment()
+    bruto = entorno[ENV_EXTRA_HEADERS]
+
+    assert json.loads(bruto) == {
+        "HTTP-Referer": "https://mindguardredteam.com",
+        "X-Title": "Mind Guard Fenix",
+    }
+    # Compacto en su **sintaxis**: sin espacio despues de la coma ni de los dos puntos.
+    # Los espacios dentro de los valores son legitimos —"Mind Guard Fenix" los tiene— y
+    # eliminarlos habria que mutilar el nombre de la aplicacion. Lo que se comprueba es que
+    # el serializado no anade separacion, que es lo que reduce los bytes del entorno sin
+    # ganar nada.
+    assert ", " not in bruto
+    assert '": ' not in bruto
+
+
+def test_las_tres_variables_de_entorno_declaran_las_cabeceras() -> None:
+    """Ninguna de las tres puede quedar desincronizada de la declaración.
+
+    Se compara el conjunto, no los valores uno a uno: si alguien añade una cabecera a la
+    declaración y olvida las variables, la comparación por valor de las dos existentes
+    pasaría y el fallo quedaría invisible.
+    """
+
+    entorno = attribution_environment()
+
+    assert set(entorno) == {ENV_SITE_URL, ENV_APP_NAME, ENV_EXTRA_HEADERS}
+    assert json.loads(entorno[ENV_EXTRA_HEADERS]) == dict(ATTRIBUTION_HEADERS)
+    assert entorno[ENV_SITE_URL] == HTTP_REFERER
+    assert entorno[ENV_APP_NAME] == APP_TITLE
 
 
 # --------------------------------------------------------------------------- #

@@ -3,6 +3,7 @@
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 
 from backend.apps.admin.router import router as admin_router
@@ -22,8 +23,52 @@ from backend.apps.support.router import admin_router as support_admin_router
 from backend.apps.support.router import router as support_router
 from backend.apps.vulnerabilities.router import router as vulnerabilities_router
 from backend.apps.webhooks.router import router as webhooks_router
+from backend.core.config import settings
 
 app = FastAPI(title="Mind Guard Fenix Team API")
+
+# --------------------------------------------------------------------------- #
+# CORS
+# --------------------------------------------------------------------------- #
+#
+# ## Por qué hace falta y por qué no se notaba que faltaba
+#
+# En desarrollo no hace falta: el proxy de Vite sirve `/api` desde el mismo origen que la
+# SPA, así que el navegador nunca ve un cruce y se puede tener la aplicación entera
+# funcionando sin declarar ni un origen.
+#
+# En producción sí, y sin esto el panel se queda vacío: la SPA se sirve en `panel.` y la API
+# responde en `api.`, que son orígenes distintos por definición, y el navegador bloquea
+# cada petición **antes** de que salga. El síntoma es un panel que carga sin datos y un error
+# de red que no menciona CORS, que es la forma más cara de perder un día de diagnóstico.
+#
+# ## Por qué `allow_credentials=False`
+#
+# La API **no** usa cookies: el JWT va en `Authorization` y en `sessionStorage`. Activar
+# credenciales obligaría a declarar un origen exacto en vez de un comodín, y se aplicaría a
+# un flujo que no existe. Mantenerlo desactivado significa que la cabecera `*` sigue siendo
+# válida y que añadir un origen después no obliga a revisar las otras dos opciones.
+#
+# `allow_methods` y `allow_headers` se declaran en vez de usar los comodines porque
+# `Authorization` y `X-Organization-Id` son cabeceras **no simples**: sin declararlas, el
+# navegador hace una petición previa y las preflights empiezan a fallar en desarrollo, con
+# un error que sí menciona CORS pero no la cabecera concreta.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "X-Organization-Id",
+        "Stripe-Signature",
+    ],
+    # El máximo del navegador para un valor de preflight. Declararlo deja claro que el
+    # valor es deliberado y no un 600 que alguien escribió una vez.
+    max_age=600,
+)
 
 
 class ServiceInfoResponse(BaseModel):

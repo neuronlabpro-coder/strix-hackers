@@ -13,6 +13,36 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
+def _origin_of(url: str) -> str:
+    """El origen de una URL: esquema y autoridad, sin ruta ni consulta.
+
+    Es lo que CORS compara. Una ruta no es parte del origen —`/app` y `/` son el mismo
+    origen— y un `Origin` que llega en la cabecera nunca trae ruta, así que compararla
+    entera daría un fallo por cada página que no esté en la raíz.
+
+    Se normaliza el esquema a minúsculas porque los navegadores lo envían en minúscula y
+    `HTTPS://x` y `https://x` son el mismo origen; si no se normalizara, la lista de CORS
+    fallaría solo con el origen de producción escrito en mayúsculas.
+    """
+
+    try:
+        partes = urlsplit(url)
+    except ValueError:
+        return ""
+    if not partes.scheme or not partes.netloc:
+        return ""
+    return f"{partes.scheme.lower()}://{partes.netloc.lower()}"
+
+
+def _scheme_of(url: str) -> str:
+    """El esquema de una URL, en minúsculas, o cadena vacía si no se puede leer."""
+
+    try:
+        return urlsplit(url).scheme.lower()
+    except ValueError:
+        return ""
+
+
 class Settings(BaseSettings):
     """Valida y expone la configuración de infraestructura de la aplicación."""
 
@@ -65,6 +95,98 @@ class Settings(BaseSettings):
     pr_scan_soft_timeout_seconds: int = Field(default=840, gt=0, le=7200)
     pr_review_stale_after_seconds: int = Field(default=300, ge=30, le=86400)
     api_public_base_url: str = Field(default="http://localhost:8000", min_length=1)
+    #: Orígenes desde los que el navegador acepta peticiones a esta API.
+    #:
+    #: ## Por qué hace falta en producción y no en local
+    #:
+    #: En desarrollo el frontend **no** usa CORS: el proxy de Vite sirve `/api` desde el
+    #: mismo origen que la SPA, así que el navegador nunca ve un cruce. Por eso se puede
+    #: tener la aplicación entera funcionando sin un solo origen declarado.
+    #:
+    #: En producción es distinto: la SPA se sirve en `panel.` y la API responde en `api.`, que
+    #: son **orígenes distintos** por definición. Sin esta lista el navegador bloquea cada
+    #: petición antes de que salga, y el panel se queda entero sin datos con un error de red
+    #: que no dice nada de CORS.
+    #:
+    #: Se declaran los dos pares —local y producción— en el mismo sitio porque son la misma
+    #: lista conceptual: "los orígenes desde los que se sirve nuestro frontend". Separarlos
+    #: en dos variables por entorno haría que añadir un dominio de staging se olvidara, y se
+    #: olvidaría **en el sitio donde solo se descubre cuando ya está desplegado**.
+    cors_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://panel.mindguardredteam.com",
+            "https://mindguardredteam.com",
+        ],
+    )
+
+    @model_validator(mode="after")
+    def resolve_cors_origins(self) -> Self:
+        """Compone la lista de orígenes de CORS para este entorno.
+
+        ## Qué guarantee esta regla
+
+        Que el origen real del panel **siempre** está autorizado, y que en producción solo
+        quedan orígenes del mismo esquema que la API. Las dos cosas se resuelven aquí en vez
+        de exigirse en la configuración, porque un estado mal configurado produce el peor
+        síntoma posible: el panel carga entero, todas sus peticiones fallan, y el error del
+        navegador no menciona CORS. Es un día perdido buscando un problema de autenticación.
+
+        ## Por qué el origen del frontend se **añade** y no se exige
+
+        Exigir que `FRONTEND_BASE_URL` esté en `CORS_ORIGINS` obliga a mantener dos variables
+        sincronizadas a mano. Añadiéndolo, un despliegue nuevo arranca con el origen correcto
+        sin tocar nada, y la lista declarada queda como la forma de añadir orígenes
+        adicionales —un panel de staging, una herramienta interna—.
+
+        ## Por qué en producción se **descartan** los orígenes de otro esquema
+
+        La lista por defecto mezcla a propósito `http://localhost:5173` con los dominios de
+        producción. En producción, un navegador del panel nunca enviará
+        `Origin: http://localhost:5173`, así que ese origen está muerto pero **inocuo**.
+
+        Descartarlo en vez de fallar al arrancar es la diferencia entre un despliegue que no
+        rompe y uno que no arranca. La alternativa —exigir que la lista declarada no mezcle
+        esquemas— obligaría a mantener una lista distinta por entorno, que es exactamente la
+        sincronización que se quiere evitar: un despliegue de staging olvidaría quitar los
+        orígenes locales y no arrancaría, con un error que habla de CORS y no de la causa real.
+
+        ## Por qué `object.__setattr__` y no una copia
+
+        Porque `Settings` hereda de `BaseSettings`, y `pydantic_settings` valida **dentro de
+        `__init__`**: un validador de nivel superior que devuelva algo distinto de `self` no
+        se aplica, y la librería lo avisa con un aviso en vez de un error. La forma de
+        modificar el resultado de la validación es escribir en el campo.
+
+        `object.__setattr__` salta la protección de congelado, y aquí es deliberado y está
+        acotado a un único campo derivado, durante la construcción del objeto y antes de que
+        exista ninguna petición. La congelación existe para que la configuración no cambie
+        bajo los pies de nadie **en caliente**; aquí no hay nadie todavia. Devolver `self`
+        sin mas, que es lo que haria `model_copy` en un `BaseModel` normal, daria una lista
+        sin filtrar y un despliegue con CORS roto.
+        """
+
+        origen_panel = _origin_of(self.frontend_base_url)
+        esquema_api = _scheme_of(self.api_public_base_url)
+
+        if self.environment not in {"staging", "production"}:
+            # En desarrollo la lista no se usa: el proxy de Vite sirve `/api` desde el mismo
+            # origen. Se deja exactamente como se declaró, para que "qué orígenes hay" siga
+            # significando "los que declaré" y no "los que el validador decidió".
+            return self
+
+        aplicables = [
+            origen
+            for origen in self.cors_origins
+            if _scheme_of(origen) == esquema_api and _origin_of(origen) == origen
+        ]
+        if origen_panel and origen_panel not in aplicables:
+            aplicables.append(origen_panel)
+
+        if aplicables != self.cors_origins:
+            object.__setattr__(self, "cors_origins", aplicables)
+        return self
     oauth_state_ttl_seconds: int = Field(default=600, ge=300, le=1800)
     repository_management_rate_limit: int = Field(default=60, ge=1, le=500)
     repository_management_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
@@ -334,6 +456,16 @@ class Settings(BaseSettings):
             if not smtp_username_provided or not smtp_password_provided:
                 raise ValueError(
                     "Producción y staging requieren credenciales SMTP completas"
+                )
+            # La lista de CORS se compone en `resolve_cors_origins`, que descarta en
+            # producción los orígenes de otro esquema. Aquí solo se comprueba que la que
+            # queda no esté vacía: una API de producción sin ningún origen autorizado no
+            # sirve para nada, y conviene que se diga al arrancar y no en el primer fallo de
+            # CORS del navegador.
+            if not self.cors_origins:
+                raise ValueError(
+                    "Producción y staging requieren al menos un origen en CORS_ORIGINS, y "
+                    f"debe incluir el del frontend ({_origin_of(self.frontend_base_url)})"
                 )
             try:
                 llm_scheme = urlsplit(self.llm_api_base).scheme.lower() if self.llm_api_base else ""

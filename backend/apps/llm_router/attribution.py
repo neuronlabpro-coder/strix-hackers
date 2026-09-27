@@ -30,12 +30,13 @@ el primer uso.
 
 from __future__ import annotations
 
+import json
 from types import MappingProxyType
 from typing import Final
 
 #: Cabecera que OpenRouter usa para identificar el sitio de la aplicación. Es una URL, y
 #: tiene que ser pública: es lo que el usuario ve al hacer clic en el ranking.
-HTTP_REFERER: Final[str] = "https://mindguard.tech"
+HTTP_REFERER: Final[str] = "https://mindguardredteam.com"
 
 #: Nombre de la aplicación tal como se muestra en el ranking público.
 APP_TITLE: Final[str] = "Mind Guard Fenix"
@@ -59,12 +60,22 @@ ATTRIBUTION_HEADERS: Final[MappingProxyType[str, str]] = MappingProxyType(
 
 #: Variables de entorno con las que la atribución viaja al contenedor del motor.
 #:
-#: El motor usa `litellm` y lee su configuración del entorno. Estas dos variables son la
-#: forma de que la identidad llegue también a las peticiones que el contenedor hace por su
-#: cuenta, que son la mayoría del tráfico.
-ENV_HTTP_REFERER: Final[str] = "OPENROUTER_HTTP_REFERER"
+#: El motor usa `litellm` como cliente, y `litellm` inyecta las cabeceras de OpenRouter a
+#: partir de tres variables que lee del entorno del proceso. Se declaran **las tres**, y no
+#: solo las dos de texto, porque funcionan en capas distintas:
+#:
+#: - `OR_SITE_URL` y `OR_APP_NAME` son las que `litellm` traduce a las cabeceras en las
+#:   peticiones de OpenRouter.
+#: - `LITELLM_EXTRA_HEADERS` es el camino genérico de `litellm` para cabeceras adicionales, y
+#:   cubre el caso de que la ruta de arriba no se aplique a algún modelo oendpoint.
+#:
+#: Declarar solo unas deja la atribución a medias según por dónde salga la petición, y eso
+#: es peor que no declararla: parece funcionar.
+ENV_SITE_URL: Final[str] = "OR_SITE_URL"
 
-ENV_APP_TITLE: Final[str] = "OPENROUTER_X_TITLE"
+ENV_APP_NAME: Final[str] = "OR_APP_NAME"
+
+ENV_EXTRA_HEADERS: Final[str] = "LITELLM_EXTRA_HEADERS"
 
 
 def attribution_headers() -> dict[str, str]:
@@ -87,19 +98,29 @@ def attribution_environment() -> dict[str, str]:
     pueda pasar que el entorno diga una cosa y las cabeceras otra. Si se olvidara una al
     añadirla, la atribución funcionaría en el backend y no en el motor, que es el peor de
     los dos fallos: parece que funciona.
+
+    `LITELLM_EXTRA_HEADERS` lleva el JSON de las cabeceras. Se serializa **desde la
+    declaración** con `json.dumps` y separadores compactos, para que el contenedor no tenga
+    que interpretarlo y para que su contenido sea exactamente el de `ATTRIBUTION_HEADERS`.
+    Escribir el JSON a mano en dos sitios es la forma más fácil de que se separen sin que
+    ninguna prueba lo note, porque el JSON es válido en los dos casos.
     """
 
     return {
-        ENV_HTTP_REFERER: ATTRIBUTION_HEADERS[HEADER_HTTP_REFERER],
-        ENV_APP_TITLE: ATTRIBUTION_HEADERS[HEADER_APP_TITLE],
+        ENV_SITE_URL: ATTRIBUTION_HEADERS[HEADER_HTTP_REFERER],
+        ENV_APP_NAME: ATTRIBUTION_HEADERS[HEADER_APP_TITLE],
+        ENV_EXTRA_HEADERS: json.dumps(
+            dict(ATTRIBUTION_HEADERS), separators=(",", ":")
+        ),
     }
 
 
 __all__ = [
     "APP_TITLE",
     "ATTRIBUTION_HEADERS",
-    "ENV_APP_TITLE",
-    "ENV_HTTP_REFERER",
+    "ENV_APP_NAME",
+    "ENV_EXTRA_HEADERS",
+    "ENV_SITE_URL",
     "HEADER_APP_TITLE",
     "HEADER_HTTP_REFERER",
     "HTTP_REFERER",
