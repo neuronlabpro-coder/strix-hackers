@@ -267,6 +267,21 @@ export function getCreditLedger(
   )
 }
 
+/**
+ * Abre una sesión de Stripe Checkout.
+ *
+ * ## Por qué el cuerpo solo lleva `mode` y `credits`
+ *
+ * Ni el importe ni el descuento viajan. El precio lo decide `price_for_credits` en el
+ * servidor y el tramo lo decide la escalera: mandar cualquiera de los dos sería aceptar
+ * que quien llama decide cuánto paga por cuánto, que es la definición de un endpoint de
+ * cobro roto. El backend los rechaza con un `422` de `extra="forbid"`, así que ni
+ * siquiera hay forma de intentarlo.
+ *
+ * En modo `subscription` el `credits` **no** se manda. El esquema lo rechaza: pagar la cuota
+ * y además acreditar créditos es cobrar dos veces por lo mismo, y el cliente creería haber
+ * comprado saldo.
+ */
 export function createCheckoutSession(
   token: string,
   organizationId: string,
@@ -278,7 +293,41 @@ export function createCheckoutSession(
     '/api/v1/billing/checkout-session',
     {
       method: 'POST',
-      body: JSON.stringify({ credits, success_url: successUrl, cancel_url: cancelUrl }),
+      body: JSON.stringify({
+        mode: 'credits',
+        credits,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      }),
+    },
+    token,
+    organizationId,
+  )
+}
+
+/**
+ * Abre la suscripción Pro.
+ *
+ * Es una función aparte y no un `mode` opcional en la anterior porque el cuerpo es otro: no
+ * lleva créditos, y mandar un `0` —que es lo que daría un `credits: 0` con el esquema
+ * actual— lo rechazaría el validador de mínimo. Dos petitiones con dos cuerpos distintos
+ * son dos funciones.
+ */
+export function createSubscriptionCheckout(
+  token: string,
+  organizationId: string,
+  successUrl: string,
+  cancelUrl: string,
+): Promise<CheckoutSession> {
+  return requestWithTenant<CheckoutSession>(
+    '/api/v1/billing/checkout-session',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: 'subscription',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      }),
     },
     token,
     organizationId,

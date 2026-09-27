@@ -20,6 +20,13 @@ import { PentestsPage } from '../features/pentests/PentestsPage'
 import { PentestRunPage } from '../features/pentests/PentestRunPage'
 import { RepositoriesPage } from '../features/repositories/RepositoriesPage'
 import { PlaceholderPage } from '../features/shared/PlaceholderPage'
+import { SettingsLayout } from '../features/settings/SettingsLayout'
+import { SettingsGeneralPage } from '../features/settings/SettingsGeneralPage'
+import { SettingsAuditPage } from '../features/settings/SettingsAuditPage'
+import { SettingsMembersPage } from '../features/settings/SettingsMembersPage'
+import { SettingsBillingPage } from '../features/settings/SettingsBillingPage'
+import { SupportTicketsPage } from '../features/support/SupportTicketsPage'
+import { SupportTicketPage } from '../features/support/SupportTicketPage'
 import { ToastProvider } from '../features/shared/ToastProvider'
 import { ShellLayout } from './ShellLayout'
 
@@ -59,6 +66,9 @@ const AdminAuditPage = lazy(() =>
 )
 const LlmModelsPage = lazy(() =>
   import('../features/admin/LlmModelsPage').then((m) => ({ default: m.LlmModelsPage })),
+)
+const AdminTicketsPage = lazy(() =>
+  import('../features/admin/AdminTicketsPage').then((m) => ({ default: m.AdminTicketsPage })),
 )
 
 function LoadingScreen() {
@@ -211,10 +221,22 @@ export default function App() {
           />
           <Route path="/api-access" element={<ApiAccessPage />} />
           <Route path="/billing" element={<BillingPage />} />
-          <Route
-            path="/settings"
-            element={<PlaceholderPage titleKey="navigation:settings" reasonKey="pending.settings" />}
-          />
+          <Route path="/settings" element={<SettingsLayout />}>
+            <Route index element={<Navigate to="/settings/general" replace />} />
+            <Route path="general" element={<SettingsGeneralPage />} />
+            <Route path="audit-logs" element={<SettingsAuditPage />} />
+            <Route path="members" element={<SettingsMembersPage />} />
+            <Route path="billing" element={<SettingsBillingPage />} />
+            <Route path="support" element={<SupportTicketsPage />} />
+            <Route
+              path="support/:ticketId"
+              element={
+                <Suspense fallback={<LazySection />}>
+                  <SupportTicketPage />
+                </Suspense>
+              }
+            />
+          </Route>
           {/*
             La consola de SuperAdmin tiene su propio layout y su propia puerta. Vive
             **fuera** de `ProtectedShell` a propósito: el shell de cliente resuelve el
@@ -277,6 +299,14 @@ export default function App() {
               element={
                 <Suspense fallback={<LazySection />}>
                   <LlmModelsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="tickets"
+              element={
+                <Suspense fallback={<LazySection />}>
+                  <AdminTicketsPage />
                 </Suspense>
               }
             />

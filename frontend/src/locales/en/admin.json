@@ -15,7 +15,8 @@
     "sales": "Sales and revenue",
     "audit": "Global audit",
     "llm": "LLM models",
-    "backToApp": "Back to the App"
+    "backToApp": "Back to the App",
+    "tickets": "Tickets & support"
   },
   "overview": {
     "title": "Global overview",
@@ -245,6 +246,7 @@
   },
   "actions": {
     "cancel": "Cancel",
-    "close": "Close"
+    "close": "Close",
+    "retry": "Retry"
   }
 }

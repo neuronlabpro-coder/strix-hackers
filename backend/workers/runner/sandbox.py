@@ -21,6 +21,7 @@ from docker.models.containers import Container
 from docker.models.networks import Network
 from requests.exceptions import ReadTimeout, RequestException
 
+from backend.apps.llm_router.attribution import attribution_environment
 from backend.core.config import settings
 from backend.workers.runner.docker_client import create_docker_client
 from backend.workers.runner.exceptions import (
@@ -130,6 +131,18 @@ class StrixSandboxManager:
         Es parte del contrato del sandbox, no un detalle interno: el modelo que
         inyecta el orquestador y la clave que consume Strix se deciden aquí, y las
         pruebas necesitan poder comprobarlo sin levantar un contenedor.
+
+        ## Por qué la atribución viaja en el entorno
+
+        El motor habla con el proveedor de LLM por su cuenta, desde dentro del contenedor, y
+        ese tráfico **no pasa por el backend**. La atribución pública solo se puede
+        garantizar si llega a los dos lados: el backend la añade en su cliente y aquí se le
+        entrega al contenedor por variable de entorno.
+
+        Se llama a `attribution_environment()` y no se escriben las dos variables a mano, por
+        la razón que hace que esto merezca un comentario: si el entorno dijera una cosa y las
+        cabeceras del backend otra, la atribución funcionaría a medias y parecería que
+        funciona. Construir las dos desde la misma declaración hace que sea imposible.
         """
 
         environment = {
@@ -138,6 +151,7 @@ class StrixSandboxManager:
             "LLM_API_BASE": settings.llm_api_base,
             "STRIX_NON_INTERACTIVE": "1",
             "STRIX_HEADLESS": "1",
+            **attribution_environment(),
         }
         if self.included_files:
             environment["STRIX_INCREMENTAL_FILES"] = json.dumps(

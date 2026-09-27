@@ -15,7 +15,8 @@
     "sales": "Ventas e ingresos",
     "audit": "Auditoría global",
     "llm": "Modelos LLM",
-    "backToApp": "Volver a la App"
+    "backToApp": "Volver a la App",
+    "tickets": "Tickets y soporte"
   },
   "overview": {
     "title": "Resumen global",
@@ -245,6 +246,7 @@
   },
   "actions": {
     "cancel": "Cancelar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "retry": "Reintentar"
   }
 }

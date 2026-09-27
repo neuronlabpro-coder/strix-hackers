@@ -20,14 +20,15 @@ export interface BillingSummary {
   /**
    * Equivalente en dólares del saldo.
    *
-   * El catálogo está a la paridad declarada en la configuración (`credits_per_usd`), sin
-   * descuento por volumen, así que esto es un número **comprobable**: 1000 créditos son
-   * 1000 dólares, y el cliente puede contrastarlo con los packs de la misma pantalla.
+   * El catálogo parte de la paridad declarada en la configuración (`credits_per_usd`) y el
+   * descuento por volumen solo se aplica a las **compras**, no al saldo que ya se tiene.
+   * Por eso esto sigue siendo un número **comprobable**: 1000 créditos son 1000 dólares.
    *
-   * Cuando el catálogo tenía descuento —$0,038 en el pack pequeño y $0,0266 en el grande—
-   * no existía un precio por crédito y este campo tenía que ser una estimación al mejor
-   * precio. Con descuento, 1000 créditos salían en $26.315,79: una cifra que no
-   * correspondía a ningún producto y que el usuario leía como su saldo.
+   * La distinción es deliberada. Un saldo no se "revende", así que no puede llevar
+   * descuento; los siguientes créditos que se compren, sí. Un cliente con 1000 créditos
+   * que compra 1000 más los paga a $0,75, y los que ya tenía siguen valiendo $1,00. Si el
+   * descuento se aplicara también al saldo, la cifra dejaría de ser un hecho y pasaría a
+   * ser una estimación que habría que explicar en soporte.
    */
   credit_balance_usd: string
   /** La paridad usada. Viaja para que el panel no la vuelva a derivar por su cuenta. */
@@ -41,6 +42,43 @@ export interface BillingSummary {
   custom_minimum: number
   /** Máximo del pack a medida, en créditos. */
   custom_maximum: number
+  /** La escalera de descuento por volumen, para el slider. */
+  volume: VolumePricing
+  /** La oferta de suscripción Pro, para el botón de suscripción. */
+  subscription: SubscriptionOffer
+}
+
+export interface VolumeTier {
+  /**
+   * Primer crédito del tramo.
+   *
+   * La escalera la elige el **gasto**, así que este número no es el umbral: es cuántos
+   * créditos entran por el primer dólar del tramo. El panel los usa para pintar la barra y
+   * no para decidir el descuento —de eso se encarga el servidor—, así que que no coincidan
+   * con `spend_min` es lo esperado.
+   */
+  minimum_credits: number
+  /** Último crédito del tramo. El último tramo llega hasta `maximum_credits` del catálogo. */
+  maximum_credits: number
+  /** Descuento como fracción: `0.10` es el 10%. */
+  discount: string
+  /** Precio unitario de este tramo, ya calculado por el servidor. */
+  usd_per_credit: string
+}
+
+export interface VolumePricing {
+  tiers: VolumeTier[]
+  minimum_credits: number
+  maximum_credits: number
+  /** Paridad sin descuento, para calcular el ahorro en la barra. */
+  list_usd_per_credit: string
+}
+
+export interface SubscriptionOffer {
+  plan_tier: string
+  monthly_usd: string
+  /** Si el workspace ya está en este plan, el botón se pinta activo en vez de ofrecerse. */
+  is_current_plan: boolean
 }
 
 export type LedgerReason =
@@ -65,7 +103,18 @@ export interface CreditLedgerEntry {
   created_at: string
 }
 
+/**
+ * Modo de pago de una sesión de Stripe Checkout.
+ *
+ * `credits` es una recarga puntual que acredita saldo. `subscription` contrata el plan Pro
+ * y **no** acredita nada: cambia el plan. Son dos cosas distintas y mezclarlas haría que el
+ * cliente esperara saldo por pagar la cuota.
+ */
+export type CheckoutMode = 'credits' | 'subscription'
+
 export interface CheckoutSessionRequest {
+  mode: CheckoutMode
+  /** Obligatorio salvo en modo `subscription`. El servidor rechaza mandarlo en suscripción. */
   credits: number
   success_url: string
   cancel_url: string
@@ -75,6 +124,8 @@ export interface CheckoutSession {
   session_id: string
   /** Destino de Stripe Checkout. El panel redirige aquí y **no** muestra el precio. */
   url: string
+  mode: CheckoutMode
+  /** `0` en una suscripción, que no acredita saldo. */
   credits: number
   amount_usd: string
   currency: string

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { LLMModelConfig } from '../../types/api'
+import type { LLMModelConfig, LLMModelUpdatePayload, LLMUseCase } from '../../types/api'
 import { AddLlmModelForm } from './AddLlmModelForm'
+import { LLM_USE_CASES } from './llmUseCases'
 import { useLlmConsole } from './useLlmConsole'
 
 export function LlmModelsPage() {
@@ -110,6 +111,8 @@ export function LlmModelsPage() {
                     noUsage: t('metrics.noUsage'),
                     priorityLabel: (order: number) => t(`priorityLabel.${order}`),
                     useCase: (useCase: string) => t(`useCase.${useCase}`),
+                    priority: t('table.priority'),
+                    useCaseLabel: t('table.useCase'),
                     costLabel: t('table.cost'),
                     priceLabel: t('table.price'),
                     locale,
@@ -142,6 +145,10 @@ interface RowLabels {
   noUsage: string
   priorityLabel: (order: number) => string
   useCase: (useCase: string) => string
+  /** Etiqueta accesible del campo de prioridad, para el lector de pantalla. */
+  priority: string
+  /** Etiqueta accesible del selector de caso de uso. */
+  useCaseLabel: string
   costLabel: string
   priceLabel: string
   locale: string
@@ -155,7 +162,7 @@ function LlmModelRow({
 }: {
   model: LLMModelConfig
   isPending: boolean
-  onUpdate: (payload: { is_active?: boolean; markup_pct?: string }) => void
+  onUpdate: (payload: LLMModelUpdatePayload) => void
   labels: RowLabels
 }) {
   const [marginDraft, setMarginDraft] = useState(model.markup_pct)
@@ -166,10 +173,31 @@ function LlmModelRow({
   return (
     <tr className={model.is_active ? undefined : 'row-inactive'}>
       <td>
-        <span className="provider-cell">
-          <span className="mono priority-badge">{model.priority_order}</span>
-          <span className="chart-empty">{labels.priorityLabel(model.priority_order)}</span>
-        </span>
+        {/*
+          La prioridad es un `<select>` y no un badge porque **ordena**. Cambiarla desde la
+          lista es la operacion de reordenar el enrutado, y tener que abrir un dialogo para
+          mover un modelo un puesto hacia arriba obliga a recorrer la tabla entera para no
+          equivocar el destino.
+
+          El numero que se ve es el valor del campo, no una posicion en la tabla: con dos
+          modelos en la prioridad 1, quien lo elige no quiere el "primero de la pantalla",
+          quiere el 1. Por eso el `value` es `model.priority_order` y no el indice de la fila.
+        */}
+        <label className="margin-field">
+          <span className="visually-hidden">
+            {`${labels.priority}: ${model.model_id}`}
+          </span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            className="mono priority-badge"
+            value={model.priority_order}
+            disabled={isPending}
+            onChange={(event) => onUpdate({ priority_order: Number(event.target.value) })}
+          />
+        </label>
+        <p className="chart-empty">{labels.priorityLabel(model.priority_order)}</p>
       </td>
       <td>
         <span className="mono">{model.model_id}</span>
@@ -217,7 +245,34 @@ function LlmModelRow({
         <p className="chart-empty mono">×{marginMultiplier.toFixed(2)}</p>
       </td>
       <td>
-        <span className="badge">{labels.useCase(model.use_case)}</span>
+        {/*
+          El caso de uso decide a que bucle ofensivo se enruta el modelo: `DEEP_PENTEST` y
+          `QUICK_SCAN` para el bucle en terminal, `AUTOFIX` para la generacion del parche, y
+          `ALL` para los transversales.
+
+          Editarlo por fila y no solo en el alta es lo que hace falta: el catalogo se reenruta
+          cada vez que aparece un modelo mejor, y pedir un alta nueva para cambiar una
+          etiqueta que ya existe seria dejar el catalogo lleno de duplicados del mismo
+          proveedor.
+        */}
+        <label className="margin-field">
+          <span className="visually-hidden">
+            {`${labels.useCaseLabel}: ${model.model_id}`}
+          </span>
+          <select
+            value={model.use_case}
+            disabled={isPending}
+            onChange={(event) =>
+              onUpdate({ use_case: event.target.value as LLMUseCase })
+            }
+          >
+            {LLM_USE_CASES.map((value) => (
+              <option key={value} value={value}>
+                {labels.useCase(value)}
+              </option>
+            ))}
+          </select>
+        </label>
       </td>
       <td>
         {hasUsage ? (

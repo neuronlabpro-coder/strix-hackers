@@ -3,13 +3,15 @@
   "description": "Available balance, this month's spend, top-ups and movements.",
   "kpi": {
     "balance": "Available balance",
-    "balanceHint": "Credits left to launch scans.",
+    "balanceHint": "Credits left to launch scans. The balance carries no discount: the discount applies to purchases, not to what you already have.",
     "spentThisMonth": "Spent this month",
     "spentThisMonthHint": "Scans launched since the first of the month.",
     "purchasedThisMonth": "Bought this month",
     "purchasedThisMonthHint": "Credits granted by payment since the first of the month.",
-    "estimate": "≈ {{usd}} at the largest pack rate",
-    "estimateHint": "Estimate: what buying this many credits would cost at the cheapest per-credit rate in the catalog. The real price depends on which pack you pick."
+    "equivalent": "{{usd}} at list price",
+    "equivalentHint": "Exact equivalent at the list price of one credit. Not an estimate: a balance is not resold, so it carries no discount.",
+    "estimate": "Equivalent to {{usd}} at list price",
+    "estimateHint": "Exact equivalent at the list price of one credit. Not an estimate: a balance is not resold, so it carries no discount."
   },
   "packs": {
     "title": "Top up credits",
@@ -25,8 +27,8 @@
     "customCaption": "Any amount between the minimum and the maximum.",
     "customLabel": "Credits",
     "customHint": "The minimum covers the cost of the payment session.",
-    "customInvalid": "Enter an amount between {min} and {max} credits.",
-    "customBuy": "Buy {count} credits"
+    "customInvalid": "Enter an amount between {{min}} and {{max}} credits.",
+    "customBuy": "Buy {{count}} credits"
   },
   "ledger": {
     "title": "Movements",
@@ -56,10 +58,63 @@
   "states": {
     "loading": "Loading billing",
     "error": "Billing could not be loaded",
-    "retry": "Retry"
+    "retry": "Retry",
+    "purchaseError": "The payment could not be opened. The payment provider did not respond."
   },
   "payment": {
     "paid": "Payment received. The balance updates as soon as the provider confirms the charge.",
-    "cancelled": "You cancelled the payment. Nothing was charged."
+    "cancelled": "You cancelled the payment. Nothing was charged.",
+    "subscriptionPaid": "Subscription active. The Pro plan has been applied to this workspace."
+  },
+  "plan": {
+    "current": "Current plan",
+    "currentFree": "Free",
+    "currentPro": "Pro",
+    "currentEnterprise": "Enterprise",
+    "subscriptionTitle": "Pro subscription",
+    "subscriptionCaption": "Access to Pro features, with priority in the support queue and urgent tickets.",
+    "monthly": "{{usd}} per month",
+    "subscribe": "Subscribe to Pro",
+    "subscribing": "Redirecting to payment…",
+    "currentPlanNotice": "This workspace is already on the Pro plan. The subscription is active.",
+    "upgrade": "You are already on the best available plan. Enterprise is arranged with the team.",
+    "subscriptionErrors": "The subscription could not be opened. Payment is handled by the external provider.",
+    "proBenefits": {
+      "urgent": "Urgent support tickets.",
+      "volume": "The whole volume discount ladder, from $10.",
+      "history": "Longer scan history and report export."
+    }
+  },
+  "volume": {
+    "title": "Buy in volume",
+    "caption": "The more you spend, the less each credit costs. The server applies the discount: the price you see is the price you pay.",
+    "amountLabel": "Amount",
+    "amountHint": "Between {{min}} and {{max}}.",
+    "unitPrice": "{{usd}} per credit",
+    "listPrice": "List price: {{usd}} per credit",
+    "credits": "You will receive {{count}} credits",
+    "savings": "You save {{usd}}",
+    "noSavings": "No discount in this bracket",
+    "savingsPct": "{{pct}}% SAVED",
+    "discountLabel": "Discount applied",
+    "tier": "{{pct}}% bracket",
+    "buy": "Buy for {{usd}}",
+    "buying": "Redirecting to payment…",
+    "belowMinimum": "The minimum purchase is {{min}}.",
+    "howItWorks": "The bracket is decided by what you spend, not by the credits. Crossing a threshold makes the balance jump upwards: going from $250 to $251 is 28 more credits, not one.",
+    "minMax": "From {{min}} to {{max}}",
+    "maxReached": "You have reached the catalogue maximum. For larger volumes, talk to the team.",
+    "sliderLabel": "Purchase amount",
+    "barLabel": "Discount ladder in {{count}} brackets. The active bracket is number {{position}}.",
+    "noPosition": "none, there is no amount yet",
+    "tierBadge": "{{pct}}%",
+    "tierTooltip": "From {{from}} to {{to}}: {{discount}}% discount",
+    "savingsTitle": "Savings in this bracket",
+    "unitPriceTitle": "Unit price",
+    "creditsTitle": "Credits you receive",
+    "listPriceTitle": "List price",
+    "atListPrice": "At list price",
+    "savingsExplainer": "The discount applies to this purchase, not to your current balance. The credits you already have keep their list price.",
+    "creditsNote": "The balance jumps at each threshold: spending one dollar more in the 15% bracket is 65 more credits, not one."
   }
 }

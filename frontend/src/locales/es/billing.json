@@ -1,15 +1,68 @@
 {
   "title": "Facturación y créditos",
-  "description": "Saldo disponible, consumo del mes, recarga y movimientos.",
+  "description": "Saldo disponible, suscripción, recarga por volumen y movimientos.",
   "kpi": {
     "balance": "Saldo disponible",
-    "balanceHint": "Créditos que quedan para lanzar escaneos.",
+    "balanceHint": "Créditos que quedan para lanzar escaneos. El saldo no lleva descuento: el descuento se aplica a las compras, no a lo que ya tienes.",
     "spentThisMonth": "Consumido este mes",
     "spentThisMonthHint": "Escaneos lanzados desde el primer día del mes.",
     "purchasedThisMonth": "Comprado este mes",
     "purchasedThisMonthHint": "Créditos acreditados por pago desde el primer día del mes.",
-    "estimate": "≈ {{usd}} al precio del pack más grande",
-    "estimateHint": "Estimación: lo que costaría comprar esta cantidad de créditos al precio unitario más barato del catálogo. El precio real depende del pack que elijas."
+    "equivalent": "{{usd}} al precio de lista",
+    "equivalentHint": "Equivalente exacto al precio de lista de un crédito. No es una estimación: el saldo no se revende, así que no lleva descuento.",
+    "estimate": "Equivalente a {{usd}} al precio de lista",
+    "estimateHint": "Equivalente exacto al precio de lista de un crédito. No es una estimación: el saldo no se revende, así que no lleva descuento."
+  },
+  "plan": {
+    "current": "Plan actual",
+    "currentFree": "Gratuito",
+    "currentPro": "Pro",
+    "currentEnterprise": "Enterprise",
+    "subscriptionTitle": "Suscripción Pro",
+    "subscriptionCaption": "Acceso a las funciones de Pro, con prioridad en la cola de soporte y los tickets urgentes.",
+    "monthly": "{{usd}} al mes",
+    "subscribe": "Contratar Pro",
+    "subscribing": "Redirigiendo al pago…",
+    "currentPlanNotice": "Este workspace ya está en el plan Pro. La suscripción está activa.",
+    "upgrade": "Ya estás en el mejor plan disponible. Enterprise se contrata con el equipo.",
+    "subscriptionErrors": "No se pudo abrir la suscripción. El pago se resuelve con el proveedor externo.",
+    "proBenefits": {
+      "urgent": "Tickets de soporte con prioridad urgente.",
+      "volume": "Toda la escalera de descuento por volumen, desde $10.",
+      "history": "Histórico de escaneos más largo y exportación del informe."
+    }
+  },
+  "volume": {
+    "title": "Comprar por volumen",
+    "caption": "Cuanto más gastas, menos cuesta cada crédito. El descuento lo aplica el servidor: el precio que ves es el que se cobra.",
+    "amountLabel": "Importe",
+    "amountHint": "Entre {{min}} y {{max}}.",
+    "unitPrice": "{{usd}} por crédito",
+    "listPrice": "Precio de lista: {{usd}} por crédito",
+    "credits": "Recibirás {{count}} créditos",
+    "savings": "Ahorras {{usd}}",
+    "noSavings": "Sin descuento en este tramo",
+    "savingsPct": "AHORRO {{pct}} %",
+    "discountLabel": "Descuento aplicado",
+    "tier": "Tramo {{pct}} %",
+    "buy": "Comprar por {{usd}}",
+    "buying": "Redirigiendo al pago…",
+    "belowMinimum": "El importe mínimo de compra es {{min}}.",
+    "howItWorks": "El tramo se decide por lo que gastas, no por los créditos. Al cruzar un umbral el saldo da un salto hacia arriba: pasar de $250 a $251 son 28 créditos más, no uno.",
+    "minMax": "De {{min}} a {{max}}",
+    "maxReached": "Has llegado al máximo del catálogo. Para volúmenes mayores, habla con el equipo.",
+    "sliderLabel": "Importe de la compra",
+    "barLabel": "Escalera de descuento en {{count}} tramos. El tramo activo es el {{position}}.",
+    "noPosition": "ninguno, todavía no hay importe",
+    "tierBadge": "{{pct}} %",
+    "tierTooltip": "De {{from}} a {{to}}: {{discount}} % de descuento",
+    "savingsTitle": "Ahorro de este tramo",
+    "unitPriceTitle": "Precio unitario",
+    "creditsTitle": "Créditos que recibes",
+    "listPriceTitle": "Precio de lista",
+    "atListPrice": "Al precio de lista",
+    "savingsExplainer": "El descuento se aplica a esta compra, no a tu saldo actual. Los créditos que ya tienes conservan su precio de lista.",
+    "creditsNote": "El saldo da un salto en cada umbral: gastar un dólar más en el tramo del 15 % son 65 créditos más, no uno."
   },
   "packs": {
     "title": "Recargar créditos",
@@ -25,8 +78,8 @@
     "customCaption": "Cualquier cantidad entre el mínimo y el máximo.",
     "customLabel": "Créditos",
     "customHint": "El mínimo cubre el coste de la sesión de pago.",
-    "customInvalid": "Introduce una cantidad entre {min} y {max} créditos.",
-    "customBuy": "Comprar {count} créditos"
+    "customInvalid": "Introduce una cantidad entre {{min}} y {{max}} créditos.",
+    "customBuy": "Comprar {{count}} créditos"
   },
   "ledger": {
     "title": "Movimientos",
@@ -38,7 +91,7 @@
       "balance": "Saldo resultante",
       "reference": "Referencia"
     },
-    "noReference": "—",
+    "noReference": "-",
     "empty": "Todavía no hay movimientos en esta cuenta"
   },
   "reason": {
@@ -56,10 +109,12 @@
   "states": {
     "loading": "Cargando facturación",
     "error": "No se pudo cargar la facturación",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "purchaseError": "No se pudo abrir el pago. El proveedor de cobro no respondió."
   },
   "payment": {
     "paid": "Pago recibido. El saldo se actualiza en cuanto el proveedor confirme el cobro.",
+    "subscriptionPaid": "Suscripción activa. El plan Pro se ha aplicado a este workspace.",
     "cancelled": "Has cancelado el pago. No se ha descontado nada."
   }
 }

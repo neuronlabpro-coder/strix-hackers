@@ -1,0 +1,365 @@
+/* ==========================================================================
+   Ajustes — sub-sidebar de 220 px y contenido centrado
+   ==========================================================================
+
+   Por qué 220 px fijos: las cinco entradas tienen etiquetas de longitud muy
+   distinta y el candado de Enterprise añade un icono. Con un ancho elástico,
+   cambiar de sección cambiaría el ancho del submenú y el texto saltaría bajo el
+   cursor. Fijo también alinea la primera fila de la tabla de la derecha en el
+   mismo sitio en todas las secciones.
+
+   Por qué `sticky` y no `fixed`: el submenú acompaña al scroll del bloque de
+   contenido, pero sacarlo de la caja lo haría flotar sobre una tabla larga de
+   auditoría. `sticky` da el comportamiento sin la superposición.
+   ========================================================================== */
+
+.settings-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  min-height: calc(100svh - 64px);
+}
+
+.settings-subnav {
+  position: sticky;
+  top: 64px;
+  flex: 0 0 220px;
+  width: 220px;
+  align-self: flex-start;
+  min-height: calc(100svh - 64px);
+  padding: 16px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.settings-subnav-header {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-subnav-title {
+  margin: 0;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.settings-back-link:hover,
+.settings-back-link:focus-visible {
+  color: var(--color-accent);
+}
+
+.settings-subnav-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-subnav-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.settings-subnav-link:hover {
+  background: var(--color-surface-elevated);
+  color: var(--color-primary);
+}
+
+.settings-subnav-link[aria-current='page'] {
+  background: var(--color-surface-elevated);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/*
+  La entrada bloqueada se ve atenuada y **no** es enfocable. Es un `span` en el
+  JSX, no un enlace con `aria-disabled`: un enlace deshabilitado seguiría
+  navegable con el teclado y llevaría a una vista que responde "no tienes
+  acceso" a una pregunta que nadie ha hecho. El candado y el `title` explican el
+  motivo a quien pase el puntero por encima.
+*/
+.settings-subnav-link-locked {
+  color: var(--color-caption);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.settings-subnav-link-locked:hover {
+  background: transparent;
+  color: var(--color-caption);
+}
+
+.settings-subnav-lock {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--color-caption);
+}
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-content-inner {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+.settings-section {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-section + .settings-section {
+  margin-top: 32px;
+}
+
+.settings-section-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-section-heading h2 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.settings-section-heading p {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* --- Formularios de Ajustes ------------------------------------------------ */
+
+.settings-form {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+}
+
+.settings-form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- Zona de peligro ------------------------------------------------------ */
+
+/*
+  El borde rojo delata el botón antes de que nadie lo pulse. Un borde gris con un
+  botón de texto rojo escondería el alcance de la acción hasta el último momento,
+  y en una baja de workspace esa es la diferencia entre leer la nota y no leerla.
+*/
+.danger-zone {
+  border-color: rgba(220, 68, 68, 0.35);
+}
+
+.danger-zone .panel-title {
+  color: #e06c6c;
+}
+
+.danger-note {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.danger-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+/* --- Control bloqueado (2FA) ---------------------------------------------- */
+
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-elevated);
+  color: var(--color-caption);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.locked-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.locked-row-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.locked-row-copy strong {
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.locked-row-copy span {
+  color: var(--color-caption);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+/* --- Rejilla de miembros --------------------------------------------------- */
+
+.member-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.member-cell strong {
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.member-cell span {
+  color: var(--color-caption);
+  font-size: 0.72rem;
+}
+
+.member-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* --- Aviso de plan (Audit Logs) ------------------------------------------- */
+
+.plan-gate {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid rgba(23, 161, 99, 0.32);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    180deg,
+    rgba(23, 161, 99, 0.07),
+    transparent 70%
+  );
+  text-align: left;
+}
+
+.plan-gate h3 {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.plan-gate p {
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.plan-gate ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-secondary);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.plan-gate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 3px 9px;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --- Ajustes en pantallas estrechas --------------------------------------- */
+
+@media (max-width: 980px) {
+  .settings-shell {
+    display: block;
+  }
+
+  .settings-subnav {
+    position: static;
+    width: 100%;
+    min-height: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .settings-subnav-list {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .settings-content-inner {
+    padding: 20px 16px;
+  }
+}

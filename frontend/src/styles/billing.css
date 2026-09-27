@@ -1,0 +1,192 @@
+/* ==========================================================================
+   Facturación — suscripción, packs y slider de volumen
+   ========================================================================== */
+
+.pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.pack-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-background);
+  text-align: center;
+}
+
+.pack-credits {
+  margin: 0;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pack-price {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.pack-unit {
+  margin: 0 0 6px;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+}
+
+.volume-unit-price strong {
+  color: var(--color-accent);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* --- Slider de volumen ---------------------------------------------------- */
+
+/*
+  La barra se divide en cinco segmentos proporcionales a los **dólares** de cada tramo,
+  no a los créditos. Es la escala en la que el cliente decide: al cruzar un umbral lo que
+  sube es el saldo, no el precio de un crédito. Medida en créditos, el primer tramo sería
+  una franja diminuta y el último ocuparía medio control.
+*/
+.volume-bar {
+  display: flex;
+  gap: 2px;
+  height: 44px;
+  margin: 16px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.volume-bar-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* Proporcional al gasto del tramo. Se rellena con CSS, no con una variable: el ancho
+     de cada uno viene del `flex-grow` calculado en el componente a partir del rango. */
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--color-surface-elevated);
+  transition: background 120ms ease;
+}
+
+.volume-bar-segment-reached {
+  background: var(--color-surface-elevated);
+}
+
+.volume-bar-segment-active {
+  background: rgba(23, 161, 99, 0.22);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.volume-bar-label {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.volume-bar-segment-active .volume-bar-label {
+  color: var(--color-accent);
+}
+
+.volume-bar-range {
+  color: var(--color-caption);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+}
+
+.volume-controls {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  align-items: end;
+}
+
+@media (max-width: 620px) {
+  .volume-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* El `range` nativo tiene un pulgar que no casa con la paleta, así que se pinta entero.
+   El `accent-color` solo funciona en navegadores que lo respetan, y la plataforma apunta a
+   Chromium, Firefox y Safari: los tres lo respetan. */
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.volume-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+}
+
+.volume-summary-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.volume-summary-item-wide {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.volume-summary dt {
+  color: var(--color-caption);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.volume-summary dd {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.92rem;
+}
+
+.volume-price-discounted {
+  color: var(--color-accent) !important;
+  font-weight: 500;
+}
+
+.volume-credits {
+  color: var(--color-accent) !important;
+  font-size: 1.25rem !important;
+  font-weight: 500;
+}
+
+.volume-savings {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-accent) !important;
+  font-weight: 500;
+}
+
+.volume-savings-pct {
+  padding: 2px 7px;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

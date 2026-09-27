@@ -117,12 +117,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: payload.email,
         password: payload.password,
       })
-      saveSession({ token: loginResponse.access_token, user: response.user })
-      setToken(loginResponse.access_token)
-      setUser({
+      // El `id` se guarda en la sesión a propósito. `/auth/me` ya lo devuelve y no se
+      // conservaba porque nadie lo necesitaba; la vista de miembros y el hilo de tickets lo
+      // usan para saber qué es del usuario actual. Ver la nota de `StoredUser.id`.
+      const perfil = {
         ...response.user,
         is_superuser: response.user.is_superuser ?? false,
-      })
+      }
+      saveSession({ token: loginResponse.access_token, user: perfil })
+      setToken(loginResponse.access_token)
+      setUser(perfil)
       return response
     } finally {
       setIsLoading(false)

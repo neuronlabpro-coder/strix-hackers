@@ -4,11 +4,17 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.organizations.deletion import _soft_delete_organization
-from backend.apps.organizations.models import Organization, RoleEnum, User
+from backend.apps.organizations.models import (
+    Membership,
+    Organization,
+    RoleEnum,
+    User,
+)
 from backend.apps.organizations.schemas import (
     EmailResendRequest,
     EmailResendResponse,
@@ -19,25 +25,35 @@ from backend.apps.organizations.schemas import (
     InvitationCreate,
     InvitationResponse,
     LoginRequest,
+    MemberListResponse,
+    MemberRoleUpdate,
     OrganizationCreate,
     OrganizationDeletionResponse,
     OrganizationResponse,
+    OrganizationUpdate,
     RegisterRequest,
     RegisterResponse,
     TokenResponse,
     UserResponse,
 )
 from backend.apps.organizations.services import (
-    accept_invitation as accept_organization_invitation,
-)
-from backend.apps.organizations.services import (
+    CannotRemoveSelfError,
+    LastAdminRequiredError,
+    NoSuchMemberError,
     authenticate_user,
+    change_member_role,
     create_invitation,
     create_organization_for_user,
+    list_members,
     list_organizations_for_user,
     register_user_with_initial_organization,
+    remove_member,
+    rename_organization,
     rotate_email_verification_token,
     verify_user_email,
+)
+from backend.apps.organizations.services import (
+    accept_invitation as accept_organization_invitation,
 )
 from backend.core.config import settings
 from backend.core.database import get_db
@@ -360,3 +376,180 @@ async def invite_member(
             invitation.token if settings.email_verification_delivery_mode == "development" else None
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Ajustes del workspace activo
+# --------------------------------------------------------------------------- #
+#
+# Todas estas rutas toman el tenant del **contexto**, no de un parámetro. Un
+# `organization_id` en la URL o en el cuerpo sería un filtro que el servidor tendría que
+# comprobar contra el contexto para no filtrar nada —R3—; no tenerlo hace que sea imposible
+# equivocarse: no hay ningún valor que el cliente pueda manipular.
+
+
+def _exigir_admin(tenant: TenantContext) -> None:
+    """Exige rol `ADMIN` del tenant activo, con excepción del superusuario.
+
+    El superusuario pasa siempre. No por comodidad, sino porque administra la plataforma
+    entera: un superusuario que no puede entrar en los ajustes de un workspace que está
+    revisando no puede hacer su trabajo. Y no es una vía paralela: la escritura queda
+    asentada igual en `audit_log` con su `actor_user_id`, que es donde se comprueba quién
+    hizo qué.
+    """
+
+    if tenant.role != RoleEnum.ADMIN and not tenant.user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere permiso de administrador para modificar el workspace",
+        )
+
+
+@router.patch("/api/v1/organizations/me", response_model=OrganizationResponse)
+async def update_my_organization(
+    payload: OrganizationUpdate,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> OrganizationResponse:
+    """Renombra el workspace activo.
+
+    El `slug` no cambia, aunque venga en el cuerpo: `OrganizationUpdate` no lo declara y
+    `extra="forbid"` lo convierte en `422`. Preferible a ignorarlo en silencio, que dejaría
+    al usuario creyendo que la dirección cambió cuando no lo ha hecho.
+    """
+
+    _exigir_admin(tenant)
+    organization = await rename_organization(
+        session, tenant.organization, payload.name, tenant.user.id
+    )
+    return _organization_response(organization, tenant.role)
+
+
+@router.get(
+    "/api/v1/organizations/me/members", response_model=MemberListResponse
+)
+async def list_my_members(
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> MemberListResponse:
+    """Los miembros activos del workspace activo.
+
+    Lo puede leer **cualquier** miembro, no solo el admin. Se parece a la lista de un canal
+    de equipo: cualquiera necesita saber quién más está dentro para nouahle por email a
+    alguien que ya tiene la respuesta, y el dato que sale —nombre, email, rol— no es nada
+    que el propio miembro no pueda ver de otra forma.
+    """
+
+    items = await list_members(session, tenant.organization.id)
+    return MemberListResponse(items=items, total=len(items))
+
+
+@router.patch("/api/v1/organizations/me/members/{user_id}", response_model=MemberListResponse)
+async def update_member_role(
+    user_id: UUID,
+    payload: MemberRoleUpdate,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> MemberListResponse:
+    """Cambia el rol de un miembro del workspace activo.
+
+    ## Por qué un `409` cuando se quedaría sin admin
+
+    Un workspace sin ningún `ADMIN` no se puede administrar. El siguiente `MEMBER` que pida
+    permiso se lo deniega él mismo con un `403` que no puede corregir, porque corregirlo
+    requiere ser admin. Es un callejón sin salida del que solo se sale por consola.
+
+    Un `409` —y no un `403`— porque la petición es legítima y el estado es el que no
+    permite: el admin puede invitar a otro admin y volver. Un `403` diría "no tienes
+    permiso", y sí lo tiene.
+    """
+
+    _exigir_admin(tenant)
+    try:
+        await change_member_role(
+            session,
+            organization=tenant.organization,
+            membership=await _membership_de(session, tenant.organization.id, user_id),
+            new_role=payload.role,
+            actor_user_id=tenant.user.id,
+        )
+    except LastAdminRequiredError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
+    except NoSuchMemberError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+        ) from error
+
+    items = await list_members(session, tenant.organization.id)
+    return MemberListResponse(items=items, total=len(items))
+
+
+@router.delete(
+    "/api/v1/organizations/me/members/{user_id}", response_model=MemberListResponse
+)
+async def remove_my_member(
+    user_id: UUID,
+    tenant: TenantDependency,
+    session: SessionDependency,
+) -> MemberListResponse:
+    """Retira a un miembro desactivando su membresía. La fila se conserva.
+
+    `DELETE` y no `PATCH {"is_active": false}` porque para quien llama es una baja: el
+    recurso "membresía activa" deja de existir y no hay forma de expresarlo mejor. Lo que
+    hay debajo es una desactivación, y eso lo dice el `audit_log`.
+    """
+
+    _exigir_admin(tenant)
+    try:
+        await remove_member(
+            session,
+            organization=tenant.organization,
+            user_id=user_id,
+            actor_user_id=tenant.user.id,
+        )
+    except CannotRemoveSelfError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
+    except LastAdminRequiredError as error:
+        # El servicio lanza esta cuando el `UPDATE` no afectó a nadie **porque** habría
+        # dejado el workspace sin admin. Sin este `except` se escaparía como `500`, que le
+        # diría al superusuario que el servidor falló cuando lo que pasó es que la
+        # operación no es válida. Y el `500` no lleva el mensaje: el `detail` de un `500`
+        # es genérico, así que el usuario se quedaría sin ninguna explicación.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
+    except NoSuchMemberError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+        ) from error
+
+    items = await list_members(session, tenant.organization.id)
+    return MemberListResponse(items=items, total=len(items))
+
+
+async def _membership_de(
+    session: AsyncSession, organization_id: UUID, user_id: UUID
+) -> Membership:
+    """Resuelve una membresía **del tenant activo**, con su `404` si no es suya.
+
+    El filtro por organización va en el `WHERE` junto al `user_id`. Filtrar el resultado
+    en Python traería la fila de otro workspace a memoria para decidir que no es del
+    usuario: es R3 resuelto tarde y en el sitio equivocado.
+    """
+
+    membership = (
+        await session.execute(
+            select(Membership).where(
+                Membership.organization_id == organization_id,
+                Membership.user_id == user_id,
+                Membership.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        raise NoSuchMemberError("Ese miembro no pertenece a este workspace")
+    return membership

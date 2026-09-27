@@ -26,6 +26,19 @@ class AuditActionEnum(StrEnum):
     # operar: el asiento se escribe antes de revocar los accesos, y por eso tiene que
     # poder emitirse aunque la revocación falle a mitad.
     ORGANIZATION_DELETED = "ORGANIZATION_DELETED"
+    # El nombre visible del workspace cambia. `from_state` y `to_state` guardan el nombre
+    # anterior y el nuevo, recortados a la anchura de la columna: el `audit_log` es
+    # append-only y sus triggers bloquean cualquier `ALTER`, así que el rastro se
+    # dimensiona una vez y para siempre. Ver `_truncate_audit_state` en
+    # `backend/apps/organizations/services.py`.
+    ORGANIZATION_RENAMED = "ORGANIZATION_RENAMED"
+    # Cambio de rol de un miembro. `from_state` y `to_state` llevan los dos valores del
+    # enum, que caben de sobra en 64 caracteres.
+    MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
+    # Un miembro deja el equipo. La fila de `memberships` **no** se borra —por R4, su id es
+    # el actor de otras entradas—, así que `from_state`/`to_state` llevan `active` y
+    # `removed` en vez de un identificador.
+    MEMBER_REMOVED = "MEMBER_REMOVED"
     # Desactivación automática de un webhook por fallos consecutivos. Va al rastro forense
     # y no a un log porque es una decisión que **tomó el sistema** sin que nadie la
     # pidiera: un endpoint que se apaga solo tiene que poder responder cuándo pasó, por

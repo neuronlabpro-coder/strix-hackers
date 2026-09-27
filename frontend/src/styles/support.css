@@ -1,0 +1,328 @@
+/* ==========================================================================
+   Soporte — tickets del cliente y consola de triaje
+   ========================================================================== */
+
+.support-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+/* --- Píldoras de prioridad y estado --------------------------------------- */
+
+/*
+  El color **no** es el único indicador: cada píldora lleva también su texto, que es lo que
+  lee un lector de pantalla y lo que distingue los estados en una impresión en blanco y
+  negro. El color separa los ojos, el texto los explica.
+*/
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.pill-urgent {
+  border-color: rgba(220, 68, 68, 0.5);
+  color: #e06c6c;
+}
+
+.pill-urgent .pill-dot {
+  background: #dc4444;
+}
+
+.pill-normal {
+  border-color: rgba(201, 168, 74, 0.45);
+  color: #c9a84a;
+}
+
+.pill-normal .pill-dot {
+  background: #c9a84a;
+}
+
+.pill-low {
+  border-color: rgba(23, 161, 99, 0.45);
+  color: var(--color-accent);
+}
+
+.pill-low .pill-dot {
+  background: var(--color-accent);
+}
+
+.pill-open {
+  color: var(--color-secondary);
+}
+
+.pill-open .pill-dot {
+  background: var(--color-caption);
+}
+
+.pill-progress {
+  color: var(--color-accent);
+}
+
+.pill-progress .pill-dot {
+  background: var(--color-accent);
+}
+
+.pill-closed {
+  color: var(--color-caption);
+}
+
+.pill-closed .pill-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-caption);
+}
+
+/* --- Tabla de tickets ----------------------------------------------------- */
+
+.ticket-subject {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ticket-subject strong {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.ticket-subject span {
+  color: var(--color-caption);
+  font-size: 0.72rem;
+}
+
+.ticket-number {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.ticket-row-clickable {
+  cursor: pointer;
+}
+
+.ticket-row-clickable:hover {
+  background: var(--color-background);
+}
+
+.ticket-row-pinned td {
+  border-top: 1px solid rgba(220, 68, 68, 0.28);
+}
+
+/* --- Hilo de conversación ------------------------------------------------- */
+
+.ticket-thread {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+  /* El hilo puede ser largo y la barra de scroll sobre obsidiana dibuja una franja gris
+     que parece un borde más. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.ticket-message {
+  display: grid;
+  gap: 4px;
+  max-width: 78%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+}
+
+/*
+  El mensaje del cliente va a la derecha y el de soporte a la izquierda.
+
+  No es un capricho de chat: en un hilo de soporte, la posición dice **quién tiene la
+  palabra**. Con las dos columnas a la izquierda, el usuario tiene que leer la etiqueta de
+  cada mensaje para saber si es suyo o del equipo, y en un hilo largo eso es trabajo.
+*/
+.ticket-message {
+  justify-self: start;
+}
+
+.ticket-message-own {
+  justify-self: end;
+  border-color: rgba(23, 161, 99, 0.3);
+}
+
+.ticket-message-support {
+  justify-self: start;
+  border-color: rgba(90, 140, 255, 0.28);
+}
+
+.ticket-message-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ticket-message-author {
+  color: var(--color-primary);
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.ticket-message-support .ticket-message-author {
+  color: #7d9bff;
+}
+
+.ticket-message-time {
+  color: var(--color-caption);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+}
+
+.ticket-message-content {
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  /* Un mensaje con saltos de línea del cliente no debe salirse de la caja. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ticket-message-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border: 1px solid rgba(125, 155, 255, 0.4);
+  border-radius: 999px;
+  color: #7d9bff;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* --- Selector de prioridad con opción bloqueada --------------------------- */
+
+.priority-options {
+  display: grid;
+  gap: 6px;
+}
+
+.priority-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.priority-option:hover:not(.priority-option-locked) {
+  border-color: var(--color-accent);
+}
+
+.priority-option-checked {
+  border-color: var(--color-accent);
+  background: rgba(23, 161, 99, 0.08);
+}
+
+/*
+  La opción urgente bloqueada se ve atenuada y su etiqueta de plan va **dentro** de la
+  opción, no fuera. Fuera, el usuario lee «Urgente» y tiene que buscar el motivo en otro
+  sitio; dentro, el motivo está donde se toma la decisión.
+*/
+.priority-option-locked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.priority-option-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.priority-option-copy strong {
+  color: var(--color-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.priority-option-copy span {
+  color: var(--color-caption);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+/* --- Consola de triaje ---------------------------------------------------- */
+
+.triage-toolbar {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 760px) {
+  .triage-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.triage-reply {
+  display: grid;
+  gap: 8px;
+}
+
+.triage-reply textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.triage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.triage-urgent-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid rgba(220, 68, 68, 0.32);
+  border-radius: var(--radius-md);
+  background: rgba(220, 68, 68, 0.06);
+  color: #e06c6c;
+  font-size: 0.76rem;
+}
+
+.empty-thread {
+  padding: 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-caption);
+  font-size: 0.8rem;
+  text-align: center;
+}

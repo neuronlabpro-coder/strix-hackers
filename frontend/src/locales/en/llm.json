@@ -8,10 +8,11 @@
     "cost": "Base cost per 1M",
     "margin": "Margin",
     "price": "Client price",
-    "priority": "Order",
+    "priority": "Priority",
     "useCase": "Use case",
     "usage": "Usage",
-    "status": "Status"
+    "status": "Status",
+    "useCaseLabel": "Use case"
   },
   "useCase": {
     "ALL": "All use cases",

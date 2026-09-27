@@ -18,6 +18,7 @@ import {
   BarChart3,
   Building2,
   CreditCard,
+  LifeBuoy,
   ScrollText,
   Server,
   BrainCircuit,
@@ -36,9 +37,14 @@ export interface AdminNavigationItem {
 /**
  * Orden de la consola.
  *
- * Va de lo general a lo concreto: primero el resumen, luego las cinco secciones. Es el
+ * Va de lo general a lo concreto: primero el resumen, luego las seis secciones. Es el
  * orden en el que un operador de plataforma hace su ronda: mira cómo va, mira a quién,
- * mira a la gente, mira lo que se vendió, mira qué se tocó y por último ajusta los modelos.
+ * mira a la gente, mira lo que se vendió, mira qué se tocó, ajusta los modelos y por
+ * último atiende la cola de soporte.
+ *
+ * Tickets va al final y no antes de *Venta* a propósito: la cola de soporte es trabajo en
+ * curso que hay que atender **hoy**, y la venta es una decisión que se puede revisar
+ * mañana. Poner la cola en medio obligaría a saltarándosela cada día.
  */
 export const adminNavigation: readonly AdminNavigationItem[] = [
   { path: '/admin', labelKey: 'sections.overview', icon: BarChart3, end: true },
@@ -47,4 +53,5 @@ export const adminNavigation: readonly AdminNavigationItem[] = [
   { path: '/admin/sales', labelKey: 'sections.sales', icon: CreditCard },
   { path: '/admin/audit', labelKey: 'sections.audit', icon: ScrollText },
   { path: '/admin/llm', labelKey: 'sections.llm', icon: BrainCircuit },
+  { path: '/admin/tickets', labelKey: 'sections.tickets', icon: LifeBuoy },
 ]

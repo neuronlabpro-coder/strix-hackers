@@ -1,0 +1,134 @@
+{
+  "summary": {
+    "open": "Open",
+    "waiting": "In progress",
+    "resolved": "Resolved",
+    "openHint": "Waiting for support to pick them up.",
+    "waitingHint": "An agent already has them.",
+    "resolvedHint": "Closed or resolved. To carry on you need to open another one."
+  },
+  "newTicket": "New ticket",
+  "form": {
+    "title": "Open a ticket",
+    "intro": "Tell us what is happening. The first message goes with the opening, so a ticket never exists empty.",
+    "subjectLabel": "Subject",
+    "subjectPlaceholder": "The scan hangs at the analysis stage",
+    "subjectHint": "At least 3 characters. It is what the agent sees in the queue, so describe the symptom rather than the cause.",
+    "categoryLabel": "Category",
+    "categoryHint": "It decides who handles it. It does not change the process.",
+    "messageLabel": "Description",
+    "messagePlaceholder": "Since when it happens, what you expected and what actually happened. Include the exact error messages if you have them.",
+    "messageHint": "At least 10 characters.",
+    "priorityLabel": "Priority",
+    "priorityHint": "Urgency only decides the order of the support queue.",
+    "submit": "Open ticket",
+    "working": "Opening…",
+    "cancel": "Cancel"
+  },
+  "categories": {
+    "TECHNICAL": "Technical",
+    "BILLING": "Billing",
+    "VULNERABILITY_REVIEW": "Finding review",
+    "FEATURE_REQUEST": "Feature request"
+  },
+  "categoryDescriptions": {
+    "TECHNICAL": "Scans, containers, integrations or anything failing along the way.",
+    "BILLING": "Charges, balance, plans or invoices.",
+    "VULNERABILITY_REVIEW": "A finding you believe is a false positive, or that you want re-evaluated.",
+    "FEATURE_REQUEST": "Something you would like to be able to do and today you cannot."
+  },
+  "priorities": {
+    "LOW": "Low",
+    "NORMAL": "Normal",
+    "URGENT": "Urgent"
+  },
+  "priorityHints": {
+    "LOW": "No deadline and no production impact.",
+    "NORMAL": "It affects daily work but does not stop it.",
+    "URGENT": "Production is down, or a write is out with no operational security conditions."
+  },
+  "enterpriseBadge": "Enterprise",
+  "urgentLockedHint": "Urgent priority is reserved for the Enterprise plan. Urgent tickets leave the queue in order, so an urgent ticket without that plan waits exactly as long as a normal one.",
+  "statuses": {
+    "OPEN": "Open",
+    "IN_PROGRESS": "In progress",
+    "RESOLVED": "Resolved",
+    "CLOSED": "Closed"
+  },
+  "table": {
+    "number": "Number",
+    "subject": "Subject",
+    "priority": "Priority",
+    "status": "Status",
+    "messages": "Messages",
+    "updated": "Updated"
+  },
+  "detail": {
+    "title": "Ticket {{number}}",
+    "back": "Back to tickets",
+    "openedBy": "Opened by {{email}}",
+    "assignedTo": "Assigned to {{email}}",
+    "unassigned": "Unassigned",
+    "categoryLabel": "Category",
+    "thread": "Conversation",
+    "threadEmpty": "This ticket has no messages.",
+    "supportAuthor": "Support team",
+    "clientAuthor": "You",
+    "you": "you",
+    "replyPlaceholder": "Write your reply…",
+    "replySubmit": "Send",
+    "replyWorking": "Sending…",
+    "replyHint": "Shift+Enter for a new line. The thread is chronological and cannot be edited once sent.",
+    "threadClosed": "This thread is {{status}} and takes no more messages.",
+    "threadClosedAction": "Open another ticket",
+    "replySent": "Reply sent."
+  },
+  "empty": {
+    "title": "You have not opened a ticket yet",
+    "description": "If something fails, or you have a question about a finding, open a ticket and someone from the team will handle it."
+  },
+  "messages": {
+    "openTicketSuccess": "Ticket {{number}} opened. We will reply here.",
+    "openTicketError": "The ticket could not be opened.",
+    "loadError": "Your tickets could not be loaded.",
+    "detailError": "The ticket could not be loaded.",
+    "replyError": "The reply could not be sent.",
+    "forbidden": "Your session is no longer valid. Please sign in again."
+  },
+  "loading": "Loading ticket…",
+  "retry": "Retry",
+  "console": {
+    "title": "Tickets & support",
+    "subtitle": "Triage of every ticket on the platform, most recent first.",
+    "filterSearch": "Search by number, subject or tenant",
+    "filterSearchHint": "The number shows with a hash on screen (#TK-1005) and the search accepts it. You can also search by part of the workspace name.",
+    "filterAllStatuses": "All statuses",
+    "filterAllPriorities": "All priorities",
+    "urgentPinned": "Urgent first",
+    "urgentPinnedHint": "The normal order is by last activity. Pinning the urgent ones on top keeps an urgent ticket from three weeks ago from hiding the one that just came in, while leaving it visible without searching for it.",
+    "table": {
+      "number": "Number",
+      "tenant": "Tenant",
+      "subject": "Subject",
+      "priority": "Priority",
+      "status": "Status",
+      "updated": "Updated"
+    },
+    "openConsole": "Open in the console",
+    "replyPlaceholder": "Reply from the support team…",
+    "replySubmit": "Reply",
+    "replyWorking": "Sending…",
+    "replySent": "Reply sent to {{email}}.",
+    "replyError": "The reply could not be sent.",
+    "updateWorking": "Saving…",
+    "statusUpdated": "Ticket {{number}}: status {{status}}.",
+    "priorityUpdated": "Ticket {{number}}: priority {{priority}}.",
+    "assignedUpdated": "Ticket {{number}}: assigned to {{email}}.",
+    "assignTo": "Assign to",
+    "assignToNone": "Unassigned (return to the queue)",
+    "updateError": "The ticket could not be updated.",
+    "loadError": "The tickets could not be loaded.",
+    "empty": "No tickets match these filters.",
+    "lastAdminHint": "This ticket has no agent assigned. Assign one so they know they have it."
+  }
+}

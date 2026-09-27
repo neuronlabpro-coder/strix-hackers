@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEvent
 from backend.apps.billing.schemas import (
+    PRO_SUBSCRIPTION_PLAN,
     BillingSummaryResponse,
     CheckoutSessionRequest,
     CheckoutSessionResponse,
@@ -32,7 +33,8 @@ from backend.apps.billing.summary import (
     available_packs,
     credit_activity,
     credits_to_usd,
-    custom_purchase_bounds,
+    subscription_offer,
+    volume_pricing,
 )
 from backend.apps.organizations.models import Organization, RoleEnum
 from backend.apps.webhooks.emission import (
@@ -82,7 +84,18 @@ async def create_checkout_session(
     tenant: TenantDependency,
     _session: SessionDependency,
 ) -> CheckoutSessionResponse:
-    """Crea una sesión de Stripe Checkout para un paquete de créditos."""
+    """Crea una sesión de Stripe Checkout: recarga de créditos o suscripción Pro.
+
+    ## Por qué el importe sale del catálogo y nunca del cliente
+
+    El cuerpo lleva `credits`, no un importe. El precio lo decide `price_for_credits` en el
+    servidor. Aceptar un `amount` del cliente sería aceptar que el cliente decida cuánto
+    paga por cuántos créditos, que es la definición de un endpoint de cobro roto.
+
+    Lo mismo con el descuento: el cliente no envía un porcentaje, solo la cantidad. El
+    tramo lo elige la escalera, y por tanto el servidor. Un endpoint que aceptara el
+    descuento lo dejaría en manos de quien llama.
+    """
 
     if tenant.role != RoleEnum.ADMIN:
         raise HTTPException(
@@ -100,24 +113,38 @@ async def create_checkout_session(
             detail="El cobro no está disponible: falta configurar Stripe en el servidor",
         ) from error
 
-    # cuanto vale una cantidad que no es un pack, y duplicar la regla aquí la haría
+    # El importe lo resuelve el catálogo, nunca el cuerpo. Duplicar la regla aquí la haría
     # divergir en cuanto el catálogo cambiara.
     amount = payload.amount_usd
+    es_suscripcion = payload.mode == "subscription"
     # La organización viaja en metadata firmada por Stripe, nunca en la URL: la
     # URL de Checkout es pública y se puede compartir o interceptar.
+    #
+    # `credits` va a `0` en una suscripción, y `mode` explícito para que el webhook sepa
+    # qué hacer **antes** de mirar nada más. Sin ese discriminante, un webhook de suscripción
+    # con `credits=0` acreditaría cero créditos y parecería un glitch en vez de un cambio de
+    # plan.
     metadata = {
         "organization_id": str(tenant.organization.id),
-        "credits": str(payload.credits),
+        "credits": str(payload.granted_credits),
+        "mode": payload.mode,
     }
     try:
         checkout = await client.create_checkout_session(
-            mode="payment",
+            mode="subscription" if es_suscripcion else "payment",
             line_items=[
                 {
                     "price_data": {
                         "currency": "usd",
                         "unit_amount": int(amount * 100),
-                        "product_data": {"name": f"Fenix credits ({payload.credits})"},
+                        "product_data": {
+                            "name": (
+                                "Fenix Pro (suscripción mensual)"
+                                if es_suscripcion
+                                else f"Fenix credits ({payload.credits})"
+                            )
+                        },
+                        "recurring": {"interval": "month"} if es_suscripcion else None,
                     },
                     "quantity": 1,
                 }
@@ -145,8 +172,92 @@ async def create_checkout_session(
     return CheckoutSessionResponse(
         session_id=session_id,
         url=checkout_url,
-        credits=payload.credits,
+        mode=payload.mode,
+        credits=payload.granted_credits,
         amount_usd=amount,
+    )
+
+
+def _extract_mode(data_object: dict[str, Any]) -> str:
+    """El modo de pago que se creó la sesión: `credits` o `subscription`.
+
+    ## Por qué no se deduce de los créditos
+
+    Porque la suscripción **no** acredita créditos. Una sesión de suscripción lleva
+    `credits=0` en su metadata, que es indistinguible de una recarga de cero créditos —y una
+    recarga de cero no debería existir, así que un webhook que la tratara como recarga
+    escribiría un asiento de valor cero en el libro de un cliente que ya pagó.
+
+    El discriminante viaja explícito en la metadata que pone `create_checkout_session`, así
+    que lo decide el endpoint que creó la sesión y no este webhook. Un valor desconocido se
+    trata como `credits`, que es el modo por defecto del esquema y el que existía antes de
+    que hubiera suscripciones: un evento antiguo, sin la clave, sigue acreditando.
+    """
+
+    metadata = data_object.get("metadata")
+    if not isinstance(metadata, dict):
+        return "credits"
+    modo = metadata.get("mode")
+    if modo == "subscription":
+        return "subscription"
+    return "credits"
+
+
+async def _aplicar_suscripcion(
+    session: SessionDependency,
+    *,
+    organization: Organization,
+    event_id: str,
+    event_type: str,
+    data_object: dict[str, Any],
+) -> WebhookAckResponse:
+    """Sube el plan del workspace a Pro y asienta el evento.
+
+    ## Por qué se guarda el `StripeEvent` también en una suscripción
+
+    Por idempotencia, y por el mismo motivo que en la recarga. Stripe reintenta cualquier
+    entrega que no reciba un `2xx`, así que este webhook **va** a recibir el mismo
+    `checkout.session.completed` dos veces. Sin la fila en `stripe_events`, la segunda
+    entrega volvería a aplicar el cambio.
+
+    Aquí el cambio es idempotente por naturaleza —asignar `PRO` a algo que ya es `PRO` no
+    tiene efecto— así que el riesgo es menor que en la recarga. Aun así se registra: el
+    evento existe, el registro es la prueba de que llegó, y `plan_tier` en la respuesta
+    permite al panel refrescar la cabecera sin una llamada extra.
+
+    ## Por qué no se toca el saldo
+
+    Una suscripción cambia el plan. Si acreditara créditos, el cliente esperaría un saldo
+    que depende de un segundo que la interfaz no le muestra, y el soporte recibiría
+    preguntas que no puede responder con los datos que tiene. El saldo se compra con
+    `mode="credits"`, que es un camino explícito y separado.
+    """
+
+    previous_plan = organization.plan_tier
+    organization.plan_tier = PRO_SUBSCRIPTION_PLAN
+    session.add(
+        StripeEvent(
+            event_id=event_id,
+            event_type=event_type,
+            organization_id=organization.id,
+            session_id=_as_str(data_object.get("id")),
+            credits_granted=0,
+            amount_cents=_extract_amount_cents(data_object),
+        )
+    )
+    await session.commit()
+    logger.info(
+        "Suscripcion aplicada organization=%s plan %s -> %s",
+        organization.id,
+        previous_plan,
+        PRO_SUBSCRIPTION_PLAN,
+    )
+    return WebhookAckResponse(
+        status="processed",
+        event_id=event_id,
+        event_type=event_type,
+        credits_granted=0,
+        plan_tier=organization.plan_tier,
     )
 
 
@@ -315,6 +426,20 @@ async def receive_stripe_webhook(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="La organización de la sesión de Stripe no existe",
         )
+
+    if _extract_mode(data_object) == "subscription":
+        # Una suscripción cambia el plan y **no** acredita saldo. La rama va antes de leer
+        # los créditos para que no haya forma de que un `credits=0` acabe en
+        # `apply_credit_delta`, donde se escribiría un asiento de valor cero que ensuciaría
+        # el libro y que la UI mostraría como una compra de nada.
+        return await _aplicar_suscripcion(
+            session,
+            organization=organization,
+            event_id=event_id,
+            event_type=event_type,
+            data_object=data_object,
+        )
+
     credits = _extract_credits(data_object)
     session_id = _as_str(data_object.get("id"))
     amount_cents = _extract_amount_cents(data_object)
@@ -427,7 +552,7 @@ async def read_billing_summary(
     saldo, consumidos, comprados = await credit_activity(
         session, tenant.organization.id, now
     )
-    limites = custom_purchase_bounds()
+    escalera = volume_pricing()
     return BillingSummaryResponse(
         credit_balance=saldo,
         credit_balance_usd=credits_to_usd(saldo),
@@ -437,8 +562,10 @@ async def read_billing_summary(
         spent_this_month_usd=credits_to_usd(consumidos),
         period_start=now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
         packs=available_packs(),
-        custom_minimum=limites["minimum"],
-        custom_maximum=limites["maximum"],
+        custom_minimum=escalera.minimum_credits,
+        custom_maximum=escalera.maximum_credits,
+        volume=escalera,
+        subscription=subscription_offer(tenant.organization),
     )
 
 

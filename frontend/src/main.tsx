@@ -6,6 +6,9 @@ import App from './app/App'
 import { AuthProvider } from './features/auth/AuthContext'
 import './i18n'
 import './styles/index.css'
+import './styles/settings.css'
+import './styles/billing.css'
+import './styles/support.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

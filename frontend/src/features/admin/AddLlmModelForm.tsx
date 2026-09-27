@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { LLMModelCreatePayload, LLMUseCase } from '../../types/api'
 import type { LlmConsoleState } from './useLlmConsole'
+import { LLM_USE_CASES } from './llmUseCases'
 
-const USE_CASES: LLMUseCase[] = ['ALL', 'QUICK_SCAN', 'DEEP_PENTEST', 'AUTOFIX']
 
 const FIELD_IDS = {
   model_id: 'llm-model-id',
@@ -179,7 +179,7 @@ export function AddLlmModelForm({
                 value={form.use_case}
                 onChange={(event) => setField('use_case', event.target.value as LLMUseCase)}
               >
-                {USE_CASES.map((useCase) => (
+                {LLM_USE_CASES.map((useCase) => (
                   <option key={useCase} value={useCase}>
                     {t(`useCase.${useCase}`)}
                   </option>

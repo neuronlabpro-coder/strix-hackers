@@ -1,0 +1,120 @@
+{
+  "sections": {
+    "title": "Settings",
+    "backToPanel": "Back to dashboard",
+    "general": "General",
+    "auditLogs": "Audit log",
+    "members": "Members",
+    "billing": "Billing",
+    "support": "Help & support"
+  },
+  "locked": {
+    "tooltip": "Requires the Enterprise plan. Open Billing to change plan.",
+    "comingSoon": "Coming soon"
+  },
+  "general": {
+    "title": "General",
+    "subtitle": "Your workspace identity and access controls.",
+    "workspaceSection": "Workspace",
+    "workspaceNameLabel": "Workspace name",
+    "workspaceNameHint": "It shows in the header, in invitation emails and in the export. The URL identifier does not change: links you already shared keep working.",
+    "workspaceNamePlaceholder": "Name of your organization",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
+    "renameSuccess": "Workspace renamed to “{{name}}”.",
+    "renameError": "The workspace could not be renamed.",
+    "renameUnchanged": "The name has not changed.",
+    "nameTooShort": "The name must be at least 3 characters, not counting spaces.",
+    "nameRequired": "Type a name for the workspace.",
+    "slugReadonlyLabel": "URL identifier",
+    "slugReadonlyHint": "It cannot be changed. Shared links would stop working.",
+    "securitySection": "Security",
+    "twoFactorTitle": "Two-step verification",
+    "twoFactorDescription": "Adds a second factor to sign-in. It is recommended as soon as there is a plan change, because that is when account exposure peaks.",
+    "twoFactorDisabledReason": "Not available yet. It is shown as a disabled control rather than as a button that does nothing.",
+    "dangerSection": "Danger zone",
+    "dangerTitle": "Workspace shutdown",
+    "dangerDescription": "These actions cannot be undone from the interface.",
+    "deleteWorkspace": "Shut down this workspace",
+    "deleteWarningItems": {
+      "revokeAccess": "Access is revoked for every member, including you.",
+      "cancelSubscription": "The associated Stripe subscription is cancelled, if there is one.",
+      "keepAudit": "The audit trail and the credit ledger are kept. They are the proof of what was charged and done for each customer, and they cannot be deleted by law.",
+      "reactivate": "Shutdown is logical. The row is marked and stops operating, but it is not erased."
+    },
+    "deleteConfirmTitle": "Shut down {{name}}?",
+    "deleteConfirmIntro": "This is the last confirmation. If you continue:",
+    "deleteConfirmIrreversible": "Access will be revoked and the subscription cancelled. The financial and audit trail will be kept.",
+    "deleteConfirmPhraseLabel": "Type the workspace name to confirm",
+    "deleteConfirmPhraseHint": "It must match “{{name}}” exactly.",
+    "deleteConfirmPhraseMismatch": "The name does not match. Check it and type it again.",
+    "deleteConfirmAction": "Shut down for good",
+    "deleteWorking": "Shutting down…",
+    "deleteFailed": "The workspace could not be shut down. If the problem persists, check the Stripe movements before retrying: the shutdown may have gone through and only the subscription cancellation failed.",
+    "deleteSuccess": "The workspace “{{name}}” has been shut down."
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Append-only history of what happened in this workspace.",
+    "appendOnlyNotice": "This log cannot be edited or deleted. Every entry is the proof of a decision, and R4 makes it immutable from the application itself.",
+    "action": "Action",
+    "entity": "Entity",
+    "fromState": "From",
+    "toState": "To",
+    "actor": "Actor",
+    "date": "Date",
+    "empty": "There are no audit entries in this workspace yet.",
+    "loadError": "The audit log could not be loaded.",
+    "gatedTitle": "The audit log is an Enterprise feature",
+    "gatedBody": "A workspace's forensic history is what proves what was charged and done for each customer in a dispute or a compliance audit. That is why it is not in the free plan.",
+    "gatedItems": {
+      "immutable": "Entries immutable from the application itself: there is no action that deletes them.",
+      "complete": "Complete record of scans, findings, billing and configuration changes.",
+      "retention": "Indefinite retention, with the backup SOC 2 and ISO 27001 require.",
+      "export": "Export of the full trail for the customer file."
+    },
+    "gatedAction": "See the Enterprise plan",
+    "gatedFootnote": "Superusers see this view without a plan: they administer the platform and need to review any workspace's trail."
+  },
+  "members": {
+    "title": "Members",
+    "subtitle": "Who has access to this workspace, and with which permissions.",
+    "table": {
+      "member": "Member",
+      "role": "Role",
+      "joined": "Joined",
+      "actions": "Actions"
+    },
+    "roleAdmin": "Administrator",
+    "roleMember": "Member",
+    "roleHint": "Administrators manage members, billing and settings. Members launch scans and see the results.",
+    "changeRole": "Change role",
+    "remove": "Remove from team",
+    "removeConfirmTitle": "Remove {{name}}?",
+    "removeConfirmBody": "They will lose access to this workspace. Their platform account still exists, and the row is kept because it is the actor of their own audit trail entries.",
+    "removeConfirmAction": "Remove from team",
+    "removeWorking": "Removing…",
+    "roleUpdated": "{{name}}’s role is now {{role}}.",
+    "roleUpdateError": "{{name}}’s role could not be changed.",
+    "removeSuccess": "{{name}} is no longer part of this workspace.",
+    "lastAdminError": "The workspace needs at least one active administrator. Invite someone else before stepping down or removing yourself.",
+    "selfRoleError": "You cannot change your own role. Ask another administrator.",
+    "empty": "This workspace has no members yet.",
+    "loadError": "The member list could not be loaded.",
+    "adminOnly": "Only an administrator can manage the workspace members.",
+    "lockedHint": "Your account is a member. You can see who else is here, but changing roles and removing people is up to the administrator.",
+    "invite": "Invite someone",
+    "inviteHint": "Go to Members to invite"
+  },
+  "states": {
+    "loading": "Loading settings…",
+    "retry": "Retry"
+  },
+  "form": {
+    "cancel": "Cancel"
+  },
+  "notFound": {
+    "title": "This section does not exist",
+    "description": "The settings address you opened does not match any screen. Go back to General to carry on from there."
+  }
+}

@@ -409,7 +409,7 @@ async def test_urgente_sin_enterprise_es_403(integration_session: AsyncSession) 
     pasaría — porque la UI ya lo habría bloqueado — y el `403` no existiría.
     """
 
-    _user, _org, cabeceras = await _tenant(integration_session, plan=PlanTierEnum.PRO)
+    _user, org, cabeceras = await _tenant(integration_session, plan=PlanTierEnum.PRO)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -428,8 +428,18 @@ async def test_urgente_sin_enterprise_es_403(integration_session: AsyncSession) 
     assert respuesta.status_code == 403, respuesta.text
     assert "Enterprise" in respuesta.json()["detail"]
 
+    # El recuento va **acotado a este tenant**, y no sobre la tabla entera. Una asercion
+    # `count(*) == 0` global mide el estado previo de la base compartida, no esta operacion:
+    # fallo aqui porque una prueba anterior —un sondeo manual de la API— habia dejado un
+    # ticket, y no porque el `403` hiciera otra cosa que rechazar. Es el mismo error que ya
+    # aparecio dos veces en esta suite, y la tercera vez estaba en el fichero que mas
+    # precisamente lo documenta.
     creados = (
-        await integration_session.execute(select(func.count(SupportTicket.id)))
+        await integration_session.execute(
+            select(func.count(SupportTicket.id)).where(
+                SupportTicket.organization_id == org.id
+            )
+        )
     ).scalar_one()
     assert creados == 0, "un 403 no puede dejar un ticket a medias"
 

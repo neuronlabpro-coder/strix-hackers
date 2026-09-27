@@ -19,6 +19,8 @@ import pentestsEn from './locales/en/pentests.json'
 import prReviewsEn from './locales/en/prReviews.json'
 import repositoriesEn from './locales/en/repositories.json'
 import triageEn from './locales/en/triage.json'
+import settingsEn from './locales/en/settings.json'
+import supportEn from './locales/en/support.json'
 import authEs from './locales/es/auth.json'
 import adminEs from './locales/es/admin.json'
 import billingEs from './locales/es/billing.json'
@@ -37,6 +39,8 @@ import pentestsEs from './locales/es/pentests.json'
 import prReviewsEs from './locales/es/prReviews.json'
 import repositoriesEs from './locales/es/repositories.json'
 import triageEs from './locales/es/triage.json'
+import settingsEs from './locales/es/settings.json'
+import supportEs from './locales/es/support.json'
 
 export type SupportedLanguage = 'es' | 'en'
 
@@ -72,6 +76,8 @@ void i18n.use(initReactI18next).init({
       llm: llmEs,
       knowledge: knowledgeEs,
       onboarding: onboardingEs,
+      settings: settingsEs,
+      support: supportEs,
     },
     en: {
       common: commonEn,
@@ -92,6 +98,8 @@ void i18n.use(initReactI18next).init({
       llm: llmEn,
       knowledge: knowledgeEn,
       onboarding: onboardingEn,
+      settings: settingsEn,
+      support: supportEn,
     },
   },
   lng: getInitialLanguage(),
@@ -115,6 +123,8 @@ void i18n.use(initReactI18next).init({
     'llm',
     'knowledge',
     'onboarding',
+    'settings',
+    'support',
   ],
   defaultNS: 'common',
   interpolation: {

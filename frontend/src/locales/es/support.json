@@ -1,0 +1,134 @@
+{
+  "summary": {
+    "open": "Abiertos",
+    "waiting": "En curso",
+    "resolved": "Resueltos",
+    "openHint": "Esperando a que soporte los atienda.",
+    "waitingHint": "Un agente los tiene ya.",
+    "resolvedHint": "Cerrados o resueltos. Para continuar hay que abrir otro."
+  },
+  "newTicket": "Nuevo ticket",
+  "form": {
+    "title": "Abrir un ticket",
+    "intro": "Cuéntanos qué pasa. El primer mensaje va con la apertura, así que un ticket nunca existe vacío.",
+    "subjectLabel": "Asunto",
+    "subjectPlaceholder": "El escaneo se queda parado en fase de análisis",
+    "subjectHint": "Mínimo 3 caracteres. Es lo que el agente ve en la cola, así que conviene que describa el síntoma y no la causa.",
+    "categoryLabel": "Categoría",
+    "categoryHint": "Determina quién lo atiende, no cambia el proceso.",
+    "messageLabel": "Descripción",
+    "messagePlaceholder": "Desde cuándo pasa, qué esperabas y qué pasó. Con los mensajes de error exactos si los tienes.",
+    "messageHint": "Mínimo 10 caracteres.",
+    "priorityLabel": "Prioridad",
+    "priorityHint": "La urgencia solo determina el orden de la cola de soporte.",
+    "submit": "Abrir ticket",
+    "working": "Abriendo…",
+    "cancel": "Cancelar"
+  },
+  "categories": {
+    "TECHNICAL": "Técnico",
+    "BILLING": "Facturación",
+    "VULNERABILITY_REVIEW": "Revisión de hallazgo",
+    "FEATURE_REQUEST": "Petición de función"
+  },
+  "categoryDescriptions": {
+    "TECHNICAL": "Escaneos, contenedores, integraciones o cualquier cosa que falle por el camino.",
+    "BILLING": "Cargos, saldo, planes o facturas.",
+    "VULNERABILITY_REVIEW": "Un hallazgo que crees que es un falso positivo o que quieres que reevaluemos.",
+    "FEATURE_REQUEST": "Algo que te gustaría poder hacer y hoy no puedes."
+  },
+  "priorities": {
+    "LOW": "Baja",
+    "NORMAL": "Normal",
+    "URGENT": "Urgente"
+  },
+  "priorityHints": {
+    "LOW": "Sin fecha límite ni impacto en producción.",
+    "NORMAL": "Afecta al trabajo diario pero no lo detiene.",
+    "URGENT": "Producción parada o una escritura sin condiciones de seguridad operativas."
+  },
+  "enterpriseBadge": "Enterprise",
+  "urgentLockedHint": "La prioridad urgente está reservada al plan Enterprise. Los tickets urgentes salen de la cola por orden, así que un ticket urgente sin ese plan espera lo mismo que uno normal.",
+  "statuses": {
+    "OPEN": "Abierto",
+    "IN_PROGRESS": "En curso",
+    "RESOLVED": "Resuelto",
+    "CLOSED": "Cerrado"
+  },
+  "table": {
+    "number": "Número",
+    "subject": "Asunto",
+    "priority": "Prioridad",
+    "status": "Estado",
+    "messages": "Mensajes",
+    "updated": "Actualizado"
+  },
+  "detail": {
+    "title": "Ticket {{number}}",
+    "back": "Volver a los tickets",
+    "openedBy": "Abierto por {{email}}",
+    "assignedTo": "Asignado a {{email}}",
+    "unassigned": "Sin asignar",
+    "categoryLabel": "Categoría",
+    "thread": "Conversación",
+    "threadEmpty": "Este ticket no tiene mensajes.",
+    "supportAuthor": "Equipo de soporte",
+    "clientAuthor": "Tú",
+    "you": "tú",
+    "replyPlaceholder": "Escribe tu respuesta…",
+    "replySubmit": "Enviar",
+    "replyWorking": "Enviando…",
+    "replyHint": "Shift+Enter para una línea nueva. El hilo es cronológico y no se puede editar después de enviar.",
+    "threadClosed": "Este hilo está {{status}} y no admite más mensajes.",
+    "threadClosedAction": "Abrir otro ticket",
+    "replySent": "Respuesta enviada."
+  },
+  "empty": {
+    "title": "Todavía no has abierto ningún ticket",
+    "description": "Si algo falla, o si tienes una duda sobre un hallazgo, abre un ticket y lo atenderá una persona del equipo."
+  },
+  "messages": {
+    "openTicketSuccess": "Ticket {{number}} abierto. Te responderemos por aquí.",
+    "openTicketError": "No se pudo abrir el ticket.",
+    "loadError": "No se pudieron cargar tus tickets.",
+    "detailError": "No se pudo cargar el ticket.",
+    "replyError": "No se pudo enviar la respuesta.",
+    "forbidden": "Tu sesión ya no es válida. Vuelve a iniciar sesión."
+  },
+  "console": {
+    "title": "Tickets y soporte",
+    "subtitle": "Triaje de todos los tickets de la plataforma, del más reciente al más antiguo.",
+    "filterSearch": "Buscar por número, asunto o tenant",
+    "filterSearchHint": "El número va con almohadilla en pantalla (#TK-1005) y el buscador la acepta. Se puede buscar también por un fragmento del nombre del workspace.",
+    "filterAllStatuses": "Todos los estados",
+    "filterAllPriorities": "Todas las prioridades",
+    "urgentPinned": "Urgentes primero",
+    "urgentPinnedHint": "El orden normal es por última actividad. Fijando los urgentes arriba, un ticket urgente de hace tres semanas no tapona el que se acaba de abrir, pero sigue visible sin buscarlo.",
+    "table": {
+      "number": "Número",
+      "tenant": "Tenant",
+      "subject": "Asunto",
+      "priority": "Prioridad",
+      "status": "Estado",
+      "updated": "Actualizado"
+    },
+    "openConsole": "Abrir en la consola",
+    "replyPlaceholder": "Respuesta del equipo de soporte…",
+    "replySubmit": "Responder",
+    "replyWorking": "Enviando…",
+    "replySent": "Respuesta enviada a {{email}}.",
+    "replyError": "No se pudo enviar la respuesta.",
+    "updateWorking": "Guardando…",
+    "statusUpdated": "Ticket {{number}}: estado {{status}}.",
+    "priorityUpdated": "Ticket {{number}}: prioridad {{priority}}.",
+    "assignedUpdated": "Ticket {{number}}: asignado a {{email}}.",
+    "assignTo": "Asignar a",
+    "assignToNone": "Sin asignar (devolver a la cola)",
+    "updateError": "No se pudo actualizar el ticket.",
+    "loadError": "No se pudieron cargar los tickets.",
+    "empty": "No hay tickets con estos filtros.",
+    "lastAdminHint": "Este ticket no tiene agente asignado. Asigna uno para que sepa que lo tiene."
+  },
+  "loading": "Cargando…",
+  "retry": "Reintentar"
+}

@@ -22,9 +22,23 @@ cualquier cantidad es su cantidad. Por eso este módulo ya no busca el "mejor pr
 unitario": usa `settings.credits_per_usd`, que es la **única** declaración de la paridad
 en todo el backend.
 
-Consecuencia útil: el saldo en dólares de un tenant es ahora una cifra que el cliente
-puede comprobar —1000 créditos, 1000 dólares— y no una estimación. La interfaz sigue
-etiquetándola como equivalente, pero ya no necesita un `≈`.
+## Qué cambió al reintroducir el descuento por volumen
+
+Se reintrodujo en la fase 5, y reintroducirlo bien dependía de dos cosas que el diseño
+anterior no tenía. Las dos están resueltas en `billing.schemas`:
+
+1. **Vuelve a haber un precio por cantidad.** `price_for_credits` devuelve **un** número
+   para cualquier cantidad, siempre. Sin eso, «1.000 créditos» no tendría precio y este
+   módulo volvería a necesitar el «mejor precio unitario» y sus estimaciones.
+2. **Comprar más nunca sale más barato.** La escalera está definida sobre el **gasto**, no
+   sobre los créditos, y con cota superior por tramo. Es la única forma de tener un
+   descuento por volumen sin que la frontera del umbral sea un regalo.
+
+Consecuencia para este módulo: el saldo en dólares sigue siendo un número exacto y
+comprobable —1.000 créditos son 1.000 dólares—, porque el descuento aplica a **compras**,
+no al saldo que ya se tiene. Un cliente con 1.000 créditos ya comprados no los "revende"
+con descuento; los siguientes créditos que compre sí. Esa distinción es la que hace que el
+saldo sea un hecho y el descuento una condición de la siguiente compra.
 """
 
 from __future__ import annotations
@@ -39,9 +53,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum
 from backend.apps.billing.schemas import (
     CREDIT_PACKS,
+    CUSTOM_CREDITS_MAXIMUM,
     CUSTOM_CREDITS_MINIMUM,
+    PRO_SUBSCRIPTION_PLAN,
+    VOLUME_DISCOUNT_TIERS,
     CreditPackResponse,
+    SubscriptionOfferResponse,
+    VolumePricingResponse,
+    VolumeTierResponse,
+    credits_for_spend,
     price_for_credits,
+    subscription_price_usd,
 )
 from backend.apps.organizations.models import Organization
 from backend.core.config import settings
@@ -124,32 +146,85 @@ def available_packs() -> list[CreditPackResponse]:
     ]
 
 
-def custom_purchase_bounds() -> dict[str, int]:
-    """Límites del pack a medida, para que el panel configure su campo.
+def volume_pricing() -> VolumePricingResponse:
+    """La escalera de descuento completa, con los dos extremos de cada tramo.
 
-    Viajan como enteros porque son **cantidades de créditos**, no importes. El panel pinta
-    el mínimo como créditos para que el número que el usuario teclea sea el mismo que se
-    cobra, y no una conversión que tendría que hacer el cliente mentalmente.
+    El panel la pinta como una barra de progreso. Los dos extremos son necesarios: con solo
+    el superior, todos los tramos intermedios saldrían del mismo ancho y la barra no
+    reflejaría la escala real.
+
+    El `maximum_credits` del último tramo es el máximo del catálogo, no un número redondo.
+    Va derivado, no escrito, porque si el tope de gasto subiera y este `13.333` se quedara
+    atrás, el tramo final se mostraría más corto de lo que es y el último crédito del
+    catálogo quedaría fuera de la barra sin explicación.
     """
 
-    return {"minimum": CUSTOM_CREDITS_MINIMUM, "maximum": 1_000_000}
+    tramos: list[VolumeTierResponse] = []
+    for indice, (minimo, descuento) in enumerate(VOLUME_DISCOUNT_TIERS):
+        siguiente = (
+            VOLUME_DISCOUNT_TIERS[indice + 1][0]
+            if indice + 1 < len(VOLUME_DISCOUNT_TIERS)
+            else None
+        )
+        # El máximo del tramo, en créditos, es lo que da el mínimo del siguiente spending
+        # convertido con el tipo de cambio de **este** tramo. La conversión inversa usa
+        # `credits_for_spend` con un céntimo menos, para que el máximo sea el último crédito
+        # que realmente cae dentro del tramo y no el primero del siguiente.
+        maximo = (
+            credits_for_spend(siguiente - Decimal("0.01")) if siguiente else CUSTOM_CREDITS_MAXIMUM
+        )
+        tramos.append(
+            VolumeTierResponse(
+                minimum_credits=credits_for_spend(minimo),
+                maximum_credits=maximo,
+                discount=descuento,
+                usd_per_credit=(Decimal("1.00") - descuento),
+            )
+        )
+    return VolumePricingResponse(
+        tiers=tramos,
+        minimum_credits=CUSTOM_CREDITS_MINIMUM,
+        maximum_credits=CUSTOM_CREDITS_MAXIMUM,
+        list_usd_per_credit=Decimal("1.00"),
+    )
+
+
+def subscription_offer(organization: Organization) -> SubscriptionOfferResponse:
+    """La oferta de suscripción Pro para este workspace.
+
+    `is_current_plan` se resuelve contra el plan del tenant, no contra un `plan_tier` que
+    mande el panel: es el servidor quien sabe en qué plan está cada workspace, y que el
+    botón aparezca activo o no es una consecuencia de ese dato.
+    """
+
+    return SubscriptionOfferResponse(
+        plan_tier=PRO_SUBSCRIPTION_PLAN,
+        monthly_usd=subscription_price_usd(),
+        is_current_plan=organization.plan_tier == PRO_SUBSCRIPTION_PLAN,
+    )
 
 
 def is_commercializable(credits: int) -> bool:
-    """Si una cantidad es vendible: pack del catálogo o cantidad a medida válida.
+    """Si una cantidad es vendible: dentro de los límites del catálogo.
 
     Lo consulta el panel para habilitar o desactivar el botón de compra sin que el usuario
     descubra la regla al pulsar y reciba un `422`.
+
+    La cota superior es `CUSTOM_CREDITS_MAXIMUM` y no un número inventado. Con el slider
+    acotado a $10.000, 13.333 créditos es lo máximo comprable, y admitir un millón sería
+    abrir una puerta que el catálogo no tiene: el endpoint aceptaría la compra y no habría
+    tramo que la explique.
     """
 
-    return credits in CREDIT_PACKS or credits >= CUSTOM_CREDITS_MINIMUM
+    return CUSTOM_CREDITS_MINIMUM <= credits <= CUSTOM_CREDITS_MAXIMUM
 
 
 __all__ = [
     "available_packs",
     "credit_activity",
     "credits_to_usd",
-    "custom_purchase_bounds",
     "is_commercializable",
     "price_for_credits",
+    "subscription_offer",
+    "volume_pricing",
 ]

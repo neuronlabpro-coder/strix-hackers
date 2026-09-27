@@ -1,0 +1,120 @@
+{
+  "sections": {
+    "title": "Ajustes",
+    "backToPanel": "Volver al panel",
+    "general": "General",
+    "auditLogs": "Registro de auditoría",
+    "members": "Miembros",
+    "billing": "Facturación",
+    "support": "Ayuda y soporte"
+  },
+  "locked": {
+    "tooltip": "Requiere el plan Enterprise. Abre Facturación para cambiar de plan.",
+    "comingSoon": "Próximamente"
+  },
+  "general": {
+    "title": "General",
+    "subtitle": "Identidad de tu workspace y controles de acceso.",
+    "workspaceSection": "Workspace",
+    "workspaceNameLabel": "Nombre del workspace",
+    "workspaceNameHint": "Aparece en la cabecera, en los correos de invitación y en la exportación. El identificador de la URL no cambia: los enlaces ya compartidos siguen abriendo.",
+    "workspaceNamePlaceholder": "Nombre de tu organización",
+    "saveChanges": "Guardar cambios",
+    "saving": "Guardando…",
+    "renameSuccess": "Workspace renombrado a «{{name}}».",
+    "renameError": "No se pudo renombrar el workspace.",
+    "renameUnchanged": "El nombre no ha cambiado.",
+    "nameTooShort": "El nombre debe tener al menos 3 caracteres, sin contar espacios.",
+    "nameRequired": "Escribe un nombre para el workspace.",
+    "slugReadonlyLabel": "Identificador de la URL",
+    "slugReadonlyHint": "No se puede cambiar. Los enlaces compartidos dejarían de funcionar.",
+    "securitySection": "Seguridad",
+    "twoFactorTitle": "Verificación en dos pasos",
+    "twoFactorDescription": "Añade un segundo factor al iniciar sesión. Se Recomendará cuando haya un cambio de plan, porque es el momento de mayor exposición de la cuenta.",
+    "twoFactorDisabledReason": "Todavía no está disponible. SeVwě como control deshabilitado en vez de como botón que no hace nada.",
+    "dangerSection": "Zona de peligro",
+    "dangerTitle": "Baja del workspace",
+    "dangerDescription": "Estas acciones no se pueden deshacer desde la interfaz.",
+    "deleteWorkspace": "Dar de baja este workspace",
+    "deleteWarningItems": {
+      "revokeAccess": "Se revoca el acceso de todos los miembros, incluidos el tuyo.",
+      "cancelSubscription": "Se cancela la suscripción de Stripe asociada, si la hay.",
+      "keepAudit": "Se conservan el rastro de auditoría y el libro de créditos. Son la prueba de lo que se le cobró y se le hizo a cada cliente, y por ley no se borran.",
+      "reactivate": "La baja es lógica. La fila se marca y deja de operar, pero no se elimina."
+    },
+    "deleteConfirmTitle": "¿Dar de baja {{name}}?",
+    "deleteConfirmIntro": "Esta es la última confirmación. Al continuar:",
+    "deleteConfirmIrreversible": "El acceso se revocará y la suscripción se cancelará. El rastro financiero y de auditoría se conservará.",
+    "deleteConfirmPhraseLabel": "Escribe el nombre del workspace para confirmar",
+    "deleteConfirmPhraseHint": "Debe coincidir exactamente con «{{name}}».",
+    "deleteConfirmPhraseMismatch": "El nombre no coincide. Compruébalo y vuelve a escribirlo.",
+    "deleteConfirmAction": "Dar de baja definitivamente",
+    "deleteWorking": "Dando de baja…",
+    "deleteFailed": "No se pudo dar de baja el workspace. Si el problema persiste, revisa los movimientos de Stripe antes de reintentar: puede que la baja se haya aplicado y la cancelación de la suscripción no.",
+    "deleteSuccess": "El workspace «{{name}}» ha quedado dado de baja."
+  },
+  "audit": {
+    "title": "Registro de auditoría",
+    "subtitle": "Historial append-only de lo que ha pasado en este workspace.",
+    "appendOnlyNotice": "Este registro no se puede editar ni borrar. Cada entrada es la prueba de una decisión, y R4 lo hace inmutable desde la propia aplicación.",
+    "action": "Acción",
+    "entity": "Entidad",
+    "fromState": "Desde",
+    "toState": "Hasta",
+    "actor": "Actor",
+    "date": "Fecha",
+    "empty": "Todavía no hay entradas de auditoría en este workspace.",
+    "loadError": "No se pudo cargar el registro de auditoría.",
+    "gatedTitle": "El registro de auditoría es una función de Enterprise",
+    "gatedBody": "El historial forense de un workspace es lo que demuestra qué se le cobró y qué se le hizo a cada cliente en una disputa o en una auditoría de cumplimiento. Por eso no está en el plan gratuito.",
+    "gatedItems": {
+      "immutable": "Entradas inmutables desde la propia aplicación: no hay ninguna acción que las borre.",
+      "complete": "Registro completo de escaneos, hallazgos, facturación y cambios de configuración.",
+      "retention": "Retención indefinida, con el respaldo que exige SOC 2 e ISO 27001.",
+      "export": "Exportación del rastro completo para el expediente del cliente."
+    },
+    "gatedAction": "Ver el plan Enterprise",
+    "gatedFootnote": "El superusuario ve esta vista sin plan: administra la plataforma y necesita poder revisar el rastro de cualquier workspace."
+  },
+  "members": {
+    "title": "Miembros",
+    "subtitle": "Quién tiene acceso a este workspace y con qué permisos.",
+    "table": {
+      "member": "Miembro",
+      "role": "Rol",
+      "joined": "Alta",
+      "actions": "Acciones"
+    },
+    "roleAdmin": "Administrador",
+    "roleMember": "Miembro",
+    "roleHint": "El administrador gestiona miembros, facturación y configuración. El miembro lanza escaneos y ve los resultados.",
+    "changeRole": "Cambiar rol",
+    "remove": "Retirar del equipo",
+    "removeConfirmTitle": "¿Retirar a {{name}}?",
+    "removeConfirmBody": "Dejará de tener acceso a este workspace. Su cuenta en la plataforma sigue existiendo, y la fila se conserva porque es el actor de sus propias acciones en el registro de auditoría.",
+    "removeConfirmAction": "Retirar del equipo",
+    "removeWorking": "Retirando…",
+    "roleUpdated": "El rol de {{name}} es ahora {{role}}.",
+    "roleUpdateError": "No se pudo cambiar el rol de {{name}}.",
+    "removeSuccess": "{{name}} ya no pertenece a este workspace.",
+    "lastAdminError": "El workspace necesita al menos un administrador activo. Invita a otro antes de bajar de rol o de retirarte.",
+    "selfRoleError": "No puedes cambiarte el rol a ti mismo. Pídeselo a otro administrador.",
+    "empty": "Este workspace todavía no tiene miembros.",
+    "loadError": "No se pudo cargar la lista de miembros.",
+    "adminOnly": "Solo un administrador puede gestionar los miembros del workspace.",
+    "lockedHint": "Tu cuenta es de miembro. Puedes ver quién más está, pero cambiar roles y retirar gente es del administrador.",
+    "invite": "Invitar a alguien",
+    "inviteHint": "Ir a Miembros para invitar"
+  },
+  "states": {
+    "loading": "Cargando los ajustes…",
+    "retry": "Reintentar"
+  },
+  "form": {
+    "cancel": "Cancelar"
+  },
+  "notFound": {
+    "title": "Esta sección no existe",
+    "description": "La dirección de Ajustes que has abierto no corresponde a ninguna pantalla. Vuelve a General para seguir desde ahí."
+  }
+}
