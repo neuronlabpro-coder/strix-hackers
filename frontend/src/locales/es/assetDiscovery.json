@@ -1,0 +1,57 @@
+{
+  "eyebrow": "Superficie de ataque",
+  "title": "Descubrimiento de activos",
+  "description": "Hosts y subdominios encontrados bajo tus dominios verificados. El descubrimiento solo consulta DNS: encuentra nombres publicados, no sondea los equipos que los sirven.",
+  "types": {
+    "SUBDOMAIN": "Subdominio",
+    "IP_ADDRESS": "Dirección IP",
+    "API_ENDPOINT": "Endpoint de API"
+  },
+  "filters": {
+    "type": "Tipo de activo",
+    "allTypes": "Todos los tipos",
+    "domain": "Dominio",
+    "allDomains": "Todos los dominios"
+  },
+  "actions": {
+    "refresh": "Actualizar"
+  },
+  "scan": {
+    "title": "Lanzar descubrimiento",
+    "description": "Solo se puede lanzar sobre dominios verificados. El trabajo se ejecuta en segundo plano y el inventario se actualiza solo; puedes recargar para verlo.",
+    "start": "Escanear",
+    "starting": "Encolando…",
+    "noVerifiedDomains": "No tienes dominios verificados. Verifica uno en la sección Dominios para poder descubrir su superficie de ataque.",
+    "assets": "{{count}} activo(s) conocidos",
+    "assets_other": "{{count}} activos conocidos"
+  },
+  "table": {
+    "asset": "Activo",
+    "domain": "Dominio",
+    "type": "Tipo",
+    "technologies": "Tecnologías",
+    "lastScanned": "Última revisión",
+    "never": "Nunca revisado"
+  },
+  "pagination": {
+    "label": "Paginación del inventario",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "position": "Página {{page}} de {{total}}"
+  },
+  "states": {
+    "loading": "Cargando inventario…",
+    "error": "No se pudo cargar el inventario.",
+    "retry": "Reintentar",
+    "emptyTitle": "Todavía no hay activos",
+    "emptyDescription": "Lanza el descubrimiento sobre un dominio verificado para empezar a construir el inventario de tu superficie de ataque.",
+    "count": "{{count}} activo en total",
+    "count_other": "{{count}} activos en total"
+  },
+  "toasts": {
+    "enqueued": "Descubrimiento encolado para {{domain}}. Ya había {{existing}} activos registrados; se actualizarán al terminar."
+  },
+  "errors": {
+    "scan": "No se pudo lanzar el descubrimiento."
+  }
+}

@@ -15,6 +15,8 @@ import { IssuesPage } from '../features/issues/IssuesPage'
 import { VulnerabilityDetailPage } from '../features/issues/VulnerabilityDetailPage'
 import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 import { CvePage } from '../features/cve/CvePage'
+import { DomainsPage } from '../features/domains/DomainsPage'
+import { AssetDiscoveryPage } from '../features/assetDiscovery/AssetDiscoveryPage'
 import { PrReviewsPage } from '../features/prReviews/PrReviewsPage'
 import { PentestsPage } from '../features/pentests/PentestsPage'
 import { PentestRunPage } from '../features/pentests/PentestRunPage'
@@ -175,19 +177,8 @@ export default function App() {
             path="/chat"
             element={<PlaceholderPage titleKey="navigation:chat" reasonKey="pending.chat" />}
           />
-          <Route
-            path="/domains"
-            element={<PlaceholderPage titleKey="navigation:domains" reasonKey="pending.domains" />}
-          />
-          <Route
-            path="/asset-discovery"
-            element={
-              <PlaceholderPage
-                titleKey="navigation:assetDiscovery"
-                reasonKey="pending.assetDiscovery"
-              />
-            }
-          />
+          <Route path="/domains" element={<DomainsPage />} />
+          <Route path="/asset-discovery" element={<AssetDiscoveryPage />} />
           <Route
             path="/supply-chain"
             element={

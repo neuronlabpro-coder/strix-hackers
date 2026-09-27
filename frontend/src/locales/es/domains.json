@@ -1,0 +1,73 @@
+{
+  "eyebrow": "Superficie de ataque",
+  "title": "Dominios",
+  "description": "Registra los dominios que tu espacio de trabajo controla. La verificación por registro TXT demuestra la propiedad y es lo que habilita el descubrimiento de activos.",
+  "actions": {
+    "add": "Añadir dominio",
+    "refresh": "Actualizar",
+    "verifyNow": "Verificar ahora",
+    "verifying": "Verificando…",
+    "delete": "Eliminar dominio"
+  },
+  "status": {
+    "verified": "Verificado",
+    "pending": "Pendiente"
+  },
+  "table": {
+    "domain": "Dominio",
+    "status": "Estado",
+    "assets": "Activos",
+    "txtRecord": "Registro TXT",
+    "actions": "Acciones"
+  },
+  "states": {
+    "loading": "Cargando dominios…",
+    "error": "No se pudieron cargar los dominios.",
+    "retry": "Reintentar",
+    "emptyTitle": "Todavía no hay dominios",
+    "emptyDescription": "Añade un dominio y publica el registro TXT que te mostraremos. Sin verificación no se puede descubrir la superficie de ataque."
+  },
+  "verify": {
+    "MATCH": "Dominio verificado. Ya puedes lanzar el descubrimiento de activos.",
+    "MISMATCH": "El registro existe pero el valor no coincide. Comprueba que has pegado el valor completo, sin comillas.",
+    "NO_TXT": "El nombre existe pero no tiene ningún registro TXT. Añádelo y espera a que se propague.",
+    "NXDOMAIN": "Ese nombre no existe en DNS. Revisa que el dominio esté escrito correctamente.",
+    "TIMEOUT": "El DNS no ha respondido. Espera unos segundos e inténtalo de nuevo.",
+    "ERROR": "El servidor de nombres ha devuelto un error. Inténtalo de nuevo en un momento."
+  },
+  "conflict": {
+    "ESTE_WORKSPACE": "Este dominio ya está registrado en tu espacio de trabajo.",
+    "OTRO_WORKSPACE": "Este dominio ya está registrado por otra organización.",
+    "CARRERA": "Otra petición ha registrado este dominio a la vez. Actualiza la lista."
+  },
+  "errors": {
+    "create": "No se pudo registrar el dominio.",
+    "verify": "No se pudo comprobar el registro TXT.",
+    "delete": "No se pudo eliminar el dominio."
+  },
+  "toasts": {
+    "deleted": "Dominio eliminado."
+  },
+  "dialog": {
+    "addTitle": "Añadir dominio",
+    "domainLabel": "Nombre del dominio",
+    "domainHint": "Sin esquema ni barra final. Se guardará en minúsculas.",
+    "methodLabel": "Método de verificación",
+    "methodDns": "Registro TXT en DNS",
+    "methodDnsHint": "Recomendado. Publicas un registro y la plataforma lo comprueba.",
+    "methodHttp": "Fichero en el servidor web",
+    "methodHttpHint": "No disponible todavía. Se ha implementado la verificación por DNS.",
+    "create": "Registrar dominio",
+    "creating": "Registrando…",
+    "cancel": "Cancelar",
+    "done": "Hecho",
+    "instructionsLead": "Falta una cosa para tomar el control de {domain}: publica este registro en su zona DNS y vuelve a verificar.",
+    "recordName": "Nombre",
+    "recordNameHint": "El campo «nombre» o «host» de tu proveedor. Se antepone el dominio automáticamente.",
+    "recordValue": "Valor",
+    "recordValueHint": "Pégalo tal cual, sin comillas. Es la prueba de que controlas el dominio.",
+    "propagationHint": "Los cambios de DNS pueden tardar unos minutos según el proveedor. Cuando tu panel diga que está publicado, pulsa «Verificar ahora».",
+    "copyName": "Copiar el nombre del registro",
+    "copyValue": "Copiar el valor del registro"
+  }
+}

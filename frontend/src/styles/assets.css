@@ -1,0 +1,317 @@
+/*
+ * Superficie de ataque: dominios verificados y activos descubiertos.
+ *
+ * ## Por qué estas clases llevan prefijo `assets-` y no se llaman `field` o `subtext`
+ *
+ * Porque el vocabulario genérico —`field`, `field-hint`, `cell-subtext`— ya está en uso en
+ * componentes del proyecto **sin estar definido** en ninguna hoja de estilos. Reutilizar esos
+ * nombres habría hecho que estas vistas pareciesen tener estilo cuando en realidad heredan
+ * el del elemento padre, y el fallo se ve como "se ve un poco raro" sin ninguna pista de que
+ * falta la regla.
+ *
+ * Prefijar hace dos cosas: no choca con nada existente, y una clase sin definir en estas
+ * vistas es detectable por nombre en vez deISHED por comparação con otras pantallas.
+ *
+ * ## Reglas de `design-dark.md` que se respetan aquí
+ *
+ * - Los bordes son siempre `--color-border` de 1 px. Nunca se usa un tono de texto como
+ *   tono de borde: es la conflación que convierte una interfaz oscura en una rejilla gris.
+ * - `--color-accent` es el único motor de interacción. Los estados hover de una fila usan
+ *   `--color-surface-elevated`, no un acento tenue.
+ * - El foco es un **anillo**, no solo un cambio de color de borde.
+ */
+
+/* --- Campos del diálogo de alta --------------------------------------------- */
+
+.assets-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+  border: 0;
+  padding: 0;
+}
+
+.assets-field-label {
+  color: var(--color-caption);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0;
+}
+
+.assets-field-input {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  padding: 0.5625rem 0.75rem;
+  width: 100%;
+}
+
+.assets-field-input::placeholder {
+  color: var(--color-placeholder);
+}
+
+.assets-field-input:hover:not(:disabled) {
+  border-color: var(--color-border-hover);
+}
+
+.assets-field-input:focus-visible {
+  /* Anillo, no solo color de borde. Ver `design-dark.md`. */
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+}
+
+.assets-field-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.assets-field-hint {
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.assets-field-error {
+  color: var(--color-critical);
+  font-size: 0.8125rem;
+  margin: 0 0 1rem;
+}
+
+/* --- Selector de método de verificación ------------------------------------- */
+
+.assets-choice {
+  align-items: flex-start;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+  padding: 0.625rem 0.75rem;
+}
+
+.assets-choice:hover {
+  background: var(--color-surface-elevated);
+  border-color: var(--color-border-hover);
+}
+
+.assets-choice:has(input:checked) {
+  border-color: var(--color-accent);
+}
+
+.assets-choice:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 1px;
+}
+
+.assets-choice input {
+  margin-top: 0.1875rem;
+}
+
+.assets-choice-title {
+  color: var(--color-primary);
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* --- Bloque de instrucciones DNS -------------------------------------------- */
+
+/*
+ * El registro TXT se muestra en monoespaciado porque se copia **carácter a carácter** desde
+ * ahí: un token de 64 hexadecimales en una fuente proporcional produce un `l` que parece
+ * `1` y un `O` que parece `0`, y un token mal copiado se traduce en un `MISMATCH` que el
+ * usuario no sabe interpretar. El monoespaciado no elimina el riesgo —los copiadores
+ * Sometimes OCRan igual— pero hace la diferencia entre `l` y `1` evidente al leerlo.
+ */
+.assets-dns-record {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-bottom: 0.875rem;
+  padding: 0.875rem;
+}
+
+.assets-dns-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+}
+
+.assets-dns-value-row {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.assets-dns-value-row code {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+  padding: 0.4375rem 0.5625rem;
+  user-select: all;
+}
+
+.assets-modal-lead {
+  color: var(--color-caption);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  margin: 0 0 1rem;
+}
+
+.assets-modal-actions {
+  display: flex;
+  gap: 0.625rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+/* --- Tabla de dominios ------------------------------------------------------- */
+
+.assets-row-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/*
+ * Botón de borrado sin marco. secondary-button` con borde en una fila de tabla
+ * compite visualmente con la acción principal —verificar— y las dos parecen igual de
+ * importantes. El borrado solo se ofrece en dominios **no verificados**, así que es
+ * recuperable: no necesita el peso de un botón lleno.
+ */
+.assets-icon-action {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  padding: 0.4375rem;
+}
+
+.assets-icon-action:hover:not(:disabled) {
+  background: var(--color-surface-elevated);
+  border-color: var(--color-border-hover);
+  color: var(--color-critical);
+}
+
+.assets-icon-action:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 1px;
+}
+
+.assets-icon-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.assets-subtext {
+  color: var(--color-secondary);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-top: 0.1875rem;
+}
+
+.assets-wrap {
+  overflow-wrap: anywhere;
+}
+
+/* --- Insignias de estado ----------------------------------------------------- */
+
+/*
+ * Esmeralda para lo verificado y ámbar para lo pendiente. Los dos tonos ya existen en el
+ * proyecto: `--color-accent` es el positivo y `--color-medium` el aviso. Lo verificado usa
+ * el acento porque es el estado que el usuario quiere alcanzar, y el acento es el único
+ * color que la guía reserva para "esto va bien".
+ */
+.badge-status-verified {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  color: var(--color-accent-bright);
+  display: inline-flex;
+  gap: 0.3125rem;
+}
+
+.badge-status-pending {
+  background: color-mix(in srgb, var(--color-medium) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-medium) 40%, transparent);
+  color: var(--color-medium);
+}
+
+/*
+ * Las tres insignias de tipo de activo comparten color. Son etiquetas de una misma dimensión
+ * —"qué clase de cosa es esto"—, no una escala de gravedad, y darles colores distintos
+ * sugeriría una jerarquía que no existe: un subdominio no es más ni menos importante que una
+ * IP. La diferenciación es el texto.
+ */
+.badge-status-subdomain,
+.badge-status-ip_address,
+.badge-status-api_endpoint {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-caption);
+}
+
+/* --- Lista de escaneo por dominio -------------------------------------------- */
+
+.assets-scan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.assets-scan-item {
+  align-items: center;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.625rem 0.75rem;
+}
+
+.assets-scan-item > .mono {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+/* --- Tecnologías del activo --------------------------------------------------- */
+
+.assets-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+}
+
+/* --- Paginación -------------------------------------------------------------- */
+
+.assets-pagination-position {
+  color: var(--color-caption);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}

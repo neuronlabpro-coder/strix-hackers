@@ -153,22 +153,22 @@
 
 **Fuera de alcance:** Pasarela de pago de Stripe y recargas de saldo (Fase 5). Servidor MCP remoto (Fase 5).
 
-**Pantallas de MENU-MAP.md que cubre:** §1 (Dashboard), §2 (Pentests), §3 (Issues y reproductor de PoC), §5 (Chat con agentes), §6.2 (Dominios y APIs) y §7 (Knowledge Base).
+**Pantallas de MENU-MAP.md que cubre en esta fase:** §1 (Dashboard), §2 (Pentests), §3 (Issues y reproductor de PoC), §5 (Chat con agentes) y §7 (Knowledge Base). §6.2 (Dominios y APIs) se cubre en la Fase 6.
 
 **Definición de Hecho (DoD):**
 - [x] Todas las vistas implementan rigurosamente la paleta y tipografía de `design-dark.md` (fondo `#1C1C1C`, cards `#2A2A2A`, acento `#17a163`, fuentes Inter y JetBrains Mono). *Bloques 4.1, 4.2 y 4.3 cerrados para `/dashboard`, `/repositories`, `/issues`, `/issues/:id`, `/pentests`, `/pentests/:id`, `/knowledge` y `/admin`. La rampa de severidad quedó incorporada a la ficha de diseño como tokens.*
 - [x] El conmutador Lista/Tablero en `/issues` permite mover incidencias de estado y persiste en la base de datos. *`PATCH /api/v1/vulnerabilities/{id}` acepta únicamente `status` y rechaza con `422` cualquier campo forense (R4 en dos capas: esquema con `extra="forbid"` y trigger de PostgreSQL). El tablero ofrece arrastre y, en paralelo, un selector de destino por tarjeta para quien no usa puntero. Cada cambio deja fila en `audit_log`, que es append-only por trigger.*
 - [x] El reproductor de PoC en la ficha de vulnerabilidad muestra los comandos y trazas exactas generadas. *Visor inmutable en `JetBrains Mono` con copiado al portapapeles (R4) y renderizador de unified diff con tintes derivados de los tokens de acento y severidad. La ficha añade selector de estado, historial de auditoría inmutable y selector real de revisiones de PR en lugar del campo `review_id` manual.*
-- [ ] Un usuario no puede escanear un dominio en `/domains` hasta que el flujo de verificación de propiedad se complete con éxito. *§6.2 no se ha implementado: la pantalla `/domains` sigue sin existir y sus endpoints de verificación tampoco.*
+- [x] Un usuario no puede escanear un dominio en `/domains` hasta que el flujo de verificación de propiedad se complete con éxito. *§6.2 cerrado en la Fase 6. `POST /api/v1/assets/domains/{id}/discover` responde `400` si `is_verified` es falso, y la tarea Celery lo **vuelve a comprobar** leyendo la fila: el endpoint y la tarea no comparten el instante, y confiar en la decisión de otro proceso sería confiar en algo que ya no existe. La verificación es por registro TXT `_fenix-verification.<dominio>` con token de 256 bits, y distingue seis estados de DNS —`MATCH`, `MISMATCH`, `NO_TXT`, `NXDOMAIN`, `TIMEOUT`, `ERROR`— porque "todavía no lo he publicado" y "te has equivocado al escribir el nombre" piden acciones opuestas. La propiedad de un nombre es **exclusiva**: un dominio reclamado por otro workspace da `409` tanto si está verificado como si solo está pendiente, porque si dos workspaces reclamaran el mismo nombre sin verificar, el que publicara el TXT segundo se quedaría con la verificación y el primero descubriría la infraestructura del otro.*
 - [x] El modal `+ New Pentest` dispara correctamente la tarea en la cola del backend y redirige a la vista de progreso. *Modal con selección de repositorio o target manual, modo de escaneo y ficha en vivo con sondeo de 5 s, cronología, vista tipo terminal y abortado conectado a `POST /api/v1/pentests/{id}/abort`.*
 - [x] Gráficas de postura y severidades renderizan correctamente mediante Apache ECharts. *Gauge de Security Score y distribución por severidad en `/dashboard` con chunk propio; validado en el build de Vite.*
-- [x] Cero literales de texto hardcodeados; auditoría de internacionalización i18n limpia en español e inglés. *Trece namespaces en paridad es/en; 373 claves usadas, todas resueltas en ambos idiomas y ninguna huérfana.*
+- [x] Cero literales de texto hardcodeados; auditoría de internacionalización i18n limpia en español e inglés. *Veintiún namespaces en paridad es/en; 1332 hojas por idioma, todas resueltas en ambos y con los marcadores de interpolación coincidentes. Cero literales en los JSX de los módulos nuevos.*
 
 > **Nota de cierre (2026-09-25):** la Fase 4 queda cerrada en su alcance de backend y de panel. El **Bloque 4.1** cerró el shell, `/dashboard` (§1.0 y §1.2) y `/repositories` (§6.1). El **Bloque 4.2** cerró el gestor de vulnerabilidades (§3, §3.4), el gestor de pentests con terminal en vivo (§2), las secciones Enterprise con candado y la base de la consola de SuperAdmin (`/admin`, §0.2). El **Bloque 4.3** desbloqueó el triaje con `PATCH` protegido por R4, hizo interactivo el tablero Kanban, conectó el selector real de revisiones de PR, construyó el catálogo técnico de remediación en `/knowledge` e implantó el checklist `Get Set Up` de §1.1 con estado derivado de la base de datos.
 >
-> Quedan fuera del alcance cerrado y documentadas como deuda: §5 (chat con agentes), §6.2 (dominios y verificación de propiedad), los pasos 4 a 6 de §1.1, las revisiones de PR en `/pr-reviews` (§4.0 y §4.1) y la knowledge base por organización que describe §7.0 y §7.1, que es distinta del catálogo técnico compartido implementado en `/knowledge`.
+> Quedan fuera del alcance cerrado y documentadas como deuda: §5 (chat con agentes), los pasos 4 a 6 de §1.1, las revisiones de PR en `/pr-reviews` (§4.0 y §4.1) y la knowledge base por organización que describe §7.0 y §7.1, que es distinta del catálogo técnico compartido implementado en `/knowledge`. **§6.2 (dominios y verificación de propiedad) se cerró en la Fase 6, no aquí**; la casilla de abajo se marca con esa misma fecha y no como parte de este cierre.
 >
-> El punto de DoD de `/domains` permanece sin marcar de forma deliberada: no se cierra una casilla por aproximación: se cierra cuando la funcionalidad existe.
+> El punto de DoD de `/domains` se dejó sin marcar de forma deliberada en este cierre: no se cierra una casilla por aproximación. Se marcó en la Fase 6, cuando la funcionalidad existió.
 
 ---
 
@@ -238,7 +238,6 @@
 >
 > | Ruta | Bloqueo |
 > | :--- | :--- |
-> | `/domains`, `/asset-discovery` | Modelo de dominios con verificación de propiedad. El descubrimiento se apoya en dominios verificados, así que no puede existir antes. |
 > | `/chat` | Modelo de conversaciones y agente conversacional del servidor MCP. |
 > | `/integrations`, `/api-access` | Tarea 3.4 de la Fase 5: matriz de 46 scopes, hash de tokens y almacenamiento de conexiones MCP. |
 > | `/supply-chain` | Strix aún no expone el SBOM de dependencias. |
@@ -254,6 +253,86 @@
 > operativos por URL; falta decidir en qué bloque encaja.
 
 ---
+
+### Fase 6 · Bloque de paridad funcional (cerrado 2026-09-27)
+
+Este bloque no pertenece a la auditoría de la Fase 6: es el trabajo que había quedado
+pendiente de §4 y §5 y que desbloquea el resto de la auditoría. Una auditoría sobre un
+sistema al que le faltan tres módulos audita menos de lo que parece.
+
+| Módulo | Entregado | Estado |
+| :--- | :--- | :--- |
+| 4 · Atribución LiteLLM | Cabeceras y las tres variables de entorno construidas desde una declaración inmutable | [x] |
+| 4 · CORS y multi-entorno | `cors_origins` con origen del frontend **añadido**, no exigido | [x] |
+| 2 · Dominios y superficie de ataque | Verificación TXT, descubrimiento, `/domains` y `/asset-discovery` | [x] |
+| 3 · Servidor MCP | `POST /api/v1/mcp` JSON-RPC 2.0 y pestaña MCP | pendiente |
+| 1 · Autofix One-Click | `REMEDIATION_PROPOSED`, rama y PR desde la plataforma | pendiente |
+
+**Módulo 2 en detalle.** `backend/apps/assets/` con `VerifiedDomain` y `DiscoveredAsset`.
+Dos decisiones de integridad que conviene que no se pierdan al leer el código:
+
+- `organization_id` es `RESTRICT` en las dos tablas y `domain_id` es `CASCADE`. No es
+  una inconsistencia: el inventario de activos es la **evidencia** de qué se escaneó para
+  cada cliente y borrarlo al dar de baja el workspace sería destruir la prueba, mientras que
+  un activo pertenece a su dominio y un dominio no verificado genera basura que tiene que
+  irse con él.
+- El descubrimiento **solo consulta DNS**. No abre un socket contra lo que encuentra.
+  Descubrir se autoriza con la verificación de propiedad —que es exactamente lo que esa
+  verificación significa—; atacar necesita orden de pentest, y esa se ejecuta en un
+  contenedor efímero por R3. Si esta tarea conectara con lo que descubre, un
+  `POST /discover` bastaría para escanear la red de un tercero.
+
+**Índices.** Cuatro, no nueve. Los simples sobre `organization_id`, `is_verified` y
+`asset_type` serían prefijos izquierdos de los compuestos que ya existen: PostgreSQL no los
+usaría nunca y cada alta pagaría la escritura de un índice inútil.
+
+**Cuotas en configuración, no en código.** `ASSET_DISCOVERY_WORDLIST`,
+`ASSET_DISCOVERY_MAX_CANDIDATES`, `ASSET_DISCOVERY_MAX_ASSETS`,
+`ASSET_DISCOVERY_DNS_CONCURRENCY` y `ASSET_DISCOVERY_DNS_TIMEOUT_SECONDS` salen de
+`Settings` (R1). La lista de prefijos es un **campo de despliegue y no un parámetro de la
+petición**: si el cliente pudiera enviarla, este endpoint sería un vector de enumeración con
+el tamaño de la lista como control.
+
+**Defectos reales encontrados y corregidos durante la implementación, con su prueba:**
+
+- `TXT_RECORD_NAME` valía `fenix-domain-verify=fenix`, que **no es un nombre DNS válido**:
+  lleva `=` y es un valor, no un nombre. Se separó en `TXT_RECORD_LABEL`
+  (`_fenix-verification`) y `build_txt_record_name(dominio)`. El fallo era silencioso: la
+  API respondía `200` y el error solo aflorraba cuando el cliente iba a su panel de DNS.
+- `NXDOMAIN` se convertía en `MISMATCH` porque la comprobación final solo miraba la lista de
+  valores, y tanto "no existe" como "existe sin TXT" llegan vacías. El usuario que tecle mal
+  el nombre veía "el token no coincide" con la lista encontrada vacía, un mensaje que no
+  lleva a ninguna acción.
+- El `409` por dominio duplicado llegaba **por violación de `IntegrityError`**, así que el
+  mensaje decía "otra organización" cuando en realidad era el propio workspace, y obligaba
+  a un `rollback` de la transacción entera para algo que un `SELECT` detecta. Ahora hay
+  comprobación previa con el motivo estructurado (`ESTE_WORKSPACE` | `OTRO_WORKSPACE` |
+  `CARRERA`) y el `IntegrityError` se queda solo como backstop de la carrera, que ninguna
+  comprobación previa cierra.
+- La etiqueta de verificación lleva guion bajo, y la gramática de un nombre de dominio
+  **no lo admite**: se rechaza el propio registro de la plataforma. Se añadió
+  `SERVICIO_LABEL_PATTERN` e `is_publishable_record_name`, que es la regla de los nombres de
+  servicio —`_dmarc`, `_domainkey` sí la cumplen— y no la del alta de dominios.
+
+**Puerta que el diseño deja cerrada a propósito.** Un dominio verificado **no se borra**
+(`409`). Es inventario que el cliente ya pagó, y hacerlo desaparecer sin rastro sería
+justo el fallo que R4 prohíbe en los hallazgos. Para quitarlo está la baja del workspace,
+que es una decisión de otro tamaño.
+
+**Alcance que sigue diferido en el backend:** `verification_method=HTTP_FILE` está
+**declarado** en el enum para no necesitar un `ALTER TYPE` el día que se implemente, pero
+`verifier` **no lo acepta**: dar por buena una propiedad que no se ha comprobado es peor que
+no ofrecer el método. El panel lo dice.
+
+**Gates al cierre de este bloque:**
+
+- Backend: `722 passed, 2 skipped`; `ruff check` y `pyright` limpios; `alembic check` sin
+  drift tras un ciclo completo `downgrade -1` → `upgrade head`. Los 9 avisos de pytest son
+  preexistentes (`SAWarning` de producto cartesiano en revisiones de PR y
+  `StarletteDeprecationWarning` en soporte); **ninguno** referencia el módulo nuevo.
+- Frontend: `typecheck`, `lint` y `build` sin errores ni advertencias; 12 pruebas vitest.
+- i18n: 1332 hojas por idioma en paridad, con los marcadores de interpolación coincidentes,
+  y cero literales en los JSX de los módulos nuevos.
 
 ## Fase 6 · Auditoría de Seguridad End-to-End, Hardening Dokploy & Despliegue
 

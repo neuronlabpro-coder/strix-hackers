@@ -1,0 +1,57 @@
+{
+  "eyebrow": "Attack surface",
+  "title": "Asset discovery",
+  "description": "Hosts and subdomains found under your verified domains. Discovery only queries DNS: it finds published names, it does not probe the machines serving them.",
+  "types": {
+    "SUBDOMAIN": "Subdomain",
+    "IP_ADDRESS": "IP address",
+    "API_ENDPOINT": "API endpoint"
+  },
+  "filters": {
+    "type": "Asset type",
+    "allTypes": "All types",
+    "domain": "Domain",
+    "allDomains": "All domains"
+  },
+  "actions": {
+    "refresh": "Refresh"
+  },
+  "scan": {
+    "title": "Run discovery",
+    "description": "It can only be run on verified domains. The work happens in the background and the inventory updates on its own; you can reload to see it.",
+    "start": "Scan",
+    "starting": "Enqueuing…",
+    "noVerifiedDomains": "You have no verified domains. Verify one in the Domains section to discover its attack surface.",
+    "assets": "{{count}} known asset(s)",
+    "assets_other": "{{count}} known assets"
+  },
+  "table": {
+    "asset": "Asset",
+    "domain": "Domain",
+    "type": "Type",
+    "technologies": "Technologies",
+    "lastScanned": "Last checked",
+    "never": "Never checked"
+  },
+  "pagination": {
+    "label": "Inventory pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "position": "Page {{page}} of {{total}}"
+  },
+  "states": {
+    "loading": "Loading inventory…",
+    "error": "The inventory could not be loaded.",
+    "retry": "Try again",
+    "emptyTitle": "No assets yet",
+    "emptyDescription": "Run discovery on a verified domain to start building your attack surface inventory.",
+    "count": "{{count}} asset in total",
+    "count_other": "{{count}} assets in total"
+  },
+  "toasts": {
+    "enqueued": "Discovery enqueued for {{domain}}. There were already {{existing}} registered assets; they will be updated when it finishes."
+  },
+  "errors": {
+    "scan": "Discovery could not be started."
+  }
+}

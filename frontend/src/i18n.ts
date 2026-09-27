@@ -3,11 +3,13 @@ import { initReactI18next } from 'react-i18next'
 
 import authEn from './locales/en/auth.json'
 import adminEn from './locales/en/admin.json'
+import assetDiscoveryEn from './locales/en/assetDiscovery.json'
 import billingEn from './locales/en/billing.json'
 import commonEn from './locales/en/common.json'
 import apiAccessEn from './locales/en/apiAccess.json'
 import cveEn from './locales/en/cve.json'
 import dashboardEn from './locales/en/dashboard.json'
+import domainsEn from './locales/en/domains.json'
 import enterpriseEn from './locales/en/enterprise.json'
 import errorsEn from './locales/en/errors.json'
 import issuesEn from './locales/en/issues.json'
@@ -23,11 +25,13 @@ import settingsEn from './locales/en/settings.json'
 import supportEn from './locales/en/support.json'
 import authEs from './locales/es/auth.json'
 import adminEs from './locales/es/admin.json'
+import assetDiscoveryEs from './locales/es/assetDiscovery.json'
 import billingEs from './locales/es/billing.json'
 import commonEs from './locales/es/common.json'
 import apiAccessEs from './locales/es/apiAccess.json'
 import cveEs from './locales/es/cve.json'
 import dashboardEs from './locales/es/dashboard.json'
+import domainsEs from './locales/es/domains.json'
 import enterpriseEs from './locales/es/enterprise.json'
 import errorsEs from './locales/es/errors.json'
 import issuesEs from './locales/es/issues.json'
@@ -63,6 +67,8 @@ void i18n.use(initReactI18next).init({
       navigation: navigationEs,
       errors: errorsEs,
       dashboard: dashboardEs,
+      domains: domainsEs,
+      assetDiscovery: assetDiscoveryEs,
       repositories: repositoriesEs,
       issues: issuesEs,
       pentests: pentestsEs,
@@ -85,6 +91,8 @@ void i18n.use(initReactI18next).init({
       navigation: navigationEn,
       errors: errorsEn,
       dashboard: dashboardEn,
+      domains: domainsEn,
+      assetDiscovery: assetDiscoveryEn,
       repositories: repositoriesEn,
       issues: issuesEn,
       pentests: pentestsEn,
@@ -110,6 +118,8 @@ void i18n.use(initReactI18next).init({
     'navigation',
     'errors',
     'dashboard',
+    'domains',
+    'assetDiscovery',
     'repositories',
     'issues',
     'pentests',

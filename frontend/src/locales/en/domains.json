@@ -1,0 +1,73 @@
+{
+  "eyebrow": "Attack surface",
+  "title": "Domains",
+  "description": "Register the domains your workspace controls. TXT record verification proves ownership, and it is what enables asset discovery.",
+  "actions": {
+    "add": "Add domain",
+    "refresh": "Refresh",
+    "verifyNow": "Verify now",
+    "verifying": "Verifying…",
+    "delete": "Delete domain"
+  },
+  "status": {
+    "verified": "Verified",
+    "pending": "Pending"
+  },
+  "table": {
+    "domain": "Domain",
+    "status": "Status",
+    "assets": "Assets",
+    "txtRecord": "TXT record",
+    "actions": "Actions"
+  },
+  "states": {
+    "loading": "Loading domains…",
+    "error": "The domains could not be loaded.",
+    "retry": "Try again",
+    "emptyTitle": "No domains yet",
+    "emptyDescription": "Add a domain and publish the TXT record we will show you. Discovery is not possible without verification."
+  },
+  "verify": {
+    "MATCH": "Domain verified. You can now run asset discovery.",
+    "MISMATCH": "The record exists but the value does not match. Check that you pasted the full value, without quotes.",
+    "NO_TXT": "The name exists but has no TXT record. Add it and wait for it to propagate.",
+    "NXDOMAIN": "That name does not exist in DNS. Check that the domain is spelled correctly.",
+    "TIMEOUT": "DNS did not respond. Wait a few seconds and try again.",
+    "ERROR": "The name server returned an error. Try again in a moment."
+  },
+  "conflict": {
+    "ESTE_WORKSPACE": "This domain is already registered in your workspace.",
+    "OTRO_WORKSPACE": "This domain is already registered by another organization.",
+    "CARRERA": "Another request registered this domain at the same time. Refresh the list."
+  },
+  "errors": {
+    "create": "The domain could not be registered.",
+    "verify": "The TXT record could not be checked.",
+    "delete": "The domain could not be deleted."
+  },
+  "toasts": {
+    "deleted": "Domain deleted."
+  },
+  "dialog": {
+    "addTitle": "Add domain",
+    "domainLabel": "Domain name",
+    "domainHint": "Without scheme or trailing slash. It is stored in lower case.",
+    "methodLabel": "Verification method",
+    "methodDns": "DNS TXT record",
+    "methodDnsHint": "Recommended. You publish a record and the platform checks it.",
+    "methodHttp": "File on the web server",
+    "methodHttpHint": "Not available yet. DNS verification is what has been implemented.",
+    "create": "Register domain",
+    "creating": "Registering…",
+    "cancel": "Cancel",
+    "done": "Done",
+    "instructionsLead": "One step left to take control of {domain}: publish this record in its DNS zone and verify again.",
+    "recordName": "Name",
+    "recordNameHint": "The \"name\" or \"host\" field at your provider. The domain is appended automatically.",
+    "recordValue": "Value",
+    "recordValueHint": "Paste it exactly as it is, without quotes. It is the proof that you control the domain.",
+    "propagationHint": "DNS changes can take a few minutes depending on the provider. Once your panel says it is published, press \"Verify now\".",
+    "copyName": "Copy the record name",
+    "copyValue": "Copy the record value"
+  }
+}

@@ -5,8 +5,10 @@ from pydantic import ValidationError
 
 from backend.core.config import ENV_FILE, Settings
 
+ValorDeConfiguracion = str | int | float | bool | None | list[str]
 
-def build_environment_values() -> dict[str, str | int | float | bool | None]:
+
+def build_environment_values() -> dict[str, ValorDeConfiguracion]:
     return {
         "environment": "development",
         "debug": True,
@@ -97,7 +99,7 @@ def build_environment_values() -> dict[str, str | int | float | bool | None]:
     }
 
 
-def production_values() -> dict[str, str | int | float | bool | None]:
+def production_values() -> dict[str, ValorDeConfiguracion]:
     """Valores base de un despliegue de producción con SMTP y Stripe completos."""
 
     values = build_environment_values()

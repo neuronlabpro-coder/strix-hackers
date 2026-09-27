@@ -270,6 +270,23 @@ class Settings(BaseSettings):
     cve_query_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
     cve_sync_interval_hours: int = Field(default=12, ge=1, le=168)
     cve_sync_http_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    asset_discovery_dns_timeout_seconds: float = Field(default=4.0, gt=0, le=30)
+    asset_discovery_dns_concurrency: int = Field(default=24, ge=1, le=128)
+    asset_discovery_max_candidates: int = Field(default=64, ge=1, le=1_000)
+    asset_discovery_max_assets: int = Field(default=500, ge=1, le=10_000)
+    asset_discovery_wordlist: str = Field(
+        default=(
+            "www,api,app,admin,portal,intranet,staging,stage,dev,test,qa,"
+            "uat,prod,beta,internal,git,gitlab,jenkins,ci,cdn,static,assets,"
+            "mail,smtp,imap,webmail,vpn,remote,ssh,ftp,db,database,sql,"
+            "grafana,kibana,prometheus,metrics,status,health,auth,sso,oauth,"
+            "login,accounts,account,billing,payment,payments,shop,store,"
+            "blog,docs,wiki,help,support,ticket,chat,forum,news,media,"
+            "img,images,files,download,downloads,backup,backups,old,new,"
+            "preprod,sandbox,lab,lab1,dev1,dev2,node1,vm,esx,proxy,gateway"
+        ),
+        min_length=1,
+    )
     cve_kev_feed_url: str = Field(default="https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json", min_length=1)  # noqa: E501
     cve_nvd_feed_url: str = Field(
         default="https://cve.circl.lu/api/last",
