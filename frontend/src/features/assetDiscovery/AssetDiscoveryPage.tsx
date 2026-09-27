@@ -99,6 +99,24 @@ export function AssetDiscoveryPage() {
     [organizationId, typeFilter, domainFilter, page],
   )
 
+  /**
+   * ¿Hay algún dominio verificado del que se pueda haber detectado un activo?
+   *
+   * El descubrimiento exige un dominio verificado: es lo que autoriza a hacer las consultas
+   * DNS. Sin ningún dominio verificado, la lista de activos **no puede** tener filas, y la
+   * respuesta del servidor ya se conoce antes de preguntarla.
+   *
+   * ## Por qué esto se decide antes de la petición y no en el `catch`
+   *
+   * Por dos razones, y la segunda es la importante. La primera es que ahorra una ida y vuelta
+   * en la primera carga de la pantalla. La segunda es que separa los dos casos que se confunden:
+   * un workspace sin dominios **no es un error**, y esconderlo detrás de un estado de carga o
+   * de un cartel de fallo hace que el usuario busque un problema donde no lo hay. La pantalla
+   * que toca es la de vacío ilustrado, y dice qué hacer a continuación.
+   */
+  const hayDominiosVerificados =
+    (dominios.data?.items ?? []).some((domain) => domain.is_verified)
+
   const assets = useAsyncResource<AssetListResponse>(
     useCallback(
       async (key: string): Promise<AssetListResponse> => {
@@ -116,7 +134,10 @@ export function AssetDiscoveryPage() {
       },
       [token],
     ),
-    organizationId === null ? null : claveInventario,
+    // Sin dominio verificado no hay inventario que pedir: se anula la clave y `useAsyncResource`
+    // devuelve `isLoading: false` y `data: null` sin lanzar nada. Ver la nota de
+    // `hayDominiosVerificados`.
+    organizationId === null || !hayDominiosVerificados ? null : claveInventario,
   )
 
   const items = useMemo(() => assets.data?.items ?? [], [assets.data])
@@ -245,8 +266,27 @@ export function AssetDiscoveryPage() {
       ) : items.length === 0 ? (
         <div className="empty-card">
           <Radar size={24} aria-hidden="true" />
-          <h2>{t('states.emptyTitle')}</h2>
-          <p>{t('states.emptyDescription')}</p>
+          <h2>
+            {!hayDominiosVerificados && !dominios.isLoading
+              ? t('states.emptyWithoutDomains')
+              : t('states.emptyTitle')}
+          </h2>
+          <p>
+            {!hayDominiosVerificados && !dominios.isLoading
+              ? t('states.emptyWithoutDomainsDescription')
+              : t('states.emptyDescription')}
+          </p>
+          {/*
+            El enlace solo aparece cuando el bloqueo real es "no hay dominio verificado". Con
+            dominios pero sin activos, la accion util es lanzar un escaneo, que ya esta en el
+            panel de arriba; ofrecer ahi un enlace a anadir dominio seria una segundavia
+            cuando el problema no son los dominios.
+          */}
+          {!hayDominiosVerificados && !dominios.isLoading ? (
+            <a className="secondary-button" href="/domains">
+              <span>{t('states.emptyWithoutDomainsAction')}</span>
+            </a>
+          ) : null}
         </div>
       ) : (
         <>

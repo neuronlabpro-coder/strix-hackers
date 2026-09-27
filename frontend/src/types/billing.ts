@@ -42,8 +42,19 @@ export interface BillingSummary {
   custom_minimum: number
   /** Máximo del pack a medida, en créditos. */
   custom_maximum: number
-  /** La escalera de descuento por volumen, para el slider. */
-  volume: VolumePricing
+  /**
+   * La escalera de descuento por volumen, para el slider.
+   *
+   * Opcional a propósito. El backend la incluye siempre, pero declararla obligatoria
+   * desactivó la única defensa que tenía este código: el compilador. Cuando la respuesta
+   * llegaba sin ese bloque, el panel se quedó en negro con
+   * `Cannot read properties of undefined (reading 'tiers')` y nada en la compilación lo
+   * avisó, porque el tipo prometía algo que en ejecución no estaba.
+   *
+   * Con el `?` alrededor, TypeScript obliga a cada consumidor a decidir qué hacer cuando no
+   * llega, que es la decisión que faltaba. Ver `deriveSpendRanges`.
+   */
+  volume?: VolumePricing
   /** La oferta de suscripción Pro, para el botón de suscripción. */
   subscription: SubscriptionOffer
 }

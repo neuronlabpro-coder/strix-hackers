@@ -62,7 +62,7 @@ const MARCADOR = '<API_TOKEN>'
 export function McpTab({ tokens }: McpTabProps) {
   const { t } = useTranslation('apiAccess')
   const [tokenPegado, setTokenPegado] = useState('')
-  const [copiado, setCopiado] = useState<'claude' | 'cursorrules' | null>(null)
+  const [copiado, setCopiado] = useState<string | null>(null)
 
   // El token se borra al desmontar la pestaña. Sin esto, el secreto seguiria en el estado del
   // componente mientras el usuario navega por el panel dentro de la misma sesion.
@@ -103,6 +103,81 @@ export function McpTab({ tokens }: McpTabProps) {
   )
 
   /**
+   * La URL del perfil `core`.
+   *
+   * Se construye anadiendo el parametro a la URL del servidor y no con una constante propia,
+   * para que cambiar el prefijo del router no deje esta direccion apuntando a un sitio que no
+   * existe. El error de un 404 aqui es silencioso: el cliente MCP no muestra nada y el agente
+   * simplemente no encuentra herramientas.
+   */
+  const urlCore = useMemo(() => `${url}?profile=core`, [url])
+
+  /**
+   * La configuracion de Cursor en `.cursor/mcp.json`.
+   *
+   * A diferencia del `.cursorrules` de abajo, este **si** es JSON y si lo lee el cliente: es el
+   * formato de servidor MCP de Cursor. Se ofrecen los dos porque un usuario puede tener uno u
+   * otro segun como haya configurado el editor, y no son intercambiables: un `.cursorrules` con
+   * JSON dentro se ignora en silencio, y un `mcp.json` con instrucciones en prosa no conecta.
+   */
+  const cursorMcpConfig = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          mcpServers: {
+            'mind-guard': {
+              type: 'http',
+              url,
+              headers: { Authorization: credencial },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    [url, credencial],
+  )
+
+  /**
+   * El comando de alta de Claude Code.
+   *
+   * Va como comando y no como JSON porque `claude mcp add` **es** un comando: escribe en la
+   * configuracion del propio Claude Code. Poner un bloque de JSON para algo que se registra con
+   * una orden de terminal hace que el usuario busque donde pegar un fichero que no existe.
+   *
+   * La URL va entre comillas simples porque `claude mcp add` parte el resto de argumentos por
+   * espacios, y una query como `?profile=core` con `&` se romperia sin ellas.
+   */
+  const claudeCodeCommand = useMemo(
+    () => `claude mcp add --transport http fenix '${url}'`,
+    [url],
+  )
+
+  /**
+   * Las instrucciones para ChatGPT.
+   *
+   * En prosa y no en JSON porque el conector de ChatGPT se configura desde su interfaz, no
+   * leyendo un fichero. El texto dice que se use la URL del perfil core y por que: el conjunto
+   * reducido es el que responde bien sin que el usuario tenga que decidir que herramientas
+   * concede.
+   */
+  const chatgptInstructions = useMemo(
+    () =>
+      [
+        t('mcp.chatgptStep1'),
+        `1. ${urlCore}`,
+        '',
+        t('mcp.chatgptStep2'),
+        `2. ${t('mcp.chatgptAuth')}`,
+        `3. ${credencial}`,
+        '',
+        t('mcp.chatgptStep3'),
+        '',
+      ].join('\n'),
+    [urlCore, credencial, t],
+  )
+
+  /**
    * El `.cursorrules` de Cursor.
    *
    * Es texto plano con la misma información, porque Cursor **no** lee `mcpServers`: lee un
@@ -136,7 +211,10 @@ export function McpTab({ tokens }: McpTabProps) {
     [url, credencial, t],
   )
 
-  const copiar = async (que: 'claude' | 'cursorrules', texto: string) => {
+  const copiar = async (
+    que: 'claude' | 'cursorrules' | 'cursorMcp' | 'chatgpt' | 'claudeCode' | 'url' | 'urlCore',
+    texto: string,
+  ) => {
     try {
       await navigator.clipboard.writeText(texto)
       setCopiado(que)
@@ -164,6 +242,48 @@ export function McpTab({ tokens }: McpTabProps) {
   const tokensVigentes = useMemo(
     () => tokens.filter((token) => token.revoked_at === null),
     [tokens],
+  )
+
+  /**
+   * Los cuatro clientes, con su texto ya resuelto.
+   *
+   * Se declara como dato y no como cuatro bloques de JSX porque comparten exactamente lo mismo
+   * —una etiqueta, una nota, un texto y un boton de copiar— y cuatro copias de ese esqueleto
+   * divergen en cuanto uno recibe un boton de descarga que los demas no necesitan. Anadir un
+   * quinto cliente es una linea aqui y nada mas.
+   *
+   * `texto()` es una funcion y no un valor porque los tres dependen de la URL y del token, que
+   * el usuario puede cambiar: un array de cadenas las congelaria en el primer render y el
+   * snippet mostraria la credencial anterior.
+   */
+  const CLIENTES = useMemo(
+    () => [
+      {
+        clave: 'claude',
+        tituloKey: 'mcp.clients.claude.title',
+        notaKey: 'mcp.clients.claude.note',
+        texto: () => claudeConfig,
+      },
+      {
+        clave: 'chatgpt',
+        tituloKey: 'mcp.clients.chatgpt.title',
+        notaKey: 'mcp.clients.chatgpt.note',
+        texto: () => chatgptInstructions,
+      },
+      {
+        clave: 'cursorMcp',
+        tituloKey: 'mcp.clients.cursor.title',
+        notaKey: 'mcp.clients.cursor.note',
+        texto: () => cursorMcpConfig,
+      },
+      {
+        clave: 'claudeCode',
+        tituloKey: 'mcp.clients.claudeCode.title',
+        notaKey: 'mcp.clients.claudeCode.note',
+        texto: () => claudeCodeCommand,
+      },
+    ] as const,
+    [claudeConfig, chatgptInstructions, cursorMcpConfig, claudeCodeCommand],
   )
 
   return (
@@ -226,6 +346,71 @@ export function McpTab({ tokens }: McpTabProps) {
             <span>{t('mcp.downloadWarning')}</span>
           </p>
         ) : null}
+
+        {/*
+          Las dos direcciones van primero y como campos copiables, no dentro de los JSON de
+          abajo. Quien va a configurar un cliente a mano solo quiere la URL, y pedirle que la
+          lea dentro de un bloque de configuracion es un paso de mas que se resuelve siempre
+          copiando.
+        */}
+        <div className="form-field">
+          <span className="mcp-field-label">{t('mcp.serverUrlLabel')}</span>
+          <div className="mcp-url-row">
+            <code className="mono mcp-url-value">{url}</code>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void copiar('url', url)}
+            >
+              <ClipboardCopy size={16} aria-hidden="true" />
+              <span>{copiado === 'url' ? t('mcp.copied') : t('mcp.copy')}</span>
+            </button>
+          </div>
+          <span className="form-hint">{t('mcp.serverUrlHint')}</span>
+        </div>
+
+        <div className="form-field">
+          <span className="mcp-field-label">{t('mcp.coreUrlLabel')}</span>
+          <div className="mcp-url-row">
+            <code className="mono mcp-url-value">{urlCore}</code>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void copiar('urlCore', urlCore)}
+            >
+              <ClipboardCopy size={16} aria-hidden="true" />
+              <span>{copiado === 'urlCore' ? t('mcp.copied') : t('mcp.copy')}</span>
+            </button>
+          </div>
+          <span className="form-hint">{t('mcp.coreUrlHint')}</span>
+        </div>
+
+        <div className="form-field">
+          <span className="mcp-field-label">{t('mcp.clientsLabel')}</span>
+          <div className="mcp-client-grid">
+            {CLIENTES.map((cliente) => (
+              <article key={cliente.clave} className="mcp-client-card">
+                <header className="mcp-client-head">
+                  <h3 className="mcp-client-title">{t(cliente.tituloKey)}</h3>
+                  <p className="mcp-client-note">{t(cliente.notaKey)}</p>
+                </header>
+                <pre className="mcp-config mcp-client-config">
+                  <code className="mono">{cliente.texto()}</code>
+                </pre>
+                <div className="mcp-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => void copiar(cliente.clave, cliente.texto())}
+                  >
+                    <ClipboardCopy size={16} aria-hidden="true" />
+                    <span>{copiado === cliente.clave ? t('mcp.copied') : t('mcp.copy')}</span>
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
 
         <div className="form-field">
           <span className="mcp-field-label">{t('mcp.claudeLabel')}</span>

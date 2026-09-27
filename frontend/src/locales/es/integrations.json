@@ -1,0 +1,91 @@
+{
+  "eyebrow": "Ajustes",
+  "title": "Integraciones",
+  "description": "Conecta proveedores de codigo, canales de aviso, gestores de incidencias y nubes.",
+  "noWorkspace": "Selecciona un workspace para gestionar sus integraciones.",
+  "states": {
+    "loading": "Cargando...",
+    "error": "No se han podido cargar las integraciones.",
+    "retry": "Reintentar",
+    "connected": "Conectado",
+    "notConnected": "Sin conectar",
+    "comingSoon": "Proximamente"
+  },
+  "actions": {
+    "connect": "Conectar",
+    "configure": "Configurar",
+    "addMcpServer": "Anadir servidor MCP"
+  },
+  "code": {
+    "title": "Proveedores de codigo",
+    "description": "Se guardan en el workspace y habilitan las revisiones de pull request.",
+    "repositoriesConnected": "{{count}} repositorio conectado",
+    "repositoriesConnected_other": "{{count}} repositorios conectados",
+    "providers": {
+      "GITHUB": {
+        "note": "Organizaciones y repositorios personales de GitHub."
+      },
+      "GITLAB": {
+        "note": "Grupos y proyectos de GitLab, incluidos los autoalojados."
+      },
+      "BITBUCKET": {
+        "note": "Espacios de trabajo de Bitbucket Cloud."
+      },
+      "GITEA": {
+        "note": "Instancias de Gitea propias."
+      }
+    }
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "description": "Donde se avisa cuando un escaneo termina o aparece un hallazgo critico.",
+    "pendingReason": "Los avisos salientes ya funcionan por webhook: hasta que exista un destino guardado, un boton de Conectar aqui solo aceptaria un token y lo perderia.",
+    "destinations": {
+      "slack": {
+        "note": "Mensajes en un canal o en un hilo concreto."
+      },
+      "teams": {
+        "note": "Notificaciones en un canal de Teams."
+      }
+    }
+  },
+  "issues": {
+    "title": "Seguimiento de incidencias",
+    "description": "Abre una incidencia en tu gestor cuando aparece un hallazgo.",
+    "pendingReason": "Requiere un modelo de Credenciales de integracion que guarde el token y el proyecto de destino. Es trabajo de backend, no de esta pantalla.",
+    "destinations": {
+      "jira": {
+        "note": "Incidencias con tipo, prioridad y responsable."
+      },
+      "linear": {
+        "note": "Incidencias con equipo, ciclo y etiquetas."
+      }
+    }
+  },
+  "infrastructure": {
+    "title": "Infraestructura",
+    "description": "Nubes donde descubrir activos, cuentas y despliegues.",
+    "mcpTitle": "Servidor MCP",
+    "mcpNote": "Conecta un asistente con un token que ya tienes, sin volver a escribir la credencial.",
+    "destinations": {
+      "aws": {
+        "note": "Cuentas, buckets y grupos de seguridad."
+      },
+      "vercel": {
+        "note": "Proyectos y dominios desplegados."
+      },
+      "supabase": {
+        "note": "Proyectos, bases de datos y funciones en el borde."
+      },
+      "cloudflare": {
+        "note": "Zonas, registros DNS y reglas de firewall."
+      },
+      "gcp": {
+        "note": "Proyectos, buckets y redes."
+      },
+      "railway": {
+        "note": "Servicios y variables de despliegue."
+      }
+    }
+  }
+}

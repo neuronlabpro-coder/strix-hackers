@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 
 import { useDashboardSummary } from '../dashboard/useDashboardSummary'
+import { useToast } from '../shared/toast-context'
 import { ConnectRepositoryModal } from './ConnectRepositoryModal'
 import { RepositoryReviewToggle } from './RepositoryReviewToggle'
 
@@ -20,6 +21,7 @@ function formatDateTime(value: string | null, locale: string, fallback: string):
 
 export function RepositoriesPage() {
   const { t } = useTranslation('repositories')
+  const { notify } = useToast()
   const { t: tCommon } = useTranslation('common')
   const { i18n } = useTranslation()
   const { summary, isLoading, loadFailed, patchRepositoryFlag, refresh } = useDashboardSummary()
@@ -220,6 +222,25 @@ export function RepositoriesPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConnected={refresh}
+        onBulkImported={({ imported, failed }) => {
+          /*
+            El aviso lo pone la pagina y no el modal, porque el modal ya se ha cerrado y no
+            existe. Se distin tres casos y no dos: una importacion multiple donde fallan
+            cuatro de siete no es un exito, y comunicarla como tal haria que el usuario se
+            creyera que tiene los siete conectados y no llegara a reintentar los que faltan.
+          */
+          const total = imported + failed.length
+          if (failed.length === 0) {
+            notify('success', t('modal.bulkSuccess', { count: imported }))
+          } else if (imported === 0) {
+            notify('error', t('modal.bulkFailed', { failed: failed.join(', ') }))
+          } else {
+            notify(
+              'info',
+              t('modal.bulkPartial', { ok: imported, total, failed: failed.join(', ') }),
+            )
+          }
+        }}
       />
     </section>
   )

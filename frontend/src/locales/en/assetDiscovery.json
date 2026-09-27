@@ -46,7 +46,10 @@
     "emptyTitle": "No assets yet",
     "emptyDescription": "Run discovery on a verified domain to start building your attack surface inventory.",
     "count": "{{count}} asset in total",
-    "count_other": "{{count}} assets in total"
+    "count_other": "{{count}} assets in total",
+    "emptyWithoutDomains": "No verified domain yet",
+    "emptyWithoutDomainsDescription": "Asset discovery needs a verified domain: that is what authorizes the DNS lookups. Verify one and run discovery to see what it exposes.",
+    "emptyWithoutDomainsAction": "Go to Domains"
   },
   "toasts": {
     "enqueued": "Discovery enqueued for {{domain}}. There were already {{existing}} registered assets; they will be updated when it finishes."

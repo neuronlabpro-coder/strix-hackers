@@ -4,6 +4,7 @@
   "description": "Registra los dominios que tu espacio de trabajo controla. La verificación por registro TXT demuestra la propiedad y es lo que habilita el descubrimiento de activos.",
   "actions": {
     "add": "Añadir dominio",
+    "cancel": "Cancelar",
     "refresh": "Actualizar",
     "verifyNow": "Verificar ahora",
     "verifying": "Verificando…",

@@ -1,0 +1,206 @@
+### llm_model_configs
+  id                                 UUID                                          PK NOT NULL default
+  model_id                           VARCHAR(255)                                  NOT NULL
+  display_name                       VARCHAR(128)                                  NOT NULL
+  base_cost_input_m                  NUMERIC(18, 8)                                NOT NULL
+  base_cost_output_m                 NUMERIC(18, 8)                                NOT NULL
+  markup_pct                         NUMERIC(9, 4)                                 NOT NULL
+  priority_order                     INTEGER                                       NOT NULL default
+  is_active                          BOOLEAN                                       NOT NULL default
+  use_case                           VARCHAR(12)                                   NOT NULL default
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### organizations
+  id                                 UUID                                          PK NOT NULL default
+  name                               VARCHAR(128)                                  NOT NULL
+  slug                               VARCHAR(128)                                  NOT NULL UNIQUE
+  deleted_at                         DATETIME                                      
+  is_active                          BOOLEAN                                       NOT NULL default
+  stripe_customer_id                 VARCHAR(255)                                  UNIQUE
+  plan_tier                          VARCHAR(10)                                   NOT NULL default
+  credit_balance                     NUMERIC(12, 4)                                NOT NULL default
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### users
+  id                                 UUID                                          PK NOT NULL default
+  email                              VARCHAR(255)                                  NOT NULL UNIQUE
+  email_verified                     BOOLEAN                                       NOT NULL default
+  email_verification_token_hash      VARCHAR(64)                                   UNIQUE
+  email_verification_expires_at      DATETIME                                      
+  hashed_password                    VARCHAR(255)                                  NOT NULL
+  full_name                          VARCHAR(255)                                  NOT NULL
+  is_active                          BOOLEAN                                       NOT NULL default
+  is_superuser                       BOOLEAN                                       NOT NULL default
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### api_tokens
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  name                               VARCHAR(100)                                  NOT NULL
+  token_prefix                       VARCHAR(16)                                   NOT NULL
+  token_hash                         VARCHAR(64)                                   NOT NULL
+  scopes                             JSONB                                         NOT NULL default
+  expires_at                         DATETIME                                      
+  last_used_at                       DATETIME                                      
+  revoked_at                         DATETIME                                      
+  created_at                         DATETIME                                      NOT NULL default
+
+### audit_log
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  actor_user_id                      UUID                                          FK->users
+  action                             VARCHAR(25)                                   NOT NULL
+  entity_type                        VARCHAR(64)                                   NOT NULL
+  entity_id                          UUID                                          NOT NULL
+  from_state                         VARCHAR(64)                                   
+  to_state                           VARCHAR(64)                                   
+  created_at                         DATETIME                                      NOT NULL default
+
+### credit_ledger
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  amount_delta                       NUMERIC(18, 4)                                NOT NULL
+  balance_after                      NUMERIC(18, 4)                                NOT NULL
+  reason                             VARCHAR(16)                                   NOT NULL
+  reference_id                       VARCHAR(128)                                  
+  created_at                         DATETIME                                      NOT NULL default
+
+### memberships
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  user_id                            UUID                                          FK->users NOT NULL
+  role                               VARCHAR(6)                                    NOT NULL default
+  is_active                          BOOLEAN                                       NOT NULL default
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### pentest_runs
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  target_type                        VARCHAR(10)                                   NOT NULL
+  target_identifier                  VARCHAR(512)                                  NOT NULL
+  source_scan_id                     VARCHAR(128)                                  
+  scan_mode                          VARCHAR(8)                                    NOT NULL default
+  status                             VARCHAR(9)                                    NOT NULL default
+  container_id                       VARCHAR(64)                                   
+  celery_task_id                     VARCHAR(64)                                   
+  exit_code                          VARCHAR(16)                                   
+  cleanup_pending                    BOOLEAN                                       NOT NULL default
+  error_message                      TEXT                                          
+  started_at                         DATETIME                                      
+  finished_at                        DATETIME                                      
+  created_at                         DATETIME                                      NOT NULL default
+
+### repositories
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  provider                           VARCHAR(9)                                    NOT NULL
+  remote_repo_id                     VARCHAR(128)                                  NOT NULL
+  name                               VARCHAR(255)                                  NOT NULL
+  full_name                          VARCHAR(512)                                  NOT NULL
+  clone_url                          VARCHAR(1024)                                 NOT NULL
+  default_branch                     VARCHAR(128)                                  NOT NULL default
+  pr_reviews_enabled                 BOOLEAN                                       NOT NULL default
+  webhook_secret                     VARCHAR(128)                                  NOT NULL default
+  webhook_id                         VARCHAR(128)                                  
+  is_active                          BOOLEAN                                       NOT NULL default
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### stripe_events
+  id                                 UUID                                          PK NOT NULL default
+  event_id                           VARCHAR(128)                                  NOT NULL UNIQUE
+  event_type                         VARCHAR(64)                                   NOT NULL
+  organization_id                    UUID                                          FK->organizations
+  session_id                         VARCHAR(128)                                  
+  credits_granted                    NUMERIC(18, 4)                                
+  amount_cents                       INTEGER                                       
+  created_at                         DATETIME                                      NOT NULL default
+
+### support_tickets
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  created_by_user_id                 UUID                                          FK->users NOT NULL
+  ticket_number                      VARCHAR(32)                                   NOT NULL default UNIQUE
+  subject                            VARCHAR(255)                                  NOT NULL
+  category                           VARCHAR(20)                                   NOT NULL
+  priority                           VARCHAR(6)                                    NOT NULL default
+  status                             VARCHAR(11)                                   NOT NULL default
+  assigned_to_user_id                UUID                                          FK->users
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### verified_domains
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  domain_name                        VARCHAR(255)                                  NOT NULL
+  verification_token                 VARCHAR(64)                                   NOT NULL
+  verification_method                VARCHAR(9)                                    NOT NULL default
+  is_verified                        BOOLEAN                                       NOT NULL default
+  verified_at                        DATETIME                                      
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### discovered_assets
+  id                                 UUID                                          PK NOT NULL default
+  domain_id                          UUID                                          FK->verified_domains NOT NULL
+  organization_id                    UUID                                          FK->organizations NOT NULL
+  asset_type                         VARCHAR(12)                                   NOT NULL
+  value                              VARCHAR(512)                                  NOT NULL
+  service_name                       VARCHAR(100)                                  
+  technologies                       JSONB                                         NOT NULL default
+  last_scanned_at                    DATETIME                                      
+  created_at                         DATETIME                                      NOT NULL default
+
+### pull_request_reviews
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations,repositories NOT NULL
+  repository_id                      UUID                                          FK->repositories NOT NULL
+  run_id                             UUID                                          FK->pentest_runs
+  pr_number                          INTEGER                                       NOT NULL
+  pr_title                           VARCHAR(512)                                  NOT NULL
+  pr_author                          VARCHAR(255)                                  NOT NULL
+  source_branch                      VARCHAR(255)                                  NOT NULL
+  target_branch                      VARCHAR(255)                                  NOT NULL
+  commit_sha                         VARCHAR(64)                                   NOT NULL
+  head_clone_url                     VARCHAR(1024)                                 
+  base_sha                           VARCHAR(64)                                   
+  status                             VARCHAR(8)                                    NOT NULL default
+  issues_caught_critical             INTEGER                                       NOT NULL default
+  issues_caught_high                 INTEGER                                       NOT NULL default
+  merge_blocked                      BOOLEAN                                       NOT NULL default
+  comment_id                         VARCHAR(128)                                  
+  finished_at                        DATETIME                                      
+  created_at                         DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default
+
+### ticket_messages
+  id                                 UUID                                          PK NOT NULL default
+  ticket_id                          UUID                                          FK->support_tickets NOT NULL
+  sender_user_id                     UUID                                          FK->users NOT NULL
+  is_admin_reply                     BOOLEAN                                       NOT NULL default
+  content                            TEXT                                          NOT NULL
+  created_at                         DATETIME                                      NOT NULL default
+
+### vulnerabilities
+  id                                 UUID                                          PK NOT NULL default
+  organization_id                    UUID                                          FK->organizations,pentest_runs NOT NULL
+  run_id                             UUID                                          FK->pentest_runs NOT NULL
+  source_finding_id                  VARCHAR(128)                                  
+  title                              VARCHAR(255)                                  NOT NULL
+  description                        TEXT                                          NOT NULL
+  severity                           VARCHAR(8)                                    NOT NULL
+  cvss_score                         FLOAT                                         NOT NULL
+  cve_id                             VARCHAR(64)                                   
+  affected_target                    VARCHAR(512)                                  NOT NULL
+  affected_line                      VARCHAR(64)                                   
+  poc_reproduction_raw               TEXT                                          NOT NULL
+  autofix_patch_diff                 TEXT                                          
+  remediation_pr_url                 VARCHAR(512)                                  
+  remediation_patch_diff             TEXT                                          
+  status                             VARCHAR(20)                                   NOT NULL default
+  discovered_at                      DATETIME                                      NOT NULL default
+  updated_at                         DATETIME                                      NOT NULL default

@@ -137,6 +137,15 @@ class ScopeDefinition:
     scope: Scope
     label_key: str
     is_privileged: bool = False
+    #: Si este permiso entra en el juego de permisos por defecto de un token nuevo.
+    #:
+    #: Vive **aqui** y no en el panel por dos razones. La primera es R1: una lista de permisos
+    #: escrita en un componente de React es configuracion en el codigo, y cambiar lo que un
+    #: token nuevo puede hacer exigiria tocar el frontend y recompilar. La segunda es que el
+    #: juego por defecto es una decision de **seguridad**: define lo que un token puede hacer
+    #: sin que nadie lo haya decidido caso por caso, asi que tiene que estar junto al resto del
+    #: catalogo de permisos y no repartido en dos ficheros que se desincronizan.
+    is_default: bool = False
 
     @property
     def group(self) -> str:
@@ -147,8 +156,18 @@ class ScopeDefinition:
         return self.scope.value.split(":", 1)[1]
 
 
-def _definitions(*items: tuple[Scope, str, bool]) -> tuple[ScopeDefinition, ...]:
-    return tuple(ScopeDefinition(*item) for item in items)
+def _definitions(
+    *items: tuple[Scope, str, bool] | tuple[Scope, str, bool, bool],
+) -> tuple[ScopeDefinition, ...]:
+    """Construye el catalogo de un grupo.
+
+    Acepta la tupla de tres campos y la de cuatro. La de cuatro es la que marca un permiso como
+    de juego por defecto, y se distingue **por longitud** y no con un argumento aparte: anadir un
+    booleano mas a cada una de las 47 llamadas seria mas ruido del que ahorra, y un
+    `is_default=True` explicito al final de las de cuatro se lee sin ambiguedad.
+    """
+
+    return tuple(ScopeDefinition(*item) for item in items)  # type: ignore[arg-type]
 
 
 # Agrupado por recurso, que es como lo presenta el panel. El orden de los grupos es el
@@ -309,3 +328,46 @@ def require_known_scopes(values: list[str]) -> tuple[Scope, ...]:
     if rejected:
         raise ValueError(f"Scopes desconocidos: {', '.join(rejected)}")
     return normalize_scopes(values)
+
+
+#: Los permisos que lleva un token nuevo cuando el usuario pulsa «Defaults».
+#:
+#: Es **solo lectura** a proposito. Un token que nace pudiendo crear escaneos consume créditos
+#: sin que nadie lo haya pedido, y un token que nace pudiendo borrar borra evidencia que R4
+#: declara inmutable desde la interfaz. Expandir esto es una decision consciente, no un efecto
+#: de añadir una casilla de serie.
+#:
+#: Se declara como un conjunto de `Scope` y no como un conjunto de indices para que el nombre
+#: del permiso aparezca en el error cuando se renombre: con indices, un `PENTESTS_READ` que pasa
+#: a llamarse otra cosa deja el juego por defecto marcando un permiso equivocado en silencio.
+#:
+#: ## Por que `mcp:invoke` NO esta aqui
+#:
+#: Es la exclusion menos obvia de la lista y la que mas se va a reincorporar. `mcp:invoke` suena
+#: a permiso de ejecucion, no de escritura, asi que parece de lectura; y no lo es. Con el, un
+#: token puede llamar a `trigger_pentest`, que encola un escaneo y **descuenta creditos**, sin
+#: que nadie lo haya pedido. `mcp:connect` si entra, porque lo unico que permite es leer el
+#: catalogo de herramientas, y de esa lista el usuario ve exactamente lo que tendria que
+#: autorizar anadiendo el otro.
+SCOPES_POR_DEFECTO: Final[frozenset[Scope]] = frozenset(
+    {
+        Scope.PENTESTS_READ,
+        Scope.VULNERABILITIES_READ,
+        Scope.VULNERABILITIES_TRIAGE,
+        Scope.REPOSITORIES_READ,
+        Scope.ASSETS_READ,
+        Scope.PR_REVIEWS_READ,
+        Scope.KNOWLEDGE_READ,
+        Scope.MCP_CONNECT,
+    }
+)
+
+
+def is_default_scope(scope: Scope) -> bool:
+    """Si el permiso entra en el juego por defecto.
+
+    La funcion delega en `SCOPES_POR_DEFECTO` y no recorre el catalogo, para que el juego por
+    defecto se pueda cambiar sin reescribir el catalogo entero.
+    """
+
+    return scope in SCOPES_POR_DEFECTO

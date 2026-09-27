@@ -236,6 +236,18 @@
   transition: border-color 120ms ease;
 }
 
+/* `.triage-pin` es un modificador de `.priority-option`, no una opción de prioridad: marca la
+ * casilla de "fijar arriba" en la consola de tickets. Se distingue con el acento en el borde
+ * para que se lea como una acción de triage y no como un filtro más de la lista.
+ *
+ * El selector combina `:has()` con el estado marcado, de modo que la marca aparece cuando la
+ * casilla está activada. Sin `:has()` el borde se quedaría encendido siempre y perdería la
+ * información que aporta, que es si el ticket está fijado o no. */
+.priority-option.triage-pin:has(input:checked) {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-background));
+}
+
 .priority-option:hover:not(.priority-option-locked) {
   border-color: var(--color-accent);
 }

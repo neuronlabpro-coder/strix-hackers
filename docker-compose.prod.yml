@@ -1,0 +1,320 @@
+# ---------------------------------------------------------------------------
+# Orquestación de producción para Dokploy.
+# ---------------------------------------------------------------------------
+#
+# ## Por qué hay cinco servicios y no uno
+#
+# Porque hacen trabajos con perfiles de recurso distintos y mezclarlos significa que el más
+# pesado manda sobre los límites de todos los demás. Un escaneo de `DEEP` puede ocupar un
+# núcleo durante minutos; si el API comparte contenedor, un cliente que lance diez escaneos
+# ve su panel sin responder. Separados, el límite del API no depende de lo que estén haciendo
+# los workers.
+#
+# ## Por qué Redis va dentro y PostgreSQL no
+#
+# Redis es interno: solo lo hablan estos cinco contenedores, y declararlo aquí hace que el
+# despliegue sea `docker compose up` sin dependencias externas.
+#
+# PostgreSQL **no** va aquí, y la decisión es deliberada. Vive en el VPS, en `100.89.59.70:5433`
+# detrás de Tailscale, y R6 exige que no se exponga a Internet. Meterlo en este compose
+# publicaría un puerto 5433 en la interfaz del host y rompería esa garantía. Lo mismo con
+# `STRIX_SANDBOX_IMAGE`: la imagen del sandbox la trae el despliegue, no se declara aquí.
+#
+# ## Sobre los secretos
+#
+# Ninguna credencial está en este fichero. Vienen todas por `env_file` desde un `.env` que no
+# se versiona. Es la diferencia entre un despliegue cuyo historial de git es público y otro que
+# obliga a rotar media de las claves la primera vez que se filtra el repositorio.
+#
+# ## Lo que el `.env` de producción tiene que traer sí o sí
+#
+# `ENVIRONMENT=production` está declarado aquí, así que el contenedor valida como producción
+# desde el primer arranque. Estas variables **no** tienen valor por defecto utilizable y
+# `.env.example` las declara con valores de desarrollo, así que si se copia tal cual el
+# contenedor no arranca. Se listan aquí para que el fallo se busque en la lista y no se
+# diagnostique por separado ocho veces:
+#
+#   SECRET_KEY                 32 caracteres o más, y distinta de la de desarrollo
+#   DATABASE_URL               PostgreSQL en `100.89.59.70:5433` (R6: nunca en este compose)
+#   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD   deben coincidir con DATABASE_URL
+#   REDIS_PASSWORD             sin `@` ni `:`, porque va incrustada en REDIS_URL
+#   STRIPE_SECRET_KEY          `sk_live_...`
+#   STRIPE_WEBHOOK_SECRET      `whsec_...` del endpoint de producción
+#   SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / SMTP_FROM
+#   LLM_API_KEY                la del proveedor de modelos
+#   FRONTEND_ORIGIN_ALLOWED    si se usa, en vez de depender de FRONTEND_BASE_URL
+#
+# El validador comprueba la coherencia de los pares —`DATABASE_URL` contra `DB_*`, `REDIS_URL`
+# contra `REDIS_*`, y `FRONTEND_BASE_URL` contra `CORS_ORIGINS`— y falla con un mensaje que
+# nombra el par. Ese acierto es intencionado: es más fácil arreglar «estas dos no coinciden»
+# que seis diagnósticos sueltos.
+#
+# ## `worker_prefetch_multiplier` y `CELERY_REDIS_DB`
+#
+# El worker usa una base de Redis **distinta** de la de la aplicación, y no es una manía: el
+# backend guarda ahí estado de presentación y de cola, y mezclar los dos espacios de claves
+# hace que un `FLUSHDB` de diagnóstico borre trabajos pendientes. El validador de
+# configuración de `Settings` ya rechaza que coincidan, y este compose lo mantiene.
+
+name: mind-guard-fenix
+
+x-backend-base: &backend-base
+  build:
+    context: .
+    dockerfile: Dockerfile.backend
+  image: mindguard/backend:${IMAGE_TAG:-latest}
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    ENVIRONMENT: production
+    DEBUG: "false"
+    # -------------------------------------------------------------------------
+    # Lo que la producción exige y el `.env` de desarrollo no tiene
+    # -------------------------------------------------------------------------
+    # `Settings` se niega a arrancar en `staging` y `production` si estas ocho condiciones no
+    # se dan, y cada una lanza su propio `ValueError`. El problema de heredarlas del `.env` de
+    # desarrollo es que el contenedor muere con un error que habla de SMTP cuando lo que pasa
+    # es que nadie ha escrito un `.env` de producción, y quien lo arregla se pone a configurar
+    # correo en vez de a leer el mensaje.
+    #
+    # Aquí se declaran las que **no** son secretos, que es configuración de despliegue y
+    # pertenece al despliegue. Las que sí lo son —`STRIPE_SECRET_KEY`,
+    # `STRIPE_WEBHOOK_SECRET` y las credenciales SMTP— tienen que estar en el `.env`, y no
+    # caben en un fichero versionado.
+    EMAIL_VERIFICATION_DELIVERY_MODE: smtp
+    SMTP_USE_TLS: "true"
+    # HTTPS obligatorio en producción. Con el valor de desarrollo (`http://localhost:5173`)
+    # el validador también lo rechaza, y por el mismo motivo: el enlace de verificación que
+    # llega por correo apuntaría a una máquina que no existe para el cliente.
+    FRONTEND_BASE_URL: https://panel.mindguardredteam.com
+    API_PUBLIC_BASE_URL: https://api.mindguardredteam.com
+    # -------------------------------------------------------------------------
+    # Redis: las cuatro variables, no solo dos
+    # -------------------------------------------------------------------------
+    # `Settings` valida en el arranque que `REDIS_URL` coincida con `REDIS_HOST`,
+    # `REDIS_PORT`, `REDIS_PASSWORD` y `REDIS_DB`, y lanza `ValueError` si no. Sobrescribir
+    # solo el host y el puerto —que es lo que parece intuitivo, porque son los que cambian—
+    # deja la URL apuntando al Redis de Tailscale del `.env` de desarrollo, y el contenedor
+    # **muere al arrancar** con un error que habla de variables de configuración y no del
+    # despliegue.
+    #
+    # Aquí se derivan las cuatro juntas para que no puedan divergir entre sí. La URL se
+    # compone con la misma contraseña, que es lo que el proyecto ya exige: `REDIS_URL` lleva
+    # la contraseña incrustada. De ahí una consecuencia práctica que hay que tener presente al
+    # elegir la contraseña de producción: tiene que ser segura para una URL, sin `@` ni `:`,
+    # o la URL se parte y el arranque falla otra vez por un motivo que no señala a la
+    # contraseña.
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    REDIS_DB: "0"
+    REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD es obligatorio}@redis:6379/0"
+    # La base de Celery tiene que ser distinta de la de la aplicación; `Settings` rechaza que
+    # coincidan. El 1 es la que usa `.env.example` y no se toca por descuido.
+    CELERY_REDIS_DB: "1"
+  networks:
+    - fenix
+  logging:
+    driver: json-file
+    options:
+      # Un contenedor con logs ilimitados llena el disco del VPS, y un disco lleno se lleva
+      # por delante la base de datos antes que ninguna aplicación. `max-size` con `max-file`
+      # es un tope duro; `max-size` sin `max-file` deja que crezcan hasta llenar.
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  # -------------------------------------------------------------------------
+  # API
+  # -------------------------------------------------------------------------
+  backend:
+    <<: *backend-base
+    container_name: fenix-backend
+    # Dos workers porque el cuello de Uvicorn con una sola instancia es la espera a las
+    # peticiones HTTP, no el trabajo asíncrono. Subirlo más sin medir antes solo aumenta el
+    # consumo de memoria por proceso, que es lo que más caro sale en un VPS pequeño.
+    command:
+      - uvicorn
+      - backend.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --workers
+      - ${API_WORKERS:-2}
+      # `--proxy-headers` hace que Uvicorn respete `X-Forwarded-*` y construya las URLs
+      # correctas detrás de Traefik. Sin esto, los enlaces que se generan por correo —restablecer
+      # contraseña, invitar— saldrían apuntando a `http://backend:8000`, que es una dirección
+      # que el usuario nunca podrá resolver.
+      - --proxy-headers
+      - --forwarded-allow-ips
+      - "*"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    # `docker compose stop` da diez segundos antes de matar. Sin margen, Uvicorn recibe
+    # SIGKILL a mitad de una petición y el cliente ve un error que el servidor no registró
+    # nunca; con margen, corta limpio.
+    stop_grace_period: 30s
+
+  # -------------------------------------------------------------------------
+  # Worker de escaneos
+  # -------------------------------------------------------------------------
+  celery_worker:
+    <<: *backend-base
+    container_name: fenix-celery-worker
+    command:
+      - celery
+      - -A
+      - backend.workers.celery_app:celery_app
+      - worker
+      - --loglevel=${CELERY_LOGLEVEL:-info}
+      - --concurrency=${CELERY_CONCURRENCY:-2}
+      # 1 y no el valor por defecto de 4. El motor de escaneo lanza un contenedor Docker por
+      # trabajo, así que la concurrencia de Celery es también el número de contenedores
+      # simultáneos: un valor alto no acelera el escaneo, agota la memoria del host y hace que
+      # los contenedores del sandbox compitan por CPU entre ellos. El límite efectivo lo
+      # impone `STRIX_WORKER_CONCURRENCY`, que es el que el motor respeta.
+      - --prefetch-multiplier=1
+      - --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-20}
+    depends_on:
+      redis:
+        condition: service_healthy
+    # El worker necesita hablar con el demonio de Docker para lanzar los sandboxes. Es el
+    # único punto del despliegue donde se expone un socket, y por eso el montaje es de solo
+    # lectura y el socket se expone con `rw` por separado. El backend —que atiende peticiones
+    # de usuarios— **no** lo monta: no necesita lanzar contenedores y no tiene por qué poder
+    # hacerlo.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${STRIX_WORKSPACE_ROOT:-/tmp/fenix_workspaces}:/tmp/fenix_workspaces
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A backend.workers.celery_app:celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 60s
+      timeout: 15s
+      start_period: 60s
+      retries: 3
+    stop_grace_period: 120s
+
+  # -------------------------------------------------------------------------
+  # Planificador
+  # -------------------------------------------------------------------------
+  celery_beat:
+    <<: *backend-base
+    container_name: fenix-celery-beat
+    command:
+      - celery
+      - -A
+      - backend.workers.celery_app:celery_app
+      - beat
+      - --loglevel=${CELERY_LOGLEVEL:-info}
+      # `--schedule` y `--pidfile` apuntan al volumen, y sin ellos el montaje no sirve para
+      # nada: Celery escribe los dos ficheros en el directorio de trabajo, que aquí es `/app`.
+      #
+      # Las consecuencias no son una y dos, sino tres. El volumen queda vacío, que es lo
+      # visible. El healthcheck busca un fichero que no está nunca y el contenedor se queda
+      # `unhealthy` para siempre, lo que en Dokploy significa que el despliegue nunca se da
+      # por bueno. Y cada reinicio pierde el estado, con lo que `beat` vuelve a lanzar desde
+      # el principio el watchdog de runs huérfanos y la sincronización de CVE: exactamente la
+      # carga que el planificador existe para evitar.
+      - --schedule=/var/lib/celery/beat/celerybeat-schedule
+      - --pidfile=/var/lib/celery/beat/celerybeat.pid
+    depends_on:
+      redis:
+        condition: service_healthy
+    # El fichero de estado de beat **tiene** que vivir en un volumen. Sin él, cada reinicio del
+    # contenedor lo pierde y `beat` vuelve a lanzar desde el principio las tareas periódicas.
+    volumes:
+      - celery_beat_state:/var/lib/celery/beat
+    healthcheck:
+      # Se comprueba el fichero de **estado**, no el de pid: el pid existe desde el arranque y
+      # no dice nada de si el planificador está avanzando. Un healthcheck que pasa
+      # instantáneamente es peor que ninguno, porque marca como sano un contenedor que solo
+      # está vivo.
+      test: ["CMD-SHELL", "test -f /var/lib/celery/beat/celerybeat-schedule && exit 0 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # -------------------------------------------------------------------------
+  # Panel
+  # -------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # La URL de la API se compila **dentro** del bundle, porque las variables `VITE_` de
+        # Vite se resuelven al construir. Cambiar la URL de la API exige reconstruir la
+        # imagen, no solo reiniciar el contenedor.
+        VITE_API_URL: ${VITE_API_URL:-https://api.mindguardredteam.com}
+    image: mindguard/frontend:${IMAGE_TAG:-latest}
+    container_name: fenix-frontend
+    restart: unless-stopped
+    environment:
+      NGINX_PORT: "8080"
+    networks:
+      - fenix
+    # No lleva `env_file`: el panel es un conjunto de ficheros estáticos y no habla con la
+    # base de datos ni con Redis. Cargarle el `.env` de producción le daría acceso a
+    # `SECRET_KEY` y a las claves de Stripe sin necesitar ninguno de los dos.
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # -------------------------------------------------------------------------
+  # Redis
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: fenix-redis
+    restart: unless-stopped
+    # `--requirepass` sin `--appendonly` sería un broker que pierde los trabajos al reiniciar.
+    # Los trabajos de escaneo son caros de reintentar y caros de perder en silencio: un
+    # reinicio de Redis con la cola en memoria dejaría runs en `QUEUED` que nadie ejecuta
+    # nunca, que es un fallo que no se manifiesta hasta que un cliente pregunta por su escaneo.
+    command:
+      - redis-server
+      - --requirepass=${REDIS_PASSWORD:?REDIS_PASSWORD es obligatorio}
+      - --appendonly
+      - "yes"
+      # Cada clave tiene un techo. `celery` guarda resultados y el backend guarda estado de
+      # cola; sin TTL, Redis crece hasta que el sistema de ficheros del VPS se llena.
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - fenix
+    healthcheck:
+      # La comprobación **incluye la contraseña**. Un healthcheck que solo hace `PING` da
+      # healthy a un Redis con `--requirepass` al que este mismo contenedor no puede
+      # conectarse, que es el caso en el que el despliegue parece sano y no lo está.
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD es obligatorio}
+
+networks:
+  fenix:
+    driver: bridge
+    # `internal` impediría que los contenedores salieran a Internet, y los workers **necesitan**
+    # salir: clonar repositorios, llamar a la API del modelo y al proveedor de IA. Marcarlo
+    # rompería los escaneos en el momento del despliegue, y el síntoma —un escaneo que se
+    # queda en `QUEUED` sin error— no señala la red. La política de salida se aplica en el
+    # firewall del host, no aquí.
+    internal: false
+
+volumes:
+  redis_data:
+  celery_beat_state:

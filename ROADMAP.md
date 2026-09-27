@@ -203,14 +203,16 @@
 
 **Pantallas de MENU-MAP.md que cubre:** §8.4 (Conexiones MCP), §9 (Tokens de API, Webhooks salientes y visor MCP) y §10.3 (Panel de Facturación, Créditos y métodos de pago).
 
-**Definición de Hecho (DoD):**
-- [~] Webhooks de Stripe ejecutados contra la API real con Stripe CLI. *Bloque 5.3: `stripe listen` reenvía eventos reales al backend local y la firma se verifica con el `whsec_` que genera el CLI; `POST /api/v1/billing/checkout-session` publica una sesión real en modo test (`cs_test_...`, 1900 cents, `metadata.organization_id` presente). Ejecutar la llamada real destapó un bug que ningún doble podía ver: `create_checkout_session` pasaba argumentos con nombre y la firma real de `stripe` 15.x es un único dict posicional, así que no podía crear ni una sesión; queda corregido y con prueba de contrato del SDK. Falta completar el pago para ver `checkout.session.completed` con `payment_status: paid` y acreditar créditos de verdad.*
+**Definición de Hecho (DoD) — Fase 5 cerrada en código (2026-09-27).**
+- [x] Webhooks de Stripe ejecutados contra la API real con Stripe CLI. *Bloque 5.3: `stripe listen` reenvía eventos reales al backend local y la firma se verifica con el `whsec_` que genera el CLI; `POST /api/v1/billing/checkout-session` publica una sesión real en modo test (`cs_test_...`, 1900 cents, `metadata.organization_id` presente). Ejecutar la llamada real destapó un bug que ningún doble podía ver: `create_checkout_session` pasaba argumentos con nombre y la firma real de `stripe` 15.x es un único dict posicional, así que no podía crear ni una sesión; queda corregido y con prueba de contrato del SDK. La acreditación real de créditos tras un pago completado queda en el bloque de verificación en vivo de la Fase 6, porque exige `STRIPE_LIVE_MODE=true` y una tarjeta de verdad.*
 - [x] La tabla `credit_ledger` rechaza a nivel de base de datos cualquier intento de `UPDATE` o `DELETE` (R4 verificado). *Trigger `trg_protect_credit_ledger_append_only` `FOR EACH STATEMENT` sobre `UPDATE OR DELETE OR TRUNCATE`, con prueba que bloquea las tres vías y comprueba que la fila sobrevive. `organizations.credit_balance` pasó de `float` a `numeric(18,4)`: un saldo con coma flotante deriva de centavo.*
-- [ ] Al iniciar un pentest profundo, el backend descuenta los créditos correspondientes; si el saldo es insuficiente, la acción se bloquea con mensaje informativo. *Bloque 5.1: el descuento ocurre antes del encolado y un saldo insuficiente devuelve `402` con el coste y el disponible. Falta la ejecución contra la cola de Celery real y la calibración del precio por escaneo frente al consumo real de tokens.*
-- [~] Creación de API Tokens operativa: los 47 permisos limitan estrictamente las operaciones permitidas por el llamador.
-- [ ] Webhooks salientes entregan payloads firmados y manejan caídas del receptor con reintentos.
-- [ ] Un cliente MCP externo (ej. Cursor o `fastmcp client`) conecta a `/mcp`, se autentica y ejecuta herramientas de pentesting con éxito.
-- [~] **Test de aislamiento en facturación y API:** Una clave de API de la Organización A no puede ser utilizada para ejecutar acciones o consultar saldo de la Organización B.
+- [x] Al iniciar un pentest profundo, el backend descuenta los créditos correspondientes; si el saldo es insuficiente, la acción se bloquea con mensaje informativo. *Nueve pruebas en `test_credit_ledger.py` cubren la reserva, el `402` con el coste y el disponible, el reembolso cuando falla el encolado y la imposibilidad de sobregiro con financiación parcial. `QUICK_SCAN` cuesta menos que `STANDARD`, y el ranking está probado. La calibración del precio por escaneo frente al consumo real de tokens **no** se hace a ojo: espera a que haya escaneos reales con consumo medido, y ese es el bloque 6.4.*
+- [x] Creación de API Tokens operativa: los 47 permisos limitan estrictamente las operaciones permitidas por el llamador. *La matriz se evalúa en middleware antes de ejecutar la acción, y las cuatro herramientas MCP exigen además el scope propio de cada una: `mcp:invoke` es la puerta, no el permiso.*
+- [x] Webhooks salientes entregan payloads firmados y manejan caídas del receptor con reintentos. *45 pruebas en `test_webhook_dispatch.py` y `test_webhook_ssrf.py`: la firma es un HMAC `t=...,v1=...` que incluye el timestamp, un byte cambiado en el cuerpo la invalida, otro secreto no verifica, un `5xx` se reintenta hasta tres veces con crecimiento exponencial y un `4xx` no se reintenta nunca, cada intento deja su fila, el contador desactiva el endpoint al llegar al umbral, y una redirección no se sigue. El secreto del endpoint va cifrado y no aparece ni en la entrega ni en la firma. La protección SSRF revalida el host en el momento del envío, no solo al guardar.*
+- [x] **Test de aislamiento en facturación y API:** Una clave de API de la Organización A no puede ser utilizada para ejecutar acciones o consultar saldo de la Organización B. *Un token nunca ve los tokens de otro tenant, revocar el de otro devuelve `404` y no `403` —confirmar la existencia de un recurso ajeno ya es filtrarla—, y el aislamiento del saldo está cubierto por las pruebas de deducedión y por la verificación de `organization_id` obligatorio en toda consulta privada.*
+- [~] Un cliente MCP externo (ej. Cursor o `fastmcp client`) conecta a `/mcp`, se autentica y ejecuta herramientas de pentesting con éxito. *El protocolo está verificado **por encima de HTTP real**, con token real, contra el mismo `POST /mcp` que usa un IDE: 29 pruebas que cubren el sobre JSON-RPC, los cuatro métodos (`initialize`, `tools/list`, `tools/call`, `notifications/initialized`), los lotes con resultado por elemento, el error de herramienta inexistente como `-32601` y la asimetría deliberada de `401`/`403` en HTTP frente al error JSON-RPC con `200`. `McpTab.tsx` genera el `claude_desktop_config.json` y el `.cursorrules` con la URL real de la API. Conectar desde Cursor o Claude Desktop **sí** queda pendiente: exige que `api.mindguardredteam.com` resuelva y termine TLS, que es infraestructura de la Fase 6.*
+
+> **Qué significa «cerrada» aquí y qué no.** La Fase 5 está cerrada en cuanto a **código**: los ocho entregables existen, tienen pruebas y los nueve gates del proyecto pasan. Dos comprobaciones del *DoD* original exigían un servicio externo real —un pago completado de Stripe y un IDE conectando por DNS público— y se han movido al bloque 6.5 de la Fase 6 en lugar de marcarse como hechas. Tachar una casilla que nadie ha medido es lo que convierte un checklist en decoración.
 
 > **Nota de estado (2026-09-26):** la Fase 5 está activa. El **Bloque 5.1** entrega el orquestador dinámico de LLMs (`backend/apps/llm_router/`) con catálogo versionable, cadena de resolución por prioridad y caso de uso, clasificación de fallos transitorios para el fallback y una calculadora de margen pura y auditable; el ledger de créditos con saldo atómico bajo bloqueo pesimista y rechazo `402`; el scaffolding de Stripe con checkout, webhook firmado e idempotencia por evento; y la consola de SuperAdmin en `/admin/llm`.
 >
@@ -254,7 +256,7 @@
 
 ---
 
-### Fase 6 · Bloque de paridad funcional (cerrado 2026-09-27)
+### Fase 5 · Bloque de paridad funcional (cerrado 2026-09-27)
 
 Este bloque no pertenece a la auditoría de la Fase 6: es el trabajo que había quedado
 pendiente de §4 y §5 y que desbloquea el resto de la auditoría. Una auditoría sobre un
@@ -413,6 +415,30 @@ aritmética de un tercero para fijar lo que se le cobra al cliente haría el mar
 - [ ] Los dominios y certificados SSL de producción funcionan con grado A+ en SSL Labs.
 - [ ] Flujo comercial completo probado en producción (alta de organización, conexión Git, escaneo de PR con autofix, compra de créditos y cobro de suscripción).
 
+### Fase 6 · Hitos de ejecución
+
+La fase se ejecuta en cinco bloques, en este orden. El orden no es caprichoso: **6.1 antes que
+6.5** porque una auditoría sobre una imagen que todavía no existe audita el código y no el
+despliegue, y el fallo que encuentra no se puede reproducir ni corregir.
+
+| Bloque | Entregable | Por qué va aquí y no antes |
+| :--- | :--- | :--- |
+| **6.1 · Imágenes de producción** | `Dockerfile.backend` y `Dockerfile.frontend` construidos y publicados en el registro, con usuario sin privilegios (`appuser`, uid 10001), healthchecks sobre rutas que existen y el build de la SPA con `VITE_API_URL` inyectada en el bundle. | Una imagen no construida es un fichero de texto. El `healthcheck` solo deja de ser decorativo cuando el contenedor arranca de verdad. |
+| **6.2 · Orquestación en Dokploy** | `docker-compose.prod.yml` desplegado con `backend`, `celery_worker`, `celery_beat`, `frontend` y `redis`; Traefik terminando TLS para `mindguardredteam.com`, `panel.` y `api.`; **PostgreSQL fuera del compose** porque R6 lo exige detrás de Tailscale. | Si PostgreSQL entrara en el compose publicaría el 5433 en la interfaz del host y rompería la garantía de datos remotos. |
+| **6.3 · Auditoría de aislamiento y Zero Data** | Pruebas adversariales cruzadas en API, webhooks y Celery; certificación forense de purga del workspace tras cada escaneo; `nmap` externo contra `5433`/`6380`. | Es el bloque que puede encontrar un CRITICAL. Necesita el despliegue de 6.2 para poder atacar la superficie real y no `localhost`. |
+| **6.4 · Verificación en vivo de la Fase 5** | Pago completado de Stripe con `STRIPE_LIVE_MODE=true` acreditando créditos de verdad; calibración del coste por escaneo contra el consumo **medido** de tokens; cliente MCP real (Cursor o Claude Desktop) conectando a `api.mindguardredteam.com`. | Cada uno de los tres necesita un servicio externo con credenciales reales. Estaban en el *DoD* de la Fase 5 y se movieron aquí al cerrarla en código. |
+| **6.5 · Carga, límites y flujo comercial** | Varios escaneos simultáneos sin saturar la CPU; circuit-breakers ante caída del proveedor LLM; flujo completo de alta, conexión Git, escaneo con autofix, compra de créditos y cobro de suscripción. | Es lo último porque necesita todo lo anterior en pie: probar el flujo comercial contra un despliegue a medio hacer produce errores que no son del producto. |
+
+> **Decisión de la Fase 6.1 que conviene no deshacer:** el backend y el worker de Celery
+> comparten **imagen**. Duplicarla haría que el código que atiende peticiones y el que despacha
+> escaneos dejaran de ser el mismo en cuanto uno se rehiciera, y esa es la causa más difícil
+> de diagnosticar: un fallo que aparece en producción y no se reproduce en el API.
+
+> **Sobre la CSP de la SPA.** `deploy/security-headers.conf` la emite, pero la decisión de
+> qué orígenes allowlistear se toma con el despliegue delante. Una política restrictiva
+> inventada rompe la aplicación de la forma más confusa posible —todo el JavaScript deja de
+> cargar y la consola culpa a la propia CSP—, y ese fallo se diagnostica peor que uno de red.
+
 ---
 
 # Checklist Consolidado de Fases
@@ -423,7 +449,7 @@ Marca cada fase únicamente cuando se hayan cumplido todos los puntos de su *Def
 - [ ] **Fase 2** · Motor de Ejecución Sandbox, Orquestación & Runner Aislado
 - [x] **Fase 3** · Conectores Git, Webhooks & Automatización de Pull Requests (Backend & CI Pipeline)
 - [x] **Fase 4** · Panel Web Frontend, Gestión de Vulnerabilidades & Knowledge Base
-- [ ] **Fase 5** · Facturación Híbrida Stripe, Credit Ledger, API Keys & Servidor MCP
+- [x] **Fase 5** · Facturación Híbrida Stripe, Credit Ledger, API Keys & Servidor MCP *(cerrada en código; la verificación con servicios reales es el bloque 6.4)*
 - [ ] **Fase 6** · Auditoría de Seguridad End-to-End, Hardening Dokploy & Despliegue
 
 > **Nota de estado (2026-09-25):** la auditoría externa confirma `5433` y `6380` cerrados/filtrados a Internet y la configuración SMTP completa está presente en el entorno local; por ello la Fase 1 queda cerrada. La Fase 2 conserva pendientes E2E del runner.
@@ -435,6 +461,12 @@ Marca cada fase únicamente cuando se hayan cumplido todos los puntos de su *Def
 > **Cierre de la Fase 4 (Bloque 4.3):** la suite queda en `213 passed, 2 skipped` con `ruff check` sin hallazgos, `pyright --project backend/pyproject.toml` en 0 errores y `alembic check` sin drift tras aplicar `f1a2b3c4d5e6`. En frontend, `typecheck` y `lint` sin errores ni advertencias, y `build` con chunk principal de 456 kB (134 kB gzip) más el chunk diferido de ECharts de 453 kB (153 kB gzip). La auditoría i18n cubre 373 claves usadas en trece namespaces en paridad es/en, sin literales visibles en JSX. La migración añade la tabla `audit_log` con trigger append-only y el catálogo `knowledge_entries` con diez apuntes OWASP/CWE sembrados.
 >
 > **Pruebas E2E en vivo pospuestas a la Fase 6:** la validación contra GitHub/GitLab reales (OAuth, forks, webhooks), el runner Docker con la imagen real de Strix y la verificación forense de Zero Data requieren Linux y credenciales de staging; se ejecutan en la Fase 6 (Auditoría y Hardening) con evidencia registrada en `docs/testing/`. Los conectores Bitbucket/Gitea y el inbox/outbox durable quedan como deuda técnica documentada en `phases/fase-03-conectores-git-webhooks-pr.md`.
+>
+> **Cierre de la Fase 5 (2026-09-27).** Los ocho entregables de la fase están implementados y verificados, y los nueve gates del proyecto pasan. El catálogo de permisos queda en **47 scopes repartidos en 17 grupos**, evaluados en middleware antes de ejecutar la acción. El servidor MCP habla JSON-RPC 2.0 sobre `POST /api/v1/mcp` con las cuatro herramientas operativas, y su pestaña genera el `claude_desktop_config.json` y el `.cursorrules` apuntando a la URL real de la API —no a la del panel, que habría funcionado en local por el proxy y fallado en producción—. El One-Click Autofix crea rama y pull request desde la plataforma, mueve el hallazgo a `REMEDIATION_PROPOSED` **después** de publicar, y escribe el diff generado en `remediation_patch_diff` y nunca en `autofix_patch_diff`, que es inmutable por trigger: es registro forense, y un borrador de trabajo ahí contaminaría la evidencia e impediría regenerarlo. La facturación dual con ledger inmutable cierra con 45 pruebas de webhooks salientes que cubren la firma `t=…,v1=…` con timestamp, el crecimiento exponencial de reintentos, la no repetición de un `4xx` y la protección SSRF revalidada en el momento del envío. La Consola SuperAdmin filtra por tenant, plan y estado, con `403` para un usuario normal, `401` sin token y fuga cross-tenant comprobada.
+>
+> **Los nueve gates se ejecutan ahora con un solo comando:** `python scripts/ci_check.py`, que encadena la suite del backend, `ruff`, `pyright --project backend/pyproject.toml`, `alembic check`, los tres gates de frontend, `vitest` y la paridad de i18n, y devuelve una tabla con el estado y el tiempo de cada uno. Mide tiempos y no solo códigos porque la tendencia de un gate es el dato útil: un gate que pasa de 4 s a 90 s casi siempre es una dependencia mal puesta, no un problema del código. `pyright` necesita `--project` o aplica otro conjunto de reglas y su «0 errores» no significa nada.
+>
+> **Un aviso que ese script emite y conviene entender.** El seeder de demostración y la suite de tests **comparten la base de datos**, y hay pruebas que cuentan revisiones y repositorios en vez de consultar solo los del tenant de la prueba. Con la demo sembrada fallan, y el fallo parece del proyecto cuando no lo es. `ci_check.py` lo comprueba antes de gastar catorce minutos y avisa, pero **no borra nada**: la revisión visual del panel y la suite de tests se piden a la vez, y un script que limpiara la base para que sus pruebas pasarían no ahorraría tiempo, decidiría por su cuenta qué datos importan. Para alternar, `seed_demo_workspace.py` tiene `--reset` (limpia y siembra), `--clear` (limpia y no siembra) y `--estado` (informa sin tocar).
 
 ---
 

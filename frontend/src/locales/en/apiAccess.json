@@ -135,7 +135,9 @@
       "models_manage": "Manage models",
       "analytics_read": "View analytics",
       "invoke": "Invoke"
-    }
+    },
+    "selectDefaults": "Defaults ({{count}})",
+    "selectNone": "None"
   },
   "webhooks": {
     "title": "Outgoing webhooks",
@@ -221,6 +223,33 @@
     "downloadClaude": "Download claude_desktop_config.json",
     "downloadCursor": "Download .cursorrules",
     "cursorIntro": "This workspace exposes a Model Context Protocol server. Use it to check the project security posture without leaving the editor.",
-    "scopesNote": "The token decides what the agent may do. Granting everything for convenience turns the editor into a path for scanning and credit spending that nobody is watching."
+    "scopesNote": "The token decides what the agent may do. Granting everything for convenience turns the editor into a path for scanning and credit spending that nobody is watching.",
+    "serverUrlLabel": "Server URL",
+    "serverUrlHint": "Every client points at this address. The token goes in the `Authorization: Bearer` header, not in the URL.",
+    "coreUrlLabel": "Core profile URL",
+    "coreUrlHint": "Exposes only two tools: vulnerability summary and triggering a scan. This is what we recommend for an assistant that should not touch the inventory.",
+    "clientsLabel": "Clients",
+    "clients": {
+      "claude": {
+        "title": "Claude",
+        "note": "Desktop client. Paste the block into its MCP configuration."
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "note": "Registered from the interface, not from a file."
+      },
+      "cursor": {
+        "title": "Cursor",
+        "note": "Saved to `.cursor/mcp.json` inside the project."
+      },
+      "claudeCode": {
+        "title": "Claude Code",
+        "note": "A terminal command. It writes the configuration for you."
+      }
+    },
+    "chatgptStep1": "Register a remote MCP server in developer mode using this address:",
+    "chatgptStep2": "Use token authentication. The token to paste is:",
+    "chatgptStep3": "Save the configuration and restart the conversation. The server only exposes the core profile tools.",
+    "chatgptAuth": "Bearer"
   }
 }

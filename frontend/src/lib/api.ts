@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config'
+import { readActiveOrganizationId } from './session'
 import type {
   AdminOrganizationPage,
   AuditLogPage,
@@ -74,6 +75,28 @@ export class ApiError extends Error {
   }
 }
 
+/** Rutas que se llaman sin organización activa y por tanto sin `X-Organization-Id`.
+ *
+ * No es una lista de "excepciones que se me han olvidado": es la lista de las rutas que se
+ * usan antes de que exista un workspace, o que lo definen ellas mismas.
+ *
+ * La cabecera es **innecesaria** en ellas, no dañina: el backend solo la lee en las rutas que
+ * dependen de `get_current_tenant`, y en las demás la ignora. La lista existe por otra razón,
+ * que es la que hace daño de verdad: si el identificador se toma de `sessionStorage` y ahí hay
+ * un valor de una sesión anterior, enviarlo en un `POST /auth/login` ata la petición a un
+ * workspace que puede no ser el que se está creando. Es un acoplamiento invisible que no
+ * falla con un error claro, sino que se manifiesta como "a veces entro y a veces no".
+ */
+const RUTAS_SIN_ORGANIZACION: readonly string[] = [
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/verify-email',
+  '/api/v1/auth/resend-verification',
+  '/api/v1/auth/me',
+  '/api/v1/organizations/me',
+  '/api/v1/invitations/accept',
+]
+
 async function request<T>(
   path: string,
   init: RequestInit = {},
@@ -88,8 +111,31 @@ async function request<T>(
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
-  if (organizationId) {
-    headers.set('X-Organization-Id', organizationId)
+
+  // ## Por qué se resuelve aquí y no en cada punto de llamada
+  //
+  // Porque se estaba haciendo al revés y por eso la pestaña entera de API Access devolvía
+  // 403. De las 50 funciones exportadas de este fichero, 18 no pasaban organización, y 11 de
+  // esas eran precisamente `listApiTokens`, `createApiToken`, `revokeApiToken`, `getApiScopes`
+  // y las siete de webhooks: la pestaña completa. El backend no tiene ningún problema con esas
+  // rutas; `get_current_tenant` responde 403 en cuanto ve que la cabecera no viaja
+  // (`backend/core/middleware.py:144`), y la cabecera no viajaba porque nadie la ponía.
+  //
+  // Un parámetro opcional que hay que recordar en 50 sitios se olvida en 11. Por eso el
+  // parámetro se conserva —el explícito sigue mandando, que es lo que los tests unitarios
+  // necesitan para poder fijar el contexto— pero la fuente por defecto es la sesión.
+  //
+  // ## Por qué la cabecera sigue siendo un *selector* y no una autoridad
+  //
+  // Porque el backend no se fía de ella: `resolve_tenant_for_user` exige que exista una
+  // membresía activa de ese usuario en esa organización, con la organización viva y no dada de
+  // baja. Enviar el identificador de otro tenant no da acceso a nada; produce un 403 idéntico
+  // al de no mandar nada. Ese diseño es lo que permite que el panel pueda elegir workspace sin
+  // abrir una vía de escalada de privilegios (R3).
+  const organizacionEfectiva =
+    organizationId ?? (RUTAS_SIN_ORGANIZACION.includes(path) ? undefined : readActiveOrganizationId())
+  if (organizacionEfectiva) {
+    headers.set('X-Organization-Id', organizacionEfectiva)
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

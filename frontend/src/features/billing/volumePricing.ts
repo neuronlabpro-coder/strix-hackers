@@ -37,10 +37,31 @@ export interface SpendRange {
  * exactamente `minimum_credits * unit`. Y el último gasto del tramo es un céntimo menos del
  * primer gasto del siguiente, restando la unidad **de ese** tramo.
  */
-export function deriveSpendRanges(pricing: VolumePricing): readonly SpendRange[] {
-  return pricing.tiers.map((tier, index) => {
+export function deriveSpendRanges(
+  pricing: VolumePricing | undefined,
+): readonly SpendRange[] {
+  // ## Por qué `[]` y no una escalera por defecto
+  //
+  // Se propuso usar una escalera de reserva, y es la peor opción posible en esta pantalla: una
+  // lista de precios que el servidor no ha enviado se **pinta**. Un cliente que la mirara creería
+  // que son los precios de su contrato, y el daño no es un error visible sino una belief
+  // equivocada sobre lo que va a pagar. Ante la duda aquí no se enseña nada: la barra se queda
+  // vacía y el botón de compra se deshabilita.
+  //
+  // ## Por qué hace falta esto
+  //
+  // Porque el tipo declaraba `volume` como obligatorio y el servidor lo es, así que el
+  // compilador no veía el fallo: el panel se quedó en negro con
+  // `Cannot read properties of undefined (reading 'tiers')` cuando la respuesta llegó sin ese
+  // bloque. Declarar el campo opcional obliga a TypeScript a señalarlo en **cada** punto de
+  // uso, que es justo lo que faltaba.
+  const tiers = pricing?.tiers
+  if (tiers === undefined || tiers.length === 0) {
+    return []
+  }
+  return tiers.map((tier, index) => {
     const unit = Number(tier.usd_per_credit)
-    const next = pricing.tiers[index + 1]
+    const next = tiers[index + 1]
     return {
       min: Math.round(tier.minimum_credits * unit),
       max:
@@ -82,7 +103,14 @@ export function deriveSpendRanges(pricing: VolumePricing): readonly SpendRange[]
  * quedarse con el mayor candidato es lo que hace el servidor, y es por eso que los dos lados
  * coinciden.
  */
-export function creditsForSpend(spend: number, pricing: VolumePricing): number {
+export function creditsForSpend(spend: number, pricing: VolumePricing | undefined): number {
+  // Misma regla que en `deriveSpendRanges`: sin escalera no hay cálculo, y el resultado
+  // neutro es `0` créditos, que es lo que deshabilita el botón de compra. Un `NaN` o un
+  // `Infinity` aquí aparecerían como un número en la caja de créditos y llegarían hasta la
+  // cantidad enviada al servidor.
+  if (pricing === undefined) {
+    return 0
+  }
   const minimoBase = Number(pricing.minimum_credits) * Number(pricing.list_usd_per_credit)
   if (spend < minimoBase) {
     return 0

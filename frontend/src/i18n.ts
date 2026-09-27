@@ -12,6 +12,7 @@ import dashboardEn from './locales/en/dashboard.json'
 import domainsEn from './locales/en/domains.json'
 import enterpriseEn from './locales/en/enterprise.json'
 import errorsEn from './locales/en/errors.json'
+import integrationsEn from './locales/en/integrations.json'
 import issuesEn from './locales/en/issues.json'
 import llmEn from './locales/en/llm.json'
 import knowledgeEn from './locales/en/knowledge.json'
@@ -34,6 +35,7 @@ import dashboardEs from './locales/es/dashboard.json'
 import domainsEs from './locales/es/domains.json'
 import enterpriseEs from './locales/es/enterprise.json'
 import errorsEs from './locales/es/errors.json'
+import integrationsEs from './locales/es/integrations.json'
 import issuesEs from './locales/es/issues.json'
 import llmEs from './locales/es/llm.json'
 import knowledgeEs from './locales/es/knowledge.json'
@@ -71,6 +73,7 @@ void i18n.use(initReactI18next).init({
       assetDiscovery: assetDiscoveryEs,
       repositories: repositoriesEs,
       issues: issuesEs,
+      integrations: integrationsEs,
       pentests: pentestsEs,
       apiAccess: apiAccessEs,
       cve: cveEs,
@@ -95,6 +98,7 @@ void i18n.use(initReactI18next).init({
       assetDiscovery: assetDiscoveryEn,
       repositories: repositoriesEn,
       issues: issuesEn,
+      integrations: integrationsEn,
       pentests: pentestsEn,
       apiAccess: apiAccessEn,
       cve: cveEn,
@@ -122,6 +126,7 @@ void i18n.use(initReactI18next).init({
     'assetDiscovery',
     'repositories',
     'issues',
+    'integrations',
     'pentests',
     'apiAccess',
     'cve',

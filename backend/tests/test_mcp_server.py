@@ -39,6 +39,7 @@ from backend.apps.api_access.mcp_protocol import (
     handle_payload,
     parse_request,
 )
+from backend.apps.api_access.mcp_router import PERFILES
 from backend.apps.api_access.mcp_tools import TOOLS_POR_NOMBRE
 from backend.apps.api_access.models import (
     API_TOKEN_PREFIX,
@@ -111,13 +112,25 @@ async def _tenant_con_token(
 
 
 async def _llamar(
-    token: str, sobre: Any, status_esperado: int = 200
+    token: str,
+    sobre: Any,
+    status_esperado: int = 200,
+    profile: str | None = None,
 ) -> Any:
+    """Llama al endpoint MCP.
+
+    `profile` va en la **query**, no en el cuerpo: es lo que hace el router y lo que haria un
+    cliente. Ponerlo en el sobre JSON-RPC seria probar una ruta que no existe.
+    """
+
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as cliente:
         respuesta = await cliente.post(
-            "/api/v1/mcp", json=sobre, headers={"Authorization": f"Bearer {token}"}
+            "/api/v1/mcp",
+            json=sobre,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"profile": profile} if profile is not None else None,
         )
     assert respuesta.status_code == status_esperado, respuesta.text
     return respuesta.json()
@@ -848,3 +861,113 @@ async def test_trigger_pentest_acepta_un_repositorio_propio(
     )
     assert len(encolados) == 1
     assert encolados[0].celery_task_id is not None
+
+
+# --------------------------------------------------------------------------- #
+# Perfil `core`
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_sin_perfil_se_exponen_todas_las_herramientas(
+    integration_session: AsyncSession,
+) -> None:
+    """Sin `profile`, el catálogo es el completo. Es el comportamiento por defecto."""
+
+    session = integration_session
+    assert session is not None
+    _, token = await _tenant_con_token(
+        session, (Scope.MCP_CONNECT, Scope.MCP_INVOKE)
+    )
+    respuesta = await _llamar(token, _catalogo())
+    nombres = {herramienta["name"] for herramienta in respuesta["result"]["tools"]}
+    assert nombres == set(TOOLS_POR_NOMBRE)
+
+
+@pytest.mark.asyncio
+async def test_el_perfil_core_solo_expone_las_esenciales(
+    integration_session: AsyncSession,
+) -> None:
+    """`profile=core` recorta el catálogo a las dos herramientas del perfil."""
+
+    session = integration_session
+    assert session is not None
+    _, token = await _tenant_con_token(
+        session, (Scope.MCP_CONNECT, Scope.MCP_INVOKE)
+    )
+    respuesta = await _llamar(token, _catalogo(), profile="core")
+    nombres = {herramienta["name"] for herramienta in respuesta["result"]["tools"]}
+
+    assert nombres == PERFILES["core"]
+    # El recorte tiene que ser real, no un recorte de la mitad: las cuatro herramientas
+    # declaradas y dos visibles.
+    assert len(TOOLS_POR_NOMBRE) > len(PERFILES["core"])
+
+
+@pytest.mark.asyncio
+async def test_el_perfil_core_tambien_se_aplica_al_invocar(
+    integration_session: AsyncSession,
+) -> None:
+    """Invocar una herramienta fuera del perfil da `-32601`, aunque el scope alcance.
+
+    Es la prueba que sostiene el perfil. Si el filtro viviera solo en `tools/list`, esta
+    prueba fallaria al quitarlo, que es justo lo que tiene que pasar: un perfil que se puede
+    saltar llamando por el nombre no es un perfil, es un filtro de la lista de herramientas.
+    """
+
+    session = integration_session
+    assert session is not None
+    _, token = await _tenant_con_token(
+        session,
+        (
+            Scope.MCP_CONNECT,
+            Scope.MCP_INVOKE,
+            Scope.REPOSITORIES_READ,
+            Scope.ASSETS_READ,
+        ),
+    )
+    fuera_del_perfil = next(
+        nombre for nombre in TOOLS_POR_NOMBRE if nombre not in PERFILES["core"]
+    )
+    respuesta = await _llamar(
+        token, _invocar(fuera_del_perfil, {}), profile="core"
+    )
+    assert respuesta["error"]["code"] == JsonRpcErrorCode.METHOD_NOT_FOUND
+    # El detalle no puede confirmar que la herramienta existe: solo que el perfil no la trae.
+    assert respuesta["error"]["data"]["perfil"] == "core"
+    assert fuera_del_perfil not in respuesta["error"]["data"]["disponibles"]
+
+
+@pytest.mark.asyncio
+async def test_una_herramienta_del_perfil_sigue_funcionando(
+    integration_session: AsyncSession,
+) -> None:
+    """Lo que el perfil deja pasar, lo deja pasar de verdad."""
+
+    session = integration_session
+    assert session is not None
+    _, token = await _tenant_con_token(
+        session, (Scope.MCP_CONNECT, Scope.MCP_INVOKE, Scope.VULNERABILITIES_READ)
+    )
+    respuesta = await _llamar(
+        token, _invocar("get_vulnerability_summary", {}), profile="core"
+    )
+    assert "error" not in respuesta
+
+
+@pytest.mark.asyncio
+async def test_un_perfil_inexistente_da_422(
+    integration_session: AsyncSession,
+) -> None:
+    """Un perfil mal escrito no cae al perfil completo en silencio.
+
+    El resultado de ignorarlo seria un token con mas herramientas de las que el usuario cree
+    haber pedido, y eso no se detecta hasta un incidente.
+    """
+
+    session = integration_session
+    assert session is not None
+    _, token = await _tenant_con_token(
+        session, (Scope.MCP_CONNECT, Scope.MCP_INVOKE)
+    )
+    await _llamar(token, _catalogo(), status_esperado=422, profile="cor")

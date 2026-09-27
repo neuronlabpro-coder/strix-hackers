@@ -46,7 +46,10 @@
     "emptyTitle": "Todavía no hay activos",
     "emptyDescription": "Lanza el descubrimiento sobre un dominio verificado para empezar a construir el inventario de tu superficie de ataque.",
     "count": "{{count}} activo en total",
-    "count_other": "{{count}} activos en total"
+    "count_other": "{{count}} activos en total",
+    "emptyWithoutDomains": "Aun no hay ningun dominio verificado",
+    "emptyWithoutDomainsDescription": "El descubrimiento de activos necesita un dominio verificado: es lo que autoriza a consultar su DNS. Verifica uno y lanza el descubrimiento para ver que expone.",
+    "emptyWithoutDomainsAction": "Ir a Dominios"
   },
   "toasts": {
     "enqueued": "Descubrimiento encolado para {{domain}}. Ya había {{existing}} activos registrados; se actualizarán al terminar."

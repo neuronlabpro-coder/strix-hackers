@@ -1,0 +1,84 @@
+# syntax=docker/dockerfile:1.7
+# ---------------------------------------------------------------------------
+# Imagen de producción del frontend: build de Vite servido por nginx.
+# ---------------------------------------------------------------------------
+#
+# ## Por qué dos etapas y no una con nginx instalado
+#
+# Node ocupa más de 400 MB con sus módulos de desarrollo. En una imagen que solo tiene que
+# servir ficheros estáticos, eso es peso que se descarga, se actualiza y se parchea sin que
+# nada lo use. Las dos etapas dejan la final con nginx y los estáticos, y la etapa de Node
+# desaparece con la caché.
+#
+# ## Por qué el artefacto se copia de `dist`
+#
+# Porque Vite ya aplica las variables de entorno **en tiempo de compilación**: el bundle que
+# genera lleva dentro el valor de `VITE_API_URL`. No es un bug, es cómo funcionan las
+# variables `VITE_`, y tiene una consecuencia de despliegue que conviene tener presente: la
+# imagen hay que **reconstruir** para cambiar la URL de la API, no solo reiniciar el
+# contenedor. Por eso el compose marca la URL como parte del nombre de la imagen.
+#
+# ## Sobre el hash de los nombres de fichero
+#
+# Vite genera los assets con hash en el nombre, así que `/assets/index-abc123.js` cambia de
+# nombre en cada compilación. Eso permite cachearlos para siempre en el navegador, y es
+# exactamente lo que hace la configuración de nginx más abajo. Cachear `index.html` igual
+# sería un fallo clásico: seguiría pidiendo el bundle antiguo y la aplicación no cambiaría.
+
+# --- Etapa 1: compilacion ----------------------------------------------------
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# El lockfile va antes que el `package.json` por la misma razón que en el backend: mientras
+# no cambien las dependencias, la capa de `npm ci` se reutiliza de la caché.
+COPY frontend/package.json frontend/package-lock.json ./
+
+# `--no-audit --no-fund` porque las dos peticiones de auditoría salían a Internet en cada
+# instalación y no detectan nada que afecte a la imagen: en una build dentro de la red de
+# Tailscale son dos peticiones que esperando o fallando por falta de salida.
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+
+# `ARG` y no `ENV` porque solo la etapa de build necesita el valor: si fuera `ENV`, viajaría
+# hasta la imagen final y acabaría visible en un `docker inspect` de un contenedor que solo
+# sirve ficheros estáticos.
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+RUN npm run build
+
+# --- Etapa 2: ejecucion ------------------------------------------------------
+FROM nginx:1.27-alpine AS runtime
+
+RUN apk add --no-cache curl
+
+# La configuración se copia desde el contexto de compilacion, no se incrusta aquí. Es lo que
+# permite versionarla junto al resto del despliegue y revisarla en un pull request, en vez
+# de vivir dentro de un `RUN echo` que no se puede diffear.
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+# El segundo fichero va a `snippets/` y **no** a `conf.d/` a propósito: `conf.d/*.conf` se
+# incluye solo al nivel de `http`, así que un fichero de cabeceras ahí se aplicaría dos
+# veces —una global y otra por el include de `nginx.conf`—. Omittingir esta línea, además,
+# hace que nginx no arranque: un `include` de un fichero inexistente es un error fatal, no un
+# aviso.
+COPY deploy/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# `nginx:alpine` corre como root para poder escuchar en el 80, que es un puerto por debajo
+# de 1024. Se le da la capacidad concreta de `NET_BIND_SERVICE` en lugar de dejarlo root:
+# `setcap` sobre el binario concede **solo** ese permiso, y una toma de control del proceso
+# de nginx no arrastra la de escribir en el sistema entero.
+RUN setcap 'cap_net_bind_service=+ep' /usr/sbin/nginx \
+    && chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /var/cache/nginx
+
+USER nginx
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl --fail --silent --show-error "http://127.0.0.1:8080/" || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

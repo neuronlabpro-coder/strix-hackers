@@ -76,7 +76,16 @@
     "private": "Privado",
     "public": "Público",
     "defaultBranch": "Rama por defecto",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "searchLabel": "Buscar repositorios",
+    "searchPlaceholder": "Buscar por nombre, ruta o rama",
+    "searchNoResults": "Ningun repositorio coincide con la busqueda",
+    "selectAll": "Seleccionar todos",
+    "importSelected": "Importar seleccionados ({{count}})",
+    "importingSelected": "Importando…",
+    "bulkSuccess": "Se han importado {{count}} repositorios",
+    "bulkPartial": "Importados {{ok}} de {{total}}. Han fallado: {{failed}}",
+    "bulkFailed": "No se ha importado ninguno. Han fallado: {{failed}}"
   },
   "autofix": {
     "notFromReview": "Este hallazgo no procede de una revisión de Pull Request, así que el autofix no puede abrirse automáticamente."

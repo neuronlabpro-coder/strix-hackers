@@ -112,12 +112,16 @@ export function PrReviewsPage() {
                     <td className="mono">
                       {review.issues_caught_critical > 0 ? (
                         <span className="badge badge-status-critical">
-                          {t('severity.critical')} {review.issues_caught_critical}
+                          {/* La clave va en mayúsculas porque así está en `prReviews.json`
+                              (`severity.CRITICAL`), igual que los estados de la fila de
+                              arriba. Con minúsculas i18next no encontraba nada y pintaba
+                              literalmente `severity.critical` en el badge. */}
+                          {t('severity.CRITICAL')} {review.issues_caught_critical}
                         </span>
                       ) : null}
                       {review.issues_caught_high > 0 ? (
                         <span className="badge badge-status-high">
-                          {t('severity.high')} {review.issues_caught_high}
+                          {t('severity.HIGH')} {review.issues_caught_high}
                         </span>
                       ) : null}
                       {review.issues_caught_critical === 0 &&

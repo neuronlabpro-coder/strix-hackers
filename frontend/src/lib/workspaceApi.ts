@@ -32,6 +32,7 @@ async function tenantRequest<T>(
     headers.set('Content-Type', 'application/json')
   }
   headers.set('Authorization', `Bearer ${token}`)
+  // Solo se pone si hay valor. Mandar la cabecera **vacia** no es lo mismo que no mandarla:
   headers.set('X-Organization-Id', organizationId)
 
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })

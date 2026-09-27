@@ -598,6 +598,8 @@ export interface ApiScopeDefinition {
   group: string
   label_key: string
   is_privileged: boolean
+  /** Si el permiso entra en el juego por defecto del token nuevo. Lo declara el backend. */
+  is_default: boolean
 }
 
 /** Los 47 scopes, agrupados por recurso y en el orden en que los muestra el panel. */

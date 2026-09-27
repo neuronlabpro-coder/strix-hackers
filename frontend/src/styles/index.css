@@ -6,7 +6,7 @@
  *
  * Escala de obsidiana: cuatro niveles de superficie separados por 3 a 4 unidades de
  * rojo, de modo que la jerarquía se lea por *profundidad* y no por borde. Un gris
- * medio entre dos superficies aplana la界面; un escalón de 3 unidades se percibe.
+ * medio entre dos superficies aplana la imagen; un escalon de 3 unidades se percibe.
  *
  * Todos los valores de texto están verificados contra WCAG 2.1 AA sobre la superficie
  * más clara del sistema (#16181B), que es donde el contraste es peor. Los tonos que
@@ -1863,6 +1863,18 @@ code.mono,
   max-width: 420px;
   color: var(--color-caption);
   line-height: 1.5;
+  /* Aire dentro de la celda hacia el panel de años.
+   *
+   * El `gap: 16px` de `.cve-layout` separa los bloques, pero el texto de la descripción llega
+   * hasta el borde de su columna y el ojo lo lee pegado al panel de al lado. El relleno va
+   * **dentro** de la celda y no como margen exterior a propósito: un margen desplazaría también
+   * el ancho disponible de las columnas de la izquierda, y con ellas la alineación de la
+   * tabla entera.
+   *
+   * En el salto a una columna (más abajo) se anula, porque ahí el panel lateral ya no está al
+   * lado y el relleno solo dejaría un margen muerto a la derecha del texto.
+   */
+  padding-right: 2rem;
 }
 
 .cve-kev-icon {
@@ -1972,6 +1984,8 @@ code.mono,
 
   .cve-description {
     max-width: none;
+    /* Sin panel lateral al lado, el relleno derecho no separa nada: estorba. */
+    padding-right: 0;
   }
 }
 
@@ -4012,4 +4026,196 @@ code.mono,
   .main-content {
     padding: 24px 16px;
   }
+}
+
+/* --------------------------------------------------------------------------- *
+ * Primitivas de formulario y de indicador.
+ *
+ * Estas reglas existen porque los componentes ya las pedian y no estaban en ningun sitio.
+ * Sin ellas, un `<div className="field">` sale como un bloque sin separacion entre la
+ * etiqueta, el input y la ayuda: el texto pegado no es un gusto, es una regla ausente.
+ * --------------------------------------------------------------------------- */
+
+.field {
+  display: grid;
+  /* El mismo `gap` que `.form-field`. Dos ritmos distintos en formularios que conviven en
+   * la misma pantalla se ven en la union de uno con el otro. */
+  gap: 7px;
+  min-width: 0;
+}
+
+.field label {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field select,
+.field textarea,
+.select-input {
+  font: inherit;
+  min-height: 38px;
+  padding: 9px 12px;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.select-input {
+  width: 100%;
+  cursor: pointer;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-critical);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+/* Rejilla de indicadores. `repeat(auto-fit, ...)` con un minimo de 200 px hace que en una
+ * pantalla estrecha bajen a una columna sin necesidad de un `@media`, que es donde estos
+ * bloques se suelen romper. */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.kpi-card {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.kpi-label {
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.kpi-value {
+  margin: 0;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.kpi-hint,
+.kpi-note {
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.kpi-note {
+  color: var(--color-muted);
+}
+
+/* Boton sin relleno: para acciones terciarias que no compiten con la principal. */
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 12px;
+  color: var(--color-caption);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ghost-button:hover,
+.ghost-button:focus-visible {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+}
+
+.ghost-button-danger {
+  color: var(--color-critical);
+  border-color: color-mix(in srgb, var(--color-critical) 40%, transparent);
+}
+
+.ghost-button-danger:hover,
+.ghost-button-danger:focus-visible {
+  color: var(--color-critical);
+  border-color: var(--color-critical);
+}
+
+.modal-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+/* Interruptor. La pista se pinta con los dos tokens de estado y el pombo se desplaza; el
+ * color de acento lo pone el componente al marcarlo `checked`, no aqui, para que el estado
+ * activo y el de foco no se confundan. */
+.switch-track {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 21px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  background: var(--color-secondary);
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.switch input:checked ~ .switch-track {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  border-color: var(--color-accent);
+}
+
+.switch input:checked ~ .switch-track .switch-thumb {
+  transform: translateX(17px);
+  background: var(--color-accent);
+}
+
+.switch input:focus-visible ~ .switch-track {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+/* El shell de la consola SuperAdmin comparte la caja del shell de cliente y solo le anade
+ * el fondo propio, para que el salto entre las dos consolas no de un salto de color. */
+.admin-shell {
+  background: var(--color-raised);
 }

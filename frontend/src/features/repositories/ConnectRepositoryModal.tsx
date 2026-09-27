@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { KeyRound, Link2, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { KeyRound, Link2, LoaderCircle, RefreshCw, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -39,12 +39,15 @@ export interface ConnectRepositoryModalProps {
   isOpen: boolean
   onClose: () => void
   onConnected: () => void
+  /** Resultado de la importacion multiple. Lo muestra la pagina, no este modal. */
+  onBulkImported: (resultado: { imported: number; failed: string[] }) => void
 }
 
 export function ConnectRepositoryModal({
   isOpen,
   onClose,
   onConnected,
+  onBulkImported,
 }: ConnectRepositoryModalProps) {
   const { t } = useTranslation('repositories')
   const { token, selectedOrganizationId } = useAuth()
@@ -59,6 +62,9 @@ export function ConnectRepositoryModal({
   const [credentialName, setCredentialName] = useState('')
   const [isSavingToken, setIsSavingToken] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set())
+  const [isImporting, setIsImporting] = useState(false)
 
   const loadInventory = useCallback(
     (selectedProvider: GitProvider) => {
@@ -198,7 +204,8 @@ export function ConnectRepositoryModal({
     }
   }
 
-  const importRepository = async (remote: RemoteRepository) => {    if (!token || !selectedOrganizationId) {
+  const importRepository = async (remote: RemoteRepository) => {
+    if (!token || !selectedOrganizationId) {
       return
     }
     setPendingRemoteId(remote.remote_repo_id)
@@ -222,6 +229,146 @@ export function ConnectRepositoryModal({
       setPendingRemoteId(null)
     }
   }
+
+  /**
+   * Los repositorios que casan con el buscador.
+   *
+   * El filtro es **local** y no una peticion: el inventario ya esta descargado entero y
+   * filtrarlo aqui da resultados al instante. Pedirlo al servidor en cada tecla seria una
+   * ida y vuelta por caracter, y con ellista de cientos de repositorios se notaria.
+   *
+   * Se comparan nombre, ruta y rama, para que buscar `api` encuentre tambien
+   * `acme/api-gateway` aunque el usuario haya escrito otra cosa. La busqueda ignora mayusculas
+   * porque el nombre de un repositorio no es un dato con mayusculas que importen.
+   */
+  const reposVisibles = useMemo(() => {
+    const consulta = busqueda.trim().toLowerCase()
+    if (consulta === '') {
+      return remoteRepositories
+    }
+    return remoteRepositories.filter((remote) =>
+      [remote.full_name, remote.name, remote.default_branch]
+        .join(' ')
+        .toLowerCase()
+        .includes(consulta),
+    )
+  }, [remoteRepositories, busqueda])
+
+  /**
+   * Los importables de lo que se ve ahora mismo.
+   *
+   * Se recalcula sobre `reposVisibles` y no sobre el inventario entero, a proposito: si el
+   * buscador oculta repositorios ya conectados, "seleccionar todos" debe ofrecer los que se
+   * ven, no los que no. Marcar de golpe algo que el usuario no ve para luego tener que
+   * desmarcarlo es la forma segura de que termine importando lo que no queria.
+   */
+  const importablesVisibles = useMemo(
+    () => reposVisibles.filter((remote) => !remote.already_connected),
+    [reposVisibles],
+  )
+
+  const todosSeleccionados =
+    importablesVisibles.length > 0 &&
+    importablesVisibles.every((remote) => seleccionados.has(remote.remote_repo_id))
+
+  const alternarSeleccion = useCallback((remoteRepoId: string) => {
+    setSeleccionados((actual) => {
+      const siguiente = new Set(actual)
+      if (siguiente.has(remoteRepoId)) {
+        siguiente.delete(remoteRepoId)
+      } else {
+        siguiente.add(remoteRepoId)
+      }
+      return siguiente
+    })
+  }, [])
+
+  const alternarTodos = useCallback(() => {
+    setSeleccionados((actual) => {
+      const siguiente = new Set(actual)
+      if (todosSeleccionados) {
+        for (const remote of importablesVisibles) {
+          siguiente.delete(remote.remote_repo_id)
+        }
+      } else {
+        for (const remote of importablesVisibles) {
+          siguiente.add(remote.remote_repo_id)
+        }
+      }
+      return siguiente
+    })
+  }, [todosSeleccionados, importablesVisibles])
+
+  /**
+   * Importa la seleccion y cierra.
+   *
+   * ## Por qué el modal se cierra **antes** de que terminen las peticiones
+   *
+   * Porque cada importacion es una peticion independiente y puede tardar varios segundos.
+   * Mantener el modal abierto con un boton en «importando 3 de 7» obliga al usuario a
+   * esperar a que termine para poder seguir trabajando, y si una de las peticiones falla se
+   * queda mirando un modal que ya no le sirve de nada.
+   *
+   * Cerrar primero y avisar despues invierte el orden a favor de quien esta usando el panel:
+   * ve la lista actualizandose mientras se importa. El aviso lleva el numero de fallos
+   * reales, no un «algo ha ido mal», porque el resultado que importa es cuantos quedaron
+   * fuera.
+   */
+  const importarSeleccionados = useCallback(async () => {
+    if (!token || !selectedOrganizationId) {
+      return
+    }
+    const objetivos = remoteRepositories.filter(
+      (remote) => seleccionados.has(remote.remote_repo_id) && !remote.already_connected,
+    )
+    if (objetivos.length === 0) {
+      return
+    }
+    setIsImporting(true)
+    const fallidos: string[] = []
+    let ok = 0
+    /*
+      Secuencial y no en paralelo, a proposito.
+      *
+      * Cada `connectRepository` da de alta un webhook en el proveedor. Lanzar veinte a la vez
+      * contra la misma credencial es justo el patron que hace que el proveedor devuelva `403`
+      * por tasa de peticiones, y entonces el usuario ve quince repositorios importados y cinco
+      * fallidos sin motivo aparente. En serie tarda mas y es fiable, que es lo que hace falta
+      * en una operacion que crea credenciales.
+      */
+    for (const remote of objetivos) {
+      try {
+        await connectRepository(token, selectedOrganizationId, {
+          provider,
+          remote_repo_id: remote.remote_repo_id,
+          pr_reviews_enabled: true,
+        })
+        ok += 1
+      } catch {
+        fallidos.push(remote.full_name)
+      }
+    }
+    setIsImporting(false)
+    /*
+      El aviso lo pone la pagina y no este modal. En cuanto se cierra, el componente deja de
+      * existir y un `setState` aqui no lo veria nadie; por eso el resultado se devuelve por
+      * parametro en vez de pintarse dentro. El orden importa: primero el aviso, despues el
+      * refresco de la lista, y el cierre al final.
+    */
+    onBulkImported({ imported: ok, failed: fallidos })
+    onConnected()
+    onClose()
+  }, [
+    token,
+    selectedOrganizationId,
+    remoteRepositories,
+    seleccionados,
+    provider,
+    onBulkImported,
+    onConnected,
+    onClose,
+  ])
+
 
   if (!isOpen) {
     return null
@@ -442,36 +589,104 @@ export function ConnectRepositoryModal({
           ) : remoteRepositories.length === 0 ? (
             <p className="modal-empty">{t('modal.empty')}</p>
           ) : (
-            <ul className="remote-list">
-              {remoteRepositories.map((remote) => (
-                <li key={remote.remote_repo_id} className="remote-item">
-                  <div className="remote-copy">
-                    <strong>{remote.full_name}</strong>
-                    <span className="remote-meta">
-                      {t('modal.defaultBranch')}:{' '}
-                      <code className="mono">{remote.default_branch}</code>
-                      {' · '}
-                      {remote.is_private ? t('modal.private') : t('modal.public')}
-                    </span>
-                  </div>
-                  <button
-                    className="primary-button"
-                    type="button"
-                    disabled={
-                      remote.already_connected || pendingRemoteId === remote.remote_repo_id
-                    }
-                    onClick={() => void importRepository(remote)}
-                  >
-                    {pendingRemoteId === remote.remote_repo_id ? (
-                      <LoaderCircle size={16} className="spin" aria-hidden="true" />
-                    ) : null}
-                    <span>
-                      {remote.already_connected ? t('modal.alreadyConnected') : t('modal.import')}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <div className="remote-toolbar">
+                <div className="remote-search">
+                  <Search size={15} aria-hidden="true" />
+                  {/*
+                    El icono va dentro del recuadro y no al lado, con `pointer-events: none` en
+                    CSS para que el clic le llegue al input. Puesto al lado, el hueco entre
+                    icono y campo deja una zona muerta de unos pixeles donde el usuario hace
+                    clic esperando escribir.
+                  */}
+                  <input
+                    type="search"
+                    className="remote-search-input"
+                    value={busqueda}
+                    placeholder={t('modal.searchPlaceholder')}
+                    aria-label={t('modal.searchLabel')}
+                    onChange={(event) => setBusqueda(event.target.value)}
+                  />
+                </div>
+                <label className="remote-selectall">
+                  <input
+                    type="checkbox"
+                    checked={todosSeleccionados}
+                    disabled={importablesVisibles.length === 0}
+                    onChange={alternarTodos}
+                  />
+                  <span>{t('modal.selectAll')}</span>
+                </label>
+              </div>
+
+              {reposVisibles.length === 0 ? (
+                <p className="modal-empty">{t('modal.searchNoResults')}</p>
+              ) : (
+                <ul className="remote-list">
+                  {reposVisibles.map((remote) => (
+                    <li key={remote.remote_repo_id} className="remote-item">
+                      <label className="remote-select">
+                        <input
+                          type="checkbox"
+                          checked={seleccionados.has(remote.remote_repo_id)}
+                          disabled={remote.already_connected}
+                          onChange={() => alternarSeleccion(remote.remote_repo_id)}
+                        />
+                      </label>
+                      <div className="remote-copy">
+                        <strong>{remote.full_name}</strong>
+                        <span className="remote-meta">
+                          {t('modal.defaultBranch')}:{' '}
+                          <code className="mono">{remote.default_branch}</code>
+                          {' · '}
+                          {remote.is_private ? t('modal.private') : t('modal.public')}
+                        </span>
+                      </div>
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={
+                          remote.already_connected || pendingRemoteId === remote.remote_repo_id
+                        }
+                        onClick={() => void importRepository(remote)}
+                      >
+                        {pendingRemoteId === remote.remote_repo_id ? (
+                          <LoaderCircle size={16} className="spin" aria-hidden="true" />
+                        ) : null}
+                        <span>
+                          {remote.already_connected
+                            ? t('modal.alreadyConnected')
+                            : t('modal.import')}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/*
+                El boton de importacion multiple es el cierre del modal, no un boton mas del
+                formulario. Se ancla al final de la seccion y no sube con la lista, para que
+                seguir funcionando cuando hay cien repositorios que recorrer.
+              */}
+              <div className="remote-bulk">
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={seleccionados.size === 0 || isImporting}
+                  onClick={() => void importarSeleccionados()}
+                >
+                  {isImporting ? (
+                    <LoaderCircle size={16} className="spin" aria-hidden="true" />
+                  ) : null}
+                  <span>
+                    {isImporting
+                      ? t('modal.importingSelected')
+                      : t('modal.importSelected', { count: seleccionados.size })}
+                  </span>
+                </button>
+              </div>
+            </>
           )}
         </section>
       </div>

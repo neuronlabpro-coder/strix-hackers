@@ -53,6 +53,9 @@ import { ShellLayout } from './ShellLayout'
 const DomainsPage = lazy(() =>
   import('../features/domains/DomainsPage').then((m) => ({ default: m.DomainsPage })),
 )
+const IntegrationsPage = lazy(() =>
+  import('../features/integrations/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })),
+)
 const AssetDiscoveryPage = lazy(() =>
   import('../features/assetDiscovery/AssetDiscoveryPage').then((m) => ({
     default: m.AssetDiscoveryPage,
@@ -228,15 +231,7 @@ export default function App() {
             path="/networks"
             element={<PlaceholderPage titleKey="navigation:networks" reasonKey="pending.networks" />}
           />
-          <Route
-            path="/integrations"
-            element={
-              <PlaceholderPage
-                titleKey="navigation:integrations"
-                reasonKey="pending.integrations"
-              />
-            }
-          />
+          <Route path="/integrations" element={<IntegrationsPage />} />
           <Route path="/api-access" element={<ApiAccessPage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/settings" element={<SettingsLayout />}>

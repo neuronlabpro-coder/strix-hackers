@@ -29,9 +29,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, Query
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,8 +69,26 @@ RequireMcp = Annotated[
 #: vigila, sin que nada avise.
 DispatchDependency = Annotated[Callable[[str], str], Depends(get_dispatch_pentest_run)]
 
+#: Que herramientas expone cada perfil.
+#:
+#: `core` es el conjunto minimo para el uso habitual de un asistente: leer el estado de
+#: seguridad del workspace y lanzar un escaneo. Se deja fuera `list_repositories` porque solo
+#: aporta nombres de repositorio —informacion que el panel ya muestra— y `get_asset_inventory`
+#: porque devuelve el inventario de superficie, que es mas de lo que necesita un chat para
+#: responder.
+#:
+#: Un perfil que no existe devuelve un `422` de FastAPI por el `Literal`, en vez de caerse en
+#: silencio al perfil completo. Un `profile=cor` por error de tecleo es el caso mas probable, y
+#: el resultado de ignorarlo es un token con mas permisos de los que el usuario cree haber
+#: pedido: el fallo no se ve, se nota meses despues en un incidente.
+PERFILES: dict[str, frozenset[str]] = {
+    "core": frozenset({"get_vulnerability_summary", "trigger_pentest"}),
+}
 
-def _catalogo() -> dict[str, Any]:
+ProfileName = Literal["core"]
+
+
+def _catalogo(profile: ProfileName | None) -> dict[str, Any]:
     """La definición formal del catálogo, en el formato que espera `tools/list`.
 
     El `required_scope` viaja **dentro** de la definición. No es información interna: un agente
@@ -80,6 +98,7 @@ def _catalogo() -> dict[str, Any]:
     token que fallará en producción.
     """
 
+    permitidas = PERFILES.get(profile) if profile is not None else None
     return {
         "tools": [
             {
@@ -92,6 +111,7 @@ def _catalogo() -> dict[str, Any]:
                 },
             }
             for tool in TOOLS
+            if permitidas is None or tool.name in permitidas
         ]
     }
 
@@ -101,6 +121,7 @@ async def _despachar(
     principal: TenantPrincipal,
     session: AsyncSession,
     dispatch: Callable[[str], str],
+    profile: ProfileName | None = None,
 ) -> Any:
     """Atiende un método MCP ya validado.
 
@@ -114,10 +135,10 @@ async def _despachar(
 
     try:
         if peticion.method == "tools/list":
-            return _catalogo()
+            return _catalogo(profile)
 
         if peticion.method == "tools/call":
-            return await _llamar_herramienta(peticion, principal, session, dispatch)
+            return await _llamar_herramienta(peticion, principal, session, dispatch, profile)
 
         raise JsonRpcError(
             JsonRpcErrorCode.METHOD_NOT_FOUND,
@@ -142,6 +163,7 @@ async def _llamar_herramienta(
     principal: TenantPrincipal,
     session: AsyncSession,
     dispatch: Callable[[str], str],
+    profile: ProfileName | None = None,
 ) -> Any:
     params = peticion.params or {}
     nombre = params.get("name")
@@ -160,7 +182,7 @@ async def _llamar_herramienta(
     herramienta = TOOLS_POR_NOMBRE.get(nombre)
     if herramienta is None:
         # No se distingue "herramienta que no existe" de "herramienta a la que no tiene
-        # acceso": para quien llama, el resultado es el mismo, y revealing la diferencia
+        # acceso": para quien llama, el resultado es el mismo, y revelar la diferencia
         # confirmaría la existencia de herramientas que su token no alcanza. El detalle sí
         # lista el catálogo, que es público para cualquier cliente conectado.
         raise JsonRpcError(
@@ -169,6 +191,20 @@ async def _llamar_herramienta(
             {
                 "herramienta": nombre,
                 "disponibles": sorted(TOOLS_POR_NOMBRE),
+            },
+        )
+
+    if profile is not None and nombre not in PERFILES[profile]:
+        # Mismo codigo y mismo detalle que una herramienta inexistente, y por el mismo motivo:
+        # decir "existe pero tu perfil no la alcanza" confirma la existencia de una capacidad
+        # que el cliente no tiene. El `perfil` si se devuelve, porque el cliente lo eligio.
+        raise JsonRpcError(
+            JsonRpcErrorCode.METHOD_NOT_FOUND,
+            "Tool not found",
+            {
+                "herramienta": nombre,
+                "perfil": profile,
+                "disponibles": sorted(PERFILES[profile]),
             },
         )
 
@@ -197,6 +233,7 @@ async def mcp_endpoint(
     session: SessionDependency,
     dispatch: DispatchDependency,
     body: Annotated[Any, Body()],
+    profile: Annotated[ProfileName | None, Query()] = None,
 ) -> Any:
     """Atiende una llamada MCP: un sobre JSON-RPC o un lote de sobres.
 
@@ -219,9 +256,9 @@ async def mcp_endpoint(
     """
 
     def despachador(peticion: JsonRpcRequest) -> Any:
-        return _despachar(peticion, principal, session, dispatch)
+        return _despachar(peticion, principal, session, dispatch, profile)
 
     return await handle_payload(body, despachador)
 
 
-__all__ = ["router"]
+__all__ = ["PERFILES", "ProfileName", "router"]

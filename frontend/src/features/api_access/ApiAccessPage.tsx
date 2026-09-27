@@ -53,10 +53,10 @@ export function ApiAccessPage() {
   )
 
   return (
-    <div className="page">
+    <section className="page-section" aria-labelledby="api-access-title">
       <header className="page-header">
         <div>
-          <h1>{t('title')}</h1>
+          <h1 id="api-access-title">{t('title')}</h1>
           <p className="page-description">{t('description')}</p>
         </div>
         <div className="page-actions">
@@ -148,7 +148,7 @@ export function ApiAccessPage() {
           setPendingRevoke(null)
         }}
       />
-    </div>
+    </section>
   )
 }
 

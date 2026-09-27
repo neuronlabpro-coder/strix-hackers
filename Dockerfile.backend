@@ -1,0 +1,122 @@
+# syntax=docker/dockerfile:1.7
+# ---------------------------------------------------------------------------
+# Imagen de producción del backend: FastAPI + workers de Celery en una sola base.
+# ---------------------------------------------------------------------------
+#
+# El backend y el worker comparten imagen a propósito. Duplicarla haría que el
+# código que corre el API y el que despacha los escaneos dejaran de ser el mismo en
+# cuanto uno de los dos se rehiciera, y la causa más difícil de diagnosticar es
+# exactamente esa: el worker con una versión del código y el API con otra.
+#
+# ## Por qué multi-stage
+#
+# La etapa de compilación lleva `uv` y todas las dependencias de desarrollo; la final
+# lleva solo el entorno virtual con lo que la aplicación importa en ejecución. Reduce la
+# superficie de la imagen y, sobre todo, evita que un fallo de compatibilidad en un paquete
+# que se compila en la etapa equivocada llegue a producción.
+#
+# ## Por qué un usuario sin privilegios
+#
+# El contenedor corre como `appuser` (uid 10001). Dos razones, y la segunda es la
+# importante: un proceso que corre como root puede escribir en cualquier sitio del sistema
+# de ficheros, así que una toma de control de la aplicación —una inyección, una
+# dependencia comprometida— empieza con capacidad de tocar el sistema entero. Con un uid
+# sin privilegios, el radio de acción de un fallo se queda en el directorio de la
+# aplicación.
+#
+# ## Notas de diseño que conviene no deshacer sin pensarlo
+#
+# - `PYTHONDONTWRITEBYTECODE` y `PYTHONUNBUFFERED` no son ajustes de estilo: sin el segundo,
+#   los logs de Uvicorn y de los workers se acumulan en un búfer y ante un fallo aparecen a
+#   destiempo o no aparecen. En un contenedor que se reinicia, un búfer no volcado son logs
+#   perdidos.
+# - El healthcheck usa `/health`, que es la ruta real del servicio. Una ruta inventada
+#   devuelve `404` y el healthcheck falla siempre, lo que deja el contenedor sin posibilidad
+#   de volver a sano después de un fallo transitorio.
+# - Se compila sin los `.pyc`: el directorio de trabajo queda montado en runtime y unas
+#   clases compiladas para otra plataforma de CPU darían fallos al importar.
+
+# --- Etapa 1: dependencias de ejecucion ---------------------------------------
+FROM python:3.12-slim-bookworm AS deps
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+ENV UV_COMPILE_BYTECODE=0 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+WORKDIR /app
+
+# Primero solo los manifiestos: mientras no cambien, la capa de dependencias se reutiliza
+# de la caché y un cambio en el código no reinstala nada. Es la razón por la que el
+# `COPY . .` va DESPUES, no antes.
+COPY backend/pyproject.toml backend/uv.lock ./
+
+# Sin `--no-dev` porque `pytest` forma parte de la Definition of Done de este proyecto y
+# el healthcheck de un despliegue necesita poder ejecutarlo. En un entorno que no quiera
+# probarlo, la alternativa es un target aparte; quitarlo de aquí sin más dejaría la imagen
+# sin forma de verificarse a sí misma.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+# --- Etapa 2: codigo de aplicacion -------------------------------------------
+FROM deps AS build
+
+WORKDIR /app
+
+COPY backend/ ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+# --- Etapa 3: imagen final ----------------------------------------------------
+FROM python:3.12-slim-bookworm AS runtime
+
+# `curl` está solo para el healthcheck y `git` es obligatorio en runtime: el motor de escaneo
+# clona repositorios, y sin git los pentests sobre repositorio fallan al arrancar, que es
+# peor que fallar al usarse porque el síntoma apunta a la imagen y no al código.
+#
+# Se instalan en una sola instrucción y se limpia el índice en ella misma, para que la capa
+# no engorde con el índice de apt.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y curl git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# 10001 y no 1000: un uid bajo suele pertenecer ya a alguna cuenta del sistema base, y
+# reutilizarlo hace que "cambiar el usuario" no cambie nada. Este está elegido para que no
+# exista.
+#
+# Esto va **antes** del `COPY --chown` y no por casualidad: `--chown` resuelve el nombre en el
+# momento de la copia, así que un usuario que todavía no existe hace fallar el build con un
+# `chown: appuser: no such user` que no dice nada de usuarios.
+RUN groupadd --gid 10001 appuser \
+    && useradd --uid 10001 --gid 10001 --shell /usr/sbin/nologin --no-create-home appuser
+
+COPY --from=build --chown=appuser:appuser /app /app
+
+USER appuser
+
+# `PYTEST_ADDOPTS` desactiva la caché de pytest porque el árbol de fuentes pertenece al
+# usuario sin privilegios y pytest intentaría escribir `.pytest_cache` en un directorio que no
+# es suyo. Con la variable, no lo intenta.
+#
+# El bloque no lleva comentarios dentro a propósito: un `#` en una línea de continuación es
+# ambiguo entre el constructor clásico y BuildKit, y lo que se gana en comentarios no compensa
+# un fallo de build que solo aparece en un orquestador.
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTEST_ADDOPTS="-p no:cacheprovider" \
+    PORT=8000
+
+EXPOSE 8000
+
+# El intervalo y los reintentos se han separado a propósito. `interval` es cuánto espera el
+# orquestador entre intentos y `retries` es cuántos hace. Con los dos a 30 el contenedor
+# pasa treinta segundos sin arrancar antes de que se note, que es media hora de caída
+# acumulada en un despliegue que reinicia en bucle.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl --fail --silent --show-error "http://127.0.0.1:${PORT}/health" || exit 1
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

@@ -480,3 +480,210 @@
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------------
+ * Pestana MCP: URLs copiables y tarjetas de cliente.
+ * --------------------------------------------------------------------------- */
+
+/* La URL y su boton van en fila y la URL toma el ancho sobrante. Al reves —boton fijo al
+ * principio— una URL larga empuja el boton fuera de la tarjeta en pantallas estrechas y deja
+ * la accion de copiar sin acceso, que es justo para lo que sirve el bloque. */
+.mcp-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-url-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  color: var(--color-caption);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.mcp-client-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.mcp-client-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.mcp-client-head {
+  display: grid;
+  gap: 3px;
+}
+
+.mcp-client-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mcp-client-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+/* El `pre` crece para ocupar la tarjeta y el boton se queda abajo, de modo que las cuatro
+ * tarjetas alineen sus botones aunque sus snippets tengan tres y veinte lineas. Sin esto el
+ * boton de la tarjeta con el JSON corto queda flotando a media altura y parece que pertenece a
+ * la tarjeta de al lado. */
+.mcp-client-config {
+  flex: 1 1 auto;
+  margin: 0;
+  max-height: 220px;
+}
+
+.mcp-client-card .mcp-actions {
+  justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------------------------
+ * Integraciones: tarjetas por categoria.
+ * --------------------------------------------------------------------------- */
+
+.integration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.integration-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.integration-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.integration-name {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.integration-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+/* El boton se estira para que toda la tarjeta sea pulsable en la misma medida. Sin esto, el
+ * boton ocupa solo su texto y el objetivo tactil se reduce a unos doce pixeles de alto, por
+ * debajo del minimo comodo en movil. */
+.integration-card > button {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.integration-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+}
+
+.integration-state-on {
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+.integration-state-off {
+  color: var(--color-muted);
+}
+
+/* El motivo de por que una integracion no se puede conectar va pequeno y atenuado, no como
+ * error. No es un fallo: es informacion que evita que alguien lea «Conectar» y espere algo
+ * que no va a pasar. */
+.integration-pending {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.integration-footnote {
+  margin: 12px 0 0;
+  color: var(--color-caption);
+  font-size: 0.75rem;
+}
+
+.integration-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.integration-cta > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.integration-cta > button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  /* El bloque del servidor MCP pasa a columna: en una sola fila el texto y el boton se
+   * pelean por el ancho y el boton acaba partido en dos lineas de tres palabras. */
+  .integration-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .integration-cta > button {
+    width: 100%;
+  }
+}
+
+/* Los tres botones de juego rapido. Se separan con un `gap` y no con margenes individuales:
+ * el separador vertical va en el borde del boton para que el ritmo lo imponga la rejilla, y
+ * cambiar el numero de botones —que ya ha pasado una vez— no deja separacion colgando. */
+.scope-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.scope-quick-actions .link-button + .link-button {
+  border-left: 1px solid var(--color-border);
+  padding-left: 12px;
+  margin-left: 8px;
+}

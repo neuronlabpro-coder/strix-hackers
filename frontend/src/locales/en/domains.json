@@ -4,6 +4,7 @@
   "description": "Register the domains your workspace controls. TXT record verification proves ownership, and it is what enables asset discovery.",
   "actions": {
     "add": "Add domain",
+    "cancel": "Cancel",
     "refresh": "Refresh",
     "verifyNow": "Verify now",
     "verifying": "Verifying…",

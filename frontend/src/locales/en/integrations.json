@@ -1,0 +1,91 @@
+{
+  "eyebrow": "Settings",
+  "title": "Integrations",
+  "description": "Connect code providers, alert channels, issue trackers and clouds.",
+  "noWorkspace": "Pick a workspace to manage its integrations.",
+  "states": {
+    "loading": "Loading...",
+    "error": "Integrations could not be loaded.",
+    "retry": "Retry",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "comingSoon": "Coming soon"
+  },
+  "actions": {
+    "connect": "Connect",
+    "configure": "Configure",
+    "addMcpServer": "Add an MCP server"
+  },
+  "code": {
+    "title": "Code providers",
+    "description": "Stored in the workspace and required for pull request reviews.",
+    "repositoriesConnected": "{{count}} repository connected",
+    "repositoriesConnected_other": "{{count}} repositories connected",
+    "providers": {
+      "GITHUB": {
+        "note": "GitHub organizations and personal repositories."
+      },
+      "GITLAB": {
+        "note": "GitLab groups and projects, including self-hosted."
+      },
+      "BITBUCKET": {
+        "note": "Bitbucket Cloud workspaces."
+      },
+      "GITEA": {
+        "note": "Your own Gitea instances."
+      }
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Where to hear when a scan finishes or a critical finding appears.",
+    "pendingReason": "Outgoing alerts already work over webhooks: until a stored destination exists, a Connect button here would only accept a token and lose it.",
+    "destinations": {
+      "slack": {
+        "note": "Messages in a channel or a specific thread."
+      },
+      "teams": {
+        "note": "Notifications in a Teams channel."
+      }
+    }
+  },
+  "issues": {
+    "title": "Issue tracking",
+    "description": "Open an issue in your tracker when a finding appears.",
+    "pendingReason": "This needs an integration credentials model that stores the token and the target project. That is backend work, not this screen.",
+    "destinations": {
+      "jira": {
+        "note": "Issues with type, priority and assignee."
+      },
+      "linear": {
+        "note": "Issues with team, cycle and labels."
+      }
+    }
+  },
+  "infrastructure": {
+    "title": "Infrastructure",
+    "description": "Clouds where assets, accounts and deployments are discovered.",
+    "mcpTitle": "MCP server",
+    "mcpNote": "Connect an assistant with a token you already have, without writing the credential again.",
+    "destinations": {
+      "aws": {
+        "note": "Accounts, buckets and security groups."
+      },
+      "vercel": {
+        "note": "Projects and deployed domains."
+      },
+      "supabase": {
+        "note": "Projects, databases and edge functions."
+      },
+      "cloudflare": {
+        "note": "Zones, DNS records and firewall rules."
+      },
+      "gcp": {
+        "note": "Projects, buckets and networks."
+      },
+      "railway": {
+        "note": "Services and deployment variables."
+      }
+    }
+  }
+}

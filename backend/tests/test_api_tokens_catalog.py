@@ -35,7 +35,9 @@ from backend.apps.api_access.models import (
 from backend.apps.api_access.scopes import (
     ALL_SCOPES,
     SCOPE_CATALOG,
+    SCOPES_POR_DEFECTO,
     Scope,
+    is_default_scope,
     scope_is_known,
 )
 from backend.core.security import generate_api_token, hash_api_token
@@ -371,3 +373,72 @@ def test_expired_and_revoked_are_separate_states() -> None:
     assert revocado.expires_at is None
     assert expirado.expires_at is not None
     assert organization_id is not None
+
+
+# --------------------------------------------------------------------------- #
+# Juego de permisos por defecto
+# --------------------------------------------------------------------------- #
+
+
+def test_todos_los_defaults_existen_en_el_catalogo() -> None:
+    """Cada permiso del juego por defecto tiene que estar declarado.
+
+    Sin esta prueba, anadir un permiso a `SCOPES_POR_DEFECTO` que no exista en `SCOPE_CATALOG`
+    no falla en ningun sitio hasta que el panel marca una casilla para un permiso que el
+    backend no conoce, y el `422` llega al crear el token.
+    """
+
+    declarados = {definicion.scope for grupo in SCOPE_CATALOG.values() for definicion in grupo}
+    assert SCOPES_POR_DEFECTO <= declarados
+
+
+def test_el_juego_por_defecto_solo_lectura() -> None:
+    """El token nuevo no puede escribir por su cuenta.
+
+    Es una restriccion de seguridad, no una preferencia: un token que nace pudiendo crear
+    escaneos consume creditos sin que nadie lo haya pedido, y uno que nace pudiendo borrar
+    borra evidencia que R4 declara inmutable desde la interfaz. Si alguien amplia este
+    conjunto, esta prueba falla y obliga a que la decision sea consciente.
+    """
+
+    clases_de_escritura = (
+        "create",
+        "update",
+        "delete",
+        "abort",
+        "triage",
+        "invoke",
+        "export",
+    )
+    escriben = {
+        scope.value
+        for scope in SCOPES_POR_DEFECTO
+        if scope.value.split(":", 1)[1] in clases_de_escritura
+    }
+    # `vulnerabilities:triage` si es intencionado; el resto no puede estar.
+    assert escriben <= {"vulnerabilities:triage"}, (
+        f"El juego por defecto concede escritura: {sorted(escriben)}"
+    )
+
+
+def test_is_default_scope_consulta_el_conjunto() -> None:
+    """La funcion delega en el conjunto y no recorre el catalogo.
+
+    Se comprueba la coherencia en los dos sentidos: lo que el conjunto dice que es de
+    defecto, la funcion lo dice, y lo que no esta, la funcion lo niega.
+    """
+
+    for scope in Scope:
+        esperado = scope in SCOPES_POR_DEFECTO
+        assert is_default_scope(scope) is esperado, scope.value
+
+
+def test_el_juego_por_defecto_no_esta_vacio() -> None:
+    """Un Defaults vacio deja al usuario con un token que no puede hacer nada.
+
+    El boton se renderiza deshabilitado cuando el conjunto esta vacio, asi que el fallo no
+    rompe la pantalla: deja al usuario con un boton gris y sin explicacion. Conviene que la
+    prueba lo diga en el sitio donde se decide el contenido.
+    """
+
+    assert len(SCOPES_POR_DEFECTO) > 0

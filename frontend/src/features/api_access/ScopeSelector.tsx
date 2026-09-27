@@ -66,6 +66,31 @@ export function ScopeSelector({
     onChange(chosen === total ? new Set() : new Set(catalog.groups.flatMap((g) => g.scopes.map((s) => s.scope))))
   }
 
+  /**
+   * El juego de permisos por defecto.
+   *
+   * Se lee de `is_default`, que declara el backend, y **no** de una lista escrita aqui. La
+   * diferencia no es de estilo: si el panel tuviera su propia lista, anadir un permiso al
+   * catalogo sin tocar el panel dejaria el token nuevo con menos permisos de los que el boton
+   * «Defaults» promete, y el usuario no tendria forma de saber cuales.
+   */
+  const setDefaults = () => {
+    onChange(
+      new Set(
+        catalog.groups
+          .flatMap((g) => g.scopes)
+          .filter((s) => s.is_default)
+          .map((s) => s.scope),
+      ),
+    )
+  }
+
+  /** Cuantos hay marcados de serie. Alimenta el numero del boton y su estado deshabilitado. */
+  const defaultsCount = useMemo(
+    () => catalog.groups.flatMap((g) => g.scopes).filter((s) => s.is_default).length,
+    [catalog],
+  )
+
   const toggleCollapsed = (group: string) => {
     const next = new Set(collapsed)
     if (next.has(group)) {
@@ -93,7 +118,21 @@ export function ScopeSelector({
           </span>
           <span className="scope-counter-label">{t('scopes.selectedOf', { chosen, total })}</span>
         </div>
-        <div>
+        {/*
+          Los tres acciones viven en una fila y no en un menu. Son las tres salidas de la
+          pantalla —lo minimo, todo, o nada— y esconderlas detras de un desplegable obliga a un
+          clic extra para lo que se hace en cuanto se llega. El numero va en el boton de
+          Defaults porque es el dato que el usuario quiere antes de pulsarlo.
+        */}
+        <div className="scope-quick-actions">
+          <button
+            className="link-button"
+            type="button"
+            disabled={isDisabled || defaultsCount === 0}
+            onClick={setDefaults}
+          >
+            {t('scopes.selectDefaults', { count: defaultsCount })}
+          </button>
           <button
             className="link-button"
             type="button"
@@ -101,6 +140,14 @@ export function ScopeSelector({
             onClick={setAll}
           >
             {t(chosen === total ? 'scopes.clearAll' : 'scopes.selectAll')}
+          </button>
+          <button
+            className="link-button"
+            type="button"
+            disabled={isDisabled || chosen === 0}
+            onClick={() => onChange(new Set())}
+          >
+            {t('scopes.selectNone')}
           </button>
         </div>
       </header>

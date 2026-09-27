@@ -104,12 +104,19 @@ export function SettingsBillingPage() {
    */
   const spendEfectivo = spend ?? minSpend
 
-  const tierIndex = summary === null ? -1 : tierIndexFor(spendEfectivo, ranges)
-  const tier = summary === null || tierIndex < 0 ? null : summary.volume.tiers[tierIndex]
-  const credits = summary === null ? 0 : creditsForSpend(spendEfectivo, summary.volume)
+  // `volume` es opcional desde que el tipo lo declara así, y la razón es que **se ha visto
+  // faltar**: la respuesta llegó sin el bloque y la pantalla se quedó en negro con
+  // `Cannot read properties of undefined (reading 'tiers')`. Guardar aquí es lo que impide que
+  // vuelva a pasar, y ahora el compilador obliga a que esteguard exista en vez de confiar en
+  // que alguien se acuerde.
+  const volume = summary?.volume
+
+  const tierIndex = volume === undefined ? -1 : tierIndexFor(spendEfectivo, ranges)
+  const tier = volume === undefined || tierIndex < 0 ? null : volume.tiers[tierIndex]
+  const credits = creditsForSpend(spendEfectivo, volume)
   const discountRate = tier === null ? 0 : Number(tier.discount)
   const unitPrice = tier === null ? 0 : Number(tier.usd_per_credit)
-  const listUnit = summary === null ? 0 : Number(summary.volume.list_usd_per_credit)
+  const listUnit = volume === undefined ? 0 : Number(volume.list_usd_per_credit)
   const savings = spendEfectivo * discountRate
   const porDebajoDelMinimo = credits === 0
   const hayDescuento = discountRate > 0
@@ -291,7 +298,14 @@ export function SettingsBillingPage() {
           <p>{t('volume.caption')}</p>
         </div>
 
-        <VolumeTierBar pricing={summary.volume} ranges={ranges} spend={spendEfectivo} />
+        {/*
+          La barra se oculta entera si no hay escalera. Dibujarla vacía deja un hueco en la
+          pantalla sin explicar por qué, y eso se lee como un fallo de la página. Ocultarla
+          deja claro que aún no hay datos, que es la verdad.
+        */}
+        {volume === undefined ? null : (
+          <VolumeTierBar pricing={volume} ranges={ranges} spend={spendEfectivo} />
+        )}
 
         <div className="volume-controls">
           <div className="field">

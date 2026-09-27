@@ -18,6 +18,7 @@ from backend.apps.api_access.scopes import (
     ALL_SCOPES,
     SCOPE_CATALOG,
     Scope,
+    is_default_scope,
     normalize_scopes,
     unknown_scopes,
 )
@@ -151,6 +152,13 @@ class ApiScopeDefinitionResponse(BaseModel):
     group: str
     label_key: str
     is_privileged: bool
+    #: Si el permiso entra en el juego por defecto del token nuevo.
+    #:
+    #: Viaja en el catalogo y no se deduce en el panel para que el boton «Defaults» no
+    #: tenga una lista propia: una segunda lista se desincroniza de la primera en cuanto
+    #: alguien anade un permiso y olvida tocar las dos, y el sintoma es un token nuevo que
+    #: puede hacer menos de lo que el panel promete.
+    is_default: bool
 
 
 class ApiScopeGroupResponse(BaseModel):
@@ -190,6 +198,7 @@ def scope_catalog_response() -> ApiScopeCatalogResponse:
                         group=definition.group,
                         label_key=definition.label_key,
                         is_privileged=definition.is_privileged,
+                        is_default=is_default_scope(definition.scope),
                     )
                     for definition in definitions
                 ],

@@ -76,7 +76,16 @@
     "private": "Private",
     "public": "Public",
     "defaultBranch": "Default branch",
-    "close": "Close"
+    "close": "Close",
+    "searchLabel": "Search repositories",
+    "searchPlaceholder": "Search by name, path or branch",
+    "searchNoResults": "No repository matches the search",
+    "selectAll": "Select all",
+    "importSelected": "Import selected ({{count}})",
+    "importingSelected": "Importing…",
+    "bulkSuccess": "{{count}} repositories imported",
+    "bulkPartial": "Imported {{ok}} of {{total}}. Failed: {{failed}}",
+    "bulkFailed": "None imported. Failed: {{failed}}"
   },
   "autofix": {
     "notFromReview": "This finding does not come from a pull request review, so the autofix cannot be opened automatically."

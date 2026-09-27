@@ -135,7 +135,9 @@
       "models_manage": "Gestionar modelos",
       "analytics_read": "Ver analítica",
       "invoke": "Invocar"
-    }
+    },
+    "selectDefaults": "Defaults ({{count}})",
+    "selectNone": "None"
   },
   "webhooks": {
     "title": "Webhooks salientes",
@@ -221,6 +223,33 @@
     "downloadClaude": "Descargar claude_desktop_config.json",
     "downloadCursor": "Descargar .cursorrules",
     "cursorIntro": "Este espacio de trabajo expone un servidor Model Context Protocol. Úsalo para consultar el estado de seguridad del proyecto sin salir del editor.",
-    "scopesNote": "El token decide qué puede hacer el agente. Concederle todo por comodidad convierte al editor en una vía de escaneo y de gasto de créditos que nadie está mirando."
+    "scopesNote": "El token decide qué puede hacer el agente. Concederle todo por comodidad convierte al editor en una vía de escaneo y de gasto de créditos que nadie está mirando.",
+    "serverUrlLabel": "URL del servidor",
+    "serverUrlHint": "A esta direccion apuntan todos los clientes. El token va en la cabecera `Authorization: Bearer`, no en la URL.",
+    "coreUrlLabel": "URL del perfil core",
+    "coreUrlHint": "Expone solo dos herramientas: resumen de vulnerabilidades y lanzar escaneo. Es lo que se recomienda para un asistente que no debe tocar el inventario.",
+    "clientsLabel": "Clientes",
+    "clients": {
+      "claude": {
+        "title": "Claude",
+        "note": "Cliente de escritorio. Pega el bloque en su configuracion MCP."
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "note": "Se registra desde la interfaz, no con un fichero."
+      },
+      "cursor": {
+        "title": "Cursor",
+        "note": "Guardado en `.cursor/mcp.json` dentro del proyecto."
+      },
+      "claudeCode": {
+        "title": "Claude Code",
+        "note": "Un comando de terminal. Escribe la configuracion por ti."
+      }
+    },
+    "chatgptStep1": "Configura un servidor MCP remoto en modo desarrollador usando esta direccion:",
+    "chatgptStep2": "Usa autenticacion por token. El token a pegar es:",
+    "chatgptStep3": "Guarda la configuracion y reinicia la conversacion. El servidor solo expone las herramientas del perfil core.",
+    "chatgptAuth": "Bearer"
   }
 }

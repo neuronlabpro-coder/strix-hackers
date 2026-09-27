@@ -20,35 +20,48 @@
   min-height: calc(100svh - 64px);
 }
 
-.settings-subnav {
-  position: sticky;
-  top: 64px;
-  flex: 0 0 220px;
-  width: 220px;
-  align-self: flex-start;
-  min-height: calc(100svh - 64px);
-  padding: 16px;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+/* ---------------------------------------------------------------------------
+ * El menú de secciones **sustituye** al sidebar principal, no se apila al lado.
+ *
+ * `SettingsSidebar` reutiliza las clases `.sidebar*` para heredar ancho, scroll y pie sin
+ * duplicarlas, y añade estas tres para lo que no existe en el sidebar principal.
+ * --------------------------------------------------------------------------- */
+
+.settings-sidebar {
+  /* El sidebar principal ya es `position: fixed` y ya tiene su propio ancho. Reutilizar la
+   * clase entera y no redefinir el `position` es lo que evita que Ajustes se convierta en la
+   * única pantalla con un lateral fijo y el resto en flujo. */
+  row-gap: 0;
 }
 
-.settings-subnav-header {
+.settings-sidebar-header {
   display: grid;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--color-border);
+  gap: 10px;
+  align-content: start;
 }
 
-.settings-subnav-title {
+.settings-sidebar-title {
   margin: 0;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
+
+.settings-sidebar-navigation {
+  /* El menú de Ajustes son cinco entradas y no llegan a llenar la altura. Se queda arriba en
+   * lugar de estirarse, para que el pie con el perfil quede anclado abajo y no a media
+   * pantalla, que es donde el ojo lo busca. */
+  flex: 1 1 auto;
+}
+
+.settings-nav-link[aria-current='page'] {
+  color: var(--color-on-primary);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+
+
 
 .settings-back-link {
   display: inline-flex;
@@ -66,38 +79,9 @@
   color: var(--color-accent);
 }
 
-.settings-subnav-list {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 
-.settings-subnav-link {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  color: var(--color-secondary);
-  font-size: 0.8rem;
-  text-decoration: none;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-}
 
-.settings-subnav-link:hover {
-  background: var(--color-surface-elevated);
-  color: var(--color-primary);
-}
 
-.settings-subnav-link[aria-current='page'] {
-  background: var(--color-surface-elevated);
-  color: var(--color-accent);
-  font-weight: 500;
-}
 
 /*
   La entrada bloqueada se ve atenuada y **no** es enfocable. Es un `span` en el
@@ -106,22 +90,8 @@
   acceso" a una pregunta que nadie ha hecho. El candado y el `title` explican el
   motivo a quien pase el puntero por encima.
 */
-.settings-subnav-link-locked {
-  color: var(--color-caption);
-  cursor: not-allowed;
-  opacity: 0.55;
-}
 
-.settings-subnav-link-locked:hover {
-  background: transparent;
-  color: var(--color-caption);
-}
 
-.settings-subnav-lock {
-  margin-left: auto;
-  flex: 0 0 auto;
-  color: var(--color-caption);
-}
 
 .settings-content {
   flex: 1;
@@ -343,23 +313,86 @@
     display: block;
   }
 
-  .settings-subnav {
-    position: static;
-    width: 100%;
-    min-height: 0;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-  }
 
-  .settings-subnav-list {
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    gap: 4px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
 
   .settings-content-inner {
     padding: 20px 16px;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Inventario de repositorios: buscador, seleccion multiple e importacion en bloque.
+ * --------------------------------------------------------------------------- */
+
+.remote-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.remote-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.remote-search svg {
+  position: absolute;
+  left: 10px;
+  color: var(--color-muted);
+  /* Sin esto el icono se queda el clic y hay una franja muerta a su izquierda. */
+  pointer-events: none;
+}
+
+.remote-search-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px 8px 32px;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.remote-search-input:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 1px;
+}
+
+.remote-selectall,
+.remote-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* La casilla de cada fila no arrastra el texto: el nombre entero actua como etiqueta, y
+   tener las dos cosas pulsables hace que se amplie la zona de clic sin querer. */
+.remote-item .remote-select {
+  flex: 0 0 auto;
+}
+
+.remote-item input[type='checkbox'],
+.remote-selectall input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.remote-bulk {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
 }
