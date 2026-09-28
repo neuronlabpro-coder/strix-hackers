@@ -991,3 +991,24 @@ export interface KnowledgeDocumentCreate {
   /** El documento entero en formato OKF, con su frontmatter. */
   content: string
 }
+
+// --------------------------------------------------------------------------- //
+// Resultado de sincronizar un repositorio (Supply Chain).
+// --------------------------------------------------------------------------- //
+
+/**
+ * Lo que se indexó al sincronizar.
+ *
+ * `manifests_missing` está en el tipo y no se deduce: un repositorio de Python sin `go.mod` es
+ * una sincronización correcta con menos datos, y sin la lista de ausencias el panel no puede
+ * distinguir "no tenía dependencias" de "no le preguntamos por el ecosistema equivocado".
+ */
+export interface SupplyChainSyncResult {
+  manifests_found: string[]
+  manifests_missing: string[]
+  packages_inserted: number
+  packages_updated: number
+  packages_discarded: number
+  /** Manifiestos que se descargaron y no se pudieron parsear. No son fallos de la sincronización. */
+  errors: string[]
+}

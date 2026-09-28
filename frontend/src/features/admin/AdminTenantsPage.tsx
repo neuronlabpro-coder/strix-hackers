@@ -238,7 +238,7 @@ export function AdminTenantsPage() {
         </div>
       ) : (
         <div className="table-wrapper">
-          <table className="data-table">
+          <table className="data-table console-table">
             <caption className="visually-hidden">{t('tenants.title')}</caption>
             <thead>
               <tr>
@@ -246,7 +246,7 @@ export function AdminTenantsPage() {
                 <th scope="col">{t('tenants.columns.plan')}</th>
                 <th scope="col">{t('tenants.columns.credits')}</th>
                 <th scope="col">{t('tenants.columns.members')}</th>
-                <th scope="col">{t('tenants.columns.status')}</th>
+                <th scope="col" className="cell-estado">{t('tenants.columns.status')}</th>
                 <th scope="col">{t('tenants.columns.created')}</th>
                 <th scope="col">{t('tenants.columns.actions')}</th>
               </tr>
@@ -273,7 +273,7 @@ export function AdminTenantsPage() {
                         {t('tenants.members', { count: tenant.member_count })}
                       </span>
                     </td>
-                    <td>
+                    <td className="cell-estado">
                       <TenantLifecycleBadge tenant={tenant} />
                     </td>
                     <td>
@@ -283,7 +283,7 @@ export function AdminTenantsPage() {
                         )}
                       </span>
                     </td>
-                    <td>
+                    <td className="cell-acciones">
                       {/*
                         Dar de baja se ofrece siempre, incluso a un tenant ya dado de baja.
                         Ocultarlo parece más limpio y deja al operador creyendo que la
@@ -291,7 +291,7 @@ export function AdminTenantsPage() {
                         llamada devuelve `409`. Se muestra desactivado y el título explica
                         por qué.
                       */}
-                      <div className="webhook-actions">
+                      <div className="console-row-actions">
                         <button
                           className="link-button"
                           type="button"

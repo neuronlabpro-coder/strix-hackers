@@ -51,6 +51,7 @@ import type {
   SupplyChainIndexResult,
   SupplyChainPackagePage,
   SupplyChainSummary,
+  SupplyChainSyncResult,
   RepositoryConnectPayload,
   ApiScopeCatalog,
   ApiToken,
@@ -1039,6 +1040,22 @@ export function deleteKnowledgeDocument(
   return request<void>(
     `/api/v1/knowledge/documents/${documentId}`,
     { method: 'DELETE' },
+    token,
+    organizationId,
+  )
+}
+
+export function syncSupplyChainRepository(
+  token: string,
+  organizationId: string,
+  repositoryId: string,
+): Promise<SupplyChainSyncResult> {
+  // `encodeURIComponent` en el id, aunque un UUID no lo necesita. Es el mismo criterio del resto
+  // del fichero: un valor interpolado en un path sin codificar es un día que alguien mete un
+  // valor con barra y sale en una URL que no es la que se cree.
+  return request<SupplyChainSyncResult>(
+    `/api/v1/supply-chain/repositories/${encodeURIComponent(repositoryId)}/sync`,
+    { method: 'POST' },
     token,
     organizationId,
   )

@@ -69,5 +69,9 @@
   "hints": {
     "fallback": "A deactivated model leaves the fallback chain without losing its usage history.",
     "immutableId": "The model identifier cannot be changed: the usage history cites it."
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
   }
 }

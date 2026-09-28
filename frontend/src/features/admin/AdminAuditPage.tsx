@@ -132,7 +132,7 @@ export function AdminAuditPage() {
         </div>
       ) : (
         <div className="table-wrapper">
-          <table className="data-table">
+          <table className="data-table console-table">
             <caption className="visually-hidden">{t('audit.title')}</caption>
             <thead>
               <tr>
@@ -156,7 +156,30 @@ export function AdminAuditPage() {
                     </span>
                   </td>
                   <td>
-                    <span className="badge badge-on mono">{entry.action}</span>
+                    {/*
+                      La accion se pinta con su nombre y no con el valor del enum.
+
+                      `UNSUPPORTED_USAGE_UNBILLED` no es un nombre, es un identificador: el
+                      operador que lee el rastro tiene que saber que ese asiento corresponde a un
+                      paso de chat que se entrego sin cobrar, y para eso hay que leer una frase.
+                      La etiqueta vive en `admin.audit.actions`, una entrada por cada valor de
+                      `AuditActionEnum`, y el backend y el frontend se comprueban el uno al otro
+                      para que anadir una accion al enum sin traducirla sea un fallo y no una
+                      cadena en crudo en pantalla.
+
+                      El `title` deja el identificador a un hover, porque el rastro tiene que poder
+                      casarse con un log del servidor y con una entrada del enum, y el nombre
+                      traducido no sirve para eso.
+
+                      Y el `defaultValue` es el propio valor: `AuditActionEnum` es un `StrEnum` de
+                      una columna `Text`, de modo que una accion escrita por una version anterior
+                      del codigo puede seguir en la tabla sin etiqueta. En ese caso se ensena el
+                      identificador, que es lo unico que se puede decir con verdad, en vez de
+                      inventar una etiqueta.
+                    */}
+                    <span className="badge badge-on mono" title={entry.action}>
+                      {t(`audit.actions.${entry.action}`, { defaultValue: entry.action })}
+                    </span>
                   </td>
                   <td>
                     <span className="mono table-secondary">

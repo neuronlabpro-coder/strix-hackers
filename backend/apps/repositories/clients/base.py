@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import cast
+from typing import Final, cast
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -12,6 +12,15 @@ import httpx
 
 from backend.apps.repositories.models import GitProviderEnum
 from backend.core.config import settings
+
+#: Tope del contenido de un manifiesto, en bytes.
+#:
+#: Un manifiesto de dependencias no pesa: un `package.json` son unos pocos kilobytes y un
+#: `requirements.txt` algo mas. Un `package-lock.json` son varios megas, pero no es un manifiesto
+#: de dependencias **directas** y no se lee. El tope existe para que un cambio de comportamiento
+#: del proveedor -o una ruta mal formada que apunte a un binario- convierta una fuga de memoria
+#: en un fallo de red con mensaje, que es lo unico diagnosticable.
+MAX_MANIFEST_BYTES: Final[int] = 2 * 1024 * 1024
 
 
 class GitClientError(RuntimeError):
@@ -114,6 +123,30 @@ class BaseGitClient(ABC):
             raise GitClientError("Estado de commit inválido")
 
     @staticmethod
+    def _validate_manifest_path(path: str) -> None:
+        """Comprueba que la ruta es un nombre de fichero dentro del repositorio.
+
+        Tres cosas se rechazan, y las tres por el mismo motivo: esta cadena se concatena en un
+        path de URL, y un `..` en ella sube de directorio en el servidor del proveedor.
+
+        - Una ruta absoluta: la barra inicial cambiaria el significado de la ruta en la URL.
+        - Cualquier segmento `..`, incluido uno en medio.
+        - La barra invertida, que en algunos proveedores se normaliza a `/` y reintroduce el
+          caso anterior por la puerta de atrás.
+        """
+
+        if not path or path.strip() != path:
+            raise GitClientError(
+                "La ruta del manifiesto no puede estar vacia ni con espacios en los bordes"
+            )
+        if path.startswith("/"):
+            raise GitClientError("La ruta del manifiesto tiene que ser relativa al repositorio")
+        if "\\" in path:
+            raise GitClientError("La ruta del manifiesto no puede llevar barras invertidas")
+        if ".." in path.split("/"):
+            raise GitClientError("La ruta del manifiesto no puede subir de directorio")
+
+    @staticmethod
     def _validate_remote_repo_id(remote_repo_id: str) -> None:
         if (
             not remote_repo_id
@@ -154,6 +187,22 @@ class BaseGitClient(ABC):
     @abstractmethod
     def get_repository(self, remote_repo_id: str) -> dict[str, object]:
         """Obtiene los metadatos canónicos de un repositorio por su id remoto."""
+
+    @abstractmethod
+    def get_file_content(self, remote_repo_id: str, path: str) -> str | None:
+        """El contenido de un fichero del repositorio, o `None` si no existe.
+
+        ## Por qué devuelve `None` y no lanza
+
+        Porque la ausencia es el caso normal, no el excepcional. Un repositorio de Python no
+        tiene `Cargo.toml` y uno de Rust no tiene `requirements.txt`, y quien llama está
+        comprobando los cuatro manifiestos por turnos: tres de los cuatro `404` son la respuesta
+        correcta. Si el `404` fuera una excepción, cada sincronización lanzaría tres veces y el
+        llamador tendría que capturarlas para distinguir "este repositorio no usa Go" de "el
+        proveedor se ha caído", que es justo la distinción que importa.
+
+        Un `404` es ausencia. Un `5xx` o un error de red lanza, y esos sí son fallos.
+        """
 
     @abstractmethod
     def create_webhook(

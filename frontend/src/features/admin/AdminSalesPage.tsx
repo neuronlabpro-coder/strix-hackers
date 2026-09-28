@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 
 import { getAdminSales } from '../../lib/adminApi'
 import { activeLocale, formatCents, formatCredits } from '../../lib/format'
@@ -54,6 +55,59 @@ export function AdminSalesPage() {
     },
   )
 
+  /**
+   * Las cuatro tarjetas de arriba de la tabla.
+   *
+   * ## Por qué la cuarta no dice "MRR"
+   *
+   * Porque el backend **no da un MRR**, y ponerlo sería poner un número que no es ese número.
+   *
+   * `AdminSalePage.total_amount_cents` y `total_credits` son la suma de **la página que se está
+   * viendo**, y el propio esquema lo dice en su docstring: son "de la página, no del histórico",
+   * y `total_amount_cents` además solo suma los importes conocidos. La fila que lo deja claro
+   * está en el pie de la tabla desde el principio, con la frase "en esta página".
+   *
+   * Un MRR de verdad necesita agrupar por mes sobre **todo** el histórico, y eso es una consulta
+   * distinta que este endpoint no hace. Si se rotula una suma de página como "MRR estimado", el
+   * operador toma una decisión comercial —cuota de créditos, precio del siguiente trimestre—
+   * sobre una cifra que baja en cuanto cambia de página. Un error de veinte píxeles en el diseño se
+   * ve; un error de un veinte por ciento en una cifra que aparece en un sitio y no en otro, no.
+   *
+   * Así que la cuarta tarjeta apunta al Resumen global, que es donde el MRR sí vive y sí está
+   * calculado sobre todo el histórico. Es menos vistosa que un número y mucho más útil.
+   */
+  const metricasVenta = [
+    {
+      clave: 'eventos',
+      etiqueta: t('sales.kpi.events'),
+      valor: String(page.total),
+      pista: t('sales.kpi.eventsHint'),
+      monospace: true,
+    },
+    {
+      clave: 'importe',
+      etiqueta: t('sales.kpi.amount'),
+      valor: formatCents(page.extra?.total_amount_cents ?? 0),
+      pista: t('sales.kpi.pageScopedHint'),
+      monospace: false,
+    },
+    {
+      clave: 'creditos',
+      etiqueta: t('sales.kpi.credits'),
+      valor: formatCredits(page.extra?.total_credits ?? '0'),
+      pista: t('sales.kpi.pageScopedHint'),
+      monospace: false,
+    },
+    {
+      clave: 'mrr',
+      etiqueta: t('sales.kpi.mrr'),
+      valor: t('sales.kpi.mrrElsewhere'),
+      pista: t('sales.kpi.mrrHint'),
+      monospace: false,
+      enlace: '/admin',
+    },
+  ]
+
   return (
     <section className="page-section" aria-labelledby="admin-sales-title">
       <div className="page-header">
@@ -75,6 +129,40 @@ export function AdminSalesPage() {
         </div>
       </div>
 
+      {/* Las tarjetas van **antes** de la tabla y no en el pie, que es donde ya estaban los
+          totales como texto suelto. La razon no es estetica: un total al final de una tabla de
+          veinte filas hay que_ir a buscarlo, y el operador que entra en "Ventas" para saber como
+          va el mes no baja hasta el final para leerlo.
+
+          Y la razon de que sean cuatro y no una es que cada cifra dice una cosa distinta, y
+          confundirlas es el error que hacen estas pantallas. Ver el comentario de `metricasVenta`
+          sobre por que la cuarta no lleva MRR. */}
+      <div className="metric-grid metric-grid-four">
+        {metricasVenta.map((metrica) => (
+          <article className="metric-card" key={metrica.clave}>
+            <p className="metric-label">{metrica.etiqueta}</p>
+            {/*
+              El enlace es opcional y no se decide aqui con un ternario sobre el texto: se
+              decide con el elemento. Un `<span>` que actua de enlace no se puede pulsar con el
+              teclado ni Announces, y "ver resumen" sin ser un enlace es un texto que promete
+              algo que no hace.
+            */}
+            {metrica.enlace ? (
+              <p className="metric-value metric-value-sm">
+                <Link className="metric-link" to={metrica.enlace}>
+                  {metrica.valor}
+                </Link>
+              </p>
+            ) : (
+              <p className={metrica.monospace ? 'metric-value metric-value-sm' : 'metric-value'}>
+                {metrica.valor}
+              </p>
+            )}
+            <p className="metric-hint">{metrica.pista}</p>
+          </article>
+        ))}
+      </div>
+
       {page.loadFailed && page.items.length === 0 ? (
         <div className="empty-card">
           <h2>{t('states.error')}</h2>
@@ -88,7 +176,7 @@ export function AdminSalesPage() {
         </div>
       ) : (
         <div className="table-wrapper">
-          <table className="data-table">
+          <table className="data-table console-table">
             <caption className="visually-hidden">{t('sales.title')}</caption>
             <thead>
               <tr>
@@ -107,7 +195,21 @@ export function AdminSalesPage() {
                     <span className="mono">{sale.event_id}</span>
                   </th>
                   <td>
-                    <span className="mono cell-muted">{sale.event_type}</span>
+                    {/*
+                      `checkout.session.completed` es el nombre del evento en el proveedor de
+                      cobro, no un tipo de evento de esta plataforma. En una columna titulada
+                      "Tipo" al lado de "Importe" y "Créditos", lo que se quiere leer es que ese
+                      importe sí acreditó créditos, y eso es lo que dice la etiqueta.
+
+                      El `title` deja el identificador del proveedor a un hover, porque hace falta
+                      para casar la fila con el evento en el panel del proveedor. Y el
+                      `defaultValue` es el identificador en crudo: el proveedor puede anadir tipos
+                      que este backend no registra, y en ese caso ensenar `charge.dispute.created`
+                      es correcto, mientras que inventarle una etiqueta no lo seria.
+                    */}
+                    <span className="mono cell-muted" title={sale.event_type}>
+                      {t(`sales.types.${sale.event_type}`, { defaultValue: sale.event_type })}
+                    </span>
                   </td>
                   <td>
                     {sale.organization_name ?? (

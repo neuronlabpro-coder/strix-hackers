@@ -2,9 +2,15 @@
 
 ## Qué expone y qué no
 
-Expone **leer** el inventario y **indexar** un manifiesto que el cliente aporta. No expone
-"sincronizar un repositorio", porque sincronizar significa traer el manifiesto del proveedor y
-esa es una decisión sobre R5 que este módulo no toma. Ver el encabezado de `service.py`.
+Expone **leer** el inventario, **indexar** un manifiesto que el cliente aporta, y
+**sincronizar** un repositorio contra la API del proveedor.
+
+Lo tercero se decidió después de escribir el módulo, y la forma que se eligió es la que **no**
+introduce código fuente en la plataforma: se piden cuatro ficheros por su nombre y se descartan.
+Un `package.json` es una lista de dependencias, no el código del cliente, y R5 habla del código.
+`sync.py` explica el razonamiento entero; este encabezado solo deja constancia de que la decisión
+está tomada y de dónde viene, porque un `POST` que sincroniza contra un proveedor externo
+justifica cada uno de sus parámetros.
 
 ## Por qué el filtro por organización es **incondicional** en los dos endpoints
 
@@ -19,7 +25,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from backend.apps.supply_chain import service
+from backend.apps.repositories.clients.base import GitClientError
+from backend.apps.repositories.router import (
+    _open_client,
+    _translate_client_error,
+)
+from backend.apps.supply_chain import service, sync
 from backend.apps.supply_chain.models import EcosystemEnum
 from backend.apps.supply_chain.schemas import (
     SupplyChainIndexRequest,
@@ -27,7 +38,9 @@ from backend.apps.supply_chain.schemas import (
     SupplyChainPackageItem,
     SupplyChainPackagePage,
     SupplyChainSummary,
+    SupplyChainSyncResult,
 )
+from backend.apps.supply_chain.sync import _cargar_repositorio
 from backend.core.middleware import (
     SessionDependency,
     TenantContext,
@@ -185,3 +198,79 @@ async def indexar_manifiesto(
 
 
 __all__ = ["PAGE_SIZE", "router"]
+
+
+@router.post(
+    "/repositories/{repository_id}/sync",
+    response_model=SupplyChainSyncResult,
+    status_code=status.HTTP_200_OK,
+)
+async def sync_repository_manifests(
+    repository_id: uuid.UUID,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant)],
+    session: SessionDependency,
+) -> SupplyChainSyncResult:
+    """Descarga los manifiestos de un repositorio y actualiza su inventario de dependencias.
+
+    ## Por qué vuelve a leer el repositorio y no confía en el `repository_id` de la URL
+
+    Porque el `repository_id` es un identificador adivinable, y porque la credencial que se usa
+    para preguntar al proveedor es la de **esta** organización. Si el repositorio fuera de otro
+    cliente, la petición se haría con el token de este contra el repositorio de aquel, y el
+    inventario resultante aparecería en el panel equivocado. R3.
+
+    El filtro por `organization_id` está dentro de `_cargar_repositorio`, no aquí: ponerlo en el
+    servicio y no en la ruta es lo que hace que no se pueda llamar al servicio desde otro sitio
+    saltándoselo.
+    """
+
+    organization_id = tenant.organization.id
+
+    # El repositorio se lee una vez aquí, y otra dentro del servicio. Es deliberado: el servicio
+    # es la frontera de confianza y tiene que poder comprobarlo por su cuenta, aunque quien lo
+    # llama ya lo haya comprobado. La segunda lectura es una fila por organization_id contra un
+    # índice único, y comprar con ella la garantía de que la ruta no es el único sitio donde se
+    # puede introducir un `repository_id` ajeno es un precio aceptable.
+    repositorio = await _cargar_repositorio(session, organization_id, repository_id)
+    if repositorio is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El repositorio no existe en esta organización",
+        )
+
+    try:
+        async with _open_client(session, organization_id, repositorio.provider) as client:
+            resultado = await sync.sincronizar_manifiestos(
+                session,
+                organization_id=organization_id,
+                repository_id=repository_id,
+                client=client,
+            )
+    except GitClientError as error:
+        # Un fallo del proveedor es un `502`, no un `400`: la petición del usuario era válida y
+        # el que no pudo atenderla fue el proveedor. Y el mensaje se traduce con la misma funcion
+        # que usa el router de repositorios, para que el usuario lea el mismo texto si el fallo
+        # aparece al conectar el repositorio o al sincronizarlo.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_translate_client_error(error).detail,
+        ) from error
+
+    # La construcción es explícita y no un `**resultado.como_dict()`.
+    #
+    # El `**` de un `dict[str, object]` es cómodo y no se puede verificar: Pydantic recibe `object`
+    # en cada campo y pyright no puede decir si el `int` que llega es un `int`. Cuando el esquema
+    # y el diccionario se desincronicen, la validación en caliente es lo unico que lo detecta, y
+    # eso es un error de produccion en vez de uno de compilacion.
+    #
+    # De paso, el mapeo se ve entero en un sitio. Que un campo del resultado se llame igual que
+    # el del esquema no significa que signifiquen lo mismo, y esa es la clase de error que un
+    # `**` esconde.
+    return SupplyChainSyncResult(
+        manifests_found=list(resultado.manifestos_encontrados),
+        manifests_missing=resultado.manifiestos_ausentes,
+        packages_inserted=resultado.insertados,
+        packages_updated=resultado.actualizados,
+        packages_discarded=resultado.descartados,
+        errors=list(resultado.errores),
+    )

@@ -305,6 +305,15 @@ class AdminMetric(BaseModel):
     key: str
     value: Decimal
     format: Literal["currency", "credits", "count"]
+    """
+    Clave de i18n de la pista que explica que mide esta metrica.
+
+    **Relativa** al namespace `admin`, igual que `key`. Llevar el namespace
+    dentro —`admin.metrics.mrrHint`— hace que el cliente la busque como
+    `admin.admin.metrics.mrrHint`, no la encuentre, y pinte la cadena cruda.
+    La comprobacion esta en `test_admin_console.py`, que resuelve cada clave
+    contra los ficheros de traduccion reales.
+    """
     hint_key: str
 
 

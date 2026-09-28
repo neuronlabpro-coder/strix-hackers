@@ -102,10 +102,6 @@
       "created": "Created",
       "actions": "Actions"
     },
-    "members": {
-      "one": "{{count}} member",
-      "other": "{{count}} members"
-    },
     "actions": {
       "plan": "Change plan",
       "grant": "Grant credits",
@@ -142,7 +138,9 @@
       "planUpdated": "Plan updated",
       "creditsGranted": "Credits granted",
       "deactivated": "Workspace deleted"
-    }
+    },
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members"
   },
   "users": {
     "title": "Users",
@@ -208,7 +206,24 @@
     "total": "{{count}} events · {{credits}} credits on this page",
     "totalCaption": "The sum covers this page's recorded amounts, not the full history.",
     "notApplicable": "Not applicable",
-    "totalAmount": "{{amount}} charged on this page"
+    "totalAmount": "{{amount}} charged on this page",
+    "kpi": {
+      "events": "Recorded events",
+      "eventsHint": "Full platform history, not just this page.",
+      "amount": "Recorded amount",
+      "credits": "Credits granted",
+      "pageScopedHint": "Sum of the page being viewed, not of the history.",
+      "mrr": "Platform MRR",
+      "mrrElsewhere": "See overview",
+      "mrrHint": "Computed over the whole history, grouped by month. It lives in the Global Overview because this query is per page."
+    },
+    "types": {
+      "checkout.session.completed": "Payment completed",
+      "checkout.session.expired": "Payment session expired",
+      "customer.subscription.deleted": "Subscription cancelled",
+      "invoice.payment_failed": "Invoice payment failed",
+      "charge.refunded": "Charge refunded"
+    }
   },
   "audit": {
     "title": "Global audit",
@@ -226,7 +241,19 @@
     "system": "System",
     "noTransition": "—",
     "empty": "No entry matches the filters",
-    "total": "{{total}} entries in total"
+    "total": "{{total}} entries in total",
+    "actions": {
+      "STATUS_CHANGED": "Status changed",
+      "REPOSITORY_POLICY_UPDATED": "Repository policy updated",
+      "REPOSITORY_CONNECTED": "Repository connected",
+      "REPOSITORY_DISCONNECTED": "Repository disconnected",
+      "ORGANIZATION_DELETED": "Organization deactivated",
+      "ORGANIZATION_RENAMED": "Organization renamed",
+      "MEMBER_ROLE_CHANGED": "Member role changed",
+      "MEMBER_REMOVED": "Member removed from the team",
+      "WEBHOOK_AUTO_DISABLED": "Webhook auto-disabled",
+      "UNREPORTED_USAGE_UNBILLED": "Unreported usage"
+    }
   },
   "states": {
     "loading": "Loading console",

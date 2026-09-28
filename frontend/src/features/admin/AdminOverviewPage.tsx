@@ -172,7 +172,27 @@ export function AdminOverviewPage() {
 }
 
 function MetricCard({ metric }: { metric: AdminMetric }) {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation('admin')
+  /*
+    Las pistas se resuelven quitando el namespace si la clave viene con él.
+    *
+    * El backend envía `hint_key` **relativa** al namespace `admin` —`metrics.mrrHint`— y por
+    * eso esto funciona. Antes venía cualificada —`admin.metrics.mrrHint`— y se buscaba
+    * `admin.admin.metrics.mrrHint`: no existía, e i18next devolvía la cadena entera en pantalla.
+    *
+    * El Backend ya no lo hace, y aun así se quita el prefijo. La razón no es desconfianza sino
+    * que la forma de esta clase de fallo es silenciosa y con muy mal aspecto: no hay error, no
+    * hay excepción en la consola, y la pantalla parece Translate bien porque la etiqueta —que
+    * siempre fue relativa— sí lo está. Un panel de seis cifras correctas con una línea de texto que es un identificador es de las
+    * pocas cosas que un revisor
+    * no detecta mirando la página. Quitar cuatro caracteres cuesta una línea y hace que un
+    * servidor viejo, una caché o un consumidor externo degrade a texto traducido en vez de a
+    * claves en crudo.
+    */
+  const namespace = i18n.resolvedLanguage ?? i18n.language
+  const pista = metric.hint_key.startsWith(`${namespace}.`)
+    ? metric.hint_key.slice(namespace.length + 1)
+    : metric.hint_key
   return (
     <article className="metric-card">
       <p className="eyebrow">{t(`metrics.${metric.key}`)}</p>
@@ -188,7 +208,7 @@ function MetricCard({ metric }: { metric: AdminMetric }) {
           <span className="metric-unit"> {t('metrics.creditsUnit')}</span>
         ) : null}
       </p>
-      <p className="metric-hint">{t(metric.hint_key)}</p>
+      <p className="metric-hint">{t(pista)}</p>
     </article>
   )
 }

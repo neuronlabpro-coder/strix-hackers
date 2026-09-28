@@ -102,10 +102,6 @@
       "created": "Alta",
       "actions": "Acciones"
     },
-    "members": {
-      "one": "{{count}} miembro",
-      "other": "{{count}} miembros"
-    },
     "actions": {
       "plan": "Cambiar plan",
       "grant": "Inyectar créditos",
@@ -142,7 +138,9 @@
       "planUpdated": "Plan actualizado",
       "creditsGranted": "Créditos acreditados",
       "deactivated": "Workspace dado de baja"
-    }
+    },
+    "members_one": "{{count}} miembro",
+    "members_other": "{{count}} miembros"
   },
   "users": {
     "title": "Usuarios",
@@ -208,7 +206,24 @@
     "total": "{{count}} eventos · {{credits}} créditos en esta página",
     "totalCaption": "La suma es de los importes registrados de esta página, no del histórico.",
     "notApplicable": "No aplica",
-    "totalAmount": "{{amount}} cobrados en esta página"
+    "totalAmount": "{{amount}} cobrados en esta página",
+    "kpi": {
+      "events": "Eventos registrados",
+      "eventsHint": "Histórico completo de la plataforma, no solo esta página.",
+      "amount": "Importe registrado",
+      "credits": "Créditos acreditados",
+      "pageScopedHint": "Suma de la página que se está viendo, no del histórico.",
+      "mrr": "MRR de la plataforma",
+      "mrrElsewhere": "Ver resumen",
+      "mrrHint": "Se calcula sobre todo el histórico, agrupando por mes. Está en el Resumen global porque aquí la consulta es por página."
+    },
+    "types": {
+      "checkout.session.completed": "Pago completado",
+      "checkout.session.expired": "Sesión de pago caducada",
+      "customer.subscription.deleted": "Suscripción anulada",
+      "invoice.payment_failed": "Factura impagada",
+      "charge.refunded": "Cargo reembolsado"
+    }
   },
   "audit": {
     "title": "Auditoría global",
@@ -226,7 +241,19 @@
     "system": "Sistema",
     "noTransition": "—",
     "empty": "Ninguna entrada coincide con los filtros",
-    "total": "{{total}} entradas en total"
+    "total": "{{total}} entradas en total",
+    "actions": {
+      "STATUS_CHANGED": "Estado cambiado",
+      "REPOSITORY_POLICY_UPDATED": "Política del repositorio actualizada",
+      "REPOSITORY_CONNECTED": "Repositorio conectado",
+      "REPOSITORY_DISCONNECTED": "Repositorio desconectado",
+      "ORGANIZATION_DELETED": "Organización dada de baja",
+      "ORGANIZATION_RENAMED": "Organización renombrada",
+      "MEMBER_ROLE_CHANGED": "Rol de un miembro cambiado",
+      "MEMBER_REMOVED": "Miembro retirado del equipo",
+      "WEBHOOK_AUTO_DISABLED": "Webhook desactivado automáticamente",
+      "UNREPORTED_USAGE_UNBILLED": "Uso no facturado"
+    }
   },
   "states": {
     "loading": "Cargando consola",

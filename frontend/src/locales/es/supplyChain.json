@@ -68,5 +68,12 @@
     "body": "Se construye leyendo los manifiestos de los repositorios (package.json, requirements.txt, go.mod, Cargo.toml) y guardando solo los identificadores de sus dependencias. El texto del manifiesto no se guarda.",
     "filteredTitle": "Ninguna dependencia coincide con el filtro",
     "filteredBody": "Prueba a ampliar el ecosistema o a quitar la búsqueda."
+  },
+  "sync": {
+    "button": "Sincronizar dependencias",
+    "syncing": "Sincronizando…",
+    "failed": "No se pudo sincronizar con el proveedor. El inventario que ya tenías sigue aquí.",
+    "result": "Manifiestos leídos: {{found}} de {{total}}. Paquetes actualizados: {{packages}}.",
+    "missing": "No encontrados en el repositorio: {{manifests}}."
   }
 }

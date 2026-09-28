@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, CircleHelp, Package, Search } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, CircleHelp, Package,
+  RefreshCw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
   getSupplyChainPackages,
   getSupplyChainSummary,
+  syncSupplyChainRepository,
   type SupplyChainQuery,
 } from '../../lib/api'
-import type { Ecosystem, SupplyChainPackage, SupplyChainSummary } from '../../types/api'
+import type {
+  Ecosystem,
+  SupplyChainPackage,
+  SupplyChainSummary,
+  SupplyChainSyncResult,
+} from '../../types/api'
 import { useAuth } from '../auth/useAuth'
 
 /**
@@ -68,6 +75,11 @@ export function SupplyChainPage() {
   const [filtro, setFiltro] = useState<FiltroVulnerabilidad>('todos')
   const [reloadToken, setReloadToken] = useState(0)
   const [listFailed, setListFailed] = useState(false)
+  // El estado de la sincronizacion vive aqui y no en el componente del boton, porque el boton
+  // tambien tiene que poder **refrescar** la tabla y el resumen, y eso es estado de la pagina.
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [lastSync, setLastSync] = useState<SupplyChainSyncResult | null>(null)
+  const [syncFailed, setSyncFailed] = useState(false)
 
   const isAuthenticated = Boolean(token && selectedOrganizationId)
 
@@ -124,6 +136,49 @@ export function SupplyChainPage() {
   const items = isCurrent ? page.items : []
   const total = isCurrent ? page.total : 0
   const isLoading = isAuthenticated && !isCurrent && !listFailed
+  /**
+   * Sincroniza el repositorio filtrado y recarga el inventario.
+   *
+   * ## Por qué recarga aunque la respuesta ya diga cuántos paquetes hay
+   *
+   * Porque la respuesta cuenta filas **afectadas**, y el listado está paginado, ordenado y
+   * filtrado. Si la sincronización actualiza cuarenta paquetes de una página que no es la que el
+   * usuario está mirando, el contador de la cabecera cambia y la tabla no, y el usuario ve un
+   * panel que dice "40 paquetes" con la misma tabla de antes. Recargar cuesta una petición y
+   * quita la duda.
+   *
+   * ## Por qué el error se guarda y no se lanza
+   *
+   * Porque el error de una sincronización es información sobre el estado del panel, no una
+   * excepción. Se muestra como aviso y el inventario que ya había se queda, que es lo que el
+   * usuario quiere: saber que la sincronización falló **y** seguir viendo lo que ya sabía.
+   */
+  async function sincronizar(): Promise<void> {
+    if (isSyncing) return
+    const objetivo = repositoryId
+    if (!objetivo) return
+
+    setIsSyncing(true)
+    setSyncFailed(false)
+    try {
+      const resultado = await syncSupplyChainRepository(
+        token as string,
+        selectedOrganizationId as string,
+        objetivo,
+      )
+      setLastSync(resultado)
+      setReloadToken((current) => current + 1)
+    } catch {
+      // Se deja el aviso en el estado y el inventario intacto. Un error de red que vacía la
+      // pantalla deja al usuario pensando que no tiene dependencias, que es peor que no
+      // sincronizar.
+      setLastSync(null)
+      setSyncFailed(true)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const hayFiltros = Boolean(search || ecosystem || repositoryId || filtro !== 'todos')
 
   function reiniciar(): void {
@@ -235,7 +290,55 @@ export function SupplyChainPage() {
               {t('filters.clear')}
             </button>
           )}
+
+          {/* El botón solo aparece con un repositorio seleccionado, porque sincronizar sin
+              saber **qué** se sincroniza sería un botón que dispara cuatro peticiones al
+              proveedor sin decir a cuál. El filtro de repositorio es el que decide. */}
+          {repositoryId !== null && (
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={isSyncing}
+              onClick={() => void sincronizar()}
+            >
+              <RefreshCw size={15} aria-hidden="true" />
+              {isSyncing ? t('sync.syncing') : t('sync.button')}
+            </button>
+          )}
         </div>
+
+        {/* El resultado de la última sincronización, o el fallo. Se queda en pantalla hasta la
+            siguiente porque el usuario necesita leerlo: "se indexaron 12 paquetes" de un aviso
+            que desaparece al segundo es un dato que no sirve para nada. */}
+        {syncFailed && (
+          <div className="sync-notice sync-notice-error" role="alert">
+            <p>{t('sync.failed')}</p>
+          </div>
+        )}
+
+        {lastSync !== null && (
+          <div className="sync-notice" role="status">
+            <p>
+              {t('sync.result', {
+                found: lastSync.manifests_found.length,
+                total: lastSync.manifests_found.length + lastSync.manifests_missing.length,
+                packages: lastSync.packages_inserted + lastSync.packages_updated,
+              })}
+            </p>
+            {lastSync.manifests_missing.length > 0 && (
+              <p className="sync-notice-detail">
+                {t('sync.missing', { manifests: lastSync.manifests_missing.join(', ') })}
+              </p>
+            )}
+            {lastSync.errors.length > 0 && (
+              <ul className="sync-notice-errors">
+                {lastSync.errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {listFailed && (
           <div className="empty-state">

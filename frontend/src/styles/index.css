@@ -812,6 +812,12 @@ code.mono,
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.68rem;
+  /* `nowrap` porque un badge es una etiqueta corta por definicion, y una que parte en dos lineas
+     cambia la altura de la fila y descuadra la tabla entera. Con `inline-flex` el texto es un
+     hijo mas del contenedor, asi que sin esta propiedad puede partirse cuando la columna se
+     estrecha, y entonces "Crítica" acaba en una linea y "Alta" en otra con la caja al doble de
+     alto. El ancho lo recorta el padre, no el badge. */
+  white-space: nowrap;
 }
 
 .badge-scanning,
@@ -3053,10 +3059,45 @@ code.mono,
  * izquierda con un vacío enorme a la derecha en pantallas anchas.
  * ------------------------------------------------------------------------- */
 
+/* ------------------------------------------------------------------------- *
+ * Contenido pegado a su columna.
+ *
+ * ## Por qué `margin-inline: 0` y no `auto`
+ *
+ * Porque el centro de la pantalla **no** es el centro del area de contenido.
+ *
+ * La cadena es: `.sidebar` en `position: fixed` de 256 px, que se superpone y por tanto no ocupa
+ * sitio en el flujo; `.content-shell` con `margin-left: 256px`, que reserva el hueco del
+ * sidebar; y `.main-content` con `max-width` y `margin-inline: auto`.
+ *
+ * Con `auto`, el contenido se centra **dentro de `.content-shell`**, que ya está desplazada 256
+ * px. En cuanto la ventana pasa de 256 + 1400 = 1656 px, sobra sitio y aparece un hueco a la
+ * izquierda del contenido, entre el borde del sidebar y la primera tarjeta. A 1900 px el hueco
+ * son 122 px: una columna muerta que parece un segundo sidebar y que en las tablas anchas roba
+ * el ancho que hacia falta para no desbordar.
+ *
+ * `auto` era correcto cuando el sidebar ocupaba flujo. Con el sidebar fijo, no lo es: el area
+ * util ya esta desplazada, y centrarla dentro de ella desplaza el contenido otra vez.
+ *
+ * ## Por qué se conserva el `max-width`
+ *
+ * Porque una tabla de 2000 px de ancho no se lee: las columnas se separan y hay que mover la
+ * cabeza de lado a lado para emparejar el final de una con el principio de otra. El tope mantiene
+ * la tabla en un ancho legible, y ahora que el contenido se pega a la izquierda el `max-width` se
+ * nota como el limite de la ultima columna y no como un hueco previo.
+ *
+ * ## Por qué no se ensancha mas de 1600 px
+ *
+ * Porque a partir de ahi la prosa del panel —descripciones, pistas de metricas— pasa de las
+ * 65-75 lineas de `DESIGN.md` y hay que recorrer la linea con la vista. Un tope de 1600 deja la
+ * tabla comoda y la prosa legible, y el espacio sobrante se queda como margen, que es lo que
+ * pasa cuando no hay nada que poner ahi.
+ * ------------------------------------------------------------------------- */
+
 .main-content {
   width: 100%;
-  max-width: 1400px;
-  margin-inline: auto;
+  max-width: 1600px;
+  margin-inline: 0;
   padding: 32px 24px;
 }
 
@@ -3856,7 +3897,7 @@ code.mono,
 /*
   El saldo y el botón de recarga comparten un borde porque forman un control único —
   "cuánto tienes" y "aumentarlo" son la misma decisión. Separarlos con un hueco
-  invites a leerlos como dos elementos distintos y a que el botón de recarga se
+  invita a leerlos como dos elementos distintos y a que el botón de recarga se
   confunda con un ajuste de la cuenta.
 */
 .credit-pill-balance,
@@ -4322,4 +4363,417 @@ code.mono,
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Las tarjetas de la página de ventas
+   --------------------------------------------------------------------------
+   `.metric-grid` es de cuatro columnas y ya existe para el Resumen global. Aquí se usa la
+   misma rejilla y **no** una propia, porque son el mismo componente visual y dos rejillas
+   iguales para lo mismo se desincronizan en cuanto alguien cambia el espaciado de una.
+   ------------------------------------------------------------------------ */
+
+/* El valor numérico grande de las tarjetas de venta es una cifra de dinero o un contador, y a
+   2rem empuja el título de la tarjeta a dos líneas en cuanto la cifra tiene cinco dígitos. Aquí
+   el valor va a 1,4rem porque las cifras son de cinco o seis cifras —118,00 $ y 500,0000— y a
+   tamaño de titular se salen de la tarjeta. */
+.metric-value-sm {
+  font-size: 1.4rem;
+  margin-top: 12px;
+}
+
+/* El enlace de la cuarta tarjeta. Sin subrayado, y con el color de acento: es un destino
+   dentro de la consola, no un enlace externo, y heredaría el tratamiento de esos si se
+   dejara como texto plano. El subrayado se pone al pasar por encima, que es lo que señala
+   que hay algo pulsable sin subrayarlo en reposo. */
+.metric-link {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.metric-link:hover {
+  color: var(--color-accent-bright);
+  text-decoration: underline;
+}
+
+.metric-link:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Correcciones de la consola: el interruptor, el desplegable de los `<select>`,
+   la alineacion vertical de los campos y el ancho de las columnas de estado y
+   de acciones.
+
+   Cada una de estas cinco cosas es un fallo de una sola linea, y juntas son lo que
+   hacia que la consola se viera como un formulario de 2020 montado encima de un
+   panel de 2026.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. El interruptor mostraba la casilla nativa **y** la pista
+   --------------------------------------------------------------------------
+   Existian las reglas de `.switch-track`, de `.switch-thumb` y de los estados
+   `:checked ~ ...`, pero **no habia ninguna regla para `.switch` ni para su
+   `<input>`**. El input, entonces, se pintaba con el estilo del sistema operativo:
+   una casilla de 13 px a la izquierda de la pista de 38 px. La casilla es ademas el
+   control real —es lo que lleva el estado y lo que pulsa el raton—, asi que no se
+   puede quitar del DOM: hay que quitarlo de la vista.
+
+   Se oculta con `opacity: 0` y occupying el hueco, en vez de con `display: none` ni
+   con `appearance: none`, por dos razones concretas:
+
+   - `display: none` saca el elemento del arbol de accesibilidad y el interruptor
+     deja de poder operarse con teclado, que es justo lo que un `<input
+     type="checkbox">` garantiza por naturaleza.
+   - El input **sigue siendo lo que se pulsa**: con `position: absolute` e `inset: 0`
+     cubre la pista entera, asi que el area de golpeo pasa de 13x13 px a 38x21 px, que
+     es lo que pide WCAG 2.2 como minimo. Un area de golpeo de 13x13 es el motivo
+     habitual de los "no me cunde el interruptor" en un panel denso.
+
+   Y se mantiene visible el anillo de foco: el input es el elemento que recibe
+   `:focus-visible`, y la pista lo pinta con `.switch input:focus-visible ~ .switch-track`. */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch input:disabled {
+  cursor: not-allowed;
+}
+
+/* Sin esto, el `:hover` de la pista seguiria funcionando con el interruptor
+   deshabilitado y parecería que se puede pulsar. */
+.switch input:disabled ~ .switch-track {
+  opacity: 0.5;
+}
+
+/* --------------------------------------------------------------------------
+   2. El desplegable de los `<select>` salia blanco con el texto en blanco
+   --------------------------------------------------------------------------
+   `color-scheme: dark` ya estaba declarado, y aun asi la lista de opciones salia
+   con el fondo claro del sistema. `color-scheme` decide el tema por defecto de los
+   controles que el navegador **dibuja**, pero no fuerza el fondo de la lista: si las
+   opciones heredan `color: var(--color-primary)` —casi blanco— de la pagina y el
+   desplegable usa el fondo claro del sistema, el texto resulta blanco sobre blanco.
+   En la captura se veia justo eso: "Urgent" se leia porque venia resaltada en azul, y
+   "High", "Normal" y "Low" no se leian **en absoluto**.
+
+   Declarar el fondo de la `option` es lo que cierra el problema, y a diferencia de
+   `appearance: none` —que en Windows deja el desplegable sin pintar— es una regla
+   que el navegador respeta en la lista real.
+
+   El `revert` de `color` es deliberado: sin el, el sistema impone su color de texto
+   claro u oscuro segun el fondo que ha calculado, y sobre un fondo que hemos
+   definido nosotros no sabe que tono es el legible. */
+select option,
+select optgroup {
+  background: var(--color-surface-elevated);
+  color: var(--color-primary);
+}
+
+/* La `<option>` seleccionada en un desplegable de Windows se pinta con el color de
+   resaltado del sistema, y sobre un fondo oscuro ese azul deja de tener contraste
+   con el texto. Se fija el par completo. */
+select option:checked {
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface-elevated));
+  color: var(--color-primary);
+}
+
+/* --------------------------------------------------------------------------
+   3. Los campos con distinta altura se centraban en vez de alinearse por arriba
+   --------------------------------------------------------------------------
+   Este fallo aparecia en dos sitios por la misma causa, y por eso se arregla una
+   sola vez y en la clase comun.
+
+   `.filter-bar` —la fila del modal de alta de modelo— tiene `align-items: center`. El
+   campo de prioridad lleva etiqueta, input **y** pista; el de caso de uso lleva
+   etiqueta y select. Al centrar, el mas corto baja para quedar centrado respecto al
+   alto, y el select acaba 20 px por debajo del input que tiene al lado.
+
+   `.field` —la barra de filtros de tickets— es un `display: grid` sin
+   `align-content`, y el valor por defecto de `align-content` en grid es `stretch`:
+   cuando la celda se estira al alto de la mas alta, el espacio sobrante se reparte
+   **entre las filas internas**. La fila de la etiqueta crece, el texto se centra en
+   una fila mas alta y la etiqueta queda visualmente hundida. Pasa igual con el
+   `align-items: start` del contenedor: ese alinea las cajas, pero no impide que las
+   filas de dentro crezcan.
+
+   Por eso el arreglo no es tocar `align-items` en cada sitio, sino
+   `align-content: start` en la clase de campo: es la propiedad que impide el
+   crecimiento de las filas, y funciona este criterio haga lo que haga el contenedor. */
+.field,
+.form-field {
+  align-content: start;
+}
+
+/* El contenedor tambien se alinea por arriba. `center` es lo que produce el
+   desplazamiento en `.filter-bar`; el buscador de la barra de tickets lleva una pista
+   debajo que los selectores no llevan, asi que centrar es incorrecto en los dos
+   sitios. */
+.filter-bar {
+  align-items: start;
+}
+
+/* --------------------------------------------------------------------------
+   4. La columna de estado: el texto caia a la derecha de su propia cabecera
+   --------------------------------------------------------------------------
+   Centrar la celda no basta: la columna es ancha —la estira la de Miembros— y al
+   centrar, el badge se separa de la palabra "ESTADO" que tiene encima. Lo que se
+   quiere es que el badge este **encima de su cabecera**, y para eso la columna tiene
+   que encogerse al contenido en vez de repartirse el sobrante.
+
+   `width: 1%` con `white-space: nowrap` es la tecnica para que una columna de tabla se
+   ajuste a su contenido y las demas repartan el ancho sobrante. Es mejor que un
+   `width` en pixeles porque el ancho de la insignia cambia con el idioma: "Activo" en
+   espanol y "Active" en ingles no ocupan lo mismo, y un ancho fijo dejaria una en
+   corta o desbordaria la otra. */
+.console-table th.cell-estado,
+.console-table td.cell-estado {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   5. La columna de acciones se salia por el borde derecho
+   --------------------------------------------------------------------------
+   Los tres botones —cambiar plan, inyectar creditos y dar de baja— tienen un ancho
+   minimo, y `nowrap` impide que bajen de linea. Con 230 px declarados no cabian los
+   tres y el ultimo se cortaba contra el borde de la tabla, que es como se vio.
+
+   Aqui no se fija un ancho, sino que se deja que la tabla lo decida: el ancho minimo
+   de una columna con `nowrap` no hace falta declararlo, porque la tabla ya cede el
+   ancho que la celda necesita. Lo que si hace falta es que la celda **no** herede
+   `white-space: nowrap` de `.data-table td` con un contenido mas ancho que su
+   cabecera, y que el contenedor tenga el ancho disponible. */
+.console-table td.cell-acciones {
+  min-width: 320px;
+}
+   1. Las acciones de fila, que salían como enlaces subrayados y se partían en varias líneas
+   --------------------------------------------------------------------------
+   El panel de cliente no tiene acciones de fila —sus tablas son de lectura—, así que la clase que
+   usaba la consola, `.link-button`, nació para otra cosa y aquí se ha usado donde no tocaba. Se
+   define `.console-row-actions` con la forma de un botón de tarjeta, que es lo que el operador
+   espera de un botón.
+
+   `flex-wrap: nowrap` y no `wrap` como en `.webhook-actions`: en una columna estrecha, envolver
+   mete cada botón en su propia línea con el icono encima del texto, que es exactamente lo que se
+   veía. Es preferible que la fila tenga scroll horizontal —que el usuario controla moviéndolo— a
+   que las acciones se deshilachen verticalmente, que el usuario no controla. */
+.console-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.console-row-actions .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  white-space: nowrap;
+  color: var(--color-secondary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+  text-decoration: none;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+/* El subrayado vuelve al pasar por encima, que es lo que dice que hay algo pulsable. En reposo no,
+   porque tres acciones subrayadas en una columna parecen enlaces de navegación y no acciones
+   sobre esa fila. */
+.console-row-actions .link-button:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.console-row-actions .link-button:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.console-row-actions .link-button:focus-visible,
+.console-row-actions .ghost-button:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Consola de SuperAdmin: botoneras de fila, celdas con clase y barras de scroll
+
+   Esta consola reutiliza a propósito las clases del panel de cliente —`.data-table`,
+   `.badge`, `.content-card`— para que las dos pantallas se lean como el mismo producto y no como
+   dos aplicaciones parecidas. Ese reúso es correcto y no se toca.
+
+   Lo que se declara aquí son cuatro cosas que en el panel de cliente no se dan y aquí sí, y que por
+   eso no tienen un equivalente al que copiarse.
+   --------------------------------------------------------------------------
+/* --------------------------------------------------------------------------
+   6. El interruptor de "activo" del catálogo LLM, que se partía en dos líneas
+   --------------------------------------------------------------------------
+   El `<p>` con la etiqueta estaba **fuera** del `<label>`, así que caía en su propia línea debajo
+   del interruptor. Y la etiqueta decía lo que haría el botón —"Activar" en un modelo ya activo—
+   en vez de decir lo que es el estado, que es lo que el operador quiere leer de un vistazo. Aquí se
+   corrige el contenedor y la clase; la etiqueta, en `LlmModelsPage`. */
+.console-switch-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.console-switch-cell .chart-empty {
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   7. La barra de filtros de tickets, que no existía como clase
+   --------------------------------------------------------------------------
+   `.triage-toolbar` no estaba definida en ningún sitio. El `<div>` caía a bloque, sus tres hijos
+   `.field` se apilaban verticalmente, y como el primero lleva un `.field-hint` de dos líneas
+   debajo del input, los tres campos quedaban a alturas distintas y desalineados.
+
+   `align-items: start` y no `center`: el buscador tiene una pista debajo y los selectores no.
+   Centrarlos sobre el eje pondría el input del buscador a media altura de la celda, que es peor que
+   alinearlos por arriba.
+
+   Y hay un detalle que este selector resuelve y que no es evidente: `.field:has(select)` es lo que
+   impide que el buscador se quede estrecho. Sin él, los tres `.field` con `flex: 1 1 260px` se
+   reparten el ancho a partes iguales y el buscador —que es el campo que más ocupa en pantalla— se
+   queda con un tercio mientras los dos selectores, que solo necesitan su texto, reciben el mismo
+   ancho. `:has()` es lo correcto aquí porque lo que distingue a un campo de otro es **qué
+   contiene**, no qué clase tiene: si mañana el buscador pasa a ser un `<select>`, la regla sigue
+   siendo la correcta sin tocarla. */
+.triage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 12px 16px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.triage-toolbar .field {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.triage-toolbar .field:has(select) {
+  flex: 0 1 190px;
+  min-width: 170px;
+}
+
+.triage-toolbar select,
+.triage-toolbar input {
+  width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   8. La barra de scroll horizontal de las tablas
+   --------------------------------------------------------------------------
+   El proyecto **sí** personaliza las barras de scroll, pero solo las del sidebar. Las de las
+   tablas salían con el estilo por defecto del navegador: un pulgar gris claro de quince píxeles
+   sobre fondo claro, con el botón de los extremos, y en una superficie que va de `#0B0C0E` a
+   `#121316` se leía como una pieza ajena pegada encima de la tabla.
+
+   Y no es solo estética. Un pulgar de quince píxeles sobre una pista de mil es indistinguible de
+   un borde, así que la tabla parecía "cortada por el margen derecho" en vez de "desplazable", que
+   son dos diagnosticos opuestos: el primero hace abrir la tabla en un editor, el segundo se
+   resuelve arrastrando.
+
+   Se usa la misma forma que la del sidebar —`scrollbar-color` y las tres pseudos de WebKit— para
+   que las dos barras del producto se lean como la misma pieza y no como dos navegadores. */
+.table-scroll,
+.table-wrapper {
+  scrollbar-color: var(--color-border-hover) transparent;
+  scrollbar-width: thin;
+}
+
+.table-scroll::-webkit-scrollbar,
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-scroll::-webkit-scrollbar-track,
+.table-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-scroll::-webkit-scrollbar-thumb,
+.table-wrapper::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-border);
+  /* Los tres píxeles de `border` en transparente son lo que hace que el pulgar flote sobre la
+     pista en vez de llena toda la altura. Sin ellos, el pulgar se ve como un bloque de color y
+     no como una pieza que se agarra. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover,
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-hover);
+  background-clip: padding-box;
+}
+
+/* --------------------------------------------------------------------------
+   9. El desbordamiento de las tablas de la consola
+   --------------------------------------------------------------------------
+   Con ocho columnas y dos campos de coste editables —cada uno con su `input` y su unidad—, la
+   tabla del catálogo de modelos necesita más ancho del que hay en una pantalla de 1440 con la
+   barra lateral puesta. Antes eso se resolvía con el scroll y ya está: el scroll está, y además
+   se ve que está.
+
+   Aquí lo que se ajusta es el ancho mínimo de la columna de acciones, que es la que no puede
+   comprimirse sin que los botones se pisen, y el del identificador del modelo, que es un
+   identificador de OpenRouter y no se puede partir sin que deje de ser copiable. */
+.console-table {
+  min-width: 900px;
+}
+
+
+/* La celda de acciones tiene un ancho minimo propio, y se declara una sola vez. Se aplica aqui
+   y no en el CSS de la tabla porque es la unica columna que no puede comprimirse sin que los
+   botones se pisen. */
+
+/* La celda del identificador del modelo no se parte nunca: es lo que el operador copia para
+   llamar a la API del proveedor, y partido en dos líneas deja de ser seleccionable de un tirón. */
+.console-table .cell-modelo {
+  white-space: nowrap;
+}
+
+/* Las tres celdas con clase de la consola —`.cell-estado`, `.cell-acciones` y `.cell-modelo`—
+   se acotan en el bloque "Correcciones de la consola" (apartados 4 y 5), donde estan los
+   selectores compuestos y la explicacion de por que la columna de estado lleva `width: 1%` y no
+   un ancho fijo en pixeles.
+
+   Aqui solo queda la celda del identificador de modelo, que no necesita mas que no partirse: es
+   lo que el operador copia para llamar a la API del proveedor, y partido en dos lineas deja de
+   ser seleccionable de un tiron. */
+.console-table .cell-modelo {
+  white-space: nowrap;
 }

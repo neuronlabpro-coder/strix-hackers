@@ -80,7 +80,7 @@ export function LlmModelsPage() {
         </div>
       ) : (
         <div className="table-wrapper">
-          <table className="data-table">
+          <table className="data-table console-table">
             <caption className="visually-hidden">{t('title')}</caption>
             <thead>
               <tr>
@@ -105,9 +105,11 @@ export function LlmModelsPage() {
                     activate: t('actions.activate'),
                     deactivate: t('actions.deactivate'),
                     save: t('actions.save'),
-      costInputAria: (modelId: string) => t('actions.costInputAria', { modelId }),
-      costOutputAria: (modelId: string) => t('actions.costOutputAria', { modelId }),
                     saving: t('form.submitting'),
+                    costInputAria: (modelId: string) => t('actions.costInputAria', { modelId }),
+                    costOutputAria: (modelId: string) => t('actions.costOutputAria', { modelId }),
+                    active: t('status.active'),
+                    inactive: t('status.inactive'),
                     input: t('columns.input'),
                     output: t('columns.output'),
                     noUsage: t('metrics.noUsage'),
@@ -140,6 +142,9 @@ export function LlmModelsPage() {
 interface RowLabels {
   activate: string
   deactivate: string
+  /** El **estado**, no la acción. `activate` dice "Activar"; estos dicen "Activo". */
+  active: string
+  inactive: string
   save: string
   /**
    * Etiquetas accesibles de los dos campos de coste.
@@ -226,7 +231,7 @@ function LlmModelRow({
         </label>
         <p className="chart-empty">{labels.priorityLabel(model.priority_order)}</p>
       </td>
-      <td>
+      <td className="cell-modelo">
         <span className="mono">{model.model_id}</span>
         <p className="chart-empty">{model.display_name}</p>
       </td>
@@ -356,22 +361,36 @@ function LlmModelRow({
           <span className="chart-empty">{labels.noUsage}</span>
         )}
       </td>
-      <td>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={model.is_active}
-            disabled={isPending}
-            aria-label={`${model.is_active ? labels.deactivate : labels.activate}: ${model.model_id}`}
-            onChange={(event) => onUpdate({ is_active: event.target.checked })}
-          />
-          <span className="switch-track" aria-hidden="true">
-            <span className="switch-thumb" />
+      <td className="cell-acciones">
+        {/*
+          La etiqueta visible dice **qué es** el modelo, no **qué haría** el botón.
+
+          Antes decía `model.is_active ? labels.activate : labels.deactivate`, o sea que un
+          modelo ya activo rotulaba "Activar" debajo de su interruptor en verde. Se leía como
+          que faltaba activarlo, que es justo la conclusión contraria a la real, y para
+          arreglarlo había que mirar el interruptor en vez de leerlo.
+
+          El `aria-label` del input **sí** lleva la acción, porque es lo que el botón va a hacer
+          cuando lo pulse el lector de pantalla. Visible y accesible responden a preguntas
+          distintas, y aquí se estaban confundiendo las dos.
+        */}
+        <span className="console-switch-cell">
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={model.is_active}
+              disabled={isPending}
+              aria-label={`${model.is_active ? labels.deactivate : labels.activate}: ${model.model_id}`}
+              onChange={(event) => onUpdate({ is_active: event.target.checked })}
+            />
+            <span className="switch-track" aria-hidden="true">
+              <span className="switch-thumb" />
+            </span>
+          </label>
+          <span className="chart-empty">
+            {model.is_active ? labels.active : labels.inactive}
           </span>
-        </label>
-        <p className="chart-empty">
-          {model.is_active ? labels.activate : labels.deactivate}
-        </p>
+        </span>
       </td>
     </tr>
   )

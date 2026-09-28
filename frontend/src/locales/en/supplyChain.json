@@ -68,5 +68,12 @@
     "body": "It is built by reading your repository manifests (package.json, requirements.txt, go.mod, Cargo.toml) and keeping only the identifiers of their dependencies. The manifest text is not stored.",
     "filteredTitle": "No dependency matches the filter",
     "filteredBody": "Try widening the ecosystem or clearing the search."
+  },
+  "sync": {
+    "button": "Sync dependencies",
+    "syncing": "Syncing…",
+    "failed": "Could not sync with the provider. The inventory you already had is still here.",
+    "result": "Manifests read: {{found}} of {{total}}. Packages updated: {{packages}}.",
+    "missing": "Not found in the repository: {{manifests}}."
   }
 }

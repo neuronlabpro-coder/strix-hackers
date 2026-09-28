@@ -278,7 +278,7 @@ export function AdminTicketsPage() {
 
       {!isLoading && !loadFailed && ordenados.length > 0 ? (
         <div className="table-wrapper">
-          <table className="data-table">
+          <table className="data-table console-table">
             <thead>
               <tr>
                 <th scope="col">{t('console.table.number')}</th>
@@ -386,6 +386,7 @@ export function AdminTicketsPage() {
 
               <div className="triage-actions">
                 <select
+                  className="select-input"
                   value={selected.status}
                   disabled={mutating}
                   onChange={(event) =>
@@ -400,6 +401,7 @@ export function AdminTicketsPage() {
                   ))}
                 </select>
                 <select
+                  className="select-input"
                   value={selected.priority}
                   disabled={mutating}
                   onChange={(event) =>

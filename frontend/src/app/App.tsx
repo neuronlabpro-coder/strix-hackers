@@ -270,80 +270,81 @@ export default function App() {
               }
             />
           </Route>
-          {/*
-            La consola de SuperAdmin tiene su propio layout y su propia puerta. Vive
-            **fuera** de `ProtectedShell` a propósito: el shell de cliente resuelve el
-            tenant en cada ruta y arrastra `X-Organization-Id` a todas, y la consola cruza
-            tenants. Anidarla dentro habría que compensar ese tenant en cinco pantallas,
-            y la compensación es justo lo que se olvidaría.
-          */}
+        </Route>
+
+        {/*
+          La consola de SuperAdmin tiene su propio layout y su propia puerta. Vive
+          **fuera** de `ProtectedShell` a propósito: el shell de cliente resuelve el
+          tenant en cada ruta y arrastra `X-Organization-Id` a todas, y la consola cruza
+          tenants. Anidarla dentro habría que compensar ese tenant en cinco pantallas,
+          y la compensación es justo lo que se olvidaría.
+        */}
+        <Route
+          path="/admin"
+          element={
+            <RequireSuperuser>
+              <Suspense fallback={<LazySection />}>
+                <AdminLayout />
+              </Suspense>
+            </RequireSuperuser>
+          }
+        >
           <Route
-            path="/admin"
+            index
             element={
-              <RequireSuperuser>
-                <Suspense fallback={<LazySection />}>
-                  <AdminLayout />
-                </Suspense>
-              </RequireSuperuser>
+              <Suspense fallback={<LazySection />}>
+                <AdminOverviewPage />
+              </Suspense>
             }
-          >
-            <Route
-              index
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <AdminOverviewPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="tenants"
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <AdminTenantsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="users"
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <AdminUsersPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="sales"
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <AdminSalesPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="audit"
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <AdminAuditPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="llm"
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <LlmModelsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="tickets"
-              element={
-                <Suspense fallback={<LazySection />}>
-                  <AdminTicketsPage />
-                </Suspense>
-              }
-            />
-          </Route>
+          />
+          <Route
+            path="tenants"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminTenantsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="users"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminUsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="sales"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminSalesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="audit"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminAuditPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="llm"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <LlmModelsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tickets"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminTicketsPage />
+              </Suspense>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
       </Routes>

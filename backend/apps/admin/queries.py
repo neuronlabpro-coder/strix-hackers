@@ -200,41 +200,52 @@ async def build_overview(
     vendidos_mes = await credit_sales_in_month(session, now)
 
     return [
+        # `key` y `hint_key` son **relativas** al namespace `admin`, las dos.
+        #
+        # El cliente las resuelve con `t(\`metrics.${key}\`)` y `t(hint_key)`, dentro de un
+        # `useTranslation('admin')`. Una clave con el namespace dentro —`admin.metrics.mrrHint`—
+        # se convierte en `admin.admin.metrics.mrrHint`, que no existe, e i18next devuelve la
+        # cadena entera en pantalla. Se vio asi en el Resumen global: las etiquetas salian
+        # traducidas y las pistas de debajo mostraban la clave en crudo.
+        #
+        # Que funcionara una y no la otra era lo que lo hacia pasar: `key` nunca llevo el
+        # namespace, asi que la etiqueta salia bien y hacia parecer que el sistema de traduccion
+        # estaba roto cuando solo estaba mal una de las dos.
         AdminMetric(
             key="mrr",
             value=vendidos_mes,
             format="currency",
-            hint_key="admin.metrics.mrrHint",
+            hint_key="metrics.mrrHint",
         ),
         AdminMetric(
             key="revenueTotal",
             value=vendidos_total,
             format="currency",
-            hint_key="admin.metrics.revenueTotalHint",
+            hint_key="metrics.revenueTotalHint",
         ),
         AdminMetric(
             key="creditsSold",
             value=vendidos_total,
             format="credits",
-            hint_key="admin.metrics.creditsSoldHint",
+            hint_key="metrics.creditsSoldHint",
         ),
         AdminMetric(
             key="pentestRuns",
             value=Decimal(escaneos),
             format="count",
-            hint_key="admin.metrics.pentestRunsHint",
+            hint_key="metrics.pentestRunsHint",
         ),
         AdminMetric(
             key="activeTenants",
             value=Decimal(tenants["active"]),
             format="count",
-            hint_key="admin.metrics.activeTenantsHint",
+            hint_key="metrics.activeTenantsHint",
         ),
         AdminMetric(
             key="totalUsers",
             value=Decimal(usuarios),
             format="count",
-            hint_key="admin.metrics.totalUsersHint",
+            hint_key="metrics.totalUsersHint",
         ),
     ]
 

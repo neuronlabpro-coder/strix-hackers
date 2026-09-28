@@ -69,5 +69,9 @@
   "hints": {
     "fallback": "Un modelo apagado sale de la cadena de fallback sin perder su historial de consumo.",
     "immutableId": "El identificador del modelo no se puede cambiar: el historial de consumo lo cita."
+  },
+  "status": {
+    "active": "Activo",
+    "inactive": "Inactivo"
   }
 }

@@ -116,3 +116,52 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* --------------------------------------------------------------------------
+   El aviso de sincronización
+   --------------------------------------------------------------------------
+   Va dentro de la tarjeta, debajo de la barra de filtros y encima de la tabla, y no como un
+   toast. Un toast desaparece a los cuatro segundos, y el resultado de una sincronización es un
+   dato que el usuario necesita leer con calma: cuántos manifiestos se encontraron, cuántos
+   paquetes se indexaron y cuáles no estaban. Con un toast, ese dato se pierde y la única forma
+   de recuperarlo es volver a pulsar el botón.
+
+   El borde izquierdo en vez de un fondo de color es lo mismo que en las tarjetas: un fondo
+   entero competiría con la tabla, que es lo que el usuario viene a mirar. */
+.sync-notice {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border);
+  border-left: 2px solid var(--color-accent);
+  background: var(--color-surface);
+}
+
+.sync-notice p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-secondary);
+}
+
+/* El detalle va en un tono más apagado que la frase principal. La principal es el resultado y
+   el detalle es la enumeración: mezclados al mismo peso, la lista de ausencias empuja fuera de
+   la vista lo único que cambia, que es el número. */
+.sync-notice-detail {
+  margin-top: 3px;
+  font-size: 0.76rem;
+  color: var(--color-muted);
+}
+
+.sync-notice-errors {
+  margin: 6px 0 0;
+  padding: 0 0 0 16px;
+  font-size: 0.78rem;
+  color: var(--color-medium);
+}
+
+.sync-notice-error {
+  border-left-color: var(--color-critical);
+}
+
+.sync-notice-error p {
+  color: var(--color-critical);
+}

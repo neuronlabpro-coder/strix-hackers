@@ -151,7 +151,7 @@ export function AdminUsersPage() {
         </div>
       ) : (
         <div className="table-wrapper">
-          <table className="data-table">
+          <table className="data-table console-table">
             <caption className="visually-hidden">{t('users.title')}</caption>
             <thead>
               <tr>

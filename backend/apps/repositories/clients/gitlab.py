@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from urllib.parse import quote
 from uuid import UUID
 
 import httpx
 
 from backend.apps.repositories.clients.base import (
+    MAX_MANIFEST_BYTES,
     BaseGitClient,
     GitClientError,
     GitUserIdentity,
@@ -18,6 +20,46 @@ from backend.apps.repositories.models import GitProviderEnum
 from backend.apps.repositories.patches import AutofixPatchError, apply_patch, parse_patch
 
 _DEFAULT_API_URL = "https://gitlab.com/api/v4"
+
+
+def _decodificar_contenido_gitlab(cuerpo: dict[str, object], path: str) -> str:
+    """Saca el texto de la respuesta base64 de GitLab."""
+
+    declarado = cuerpo.get("size")
+    if isinstance(declarado, int) and declarado > MAX_MANIFEST_BYTES:
+        raise GitClientError(
+            f"El manifiesto {path} ocupa {declarado} bytes, mas del tope permitido"
+        )
+
+    crudo = cuerpo.get("content")
+    if not isinstance(crudo, str):
+        raise GitClientError(f"La respuesta de {path} no trae contenido")
+    try:
+        return base64.b64decode(crudo.replace("\n", "")).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError) as error:
+        raise GitClientError(f"El contenido de {path} no es base64 valido en UTF-8") from error
+
+
+def _texto_de_respuesta_gitlab(respuesta: httpx.Response, path: str) -> str:
+    """El texto de una respuesta `raw`, con el tope de tamaño comprobado sobre lo recibido.
+
+    El tope se aplica aquí y no antes, y esa es una limitación que conviene decir: la ruta
+    `raw` no anuncia el tamaño del fichero de forma fiable antes de descargarlo, así que un
+    manifiesto enorme se ha leído entero para luego rechazarlo. El daño está acotado por
+    `MAX_MANIFEST_BYTES` en cuanto se llega a la comprobación, y la alternativa —pedir primero
+    los metadatos con `files`— es un viaje extra por cada manifiesto para todos los casos
+    normales, que son cuatro ficheros de unos pocos kilobytes.
+    """
+
+    crudo = respuesta.content
+    if len(crudo) > MAX_MANIFEST_BYTES:
+        raise GitClientError(
+            f"El manifiesto {path} ocupa {len(crudo)} bytes, mas del tope permitido"
+        )
+    try:
+        return crudo.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise GitClientError(f"El manifiesto {path} no es texto UTF-8 valido") from error
 
 
 class GitLabClient(BaseGitClient):
@@ -84,6 +126,57 @@ class GitLabClient(BaseGitClient):
             headers=self._headers,
         )
         return self._json_object(response)
+
+    def get_file_content(self, remote_repo_id: str, path: str) -> str | None:
+        self._validate_remote_repo_id(remote_repo_id)
+        self._validate_manifest_path(path)
+
+        # ## Por qué GitLab **no** usa `/contents/` y `/raw/`
+        #
+        # Es la diferencia que hace que este método no pueda heredarse de GitHub, y es de las
+        # que no se ven hasta que ya está desplegado.
+        #
+        # GitHub expone `GET /repos/{owner}/{repo}/contents/{path}`: la ruta del fichero va en el
+        # propio path de la URL. GitLab expone `GET /projects/{id}/repository/files/{file_path}`:
+        # la ruta va **en el path de la URL pero con la barra codificada**, y el endpoint devuelve
+        # base64 igual que GitHub. Ese camino se parece al de GitHub y por eso es el tentador.
+        #
+        # El problema es que `{file_path}` codificado con `%2F` lo resuelve el servidor de
+        # applications antes que el router, así que en algunas instalaciones devuelve un 404
+        # aunque el fichero exista. La via fiable es el endpoint `raw` con la ruta como query,
+        # que devuelve el texto ya decodificado y sin el salto de base64 entero.
+        #
+        # Se usan las dos, y cada una por su motivo:
+        #
+        # 1. `files` con la ruta codificada, que devuelve base64. Es la que se usa primero, y es
+        #    la que trae `size`, con el que el tope se comprueba **antes** de decodificar.
+        # 2. `raw`, que devuelve el texto ya decodificado. Es el respaldo para cuando `files`
+        #    responde `404` con el fichero en el sitio, que es el caso en que el servidor de
+        #    applications se ha comido el `%2F`.
+        #
+        # El orden importa y no es arbitrario: ir a `raw` primero funcionaría casi siempre y
+        # costaría una petición más por cada manifiesto que no existe, que es el caso mayoritario
+        # —de cuatro manifiestos, un repositorio de Python tiene uno—. Así que se pregunta por el
+        # que trae metadatos primero, y solo se cae al segundo cuando el primero no responde.
+        archivos = self._request_optional(
+            "GET",
+            f"projects/{quote(remote_repo_id, safe='')}/repository/files/{quote(path, safe='')}",
+            headers=self._headers,
+        )
+        if archivos is not None:
+            cuerpo = self._json_object(archivos)
+            if cuerpo.get("encoding") == "base64" and isinstance(cuerpo.get("content"), str):
+                return _decodificar_contenido_gitlab(cuerpo, path)
+
+        crudo = self._request_optional(
+            "GET",
+            f"projects/{quote(remote_repo_id, safe='')}/repository/files/"
+            f"{quote(path, safe='')}/raw",
+            headers=self._headers,
+        )
+        if crudo is None:
+            return None
+        return _texto_de_respuesta_gitlab(crudo, path)
 
     def create_webhook(
         self,

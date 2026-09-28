@@ -121,4 +121,38 @@ __all__ = [
     "SupplyChainPackageItem",
     "SupplyChainPackagePage",
     "SupplyChainSummary",
+    "SupplyChainSyncResult",
 ]
+
+
+class SupplyChainSyncResult(BaseModel):
+    """Lo que se indexó al sincronizar un repositorio.
+
+    ## Por qué `errors` no es un campo de error del endpoint
+
+    Porque el endpoint responde `200` aunque algunos manifiestos no se puedan parsear, y esa es la
+    situation correcta. Un repositorio de Python no tiene `go.mod`, y eso no es un fallo: es la
+    respuesta. Si eso devolviera un error, el botón de sincronizar parecería roto en el caso más
+    normal del mundo, y quien lo arreglara acabaría mirando el parser en vez de la respuesta.
+
+    Los errores de verdad —proveedor caído, credencial caducada— no llegan aquí: esos hacen que
+    el servicio lance y el endpoint responda con un error de verdad.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    manifests_found: list[str] = Field(
+        default_factory=list,
+        description="Manifiestos que se descargaron e indexaron.",
+    )
+    manifests_missing: list[str] = Field(
+        default_factory=list,
+        description="Manifiestos buscados que el repositorio no tiene.",
+    )
+    packages_inserted: int = Field(ge=0)
+    packages_updated: int = Field(ge=0)
+    packages_discarded: int = Field(ge=0)
+    errors: list[str] = Field(
+        default_factory=list,
+        description="Manifiestos que se descargaron y no se pudieron parsear.",
+    )

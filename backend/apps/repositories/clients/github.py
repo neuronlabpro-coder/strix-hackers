@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from urllib.parse import quote
 from uuid import UUID
 
 import httpx
 
 from backend.apps.repositories.clients.base import (
+    MAX_MANIFEST_BYTES,
     BaseGitClient,
     GitClientError,
     GitUserIdentity,
@@ -18,6 +20,48 @@ from backend.apps.repositories.models import GitProviderEnum
 from backend.apps.repositories.patches import AutofixPatchError, apply_patch, parse_patch
 
 _DEFAULT_API_URL = "https://api.github.com"
+
+
+def _decodificar_contenido(cuerpo: dict[str, object], path: str) -> str:
+    """Saca el texto de la respuesta de `/contents/`.
+
+    ## Por qué no se usa el `download_url`
+
+    Porque la respuesta trae dos caminos: `content` en base64 dentro del JSON, y `download_url`,
+    que es una segunda petición autenticada contra un CDN. Se usa el primero porque es una sola
+    ida y vuelta, y porque la segunda pierde la cabecera de autorización al saltar de host.
+
+    ## Por qué `size` se comprueba antes de decodificar
+
+    Porque un base64 enorme se decodifica entero en memoria antes de que nadie mire su tamaño.
+    Mirar `size` antes es lo que convierte "esto no debería estar aquí" en un error con mensaje
+    en vez de un pico de memoria sin explicación.
+    """
+
+    declarado = cuerpo.get("size")
+    if isinstance(declarado, int) and declarado > MAX_MANIFEST_BYTES:
+        raise GitClientError(
+            f"El manifiesto {path} ocupa {declarado} bytes, mas del tope permitido"
+        )
+
+    if cuerpo.get("encoding") != "base64":
+        # GitHub devuelve `content` vacío con encoding `none` para ficheros de más de 1 MB, que
+        # es justo lo que el tope de tamaño debería haber descartado antes. Si llega aquí, o el
+        # límite cambió o el proveedor cambió su forma de responder, y en los dos casos
+        # devolver texto vacío sería peor que decir que no se pudo leer.
+        raise GitClientError(f"El proveedor no devolvio el contenido de {path} en base64")
+
+    crudo = cuerpo.get("content")
+    if not isinstance(crudo, str):
+        raise GitClientError(f"La respuesta de {path} no trae contenido")
+
+    # Se quitan los saltos de línea antes de decodificar. La respuesta de GitHub los mete, y
+    # `b64decode` sin `validate` los tolera mientras que con `validate` lanzaría; quitar los
+    # primero evita depender de esa tolerancia.
+    try:
+        return base64.b64decode(crudo.replace("\n", "")).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError) as error:
+        raise GitClientError(f"El contenido de {path} no es base64 valido en UTF-8") from error
 
 
 class GitHubClient(BaseGitClient):
@@ -84,6 +128,24 @@ class GitHubClient(BaseGitClient):
             headers=self._headers,
         )
         return self._json_object(response)
+
+    def get_file_content(self, remote_repo_id: str, path: str) -> str | None:
+        self._validate_remote_repo_id(remote_repo_id)
+        self._validate_manifest_path(path)
+
+        # Las dos cosas que se codifican van con `safe=''`, y no es estetica: `/` dentro de un
+        # path de URL se interpreta como separador de segmentos. Codificar solo el `owner` daria
+        # `owner/repo/contents/package.json`, que es una ruta distinta. Y codificar la ruta del
+        # fichero sin `safe` haria que `requirements.txt` llegase bien pero que
+        # `app/requirements.txt` se partiese en dos segmentos.
+        response = self._request_optional(
+            "GET",
+            f"repositories/{quote(remote_repo_id, safe='')}/contents/{quote(path, safe='')}",
+            headers=self._headers,
+        )
+        if response is None:
+            return None
+        return _decodificar_contenido(self._json_object(response), path)
 
     def create_webhook(
         self,
