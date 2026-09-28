@@ -9,7 +9,12 @@ import type {
   CVEPage,
   CVESearchParams,
   CVEYearsResponse,
+  ChatContextOptions,
+  ChatConversationDetail,
+  ChatConversationPage,
+  ChatStepResponse,
   DashboardSummary,
+  Ecosystem,
   EmailResendResponse,
   EmailVerificationResponse,
   GitProvider,
@@ -18,6 +23,10 @@ import type {
   IssueStatus,
   KnowledgeCategory,
   KnowledgeDetail,
+  KnowledgeDocType,
+  KnowledgeDocument,
+  KnowledgeDocumentCreate,
+  KnowledgeDocumentPage,
   KnowledgePage,
   KnowledgeSeverity,
   LLMModelConfig,
@@ -38,6 +47,10 @@ import type {
   RegisterResponse,
   RemoteRepositoryPage,
   Repository,
+  SupplyChainIndexRequest,
+  SupplyChainIndexResult,
+  SupplyChainPackagePage,
+  SupplyChainSummary,
   RepositoryConnectPayload,
   ApiScopeCatalog,
   ApiToken,
@@ -590,6 +603,94 @@ export function getOnboardingStatus(
 }
 
 // --------------------------------------------------------------------------- //
+// Chat con agentes (MENU-MAP §5).
+//
+// El envio de un turno devuelve `ChatStepResponse` y no un `ChatMessage`: la respuesta lleva
+// `context_sources`, que es la lista de documentos del workspace que se han inyectado en el
+// prompt de **este** paso. Es lo que permite decir de dónde sale el contexto, y sin eso un RAG
+// del que el usuario no puede dudar es un RAG cuya respuesta se acaba aceptando aunque sea
+// falsa.
+// --------------------------------------------------------------------------- //
+
+export function getChatConversations(
+  token: string,
+  organizationId: string,
+  limit = 50,
+  offset = 0,
+): Promise<ChatConversationPage> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  return request<ChatConversationPage>(
+    `/api/v1/chat/conversations?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function createChatConversation(
+  token: string,
+  organizationId: string,
+  title?: string,
+): Promise<ChatConversationDetail> {
+  return request<ChatConversationDetail>(
+    '/api/v1/chat/conversations',
+    { method: 'POST', body: JSON.stringify(title ? { title } : {}) },
+    token,
+    organizationId,
+  )
+}
+
+export function getChatConversation(
+  token: string,
+  organizationId: string,
+  conversationId: string,
+): Promise<ChatConversationDetail> {
+  return request<ChatConversationDetail>(
+    `/api/v1/chat/conversations/${conversationId}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function deleteChatConversation(
+  token: string,
+  organizationId: string,
+  conversationId: string,
+): Promise<void> {
+  return request<void>(
+    `/api/v1/chat/conversations/${conversationId}`,
+    { method: 'DELETE' },
+    token,
+    organizationId,
+  )
+}
+
+export function sendChatMessage(
+  token: string,
+  organizationId: string,
+  conversationId: string,
+  content: string,
+  contextOptions?: ChatContextOptions,
+): Promise<ChatStepResponse> {
+  return request<ChatStepResponse>(
+    `/api/v1/chat/conversations/${conversationId}/messages`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        content,
+        // Se omite entero cuando no hay nada acotado, en vez de enviar un objeto vacío: el
+        // backend lo trata igual, y mandar `{}` documenta en el tráfico de red que el panel
+        // piensa en el alcance cuando en realidad no ha considerado nada.
+        ...(contextOptions ? { context_options: contextOptions } : {}),
+      }),
+    },
+    token,
+    organizationId,
+  )
+}
+
+// --------------------------------------------------------------------------- //
 // Revisiones de pull request de toda la organización (MENU-MAP §4).
 //
 // El listado global es un endpoint distinto del por repositorio a propósito: la vista
@@ -811,4 +912,134 @@ export function getCVERecord(
 
 export function getCVEYears(token: string, organizationId: string): Promise<CVEYearsResponse> {
   return request<CVEYearsResponse>('/api/v1/cve/years', {}, token, organizationId)
+}
+
+// --------------------------------------------------------------------------- //
+// Supply Chain: inventario de dependencias (MENU-MAP 6.1).
+// --------------------------------------------------------------------------- //
+
+export interface SupplyChainQuery {
+  repository_id?: string
+  ecosystem?: Ecosystem
+  /**
+   * `undefined` es "no filtrar" y `null` es "solo las no comprobadas".
+   *
+   * Son dos cosas distintas y por eso el tipo admite el valor explicito: mandar siempre un
+   * booleano haria que "no filtrar" fuera indistinguible de "solo las limpias", y la segunda
+   * consulta que el usuario quiere hacer —cuanto de lo que veo no se sabe— no se podria
+   * expresses.
+   */
+  has_vulnerabilities?: boolean | null
+  solo_desarrollo?: boolean
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export function getSupplyChainPackages(
+  token: string,
+  organizationId: string,
+  query: SupplyChainQuery = {},
+): Promise<SupplyChainPackagePage> {
+  const params = new URLSearchParams()
+  if (query.repository_id) params.set('repository_id', query.repository_id)
+  if (query.ecosystem) params.set('ecosystem', query.ecosystem)
+  // Se comprueba `!== undefined` y no la verdadiness: `false` es un valor de filtro valido y
+  // `null` tambien, y los dos tienen que llegar al backend.
+  if (query.has_vulnerabilities !== undefined) {
+    params.set('has_vulnerabilities', String(query.has_vulnerabilities))
+  }
+  if (query.solo_desarrollo !== undefined) {
+    params.set('solo_desarrollo', String(query.solo_desarrollo))
+  }
+  if (query.search) params.set('search', query.search)
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  return request<SupplyChainPackagePage>(
+    `/api/v1/supply-chain/packages?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getSupplyChainSummary(
+  token: string,
+  organizationId: string,
+): Promise<SupplyChainSummary> {
+  return request<SupplyChainSummary>('/api/v1/supply-chain/summary', {}, token, organizationId)
+}
+
+/**
+ * Indexa las dependencias que declara un manifiesto que el cliente aporta.
+ *
+ * El texto **no se persiste**: entra, se parsea y solo se guardan sus identificadores. Antes de
+ * nada se le aplica la limpieza de credenciales del backend, de forma que un token dentro de una
+ * URL de registro privado no llega a existir en la base.
+ */
+export function indexSupplyChainManifest(
+  token: string,
+  organizationId: string,
+  repositoryId: string,
+  payload: SupplyChainIndexRequest,
+): Promise<SupplyChainIndexResult> {
+  return request<SupplyChainIndexResult>(
+    `/api/v1/supply-chain/packages/index?repository_id=${encodeURIComponent(repositoryId)}`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+// --------------------------------------------------------------------------- //
+// Documentos del workspace en formato OKF (MENU-MAP 7.1).
+// --------------------------------------------------------------------------- //
+
+export interface KnowledgeDocumentQuery {
+  doc_type?: KnowledgeDocType
+  limit?: number
+  offset?: number
+}
+
+export function getKnowledgeDocuments(
+  token: string,
+  organizationId: string,
+  query: KnowledgeDocumentQuery = {},
+): Promise<KnowledgeDocumentPage> {
+  const params = new URLSearchParams()
+  if (query.doc_type) params.set('doc_type', query.doc_type)
+  if (query.limit !== undefined) params.set('limit', String(query.limit))
+  if (query.offset !== undefined) params.set('offset', String(query.offset))
+  return request<KnowledgeDocumentPage>(
+    `/api/v1/knowledge/documents?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function createKnowledgeDocument(
+  token: string,
+  organizationId: string,
+  payload: KnowledgeDocumentCreate,
+): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(
+    '/api/v1/knowledge/documents',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export function deleteKnowledgeDocument(
+  token: string,
+  organizationId: string,
+  documentId: string,
+): Promise<void> {
+  return request<void>(
+    `/api/v1/knowledge/documents/${documentId}`,
+    { method: 'DELETE' },
+    token,
+    organizationId,
+  )
 }

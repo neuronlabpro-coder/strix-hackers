@@ -19,6 +19,9 @@ import { PrReviewsPage } from '../features/prReviews/PrReviewsPage'
 import { PentestsPage } from '../features/pentests/PentestsPage'
 import { PentestRunPage } from '../features/pentests/PentestRunPage'
 import { RepositoriesPage } from '../features/repositories/RepositoriesPage'
+// `PlaceholderPage` sigue en uso por las rutas que todavia no tienen pantalla. El chat y el
+// supply chain salieron de aqui; `/assets`, `/containers` y `/networks` siguen en el mismo
+// estado.
 import { PlaceholderPage } from '../features/shared/PlaceholderPage'
 import { SettingsLayout } from '../features/settings/SettingsLayout'
 import { SettingsGeneralPage } from '../features/settings/SettingsGeneralPage'
@@ -60,6 +63,34 @@ const AssetDiscoveryPage = lazy(() =>
   import('../features/assetDiscovery/AssetDiscoveryPage').then((m) => ({
     default: m.AssetDiscoveryPage,
   })),
+)
+/**
+ * El chat se carga aparte, con la misma razon que las tres anteriores y no por capricho: es lo
+ * que mantiene el bundle de entrada por debajo del limite de 500 KB de Vite, y eso no es un
+ * numero arbitrario. Es el peso de React, del router, de i18next y de los iconos; el chat anade
+ * seis componentes y un renderizador de Markdown, y con el import estatico se iba al bloque
+ * principal, que es el que se descarga entero en la pantalla de login.
+ *
+ * Subir `chunkSizeWarningLimit` habria hecho desaparecer el aviso sin tocar nada de lo que lo
+ * causa. Partir el bloque hace que el usuario que entra por el login no descargue un renderizador
+ * de Markdown que no va a usar.
+ */
+const ChatPage = lazy(() =>
+  import('../features/chat/ChatPage').then((m) => ({ default: m.ChatPage })),
+)
+/**
+ * El supply chain tambien se carga aparte.
+ *
+ * Es la misma razon que el chat y el mismo numero: 500 KB en el bloque de entrada. Este modulo
+ * pesa porque trae la tabla, los siete chips de ecosistema y los tres estados de vulnerabilidad,
+ * y quien entra por el login no va a ver ninguno de los tres.
+ *
+ * Subir `chunkSizeWarningLimit` habria hecho desaparecer el aviso sin tocar nada de lo que lo
+ * causa. Partir el bloque hace que el bundle que se descarga al entrar no incluya una pantalla
+ * que el usuario no ha abierto.
+ */
+const SupplyChainPage = lazy(() =>
+  import('../features/supply_chain/SupplyChainPage').then((m) => ({ default: m.SupplyChainPage })),
 )
 
 /**
@@ -203,21 +234,10 @@ export default function App() {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/cve" element={<CvePage />} />
           <Route path="/pr-reviews" element={<PrReviewsPage />} />
-          <Route
-            path="/chat"
-            element={<PlaceholderPage titleKey="navigation:chat" reasonKey="pending.chat" />}
-          />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/domains" element={<DomainsPage />} />
           <Route path="/asset-discovery" element={<AssetDiscoveryPage />} />
-          <Route
-            path="/supply-chain"
-            element={
-              <PlaceholderPage
-                titleKey="navigation:supplyChain"
-                reasonKey="pending.supplyChain"
-              />
-            }
-          />
+          <Route path="/supply-chain" element={<SupplyChainPage />} />
           <Route
             path="/containers"
             element={

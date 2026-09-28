@@ -41,5 +41,71 @@
     "error": "No se pudo cargar el catálogo",
     "retry": "Reintentar",
     "notFound": "El apunte no existe"
+  },
+  "views": {
+    "label": "Vista de la base de conocimiento",
+    "documents": "Documentos del workspace",
+    "catalog": "Catálogo técnico"
+  },
+  "documents": {
+    "typeFilterLabel": "Filtrar por tipo de documento",
+    "allTypes": "Todos los tipos",
+    "add": "Añadir documento OKF",
+    "types": {
+      "DOCUMENTATION": "Documentación",
+      "BUSINESS_RULE": "Regla de negocio",
+      "API_SPEC": "Especificación de API",
+      "ARCHITECTURE": "Arquitectura"
+    },
+    "deleteAria": "Eliminar el documento {{title}}",
+    "deleteTitle": "Eliminar documento",
+    "deleteBody": "Se eliminará «{{title}}» y dejará de formar parte del contexto del asistente. Esta acción no se puede deshacer.",
+    "deleteCancel": "Cancelar",
+    "deleteConfirm": "Eliminar",
+    "loading": "Cargando documentos…",
+    "loadFailed": "No se pudieron cargar los documentos del workspace.",
+    "retry": "Reintentar",
+    "savedToast": "Documento guardado. El asistente lo usará como contexto.",
+    "count": "Mostrando {{shown}} de {{total}} documentos",
+    "emptyTitle": "No hay reglas de negocio ni documentación indexada",
+    "emptyBody": "Añade documentos en formato OKF para que los escaneos y el asistente no generen falsos positivos.",
+    "emptyFilteredTitle": "Ningún documento coincide con el filtro",
+    "emptyFilteredBody": "Prueba a quitar el filtro de tipo."
+  },
+  "okfEditor": {
+    "title": "Añadir documento OKF",
+    "close": "Cerrar",
+    "tabsLabel": "Forma de escribir el documento",
+    "tabEditor": "Pegar documento",
+    "tabForm": "Formulario guiado",
+    "editorLabel": "Documento OKF completo",
+    "editorPlaceholder": "---\ntype: business_rule\ntitle: \"...\"\ndescription: \"...\"\n---\n\nContenido en Markdown",
+    "fieldTitle": "Título",
+    "fieldType": "Tipo de documento",
+    "fieldDescription": "Descripción",
+    "fieldTags": "Etiquetas",
+    "tagsPlaceholder": "auth, payments, internal",
+    "fieldBody": "Contenido",
+    "types": {
+      "concept": "Documentación general",
+      "business_rule": "Regla de negocio",
+      "api_spec": "Especificación de API",
+      "architecture": "Arquitectura"
+    },
+    "preview": "Ver el documento OKF que se enviará",
+    "valid": "El frontmatter es válido. Ya se puede guardar.",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saveFailed": "No se pudo guardar el documento. Revisa el contenido e inténtalo de nuevo."
+  },
+  "okf": {
+    "missingFrontmatter": "Falta el bloque de frontmatter. El documento tiene que empezar con una línea de tres guiones.",
+    "unclosedFrontmatter": "El frontmatter no se cierra: falta la línea de tres guiones del final.",
+    "missingType": "Falta `type` en el frontmatter. Sin él el documento no se puede recuperar por tipo.",
+    "invalidType": "`type` no es un valor del formato. Admitidos: concept, business_rule, api_spec, architecture.",
+    "missingTitle": "Falta `title` en el frontmatter.",
+    "missingDescription": "Falta `description` en el frontmatter. Es lo que se inyecta cuando el documento se cita sin su cuerpo entero.",
+    "emptyBody": "El cuerpo del documento está vacío."
   }
 }

@@ -44,6 +44,21 @@ class AuditActionEnum(StrEnum):
     # pidiera: un endpoint que se apaga solo tiene que poder responder cuándo pasó, por
     # qué y cuál era la URL, y eso solo se responde desde la tabla append-only.
     WEBHOOK_AUTO_DISABLED = "WEBHOOK_AUTO_DISABLED"
+    # El proveedor de inferencia no publico el bloque `usage` de un paso del chat y ese paso
+    # **no se cobro**: la respuesta se entrega igual, con `tokens_in=0`, `tokens_out=0` y
+    # `credits_cost=0`.
+    #
+    # Va al rastro forense y no a un log por una pregunta muy concreta: cuanto le costo al
+    # cliente la semana pasada, y por que hay dias con cero gasto de chat en los que si se uso
+    # el chat. El log se rota y no se filtra por organizacion; el asiento del ledger no existe
+    # porque no se cobro; y el mensaje dice `credits_cost=0` sin decir **por que**. Este
+    # evento es lo que convierte "cero" en "cero por esta razon, en este mensaje, en este
+    # instante".
+    #
+    # `entity_type` es `chat_message` y no `chat_conversation` porque la consulta de auditoria
+    # se hace de un mensaje concreto. Guardarlo como conversación obligaria a recorrer todos
+    # sus mensajes para contestar.
+    UNREPORTED_USAGE_UNBILLED = "UNREPORTED_USAGE_UNBILLED"
 
 
 class AuditLogEntry(Base):

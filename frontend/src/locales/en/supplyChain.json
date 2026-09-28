@@ -1,0 +1,72 @@
+{
+  "eyebrow": "Supply chain",
+  "title": "Supply Chain",
+  "description": "The direct dependencies your repository manifests declare. This is not the installed package tree: it is what the project says it uses.",
+  "refresh": "Refresh",
+  "search": {
+    "placeholder": "Search package or licence…"
+  },
+  "filters": {
+    "ecosystemLabel": "Filter by ecosystem",
+    "statusLabel": "Filter by vulnerability status",
+    "allEcosystems": "All",
+    "todos": "All",
+    "unchecked": "Unchecked",
+    "vulnerable": "With CVE",
+    "clean": "Clean",
+    "clear": "Clear filters"
+  },
+  "ecosystems": {
+    "NPM": "npm",
+    "PYPI": "PyPI",
+    "GO": "Go",
+    "CARGO": "Cargo",
+    "MAVEN": "Maven",
+    "COMPOSER": "Composer",
+    "OTHER": "Other"
+  },
+  "metrics": {
+    "total": "Dependencies",
+    "repositories": {
+      "_one": "Across {{count}} repository",
+      "_other": "Across {{count}} repositories"
+    },
+    "unchecked": "Unchecked",
+    "uncheckedCaption": "Nobody has checked them for vulnerabilities",
+    "clean": "Checked clean",
+    "cleanCaption": "Verified with no known CVEs",
+    "vulnerable": "With CVE",
+    "vulnerableCaption": "Verified and vulnerable"
+  },
+  "columns": {
+    "package": "Package",
+    "version": "Version",
+    "ecosystem": "Ecosystem",
+    "repository": "Repository",
+    "license": "Licence",
+    "status": "Vulnerability status"
+  },
+  "status": {
+    "unchecked": "Unchecked",
+    "uncheckedHelp": "No per-package vulnerability source is connected. Being listed here does not mean it is safe.",
+    "clean": "Clean",
+    "cleanHelp": "Checked and free of known vulnerabilities.",
+    "vulnerable": {
+      "_one": "{{count}} CVE",
+      "_other": "{{count}} CVEs"
+    }
+  },
+  "devDependency": "dev",
+  "licenseUnknown": "not declared",
+  "versionUnpinned": "unpinned",
+  "tableCount": "Showing {{shown}} of {{total}} dependencies",
+  "loading": "Loading inventory…",
+  "loadFailed": "The dependency inventory could not be loaded.",
+  "retry": "Retry",
+  "empty": {
+    "title": "No inventory yet",
+    "body": "It is built by reading your repository manifests (package.json, requirements.txt, go.mod, Cargo.toml) and keeping only the identifiers of their dependencies. The manifest text is not stored.",
+    "filteredTitle": "No dependency matches the filter",
+    "filteredBody": "Try widening the ecosystem or clearing the search."
+  }
+}

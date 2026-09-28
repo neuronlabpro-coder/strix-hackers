@@ -17,7 +17,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text, case, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -156,3 +156,34 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+#: Peso de cada rol para desempatar una misma marca de tiempo. Vive aqui y no en el servicio
+#: porque el servicio y el runner **consumen** el orden y no lo deciden: los dos lo necesitan y
+#: ninguno puede ser el duenno, porque el servicio importa al runner y al revés no, y ponerlo
+#: en cualquiera de los dos crea un ciclo de importacion.
+#:
+#: ## Por que el rol y no el `id`
+#:
+#: Porque `now()` de PostgreSQL es la hora de **inicio de la transaccion**, no la de cada
+#: sentencia. Los dos mensajes de un turno —la pregunta y la respuesta— se insertan en la
+#: misma transaccion, asi que comparten `created_at` **exactamente**, y un desempate por `id`
+#: no los ordena: un UUID es aleatorio por construccion, y dos filas con la misma marca quedan
+#: en orden aleatorio.
+#:
+#: El sintoma es visible: el hilo muestra la respuesta del asistente **antes** de la pregunta que
+#: la provoque, y el mismo turno aparece en orden distinto en cada recarga. Es el unico punto
+#: donde el orden se puede decidir de forma determinista hoy, porque la marca de tiempo no.
+#:
+#: El desempate por rol es correcto **y no es un truco**, porque el orden dentro de un turno es
+#: una invariante del dominio, no una preferencia: la pregunta del usuario precede siempre a su
+#: respuesta. Y como cada turno es su propia transaccion, los turnos quedan separados por
+#: `created_at` sin ambiguedad, de forma que (marca, rol) ordena el hilo entero bien.
+#:
+#: Compara la **columna** contra el valor, no el enum contra si mismo: un `case` con un
+#: predicado constante devuelve siempre el mismo numero, y eso parece un desempate sin serlo.
+PESO_DE_ROL = case(
+    (ChatMessage.role == ChatRoleEnum.USER, 0),
+    (ChatMessage.role == ChatRoleEnum.ASSISTANT, 1),
+    else_=2,
+)

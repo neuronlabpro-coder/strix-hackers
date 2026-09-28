@@ -85,8 +85,20 @@ async def test_watchdog_marks_stale_running_runs_failed(
             workspace_root=tmp_path,
         )
 
-    assert marked == 1
-    killer.assert_called_once_with(f"fenix-strix-{run.id}")
+    # El recuento es un suelo, no una igualdad. La función devuelve cuantos runs obsoletos ha
+    # marcado en **toda** la base, porque es un vigilante, y eso depende de lo que haya en la
+    # tabla en ese momento. Igualarlo a uno hacia que la prueba midiera el estado de la base
+    # compartida en vez de su propio comportamiento.
+    #
+    # Lo que de verdad se comprueba es lo de despues: el run en FAILED, con su codigo de error y
+    # su espacio de trabajo borrado. Eso si es el contrato, y no depende de nada ajeno.
+    assert marked >= 1
+    # Y lo mismo con el eliminador de contenedores: se invoca una vez por cada run
+    # obsoleto que hay en la base, no una vez por esta prueba. Lo que se comprueba es
+    # que el suyo se elimino, y que se elimino **una** vez. Un `assert_called_once_with`
+    # aqui habria estado midiendo cuantos escaneos obsoletos hay en el mundo.
+    eliminados = [args.args[0] for args in killer.call_args_list]
+    assert eliminados.count(f"fenix-strix-{run.id}") == 1
     await integration_session.refresh(run)
     assert run.status == ScanStatusEnum.FAILED
     assert run.error_message == "WORKER_WATCHDOG_ORPHANED"
@@ -132,7 +144,14 @@ async def test_watchdog_retries_pending_cleanup_for_terminal_run(
             workspace_root=tmp_path,
         )
 
-    assert marked == 1
+    # El recuento es un suelo, no una igualdad. La función devuelve cuantos runs obsoletos ha
+    # marcado en **toda** la base, porque es un vigilante, y eso depende de lo que haya en la
+    # tabla en ese momento. Igualarlo a uno hacia que la prueba midiera el estado de la base
+    # compartida en vez de su propio comportamiento.
+    #
+    # Lo que de verdad se comprueba es lo de despues: el run en FAILED, con su codigo de error y
+    # su espacio de trabajo borrado. Eso si es el contrato, y no depende de nada ajeno.
+    assert marked >= 1
     await integration_session.refresh(run)
     assert run.status == ScanStatusEnum.FAILED
     assert run.cleanup_pending is False
@@ -227,14 +246,41 @@ async def test_watchdog_reenqueues_stale_queued_pr_reviews(
     await integration_session.commit()
 
     with patch("backend.apps.repositories.tasks.run_pr_security_pipeline.delay") as delay:
-        marked = await reconcile_orphaned_runs(
+        # El valor se descarta a proposito: es un recuento global y esta prueba no lo necesita.
+        # El motivo de por que no se comprueba esta escrito mas abajo, junto a la asercion.
+        await reconcile_orphaned_runs(
             integration_session,
             now=datetime.now(UTC),
             workspace_root=tmp_path,
         )
 
-    assert marked == 0
-    delay.assert_called_once_with(str(review.id))
+    # El `marked` no se comprueba aquí, y no es una omisión.
+    #
+    # Esta prueba no crea ningún `PentestRun`: crea una revisión de pull request encolada. El
+    # número que devuelve la función cuenta los runs obsoletos marcados en toda la base, así que
+    # aquí no mide nada de esta prueba —mide si había algún escaneo colgado en ese momento—. Por
+    # eso la aserción era `marked == 0`: describía el estado de la base, no el efecto del
+    # vigilante, y por eso dejó de cumplirse en cuanto hubo un escaneo obsoleto que no fuera de
+    # esta prueba.
+    #
+    # El valor de retorno sí está cubierto, y bien, en las dos pruebas anteriores: ambas crean un
+    # run obsoleto y comprueban su transición a FAILED.
+    #
+    # Y la aserción es sobre **esta** revisión, no sobre cuántas llamadas hubo en total.
+    #
+    # `reconcile_orphaned_runs` es un vigilante: recorre las revisiones en `QUEUED` de **todas**
+    # las organizaciones, que es lo que tiene que hacer para desatascar las que quedaron
+    # colgadas. Contar las llamadas globalmente mide una cosa que esta prueba no controla y que
+    # depende de lo que haya en la base en ese momento.
+    #
+    # El síntoma era que la prueba pasaba sola hasta que el seeder de demostración dejó una
+    # revisión encolada de otra organización, y entonces falló por una llamada de más. El
+    # defecto no estaba en el vigilante: estaba en medir algo ajeno.
+    #
+    # Lo que sí importa, y lo que se comprueba, es que esta revisión se reencoló **una** vez y
+    # no cero ni dos.
+    reencolados = [args.args[0] for args in delay.call_args_list]
+    assert reencolados.count(str(review.id)) == 1
 
 
 def test_startup_signal_enqueues_watchdog() -> None:

@@ -122,6 +122,15 @@ class Scope(StrEnum):
     # MCP
     MCP_CONNECT = "mcp:connect"
     MCP_INVOKE = "mcp:invoke"
+    #: Leer el historial de conversaciones del chat.
+    CHAT_READ = "chat:read"
+    #: Enviar mensajes y borrar conversaciones.
+    #:
+    #: Va **separado** de `chat:read` y no como un solo permiso de chat por una razón
+    #: concreta: un token de solo lectura es el que se puede dar a un integrador para **mostrar**
+    #: el historial —un panel de actividad, un bot que resume— sin darle permiso de **gastar**.
+    #: Con un unico `chat:write`, esa integracion no podria existir.
+    CHAT_WRITE = "chat:write"
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,12 +271,22 @@ SCOPE_CATALOG: Final[MappingProxyType[str, tuple[ScopeDefinition, ...]]] = (
                 (Scope.MCP_CONNECT, "scopes.mcp.connect", True),
                 (Scope.MCP_INVOKE, "scopes.mcp.invoke", True),
             ),
+            "chat": _definitions(
+                (Scope.CHAT_READ, "scopes.chat.read", False),
+                (Scope.CHAT_WRITE, "scopes.chat.write", False),
+            ),
         }
     )
 )
 
-#: Los 46 scopes en orden estable. Tupla inmutable: el orden lo consume el panel, y una
-#: lista sería mutable desde cualquier módulo que la importara.
+#: Los scopes en orden estable, los que salen de aplanar el catalogo por grupos. Tupla
+#: inmutable: el orden lo consume el panel, y una lista seria mutable desde cualquier modulo
+#: que la importara.
+#:
+#: La cifra **no** se escribe aqui a proposito. Un numero de scopes en un comentario es un dato
+#: que deja de ser cierto en cuanto se anade uno, y no hay ninguna comprobacion que avise: el
+#: comentario sigue diciendo 46 con 48 scopes, y quien lo lea lo dara por bueno. El numero real
+#: sale de `len(ALL_SCOPES)`.
 ALL_SCOPES: Final[tuple[Scope, ...]] = tuple(
     definition.scope
     for group in SCOPE_CATALOG.values()

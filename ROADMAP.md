@@ -166,7 +166,7 @@
 
 > **Nota de cierre (2026-09-25):** la Fase 4 queda cerrada en su alcance de backend y de panel. El **Bloque 4.1** cerró el shell, `/dashboard` (§1.0 y §1.2) y `/repositories` (§6.1). El **Bloque 4.2** cerró el gestor de vulnerabilidades (§3, §3.4), el gestor de pentests con terminal en vivo (§2), las secciones Enterprise con candado y la base de la consola de SuperAdmin (`/admin`, §0.2). El **Bloque 4.3** desbloqueó el triaje con `PATCH` protegido por R4, hizo interactivo el tablero Kanban, conectó el selector real de revisiones de PR, construyó el catálogo técnico de remediación en `/knowledge` e implantó el checklist `Get Set Up` de §1.1 con estado derivado de la base de datos.
 >
-> Quedan fuera del alcance cerrado y documentadas como deuda: §5 (chat con agentes), los pasos 4 a 6 de §1.1, las revisiones de PR en `/pr-reviews` (§4.0 y §4.1) y la knowledge base por organización que describe §7.0 y §7.1, que es distinta del catálogo técnico compartido implementado en `/knowledge`. **§6.2 (dominios y verificación de propiedad) se cerró en la Fase 6, no aquí**; la casilla de abajo se marca con esa misma fecha y no como parte de este cierre.
+> Quedan fuera del alcance cerrado y documentadas como deuda: los pasos 4 a 6 de §1.1. Las revisiones de PR en `/pr-reviews` (§4.0 y §4.1), la knowledge base por organización que describe §7.0 y §7.1 —distinta del catálogo técnico compartido de `/knowledge`, e implementada ahora en Fase 6— y el chat con agentes (§5) se cerraron despues: el chat en el Paso 2 de la Fase 6, con runner, endpoints, RAG sobre documentos OKF e interfaz. **§6.2 (dominios y verificación de propiedad) se cerró en la Fase 6, no aquí**; la casilla de abajo se marca con esa misma fecha y no como parte de este cierre.
 >
 > El punto de DoD de `/domains` se dejó sin marcar de forma deliberada en este cierre: no se cierra una casilla por aproximación. Se marcó en la Fase 6, cuando la funcionalidad existió.
 
@@ -241,6 +241,27 @@
 > | Ruta | Bloqueo |
 > | :--- | :--- |
 > | `/chat` | Modelo de conversaciones y agente conversacional del servidor MCP. |
+
+> **Embeddings (preparados, no activos).** El modelo acordado es `openai/text-embedding-3-small`
+> con 1536 dimensiones, vía OpenRouter y con la misma `LLM_API_KEY`. Vive como **constante** en
+> `backend/apps/knowledge/embeddings.py` y no como variable de entorno, contra la regla de R1, y
+> la razón es que el modelo determina la dimensión del vector y esa dimensión es parte del
+> esquema: una columna `vector(1536)` alimentada por un modelo distinto produce vectores de otro
+> espacio, la búsqueda por similitud sigue respondiendo y las respuestas son silenciosamente
+> incorrectas. Hacerlo configurable sería permitir cambiarlo sin que nada avise.
+>
+> La búsqueda vectorial **no está activa** porque `pgvector` no está en el servidor de la base,
+> y está medido: `pg_extension` no tiene la fila `vector` y `CREATE EXTENSION vector` responde
+> `extension "vector" is not available`. El usuario de la base es `fenix_admin` y
+> `CREATE EXTENSION` pide superusuario.
+>
+> Lo que sí está hecho es la **comprobación de capacidad** (`hay_soporte_vectorial`), que mira
+> la extensión *y* la columna, y una prueba que verifica que la sonda coincide con lo que la
+> base afirma de sí misma. El día que se ejecute el `ALTER TABLE` documentado en el módulo, la
+> búsqueda vectorial se activa sin tocar código; mientras tanto el RAG sigue siendo léxico con
+> puntuación ponderada, que es el camino que está en producción.
+>
+> Al activar la extensión hay que reindexar los **188 documentos** de contexto que hay hoy.
 > | `/integrations`, `/api-access` | Tarea 3.4 de la Fase 5: matriz de 47 scopes, hash de tokens y almacenamiento de conexiones MCP. |
 > | `/supply-chain` | Strix aún no expone el SBOM de dependencias. |
 > | `/containers`, `/networks` | Inventario de contenedores y escáner de red; llegan con la Fase 6. |
@@ -481,13 +502,41 @@ Verificación de que ninguna sección funcional del producto queda sin fase de d
 | §2 Pentests, Schedules & Modal `+ New Pentest` | Fase 2 (Backend/Datos) y Fase 4 (UI) |
 | §3 Issues, Severidades, PoC Viewer & Autofix | Fase 2 (Extracción PoC) y Fase 4 (UI) |
 | §4 PR Reviews & Issues Caught en CI | Fase 3 (Automatización) y Fase 4 (UI) |
-| §5 Chat Conversacional con Agentes | Fase 4 |
+| §5 Chat Conversacional con Agentes | Fase 6 (interfaz, runner y RAG) |
 | §6.1 Repositorios Conectados | Fase 3 (Conectores Git) y Fase 4 (UI) |
 | §6.2 Dominios, APIs & Verificación de Propiedad | Fase 4 |
-| §7 Knowledge Base de Aplicaciones | Fase 4 |
+| §7 Knowledge Base de Aplicaciones | Fase 4 (catálogo técnico) y Fase 6 (documentos del cliente, formato OKF) |
 | §8 Integraciones (Git, Slack, Jira, MCP Sources) | Fase 3 (Git) y Fase 5 (MCP/Gestión) |
-| §9 Tokens de API (47 Scopes) & Webhooks Salientes | Fase 5 |
+| §9 Tokens de API (49 Scopes) & Webhooks Salientes | Fase 5 (47) y Fase 6 (`chat:read`, `chat:write`) |
 | §9.2 Servidor MCP Remoto (`/mcp`) | Fase 5 |
 | §10.0 / §10.2 Gestión de Cuenta, Miembros & Roles | Fase 1 |
 | §10.3 Facturación, Créditos Stripe & Auto top-up | Fase 5 |
 | Auditoría Transversal y Despliegue Final | Fase 6 |
+
+> **Supply Chain (inventario de dependencias, Fase 6).** Se implementó el módulo completo:
+> `backend/apps/supply_chain/` con el modelo, la migración `c3d4e5f6a7b8`, el parser de
+> manifiestos (`package.json`, `requirements.txt`, `go.mod`, `Cargo.toml`), los tres endpoints y
+> la tabla del panel. `/supply-chain` deja de ser un cartel de «Fase posterior».
+>
+> **Lo que se inventa: el origen del manifiesto.** El backend no clona nada —R5 deja el código
+> solo en el contenedor de escaneo— y **Strix no publica inventario de dependencias**, que es
+> justo lo que decía el cartel que se ha sustituido. Hay tres caminos posibles y los tres
+> terminan en `service.indexar_manifiesto`, que recibe el **texto**: la API de contenidos del
+> proveedor con la credencial que ya existe, el contenedor de escaneo cuando el motor lo exponga,
+> o que el cliente suba el manifiesto. El primero funciona hoy; el segundo es el correcto para
+> R5; el tercero no necesita nada nuevo. **Cuál de los tres se cablea es una decisión sobre R5
+> que corresponde al responsable del proyecto, y por eso no se ha tomado aquí.** Lo que está
+> hecho y probado es todo lo que no depende de esa elección.
+>
+> **Lo que no se puede afirmar todavía: el estado de vulnerabilidad.** `cve_records` guarda
+> `cve_id`, severidad, CVSS, EPSS y una descripción, pero **no qué paquetes afecta cada CVE**.
+> Cruzar una dependencia con ella exige buscar el nombre del paquete dentro del texto libre de
+> una descripción, y eso produce falsos positivos. Por eso `has_vulnerabilities` es **nullable**
+> y nace en `NULL`, y el panel tiene tres estados —vulnerable, limpia y **sin comprobar**— en vez
+> de dos. Con `NOT NULL DEFAULT false` todos los paquetes recién indexados se mostrarían como
+> «limpios» sin que nadie los hubiera comprobado.
+>
+> **El parser limpia credenciales antes de nada, no por precaución.** Los manifiestos traen
+> tokens con frecuencia: una URL directa a un registro privado, un `git+https://ghp_…@github.com`
+> copiado de la documentación de un proveedor. Si eso llega a la base, el token queda en un `Text`
+> que nadie va a buscar y el mecanismo de rotación del cliente deja de funcionar.

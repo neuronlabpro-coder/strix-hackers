@@ -92,7 +92,7 @@ async def resolve_tenant_for_user(
     """Resuelve el contexto de tenant de un usuario ya autenticado, o `None`.
 
     Se extrae de `get_current_tenant` para que la autenticación dual pueda reutilizar la
-    **misma** consulta en vez de copiarla. Copiarla保证aría que las dos rutas se
+    **misma** consulta en vez de copiarla. Copiarla garantizaría que las dos rutas se
     desincronizasen en cuanto se añadiera una condición —un tenant dado de baja, un
     usuario desactivado— y el fallo aparecería solo en la ruta nueva, que es la que
     nadie revisa porque la otra tiene años de tests.

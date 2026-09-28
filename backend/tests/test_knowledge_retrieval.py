@@ -314,12 +314,15 @@ async def test_un_documento_sin_okf_no_rompe_la_consulta() -> None:
     assert len(recuperados) == 2
 
 
-async def test_el_bloque_de_contexto_cita_el_documento() -> None:
-    """El bloque inyectado en el prompt dice de qué documento viene.
+async def test_el_bloque_de_contexto_delimita_el_documento() -> None:
+    """El bloque lleva marcas de inicio y fin inequívocas.
 
-    Un contexto sin fuente es contexto en el que el usuario no puede dudar, y un usuario que
-    no puede dudar de la respuesta la acaba aceptando aunque sea falsa. La cita es lo que
-    permite decir "esto lo dice tu documento de autenticacion".
+    Un encabezado Markdown no sirve como delimitador cuando hay varios documentos seguidos: un
+    `###` puede ser el título de un documento o una subsección del anterior, y el modelo no
+    tiene forma de saber cuál de las dos está leyendo. Con la marca explícita puede citar la
+    fuente, y con las tres líneas de guiones sabe dónde acaba el cuerpo.
+
+    Y el frontmatter no se cuela: es metadato del cliente, no contenido para el modelo.
     """
 
     documento = parse_okf(
@@ -330,8 +333,6 @@ async def test_el_bloque_de_contexto_cita_el_documento() -> None:
             cuerpo="Las sesiones duran 30 minutos.",
         )
     )
-    assert documento.title == "Politica de autenticacion"
-
     from backend.apps.knowledge.retrieval import RetrievedDocument
 
     bloque = RetrievedDocument(
@@ -343,7 +344,11 @@ async def test_el_bloque_de_contexto_cita_el_documento() -> None:
         score=1.0,
         matched_terms=("sesion",),
     ).as_context_block()
-    assert "Politica de autenticacion" in bloque
-    assert "Las sesiones duran 30 minutos" in bloque
-    # El frontmatter no se cuela en el contexto.
+
+    assert bloque.startswith("[DOCUMENTO OKF: Politica de autenticacion (BUSINESS_RULE)]")
+    assert "Las sesiones duran 30 minutos." in bloque
+    # La descripcion va entre la marca y el separador: es lo que se lee cuando el documento se
+    # cita sin su cuerpo entero.
+    assert bloque.index("Como se validan las sesiones.") < bloque.index("\n---\n")
+    # El frontmatter no aparece en ninguna parte del bloque.
     assert "type: business_rule" not in bloque

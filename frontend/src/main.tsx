@@ -10,6 +10,9 @@ import './styles/settings.css'
 import './styles/billing.css'
 import './styles/support.css'
 import './styles/assets.css'
+import './styles/chat.css'
+import './styles/supplyChain.css'
+import './styles/knowledge.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -41,5 +41,71 @@
     "error": "The catalog could not be loaded",
     "retry": "Retry",
     "notFound": "The note does not exist"
+  },
+  "views": {
+    "label": "Knowledge base view",
+    "documents": "Workspace documents",
+    "catalog": "Technical catalog"
+  },
+  "documents": {
+    "typeFilterLabel": "Filter by document type",
+    "allTypes": "All types",
+    "add": "Add OKF document",
+    "types": {
+      "DOCUMENTATION": "Documentation",
+      "BUSINESS_RULE": "Business rule",
+      "API_SPEC": "API spec",
+      "ARCHITECTURE": "Architecture"
+    },
+    "deleteAria": "Delete the document {{title}}",
+    "deleteTitle": "Delete document",
+    "deleteBody": "The document \"{{title}}\" will be deleted and will stop being part of the assistant's context. This cannot be undone.",
+    "deleteCancel": "Cancel",
+    "deleteConfirm": "Delete",
+    "loading": "Loading documents…",
+    "loadFailed": "The workspace documents could not be loaded.",
+    "retry": "Retry",
+    "savedToast": "Document saved. The assistant will use it as context.",
+    "count": "Showing {{shown}} of {{total}} documents",
+    "emptyTitle": "No business rules or documentation indexed yet",
+    "emptyBody": "Add documents in OKF format so scans and the assistant stop producing false positives.",
+    "emptyFilteredTitle": "No document matches the filter",
+    "emptyFilteredBody": "Try removing the type filter."
+  },
+  "okfEditor": {
+    "title": "Add OKF document",
+    "close": "Close",
+    "tabsLabel": "How to write the document",
+    "tabEditor": "Paste document",
+    "tabForm": "Guided form",
+    "editorLabel": "Complete OKF document",
+    "editorPlaceholder": "---\ntype: business_rule\ntitle: \"...\"\ndescription: \"...\"\n---\n\nContent in Markdown",
+    "fieldTitle": "Title",
+    "fieldType": "Document type",
+    "fieldDescription": "Description",
+    "fieldTags": "Tags",
+    "tagsPlaceholder": "auth, payments, internal",
+    "fieldBody": "Content",
+    "types": {
+      "concept": "General documentation",
+      "business_rule": "Business rule",
+      "api_spec": "API spec",
+      "architecture": "Architecture"
+    },
+    "preview": "See the OKF document that will be sent",
+    "valid": "The frontmatter is valid. It can be saved now.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "saveFailed": "The document could not be saved. Check the content and try again."
+  },
+  "okf": {
+    "missingFrontmatter": "The frontmatter block is missing. The document must start with a line of three dashes.",
+    "unclosedFrontmatter": "The frontmatter is not closed: the closing line of three dashes is missing.",
+    "missingType": "`type` is missing from the frontmatter. Without it the document cannot be retrieved by type.",
+    "invalidType": "`type` is not a value of the format. Allowed: concept, business_rule, api_spec, architecture.",
+    "missingTitle": "`title` is missing from the frontmatter.",
+    "missingDescription": "`description` is missing from the frontmatter. It is what gets injected when the document is cited without its body.",
+    "emptyBody": "The document body is empty."
   }
 }

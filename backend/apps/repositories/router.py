@@ -400,30 +400,56 @@ async def list_pr_reviews(
 ) -> PRReviewPage:
     """Historial paginado de revisiones de pull request de toda la organización.
 
-    El filtro por `organization_id` no es opcional: es R3 aplicado a una vista global,
-    que es donde más fácil sería colarse una fuga entre tenants si se leyera por
-    repositorio solamente. Por eso ambas columnas entran en el `JOIN` y en el `WHERE`:
-    `pull_request_reviews.organization_id` es una desnormalización que debe coincidir
-    con la del repositorio, y filtrar solo por una dejaría pasar filas inconsistentes.
+    ## Por qué el `JOIN` es **incondicional**
+
+    Porque `Repository.full_name` se selecciona en todas las filas, y sin el `JOIN` la consulta
+    es un **producto cartesiano**: PostgreSQL devuelve cada revisión cruzada con **cada**
+    repositorio de la base, y el nombre que sale en la respuesta es el del primero que se
+    encuentra, no el de la revisión.
+
+    SQLAlchemy lo avisa (`SAWarning: SELECT statement has a cartesian product between FROM
+    element(s) "pull_request_reviews" and "repositories"`), y el aviso es correcto: esto era
+    una **fuga entre tenants**. El contenido de la revisión se filtra bien por
+    `organization_id`, pero el nombre del repositorio que la acompaña salía de cualquier otro
+    tenant de la base. En una herramienta de pentesting, "tu revisión está en
+    `competidor/privado`" es exactamente el tipo de dato que no debe aparecer.
+
+    Solo pasaba desapercibido por suerte: el producto cartesiano devuelve las filas en el orden
+    que el planificador elija, y cuando el repositorio del propio tenant salía primero el
+    resultado era el correcto. Por eso la prueba de aislamiento era **intermitente** —fallaba
+    en cuanto la base compartida tenia otro repositorio por delante— y no porque el filtro
+    estuviera mal, sino porque el nombre venía de otro sitio.
+
+    ## Por qué el filtro por `organization_id` sigue siendo obligatorio
+
+    R3 no es negociable y esta es una vista global, que es donde más fácil sería colarse una
+    fuga si se leyera solo por repositorio.
+
+    El filtro sobre `PullRequestReview.organization_id` basta porque la base **ya** garantiza
+    la coincidencia: `fk_pr_reviews_repository_organization` es una clave foránea compuesta
+    sobre `(repository_id, organization_id)`, así que PostgreSQL no permite que una revisión
+    apunte a un repositorio de otra organización. El filtro sobre `Repository.organization_id`
+    que había aquí era redundante, y se quita: mantenía la desconfianza en un sitio donde la
+    base ya la aplica, y hacía creer que las dos columnas podían separarse.
     """
 
     filters = [PullRequestReview.organization_id == tenant.organization.id]
     if review_status is not None:
         filters.append(PullRequestReview.status == review_status)
-    join_condition = Repository.id == PullRequestReview.repository_id
     if repository_id is not None:
         # Un repositorio de otro tenant no devuelve `403`: no se le dice al llamador si
         # existe o no. La lista simplemente sale vacía, igual que si el filtro fuese suyo
         # y no tuviera revisiones.
-        filters.extend(
-            [PullRequestReview.repository_id == repository_id, join_condition]
-        )
-        filters.append(Repository.organization_id == tenant.organization.id)
+        filters.append(PullRequestReview.repository_id == repository_id)
 
-    count_query = select(func.count()).select_from(PullRequestReview).where(*filters)
-    rows_query = select(PullRequestReview, Repository.full_name)
-    if repository_id is not None:
-        rows_query = rows_query.join(Repository, join_condition)
+    join_condition = Repository.id == PullRequestReview.repository_id
+    count_query = (
+        select(func.count())
+        .select_from(PullRequestReview)
+        .join(Repository, join_condition)
+        .where(*filters)
+    )
+    rows_query = select(PullRequestReview, Repository.full_name).join(Repository, join_condition)
 
     total = int((await session.execute(count_query)).scalar_one())
     result = await session.execute(

@@ -1,0 +1,72 @@
+{
+  "eyebrow": "Cadena de suministro",
+  "title": "Supply Chain",
+  "description": "Dependencias directas que declaran los manifiestos de tus repositorios. No es el árbol de paquetes instalado: es lo que el proyecto dice usar.",
+  "refresh": "Actualizar",
+  "search": {
+    "placeholder": "Buscar paquete o licencia…"
+  },
+  "filters": {
+    "ecosystemLabel": "Filtrar por ecosistema",
+    "statusLabel": "Filtrar por estado de vulnerabilidad",
+    "allEcosystems": "Todos",
+    "todos": "Todas",
+    "unchecked": "Sin comprobar",
+    "vulnerable": "Con CVE",
+    "clean": "Limpias",
+    "clear": "Borrar filtros"
+  },
+  "ecosystems": {
+    "NPM": "npm",
+    "PYPI": "PyPI",
+    "GO": "Go",
+    "CARGO": "Cargo",
+    "MAVEN": "Maven",
+    "COMPOSER": "Composer",
+    "OTHER": "Otros"
+  },
+  "metrics": {
+    "total": "Dependencias",
+    "repositories": {
+      "_one": "En {{count}} repositorio",
+      "_other": "En {{count}} repositorios"
+    },
+    "unchecked": "Sin comprobar",
+    "uncheckedCaption": "Nadie ha comprobado si tienen vulnerabilidades",
+    "clean": "Comprobadas limpias",
+    "cleanCaption": "Verificadas y sin CVE conocidas",
+    "vulnerable": "Con CVE",
+    "vulnerableCaption": "Verificadas y con vulnerabilidades"
+  },
+  "columns": {
+    "package": "Paquete",
+    "version": "Versión",
+    "ecosystem": "Ecosistema",
+    "repository": "Repositorio",
+    "license": "Licencia",
+    "status": "Estado de vulnerabilidad"
+  },
+  "status": {
+    "unchecked": "Sin comprobar",
+    "uncheckedHelp": "No hay fuente de vulnerabilidades por paquete conectada. Que esté aquí no significa que sea seguro.",
+    "clean": "Limpia",
+    "cleanHelp": "Comprobada y sin vulnerabilidades conocidas.",
+    "vulnerable": {
+      "_one": "{{count}} CVE",
+      "_other": "{{count}} CVE"
+    }
+  },
+  "devDependency": "desarrollo",
+  "licenseUnknown": "sin declarar",
+  "versionUnpinned": "sin fijar",
+  "tableCount": "Mostrando {{shown}} de {{total}} dependencias",
+  "loading": "Cargando inventario…",
+  "loadFailed": "No se pudo cargar el inventario de dependencias.",
+  "retry": "Reintentar",
+  "empty": {
+    "title": "Todavía no hay inventario",
+    "body": "Se construye leyendo los manifiestos de los repositorios (package.json, requirements.txt, go.mod, Cargo.toml) y guardando solo los identificadores de sus dependencias. El texto del manifiesto no se guarda.",
+    "filteredTitle": "Ninguna dependencia coincide con el filtro",
+    "filteredBody": "Prueba a ampliar el ecosistema o a quitar la búsqueda."
+  }
+}

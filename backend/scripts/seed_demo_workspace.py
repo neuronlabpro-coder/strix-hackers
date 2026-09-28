@@ -994,12 +994,26 @@ async def sembrar_tickets(session: AsyncSession, demo: Demo) -> None:
             },
         )
         for indice, mensaje in enumerate(entrada["messages"]):
+            # El criterio de busqueda es el **id estable**, no `created_at`.
+            #
+            # Buscar por la marca de tiempo parecia equivalente y no lo es. PostgreSQL guarda
+            # `timestamptz` normalizado a UTC, asi que al releer una fila llega con un `tzinfo`
+            # distinto del que traia el diccionario de la semilla, y la igualdad falla. La fila
+            # no se encuentra, se inserta otra vez con el mismo id, y la segunda ejecucion del
+            # se rompe con una violacion de clave primaria.
+            #
+            # El id estable es justo lo que existe para esto: es determinista, es un
+            # `uuid.UUID` de Python en los dos lados, y no depende de como el servidor normalice
+            # una fecha. El sintoma —"la idempotencia funciona para todo menos los mensajes"— es
+            # el que hace que esto parezca un caso raro cuando en realidad es la eleccion de clave
+            # equivocada.
             await _uno_o_crear(
                 session,
                 TicketMessage,
-                {"ticket_id": ticket.id, "created_at": mensaje["at"]},
+                {"id": id_estable("message", ORG_SLUG, entrada["clave"], str(indice))},
                 {
-                    "id": id_estable("message", ORG_SLUG, entrada["clave"], str(indice)),
+                    "ticket_id": ticket.id,
+                    "created_at": mensaje["at"],
                     "sender_user_id": emisores[mensaje["sender"]],
                     "is_admin_reply": mensaje["is_admin"],
                     "content": mensaje["content"],
@@ -1183,17 +1197,27 @@ async def sembrar_auditoria(session: AsyncSession, demo: Demo) -> None:
     for indice, (accion, tipo_entidad, entidad_id, extra) in enumerate(asientos):
         desde = extra.get("from")
         hacia = extra.get("to")
+        # El criterio es el **id estable** y no la marca de tiempo.
+        #
+        # Aqui el fallo era peor que en los mensajes de ticket: `hace()` es **relativo al
+        # momento de la ejecucion**, asi que la segunda vez que corre el seeder produce una
+        # fecha distinta aunque el script no haya cambiado. Buscar por ella no falla "a veces":
+        # falla siempre, y la segunda ejecucion muere con una violacion de clave primaria de
+        # `audit_log`.
+        #
+        # Y no se puede arreglar poniendo la fecha en un valor fijo sin mas, porque el rastro es
+        # `append-only` por trigger de R4: `_uno_o_crear` no podria ni corregir la fila si la
+        # encontrara. La clave estable es lo unico que decide de forma fiable si el asiento ya
+        # esta sembrado.
         await _uno_o_crear(
             session,
             AuditLogEntry,
+            {"id": id_estable("audit", ORG_SLUG, str(indice))},
             {
                 "organization_id": demo.org_id,
                 "entity_id": entidad_id,
                 "action": accion,
                 "created_at": hace(days=40, hours=40 - indice * 6),
-            },
-            {
-                "id": id_estable("audit", ORG_SLUG, str(indice)),
                 "actor_user_id": (
                     demo.admin_id if indice % 2 == 0 else demo.soc_id
                 ),

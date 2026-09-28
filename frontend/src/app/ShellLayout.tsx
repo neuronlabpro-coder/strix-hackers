@@ -8,10 +8,37 @@ import { Sidebar } from '../components/Sidebar'
 import { useAuth } from '../features/auth/useAuth'
 import { CreditBalancePill } from '../features/billing/CreditBalancePill'
 
+/**
+ * Rutas que ocupan el viewport completo y no hacen scroll de pagina.
+ *
+ * ## Por que una lista y no una condicion en el JSX
+ *
+ * Porque el motivo de que una ruta este aqui es una decision de diseno, y una decision de
+ * diseno que solo existe en una expresion booleana se pierde en cuanto alguien anade la segunda
+ * ruta y no la tercera. Con la lista a la vista, la pregunta "que mas deberia ir aqui" tiene
+ * respuesta.
+ *
+ * ## Por que NO se aplica a todo el shell
+ *
+ * Porque el resto de paginas **necesitan** scroll de pagina: una tabla de vulnerabilidades con
+ * doscientas filas tiene que poder bajar mas alla del pliegue. Poner `overflow: hidden` en el
+ * shell las dejaria sin poder llegar al final, y el fallo seria invisible hasta que alguien
+ * tiene una lista larga y no ve las ultimas filas.
+ *
+ * El modo se limita a lo que lo necesita de verdad: el chat, donde el scroll pertenece al hilo
+ * de mensajes y no a la pagina.
+ */
+const RUTAS_DE_ALTURA_FIJA: ReadonlySet<string> = new Set(['/chat'])
+
 export function ShellLayout() {
+  // Un solo `useLocation` para las dos cosas que lo necesitan. Se declara aqui y no se
+  // desdobla: dos llamadas al mismo hook para leer la misma ruta es una que alguien acaba
+  // usando una y olvidando la otra, y el fallo es que la altura fija se aplica a una pagina y
+  // el resto del shell cree que esta en otra.
+  const location = useLocation()
+  const alturaFija = RUTAS_DE_ALTURA_FIJA.has(location.pathname)
   const { t } = useTranslation('common')
   const navigate = useNavigate()
-  const location = useLocation()
   const {
     organizations,
     selectedOrganizationId,
@@ -37,7 +64,7 @@ export function ShellLayout() {
     location.pathname === '/settings' || location.pathname.startsWith('/settings/')
 
   return (
-    <div className="app-shell">
+    <div className={alturaFija ? 'app-shell app-shell-fija' : 'app-shell'}>
       {enAjustes ? (
         <SettingsSidebar />
       ) : (

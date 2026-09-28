@@ -27,6 +27,7 @@ from backend.apps.organizations import models as organization_models  # noqa: F4
 from backend.apps.pentests import models as pentest_models  # noqa: F401
 from backend.apps.repositories import models as repository_models  # noqa: F401
 from backend.apps.support import models as support_models  # noqa: F401
+from backend.apps.supply_chain import models as supply_chain_models  # noqa: F401
 from backend.apps.vulnerabilities import models as vulnerability_models  # noqa: F401
 from backend.apps.webhooks import models as webhooks_models  # noqa: F401
 from backend.core.config import settings
@@ -42,7 +43,7 @@ target_metadata = Base.metadata
 # Índices de expresión que Alembic no sabe comparar.
 #
 # `alembic check` no puede emparejar un índice funcional (sobre `to_tsvector`)
-# entre el modelo y la base de datos: lo反映 como un índice eliminado en cada
+# entre el modelo y la base de datos: lo refleja como un índice eliminado en cada
 # ejecución, lo que hace que la puerta de calidad sea inútil. Se excluyen de la
 # comparación en lugar de silenciar el error, y la definición real vive en la
 # migración `c4d5e6f7a8b9`, que es donde se revisa.

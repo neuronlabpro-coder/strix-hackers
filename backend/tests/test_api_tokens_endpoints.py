@@ -783,11 +783,15 @@ async def test_the_scope_catalog_is_served_with_the_total_counted(
 
     assert response.status_code == 200
     cuerpo = response.json()
-    assert cuerpo["total"] == 47
-    assert len(cuerpo["groups"]) == 17
+    # 49 desde que el chat aporto `chat:read` y `chat:write`, que son los dos permisos que
+    # hacen falta para que un token de solo lectura pueda mostrar el historial sin poder
+    # gastarlo. El numero se escribe a mano y no como `len(planos)` porque una prueba que
+    # compara un valor consigo misma sigue pasando cuando alguien borra un permiso.
+    assert cuerpo["total"] == 49
+    assert len(cuerpo["groups"]) == 18
     planos = [s["scope"] for g in cuerpo["groups"] for s in g["scopes"]]
-    assert len(planos) == 47
-    assert len(set(planos)) == 47, "el catalogo devolvio scopes duplicados"
+    assert len(planos) == 49
+    assert len(set(planos)) == 49, "el catalogo devolvio scopes duplicados"
     assert Scope.PENTESTS_READ.value in planos
     assert Scope.ENTERPRISE_SUPPLY_CHAIN_WRITE.value in planos
 

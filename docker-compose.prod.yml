@@ -114,6 +114,25 @@ x-backend-base: &backend-base
     CELERY_REDIS_DB: "1"
   networks:
     - fenix
+  # --- Limites de recurso -------------------------------------------------------
+  # Estan en el bloque del que `celery_worker` y `celery_beat` heredan con `<<: *backend-base`,
+  # asi que los tres comparten tope.
+  #
+  # Y estan en `mem_limit`/`cpus` y **no** en `deploy.resources` a proposito: `deploy.resources`
+  # lo ignora `docker compose up` en su version 2, y solo lo respeta Swarm. Escribirlo ahi
+  # produce un fichero que parece tener limites y no tiene ninguno, que es peor que no ponerlos
+  # porque el que lo lea se cree que el contenedor esta acotado.
+  #
+  # El limite de memoria importa por una razon concreta: los workers de Uvicorn y de Celery
+  # crecen con la carga, y un pico de concurrencia en un VPS de 4 GB se lleva por delante al
+  # motor de base de datos, que esta en la misma maquina por R6. Poner el tope aqui convierte "se
+  # caigo el VPS" en "este contenedor se reinicio", que se diagnostica en un minuto.
+  mem_limit: ${BACKEND_MEM_LIMIT:-1g}
+  cpus: ${BACKEND_CPUS:-1.5}
+  # Un contenedor de Uvicorn con 4 workers y una peticion que se atasca puede multiplicar los
+  # procesos hasta agotar la tabla de procesos del host. El limite es alto para no molestar en
+  # el caso normal y baixo para que el caso patologico no tumbe la maquina.
+  pids_limit: ${BACKEND_PIDS_LIMIT:-256}
   logging:
     driver: json-file
     options:
@@ -124,6 +143,42 @@ x-backend-base: &backend-base
       max-file: "5"
 
 services:
+  # -------------------------------------------------------------------------
+  # Migraciones
+  # -------------------------------------------------------------------------
+  # Corre `alembic upgrade head` una vez y termina. No es un servicio que se quede vivo, y por
+  # eso lleva `restart: "no"` en vez del `unless-stopped` que tienen los demás: un despliegue que
+  # migra mal tiene que quedarse parado y visible, no reintentando en bucle cada diez segundos
+  # y quemando los logs hasta que alguien mire.
+  #
+  # ## Por qué no migra el contenedor de aplicación
+  #
+  # Porque `alembic upgrade head` no es idempotente frente a la concurrencia. Si el backend
+  # arranca con varios workers y los cuatro llegaran a migrar a la vez, cada uno leería el nivel
+  # actual, calcularía el siguiente, e intentaría aplicarlo. Uno gana y los otros chocan contra
+  # el bloqueo de la migración, con el resultado de que un despliegue correcto se presenta como
+  # un despliegue roto.
+  #
+  # Y porque el coste de que se repita es alto: un simple reinicio de la aplicación tomaría un
+  # bloqueo sobre la base aunque no haya cambiado ni un esquema. En una ventana de mantenimiento
+  # eso es caída sin causa.
+  #
+  # ## Cómo se usa
+  #
+  # Se ejecuta antes de levantar el resto, y se comprueba que terminó con codigo cero. En
+  # Dokploy, como paso previo al despliegue en lugar de como servicio en pie; aqui se declara
+  # para que la comprobacion sea ejecutable y no solo documentada.
+  #
+  # No lleva bloque `environment` propio: lo hereda entero de `&backend-base` por el `<<:`. Es
+  # deliberado. Re-declarar aqui las variables que necesita seria una segunda lista que se
+  # queda vieja en cuanto `Settings` exija una condicion nueva, y esa lista vieja es justo la que
+  # haria que el `migrate` fallara con un error de SMTP en un despliegue que si podia migrar.
+  migrate:
+    <<: *backend-base
+    container_name: fenix-migrate
+    command: ["/app/scripts/start_prod.sh", "--migrate"]
+    restart: "no"
+
   # -------------------------------------------------------------------------
   # API
   # -------------------------------------------------------------------------
@@ -274,6 +329,15 @@ services:
   # -------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
+    # Redis es la memoria. Su consumo sube con el numero de claves y con la politica de expulsion,
+    # y un Redis sin tope en un VPS de 4 GB se come la base de datos, que esta en la misma
+    # maquina por R6. Hay dos topes distintos y no se confunden: `maxmemory` es el que Redis
+    # aplica por su cuenta al alcanzar el limite, y `mem_limit` es el del kernel. Poner solo
+    # el segundo deja que el OOM killer mate el proceso sin que Redis haya evacuado nada,
+    # y entonces se pierde lo que estaba en memoria sin que Redis haya evacuado nada.
+    #
+    # Aqui se acota el contenedor; el `maxmemory` lo fija el servicio de datos de Dokploy.
+    mem_limit: ${REDIS_MEM_LIMIT:-768m}
     container_name: fenix-redis
     restart: unless-stopped
     # `--requirepass` sin `--appendonly` sería un broker que pierde los trabajos al reiniciar.

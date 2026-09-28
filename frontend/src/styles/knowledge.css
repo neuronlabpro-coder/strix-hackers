@@ -1,0 +1,508 @@
+/* ==========================================================================
+   Base de conocimiento: documentos del workspace y gestor OKF (MENU-MAP 7.1).
+
+   Tokens de `design-dark.md`, sin utilidades de Tailwind, por el mismo motivo que el
+   resto del panel.
+   ========================================================================== */
+
+.doc-grid {
+  display: grid;
+  /* `auto-fit` y no un numero fijo de columnas: a 1200 caben tres y a 900 caben dos, y con
+     columnas fijas la de 900 deja una fila vacia a la derecha que descuadra el conjunto. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.doc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px 16px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  /* La transicion va solo en el color del borde y no en `all`: animar el `all` incluye el
+     layout, y un cambio de alto al pasar el raton hace que la fila de tarjetas se descuadre
+     durante la animacion. */
+  transition: border-color 120ms ease;
+}
+
+.doc-card:hover {
+  border-color: var(--color-border-hover);
+}
+
+.doc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.doc-card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-primary);
+}
+
+.doc-card-description {
+  margin: 0;
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.doc-card-footer {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+.doc-card-delete {
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+/* El borrado solo se ve al pasar el raton o al tener el foco dentro. Con `opacity: 1`
+   permanente serian quince papeleras compitiendo con los titulos; y con `opacity: 0` sin mas,
+   un icono invisible en la lista, que es peor: el usuario no ve que se puede borrar. El
+   `:focus-within` es lo que lo mantiene visible para quien navega con teclado, que es el unico
+   caso en el que no hay raton que lo revele. */
+.doc-card:hover .doc-card-delete,
+.doc-card:focus-within .doc-card-delete {
+  opacity: 1;
+}
+
+.doc-card-delete:hover {
+  color: var(--color-critical);
+}
+
+/* El badge por tipo usa el borde izquierdo y no el relleno: cuatro tipos en una rejilla con
+   relleno de color seria una tabla de cuatro colores que compite con el contenido. El color
+   identifica la naturaleza del documento, que es lo unico que el usuario necesita leer de un
+   vistazo. */
+.doc-type-documentation,
+.doc-type-business-rule,
+.doc-type-api-spec,
+.doc-type-architecture {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--color-caption);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.doc-type-documentation {
+  border-left: 2px solid var(--color-muted);
+}
+
+.doc-type-business-rule {
+  border-left: 2px solid var(--color-accent);
+}
+
+.doc-type-api-spec {
+  border-left: 2px solid var(--color-low);
+}
+
+.doc-type-architecture {
+  border-left: 2px solid var(--color-medium);
+}
+
+/* --------------------------------------------------------------------------
+   El modal OKF
+   -------------------------------------------------------------------------- */
+
+.okf-modal {
+  width: min(880px, calc(100vw - 32px));
+  max-height: calc(100svh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+
+.okf-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.okf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 0.83rem;
+  color: var(--color-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.okf-tab:hover {
+  color: var(--color-primary);
+}
+
+.okf-tab-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-accent);
+}
+
+.okf-editor-pane,
+.okf-form-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  /* El modal es una columna flexible y el editor scrollea por dentro. Sin esto, un documento
+     largo empuja el pie del modal por debajo de la ventana y el boton de guardar se queda
+     fuera de la vista, que es justo cuando mas lo necesita. */
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.okf-textarea {
+  width: 100%;
+  /* `min-height` y no `height`: el area crece con lo que se escribe hasta este tope, y a partir
+     de ahi scrollea por dentro. */
+  min-height: 220px;
+  padding: 11px 13px;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.okf-textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.okf-form-row {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 12px;
+}
+
+.okf-input {
+  width: 100%;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.okf-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.okf-preview {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-raised);
+}
+
+.okf-preview summary {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+.okf-preview-body {
+  margin: 0;
+  padding: 0 12px 12px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-caption);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* La validación vive en su propia banda, entre el editor y el pie, y no dentro de cada
+   pestaña. Reescribir el mismo bloque de avisos en dos sitios es la forma de que uno se quede
+   sin actualizar, y el que se queda es el de la pestaña que nadie mira. */
+.okf-validation {
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-raised);
+}
+
+.okf-validation-ok {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-accent-bright);
+}
+
+.okf-validation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.okf-validation-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-medium);
+}
+
+/* El nombre del campo se muestra como codigo y no en cursiva, porque es una clave del
+   formato y el usuario la va a escribir en el editor: tiene que verse como lo que es. */
+.okf-validation-campo {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-caption);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.okf-save-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-critical);
+}
+
+/* El boton de peligro existe porque borrar un documento **cambia lo que el asistente afirma**
+   sobre el sistema del cliente, y esa accion no merece el mismo boton que "cancelar". */
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-on-primary);
+  background: var(--color-critical);
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+
+.danger-button:hover {
+  filter: brightness(1.08);
+}
+
+.danger-button:focus-visible {
+  outline: 2px solid var(--color-critical);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .okf-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Las piezas de filtro y de tabla que comparten las tres vistas de esta pantalla
+   --documentos, catalogo tecnico-- y la de supply chain.
+
+   ## Por que se definen aqui y no en index.css
+
+   Porque las usa mas de un modulo y por eso tienen que ser compartidas, pero ninguna de las
+   pantallas es dueña de ellas: `.filter-chip` aparece en los filtros de tipo del gestor de
+   documentos, en los de severidad y categoria del catalogo y en los de ecosistema del supply
+   chain. Definirla en el primero que la usa hace que los otros dos la importen de un modulo
+   que no es el suyo, y al mover la pantalla el estilo se va con ella.
+   -------------------------------------------------------------------------- */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--color-secondary);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.filter-chip:hover {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+}
+
+.filter-chip-active,
+.filter-chip-active:hover {
+  color: var(--color-primary);
+  /* El estado activo se marca con el acento **y** con un fondo distinto. Con el color de texto
+     solo, el chip activo y el que tiene el raton encima se parecen, y en una pantalla con
+     veinte filtros el usuario no sabe cual esta puesto. */
+  border-color: var(--color-accent);
+  background: var(--color-surface-elevated);
+}
+
+.filter-chip:focus-visible,
+.search-field input:focus-visible,
+.okf-tab:focus-visible,
+.doc-card-delete:focus-visible,
+.danger-button:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 200px;
+  min-width: 160px;
+  padding: 6px 11px;
+  color: var(--color-muted);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+}
+
+.search-field input:focus {
+  outline: none;
+}
+
+.table-caption {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 0.76rem;
+  color: var(--color-muted);
+  border-top: 1px solid var(--color-border);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.empty-state h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.empty-state p {
+  max-width: 56ch;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--color-secondary);
+}
+
+/* Las dos piezas de la tarjeta del catalogo tecnico. */
+.knowledge-card-code {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}
+
+.knowledge-card-summary {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Dos clases que faltan y que usan tres pantallas
+   -------------------------------------------------------------------------- */
+
+/* El modal de confirmación de borrado.
+ *
+ * `width: min(...)` y no un ancho fijo: un modal de ancho fijo se sale de una ventana estrecha
+ * y obliga a scroll horizontal para leer el boton de confirmar, que es justo la parte que
+ * hace falta ver antes de borrar. */
+.modal-confirm {
+  width: min(440px, calc(100vw - 32px));
+  padding: 20px 22px;
+  text-align: left;
+}
+
+.modal-confirm h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.modal-confirm p {
+  margin: 0 0 18px;
+  font-size: 0.87rem;
+  line-height: 1.55;
+  color: var(--color-secondary);
+}
+
+/* La etiqueta de una metrica de cabecera.
+ *
+ * Va en `.metric-label` y no en un `<span>` con estilo puesto en el TSX, porque las cuatro
+ * tarjetas de la cabecera de supply chain la comparten y cuatro `<span>` con la misma clase
+ * pegada son cuatro sitios que se desincronizan en cuanto alguien cambia el tamano. */
+.metric-label {
+  font-size: 0.74rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}

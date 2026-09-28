@@ -645,6 +645,24 @@ async def test_las_ventas_tienen_creditos_nulos_y_no_ceros(
 
     `0` se vería como una venta de $0 en el resumen, que es un número inventado con
     aspecto de dato. Esta prueba fija la diferencia aunque hoy no haya ventas.
+
+    ## Por qué comprueba `amount_cents` y antes afirmaba que no existía
+
+    Porque la columna se añadió después, a propósito, y esta prueba se quedó atrás.
+
+    La tabla de eventos de Stripe guardaba **qué** se procesó, a qué organización y cuántos
+    créditos acreditó, pero no cuánto se cobró. La elección fue añadir la columna y rellenarla
+    en la ingestión del webhook —el único momento en que el payload está disponible— en vez de
+    preguntar a Stripe por cada fila al pintar la vista.
+
+    Y la prueba, escrita antes de esa decisión, afirmaba que `amount_cents` no debía aparecer en
+    la respuesta. Seguía siendo cierta cuando no había ninguna venta que leer: el bucle no se
+    ejecutaba. En cuanto el seeder sembró una venta, la afirmación dejó de cumplirse.
+
+    La prueba no se limitó a borrarse: lo que hace ahora es fijar la regla que el esquema sí
+    sostiene, que es la que importa. Un evento sin importe lleva `None`; un cobro lleva un entero
+    positivo. Lo que no puede aparecer es un `0` con aspecto de cobro, porque Stripe no cobra
+    cero y ese `0` sería un número inventado con forma de dato.
     """
 
     assert integration_session is not None
@@ -657,9 +675,25 @@ async def test_las_ventas_tienen_creditos_nulos_y_no_ceros(
     assert response.status_code == 200
     cuerpo = response.json()
     for item in cuerpo["items"]:
-        # `credits_granted` en `None` significa que el evento no acreditó nada.
-        assert item["credits_granted"] is None or item["credits_granted"] > 0
-        assert "amount_cents" not in item
+        # `credits_granted` llega como **cadena**, y no como número: es un `Decimal` de
+        # PostgreSQL con cuatro decimales, y en JSON un decimal no tiene tipo propio.
+        #
+        # La prueba comparaba esa cadena con un entero. Pasaba mientras no hubiera ninguna fila
+        # con créditos acreditados —porque el bucle no se ejecutaba— y en cuanto el seeder de
+        # demostración sembró una venta, reventó con `'>' not supported between instances of
+        # 'str' and 'int'`. La comparación no era incorrecta por los datos: lo era siempre, y
+        # solo la ausencia de datos la tapaba.
+        #
+        # Convertir a `Decimal` es lo que hace falta para comparar en el mismo tipo en que el
+        # servidor los guarda, y además hace que `"0.0000" > 0` dé `False` en vez de fallar.
+        if item["credits_granted"] is not None:
+            assert Decimal(str(item["credits_granted"])) > Decimal("0")
+
+        # El importe de un cobro es un entero positivo, y el de un evento que no cobra es
+        # `None`. Nunca `0`: no hay cobro de cero en Stripe, y un `0` ahí se leería en el panel
+        # como una venta real de nada.
+        if item["amount_cents"] is not None:
+            assert item["amount_cents"] > 0
 
 
 @pytest.mark.asyncio

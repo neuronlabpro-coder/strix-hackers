@@ -51,6 +51,12 @@
 
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  /* Alto del topbar. Se declara como token y no se escribe en las reglas porque lo
+     necesita mas de un calculo: el propio topbar y la altura util que tienen las paginas que
+     se apoyan en el, como el chat, que tiene que llenar exactamente lo que queda debajo. Con
+     el 72 en dos sitios, subirlo en uno deja el chat mas alto que la ventana y le aparece una
+     barra de scroll que no deberia existir. */
+  --topbar-height: 72px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
@@ -478,7 +484,7 @@ a {
 }
 
 .topbar {
-  min-height: 72px;
+  min-height: var(--topbar-height);
   justify-content: space-between;
   gap: 20px;
   padding: 16px 32px;
@@ -2219,6 +2225,45 @@ code.mono,
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Los dos campos de coste base, uno encima del otro.
+ *
+ * Misma disposicion que el margen y por el mismo motivo: los tres numeros que el operador cambia
+ * en caliente —entrada, salida y margen— tienen que verse igual, o el que no coincide parece de
+ * otro tipo de control. Con el coste en una sola celda de dos lineas y el margen en otra, la
+ * columna "coste" y la "margen" siguen siendo legibles como columnas, y no como un bloque de
+ * tres numeros pegado.
+ *
+ * El `width: 100%` con `min-width: 0` es lo que permite que el numero largo de un proveedor caro
+ * se recorte en vez de ensanchar la celda y desplazar toda la tabla. */
+.cost-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cost-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.cost-field input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.cost-field input:disabled {
+  color: var(--color-muted);
 }
 
 .margin-field input {
@@ -4218,4 +4263,63 @@ code.mono,
  * el fondo propio, para que el salto entre las dos consolas no de un salto de color. */
 .admin-shell {
   background: var(--color-raised);
+}
+
+/* --------------------------------------------------------------------------
+   Modo de altura fija: rutas que ocupan el viewport sin scroll de pagina.
+
+   ## Por que una cadena de alturas y no `calc(100dvh - algo)`
+
+   Porque el alto real del topbar **no** es su `min-height`. El topbar tiene `padding: 16px`
+   vertical y contenido dentro, asi que mide mas que el token, y el token es un minimo, no una
+   medida. Y el contenedor padre tiene `padding: 32px`, que tambien tiene que entrar en la
+   cuenta.
+
+   Calcular la altura restando un valor aproximado produce un resultado que se pasa de la
+   ventana por la diferencia, y el sintoma es un scroll de pagina de unos treinta pixeles: lo
+   justo para que el compositor quede medio fuera de la vista y el usuario tenga que bajar
+   para escribir. Un error de treinta pixeles es el peor tamaño de error posible, porque no se
+   ve como un fallo sino como si el diseño fuera asi.
+
+   La cadena de alturas no evade el problema, lo resuelve:
+
+     .app-shell-fija          alto de la ventana, overflow oculto
+       .content-shell         flex: 1, min-height: 0
+         .topbar              flex: 0 0 auto   <- se mide solo
+         .main-content        flex: 1, min-height: 0
+           .chat-page         flex: 1, min-height: 0
+
+   El topbar aporta lo que mida, el padding del padre va dentro del presupuesto porque el
+   contenedor flexible lo reparte, y no hay ningun numero magico que mantener sincronizado.
+   -------------------------------------------------------------------------- */
+
+.app-shell-fija {
+  /* `100svh` y no `100vh`: en un movil con barra de direcciones visible, `100vh` mide mas que
+     lo que hay y la parte inferior -que aqui es el compositor- queda bajo el pliegue. */
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell-fija .content-shell {
+  flex: 1 1 0%;
+  /* `min-height: 0` es lo que permite que el contenido se encoja por debajo de su contenido.
+     Sin el, un hijo flexible tiene `min-height: auto` y no baja de su altura de contenido, que
+     es exactamente el desbordamiento que se quiere eliminar. */
+  min-height: 0;
+}
+
+.app-shell-fija .topbar {
+  /* `flex: 0 0 auto` es el natural de un topbar, pero se dice aqui para que quede escrito que
+     en este modo el alto lo aporta el contenido y no una regla aparte. */
+  flex: 0 0 auto;
+}
+
+.app-shell-fija .main-content {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }

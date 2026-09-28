@@ -376,6 +376,89 @@ export interface KnowledgePage {
   offset: number
 }
 
+// --------------------------------------------------------------------------- //
+// Chat con agentes (MENU-MAP §5).
+// --------------------------------------------------------------------------- //
+
+/**
+ * Quién escribió un mensaje.
+ *
+ * `system` está aunque el panel nunca lo muestre: el backend lo filtra del historial porque las
+ * instrucciones se montan aparte en cada prompt, y un tipo que no lo contemplara describiría mal
+ * lo que el servidor puede devolver.
+ */
+export type ChatRole = 'user' | 'assistant' | 'system'
+
+export interface ChatMessage {
+  id: string
+  role: ChatRole
+  content: string
+  tokens_in: number
+  tokens_out: number
+  credits_cost: number
+  model_id: string | null
+  created_at: string
+  /**
+   * Que el cobro de este paso no se pudo verificar porque el proveedor no publicó su consumo.
+   *
+   * Distingue **cobro cero** de **cobro no medido**, y los dos muestran `credits_cost: 0`. Sin
+   * este campo, un fallo de medición del proveedor se leería al usuario como un ahorro, que es
+   * justo la lectura que hace que deje de fiarse del saldo.
+   */
+  consumo_no_verificable: boolean
+}
+
+export interface ChatConversation {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+  message_count: number
+}
+
+export interface ChatConversationDetail {
+  conversation: ChatConversation
+  messages: ChatMessage[]
+}
+
+export interface ChatConversationPage {
+  conversations: ChatConversation[]
+  total: number
+}
+
+/** Un documento del workspace que se ha inyectado en el prompt de un paso. */
+export interface ChatContextSource {
+  id: string
+  title: string
+  doc_type: string
+  description: string
+  score: number
+}
+
+export interface ChatStepResponse {
+  message: ChatMessage
+  context_sources: ChatContextSource[]
+}
+
+/**
+ * Lo que el usuario ha acotado para un paso.
+ *
+ * `credenciales_de_contexto` **no** transporta credenciales: solo declara que el texto pegado
+ * lleva material sensible, para que el modelo no lo repita. Los valores viajan dentro de
+ * `content`, que es un campo de texto libre y no invites a rellenar con un secreto con nombre
+ * propio.
+ */
+export interface ChatContextOptions {
+  credenciales_de_contexto: boolean
+  dominios: string[]
+  repositorios: string[]
+}
+
+export interface ChatMessageCreate {
+  content: string
+  context_options?: ChatContextOptions
+}
+
 export type OnboardingStepKey = 'connect_git' | 'import_repository' | 'run_first_scan'
 
 export interface OnboardingStep {
@@ -802,4 +885,109 @@ export interface DashboardSummary {
   severity_distribution: SeverityCount[]
   repositories: DashboardRepository[]
   generated_at: string
+}
+
+// --------------------------------------------------------------------------- //
+// Supply Chain: inventario de dependencias declaradas en los manifiestos
+// (MENU-MAP 6.1).
+// --------------------------------------------------------------------------- //
+
+export type Ecosystem = 'NPM' | 'PYPI' | 'GO' | 'CARGO' | 'MAVEN' | 'COMPOSER' | 'OTHER'
+
+/**
+ * Una dependencia directa del manifiesto de un repositorio.
+ *
+ * ## Por que `has_vulnerabilities` es `boolean | null` y no `boolean`
+ *
+ * Porque son tres estados y con un booleano solo caben dos. `null` significa **no comprobado**,
+ * que no es lo mismo que `false`: `false` es "se ha comprobado y esta limpio".
+ *
+ * El proyecto no tiene hoy una fuente de vulnerabilidades por paquete —`cve_records` guarda el
+ * CVE, su severidad y una descripcion, pero no que paquetes afecta—, asi que todo lo indexado
+ * esta en `null`. Si se tipara como `boolean`, el panel no podria distinguir "limpio" de "no lo
+ * sabemos", y ensenaria un verde que nadie ha verificado. Ver el encabezado de
+ * `backend/apps/supply_chain/models.py`.
+ */
+export interface SupplyChainPackage {
+  id: string
+  name: string
+  /** Lo que el manifiesto **declara**, que puede ser un rango: `^4.17.21`, `>=2 <3`. */
+  version: string
+  ecosystem: Ecosystem
+  license: string | null
+  has_vulnerabilities: boolean | null
+  cve_ids: string[]
+  is_dev_dependency: boolean
+  manifest_path: string | null
+  first_seen_at: string
+  last_seen_at: string
+  repository_id: string
+  repository_name: string
+}
+
+export interface SupplyChainPackagePage {
+  items: SupplyChainPackage[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** Los numeros de cabecera. `unchecked` es lo que no se sabe, y va aparte a proposito. */
+export interface SupplyChainSummary {
+  total_dependencies: number
+  vulnerable: number
+  clean: number
+  unchecked: number
+  by_ecosystem: Partial<Record<Ecosystem, number>>
+  repositories_indexed: number
+}
+
+export interface SupplyChainIndexRequest {
+  manifest_path: string
+  content: string
+}
+
+export interface SupplyChainIndexResult {
+  inserted: number
+  updated: number
+  discarded: number
+  total: number
+}
+
+// --------------------------------------------------------------------------- //
+// Documentos del workspace en formato OKF (MENU-MAP 7.1).
+// --------------------------------------------------------------------------- //
+
+/**
+ * Que **es** este texto, para que el motor sepa si puede usarlo como contexto de analisis o
+ * solo como referencia de lectura.
+ *
+ * No es una taxonomia de severidad ni de familia de fallo: es otra pregunta, y por eso no se
+ * cruza con la del catalogo tecnico de debilidades CWE que vive en la misma pantalla.
+ */
+export type KnowledgeDocType =
+  | 'DOCUMENTATION'
+  | 'BUSINESS_RULE'
+  | 'API_SPEC'
+  | 'ARCHITECTURE'
+
+export interface KnowledgeDocument {
+  id: string
+  title: string
+  doc_type: KnowledgeDocType
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeDocumentPage {
+  documents: KnowledgeDocument[]
+  total: number
+}
+
+export interface KnowledgeDocumentCreate {
+  title: string
+  doc_type: KnowledgeDocType
+  /** El documento entero en formato OKF, con su frontmatter. */
+  content: string
 }

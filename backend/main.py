@@ -12,6 +12,7 @@ from backend.apps.api_access.router import router as api_access_router
 from backend.apps.assets.router import router as assets_router
 from backend.apps.audit.router import router as audit_router
 from backend.apps.billing.router import router as billing_router
+from backend.apps.chat.router import router as chat_router
 from backend.apps.cve_database.router import router as cve_router
 from backend.apps.dashboard.router import router as dashboard_router
 from backend.apps.knowledge.router import router as knowledge_router
@@ -22,6 +23,7 @@ from backend.apps.pentests.router import router as pentests_router
 from backend.apps.repositories.router import router as repositories_router
 from backend.apps.repositories.router_auth import router as repositories_auth_router
 from backend.apps.repositories.router_webhooks import router as repositories_webhooks_router
+from backend.apps.supply_chain.router import router as supply_chain_router
 from backend.apps.support.router import admin_router as support_admin_router
 from backend.apps.support.router import router as support_router
 from backend.apps.vulnerabilities.router import router as vulnerabilities_router
@@ -138,3 +140,8 @@ app.include_router(cve_router)
 app.include_router(webhooks_router)
 app.include_router(assets_router)
 app.include_router(mcp_router)
+# El chat no declara ningun comodin suelto, asi que su posicion no compite con otra
+# ruta. Va al final, y no por un orden de prioridad que aqui no existe, sino para que
+# anadir un router nuevo al final del bloque sea la regla y no la excepcion.
+app.include_router(chat_router)
+app.include_router(supply_chain_router)

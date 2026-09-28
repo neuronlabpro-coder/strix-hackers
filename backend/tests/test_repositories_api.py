@@ -256,8 +256,19 @@ async def test_repository_management_requires_admin_role(
             )
             assert connected.status_code == 403
 
+    # El recuento va filtrado por organización, y no global.
+    #
+    # Lo que la prueba quiere decir es "a un miembro de esta organización no se le crea un
+    # repositorio". Contar las filas de toda la tabla no dice eso: dice "no hay repositorios en
+    # el mundo", que es falso en cuanto hay un solo cliente mas, y convierte una prueba de
+    # autorización en una prueba del estado de la base de datos.
+    #
+    # Con el filtro la prueba sigue significando exactamente lo mismo con cualquier cantidad de
+    # datos de otros tenants, que es lo que la tiene que hacer bien: la base es compartida.
     repository_count = await integration_session.execute(
-        select(func.count()).select_from(Repository)
+        select(func.count())
+        .select_from(Repository)
+        .where(Repository.organization_id == _organization.id)
     )
     assert int(repository_count.scalar_one()) == 0
 

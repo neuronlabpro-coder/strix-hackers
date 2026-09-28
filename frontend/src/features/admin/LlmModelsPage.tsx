@@ -105,6 +105,8 @@ export function LlmModelsPage() {
                     activate: t('actions.activate'),
                     deactivate: t('actions.deactivate'),
                     save: t('actions.save'),
+      costInputAria: (modelId: string) => t('actions.costInputAria', { modelId }),
+      costOutputAria: (modelId: string) => t('actions.costOutputAria', { modelId }),
                     saving: t('form.submitting'),
                     input: t('columns.input'),
                     output: t('columns.output'),
@@ -139,6 +141,16 @@ interface RowLabels {
   activate: string
   deactivate: string
   save: string
+  /**
+   * Etiquetas accesibles de los dos campos de coste.
+   *
+   * Son distintas para entrada y para salida porque el campo de salida **no** tiene
+   * equivalente en la columna: el texto visible dice "salida" y el de entrada dice "entrada", y
+   * dos campos identicos con la misma etiqueta accesible son indistinguibles para un lector de
+   * pantalla aunque se vean distintos.
+   */
+  costInputAria: (modelId: string) => string
+  costOutputAria: (modelId: string) => string
   saving: string
   input: string
   output: string
@@ -167,6 +179,21 @@ function LlmModelRow({
 }) {
   const [marginDraft, setMarginDraft] = useState(model.markup_pct)
   const marginChanged = marginDraft !== model.markup_pct
+
+  // Los dos costes base se editan tambien en linea, y con la misma regla que el margen: un
+  // borrador que solo se guarda si cambia respecto a lo que hay.
+  //
+  // Antes eran de solo lectura en la tabla y habia que abrir el alta de un modelo nuevo para
+  // corregirlos, lo cual es un rodeo para un numero que se cambia cada vez que el proveedor
+  // sube sus precios. El backend ya aceptaba los dos en el PATCH desde el principio: el hueco
+  // era de la pantalla, no de la API.
+  const [inputCostDraft, setInputCostDraft] = useState(model.base_cost_input_m)
+  const [outputCostDraft, setOutputCostDraft] = useState(model.base_cost_output_m)
+  const costChanged = inputCostDraft !== model.base_cost_input_m || outputCostDraft !== model.base_cost_output_m
+
+  // El margen se recalcula sobre lo que hay **guardado**, no sobre el borrador del coste. Si
+  // dependiera del borrador, escribir un precio nuevo cambiaria la columna de precio al mismo
+  // tiempo que se escribe el coste, y el operador veria un precio que todavia no existe.
   const marginMultiplier = 1 + Number(model.markup_pct) / 100
   const hasUsage = model.usage.runs > 0
 
@@ -204,12 +231,51 @@ function LlmModelRow({
         <p className="chart-empty">{model.display_name}</p>
       </td>
       <td>
-        <span className="mono">
-          {formatUsd(model.base_cost_input_m, labels.locale)} {labels.input}
-        </span>
-        <p className="chart-empty mono">
-          {formatUsd(model.base_cost_output_m, labels.locale)} {labels.output}
-        </p>
+        <label className="cost-field">
+          <span className="visually-hidden">
+            {`${labels.costInputAria(model.model_id)}`}
+          </span>
+          <input
+            type="number"
+            min="0"
+            step="0.000001"
+            className="mono"
+            value={inputCostDraft}
+            disabled={isPending}
+            onChange={(event) => setInputCostDraft(event.target.value)}
+          />
+          <span className="chart-empty">{labels.input}</span>
+        </label>
+        <label className="cost-field">
+          <span className="visually-hidden">
+            {`${labels.costOutputAria(model.model_id)}`}
+          </span>
+          <input
+            type="number"
+            min="0"
+            step="0.000001"
+            className="mono"
+            value={outputCostDraft}
+            disabled={isPending}
+            onChange={(event) => setOutputCostDraft(event.target.value)}
+          />
+          <span className="chart-empty">{labels.output}</span>
+        </label>
+        {costChanged ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={isPending}
+            onClick={() =>
+              onUpdate({
+                base_cost_input_m: inputCostDraft,
+                base_cost_output_m: outputCostDraft,
+              })
+            }
+          >
+            <span>{isPending ? labels.saving : labels.save}</span>
+          </button>
+        ) : null}
       </td>
       <td>
         <label className="margin-field">

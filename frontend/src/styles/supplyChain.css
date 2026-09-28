@@ -1,0 +1,118 @@
+/* ==========================================================================
+   Supply Chain: inventario de dependencias (MENU-MAP 6.1).
+
+   Tokens de `design-dark.md`, sin utilidades de Tailwind, por el mismo motivo
+   que el resto del panel.
+   ========================================================================== */
+
+.supply-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* La tarjeta de "sin comprobar" lleva acento ambar en el borde, no relleno.
+   Es el estado que el usuario tiene que ver antes de mirar ninguna fila, y un
+   fondo ambar sobre la superficie elevaria el nivel de alerta de toda la
+   pantalla. */
+.supply-metric-unchecked {
+  border-left: 2px solid var(--color-medium);
+}
+
+.supply-package-name {
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.supply-dev-tag {
+  margin-left: 7px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  color: var(--color-secondary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+/* El color del ecosistema identifica la tecnologia, no la gravedad. Son tonos
+   de borde y fondo, no rellenos saturados: siete chips de color fuerte en una
+   tabla compiten entre si y con el estado de vulnerabilidad, que es lo que el
+   usuario tiene que leer primero. */
+.supply-eco-npm,
+.supply-eco-pypi,
+.supply-eco-go,
+.supply-eco-cargo,
+.supply-eco-maven,
+.supply-eco-composer,
+.supply-eco-other {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.supply-eco-npm {
+  border-left: 2px solid #cb3837;
+}
+
+.supply-eco-pypi {
+  border-left: 2px solid #3572a5;
+}
+
+.supply-eco-go {
+  border-left: 2px solid #00add8;
+}
+
+.supply-eco-cargo {
+  border-left: 2px solid #b7410e;
+}
+
+.supply-eco-maven {
+  border-left: 2px solid #c36b26;
+}
+
+.supply-eco-composer {
+  border-left: 2px solid #7b93a8;
+}
+
+.supply-eco-other {
+  border-left: 2px solid var(--color-border-hover);
+}
+
+/* Los tres estados de vulnerabilidad. El ambar de "sin comprobar" es
+   deliberadamente el mas visible de los tres: es el unico que depende de una
+   fuente que todavia no esta conectada, y esconderlo tras un verde haria que el
+   usuario creyera que sus dependencias se han revisado. */
+.supply-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.supply-status-clean {
+  color: var(--color-accent-bright);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+.supply-status-vulnerable {
+  color: var(--color-critical);
+  border-color: color-mix(in srgb, var(--color-critical) 45%, transparent);
+}
+
+.supply-status-unchecked {
+  color: var(--color-medium);
+  border-color: color-mix(in srgb, var(--color-medium) 45%, transparent);
+}
+
+@media (max-width: 1000px) {
+  .supply-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

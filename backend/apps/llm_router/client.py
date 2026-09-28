@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Final, cast
@@ -61,6 +61,36 @@ MAX_RESPONSE_BYTES: Final[int] = 8 * 1024 * 1024
 #: modelo deja de ser útil y el gasto se dispara. El valor lo fija la configuración.
 DEFAULT_MAX_PROMPT_CHARS: Final[int] = 400_000
 
+#: Timeout de la peticion al proveedor, con conectar y leer separados.
+#:
+#: Los dos tiempos **no** son el mismo problema: el de red y el de modelo. Conectar es una
+#: llamada a una IP y falla en segundos si va a fallar; leer una inferencia puede tardar
+#: minutos y es normal que tarde. Un unico timeout para las dos cosas obliga a que el mas
+#: rapido fije el lento, y al fijar el lento se pierde la proteccion contra un servidor que no
+#: acepta conexiones.
+#:
+#: ## Por que `default=300.0` y no `connect=` y `read=` a secas
+#:
+#: Porque `httpx.Timeout` **exige** un `default` cuando no se dan los cuatro parametros, y
+#: lanza `ValueError` al construirlo. La forma `Timeout(connect=10.0, read=300.0)` no vale:
+#: `httpx` no la rellena, la rechaza.
+#:
+#: El fallo era **invisible** porque vivia dentro del cuerpo de `complete`, en la rama que
+#: solo se ejecuta sin `client` inyectado. Las pruebas de atribucion pasan todas un
+#: `MockTransport`, asi que nunca llegaban a construir ese `Timeout`, y la suite daba verde
+#: mientras la ruta de produccion —el `autofix`— fallaba con un `ValueError` en la primera
+#: llamada real. Sacar la constante a nivel de modulo lo ha hecho saltar al importar, que es
+#: la unica forma de que un fallo de construccion de un objeto se vea sin llegar a
+#: produccion. Por eso vive aqui y no se construye en linea: un objeto que se puede
+#: construir mal tiene que construirse **antes**, a la vista.
+#:
+#: Vive en un modulo publico y no en el cuerpo de `complete` para que quien inyecte un
+#: `httpx.AsyncClient` desde una dependencia de FastAPI use **estos** valores y no unos
+#: inventados. Con dos juegos de timeouts, el cliente inyectado y el de `complete` se
+#: comportarian de forma distinta segun quien llamara, que es el peor sitio posible para que
+#: un timeout difiera.
+DEFAULT_TIMEOUT: Final[httpx.Timeout] = httpx.Timeout(300.0, connect=10.0)
+
 
 class LlmClientError(RuntimeError):
     """Fallo controlado hablando con el proveedor de LLM.
@@ -85,6 +115,30 @@ class LlmUpstreamError(LlmClientError):
     def __init__(self, message: str, status: int | None = None) -> None:
         super().__init__(message)
         self.status = status
+
+
+@dataclass(frozen=True, slots=True)
+class LlmTurn:
+    """Un turno de conversación ya normalizado para el proveedor.
+
+    ## Por qué existe y no se pasa un `list[dict]`
+
+    Porque un `dict` de rol y contenido obliga a cada llamador a **inventar la forma**. Uno
+    escribe `{"role": "user", "content": ...}` y otro `{"role": "user", "text": ...}`, el
+    segundo se cuela sin que ninguna prueba falle porque la comprobacion ocurre dentro de
+    `httpx` contra un proveedor real, y el síntoma es un `400` del proveedor con un mensaje que
+    no nombra el campo. El tipo obliga a las dos cosas en el momento de construirlo.
+
+    `role` es un `str` y no un enum porque el vocabulario de roles lo define el proveedor, no
+    este proyecto: anadir un valor aqui que el proveedor no acepte solo moveria el error del
+    codigo a la respuesta.
+    """
+
+    role: str
+    content: str
+
+    def as_message(self) -> dict[str, str]:
+        return {"role": self.role, "content": self.content}
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,23 +214,47 @@ def build_chat_payload(
     system: str | None = None,
     temperature: float = 0.0,
     max_tokens: int | None = None,
+    history: Sequence[LlmTurn] = (),
 ) -> dict[str, Any]:
     """El cuerpo de una petición de chat.
 
     `temperature=0` por defecto porque casi todas las llamadas de la plataforma que usan esto
     son **autofix**, donde la salida tiene que ser un diff reproducible: la misma evidencia
-    tiene que producir el mismo parche, o no hay forma de auditar por que cambio.
+    tiene que producir el mismo parche, o no hay forma de auditar por que cambio. El chat
+    **no** usa el valor por defecto y lo dice en su modulo: a cero el modelo devuelve siempre
+    la misma formulacion, y en un chat eso se lee como que no esta pensando la respuesta.
+
+    ## Por qué `history` va antes del prompt y no pegado a el
+
+    Porque el orden de `messages` **es** la conversación. Un historial colocado despues del
+    prompt —concatenado dentro del mismo mensaje de usuario— llega al modelo como un bloque de
+    prosa en el que la pregunta final es la ultima linea de un texto largo, y el modelo responde
+    a la prosa. Es el sintoma clasico del chat que "olvida" lo que se le acaba de preguntar, y
+    la causa es que el historial no viaja como historial.
+
+    Cada elemento viaja como su propio mensaje, y `prompt` es siempre el ultimo. Asi el modelo
+    responde a lo ultimo que dijo el usuario, que es lo unico que espera.
+
+    ## Por qué el historial va en la firma y no en un `messages` listo
+
+    Por el tope. `DEFAULT_MAX_PROMPT_CHARS` mide el **prompt** y hay que medir tambien lo que
+    `DEFAULT_MAX_PROMPT_CHARS` mide el **prompt** y hay que medir tambien lo que carga el
+    historial, o un historial largo pasaria el control sin haberlo mirado. Al decidir aqui el orden,
+    se puede medir el total, que es lo que de verdad se manda.
+    aqui el orden, se puede medir el total, que es lo que de verdad se manda.
     """
 
-    if len(prompt) > DEFAULT_MAX_PROMPT_CHARS:
+    total = len(prompt) + sum(len(turno.content) for turno in history)
+    if total > DEFAULT_MAX_PROMPT_CHARS:
         raise LlmClientError(
-            f"El prompt excede {DEFAULT_MAX_PROMPT_CHARS} caracteres "
-            f"({len(prompt)}); el contexto es demasiado grande para el modelo"
+            f"El contexto excede {DEFAULT_MAX_PROMPT_CHARS} caracteres "
+            f"({total}); es demasiado grande para el modelo"
         )
 
     messages: list[dict[str, str]] = []
     if system is not None:
         messages.append({"role": "system", "content": system})
+    messages.extend(turno.as_message() for turno in history)
     messages.append({"role": "user", "content": prompt})
 
     payload: dict[str, Any] = {
@@ -301,6 +379,7 @@ async def complete(
     system: str | None = None,
     temperature: float = 0.0,
     max_tokens: int | None = None,
+    history: Sequence[LlmTurn] = (),
     client: httpx.AsyncClient | None = None,
 ) -> LlmCompletion:
     """Envía una petición de chat y devuelve la respuesta normalizada.
@@ -319,13 +398,18 @@ async def complete(
 
     url = build_chat_url(api_base)
     payload = build_chat_payload(
-        model=model, prompt=prompt, system=system, temperature=temperature, max_tokens=max_tokens
+        model=model,
+        prompt=prompt,
+        system=system,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        history=history,
     )
     headers = dict(_build_request_headers())
     headers["Authorization"] = f"Bearer {api_key.get_secret_value()}"
 
     owns_client = client is None
-    http = client or httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=300.0))
+    http = client or httpx.AsyncClient(timeout=DEFAULT_TIMEOUT)
     try:
         response = await http.post(url, headers=headers, json=payload)
     except httpx.HTTPError as error:
@@ -356,10 +440,12 @@ async def complete(
 __all__ = [
     "CHAT_COMPLETIONS_PATH",
     "CLIENT_IDENTIFIER",
+    "DEFAULT_TIMEOUT",
     "MAX_RESPONSE_BYTES",
     "LlmClientError",
     "LlmCompletion",
     "LlmNotConfiguredError",
+    "LlmTurn",
     "LlmUpstreamError",
     "attribution_headers",
     "build_chat_payload",

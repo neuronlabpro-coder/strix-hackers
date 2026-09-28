@@ -41,10 +41,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.apps.knowledge.documents import WorkspaceKnowledgeDocument
 from backend.apps.knowledge.okf import OkfDocument, parse_okf
 
-#: Cuántos documentos se recuperan por defecto. Tres es lo que cabe en un prompt sin que el
-#: contexto/documentation del cliente desplace a la pregunta, que es lo que el usuario ha
-#: escrito. Con mas, el modelo empieza a responder sobre reglas que nadie le ha preguntado.
-TOP_K_POR_DEFECTO = 3
+#: Cuántos documentos se recuperan por defecto.
+#:
+#: Tiene que coincidir con `settings.chat_context_documents`, que es lo que usa el runner. Dos
+#: números distintos para lo mismo hacen que "el valor por defecto" sea una de las dos cosas y no
+#: la otra, y el que se equivoca es el que lee la otra: aquí se vería en las pruebas de esta
+#: función, y en el runner no se vería en ninguno. Hay una prueba en `test_chat_runner.py` que
+#: los compara precisamente por eso.
+#:
+#: Cuatro es lo que cabe en un prompt sin que el contexto del cliente desplace a la pregunta,
+#: que es lo que el usuario ha escrito. Con más, el modelo empieza a responder sobre reglas que
+#: nadie le ha preguntado.
+TOP_K_POR_DEFECTO = 4
 
 #: Un término de menos de tres letras produce demasiados candidatos: "id", "api" y "ui" salen
 #: en la mitad de los documentos de un cliente y no distinguen nada.
@@ -83,16 +91,24 @@ class RetrievedDocument:
     matched_terms: tuple[str, ...]
 
     def as_context_block(self) -> str:
-        """El bloque que se inyecta en el prompt.
+        """El bloque que se inyecta en el prompt, delimitado.
 
-        Lleva el titulo, el tipo, la descripcion y el cuerpo, y cita el origen. La cita no es
-        decorativa: es lo que permite al modelo decir "esto lo dice tu documento de
-        autenticacion" en vez de afirmar una regla como si fuera suya.
+        ## Por qué los delimitadores explícitos y no un encabezado Markdown
+
+        Porque un encabezado es ambiguo cuando hay varios documentos seguidos: un `###` puede
+        ser el título de un documento y una subsección del anterior, y el modelo no tiene forma
+        de saber cuál de las dos cosas está leyendo. La marca `[DOCUMENTO OKF: ...]` y las tres
+        líneas de guiones lo dicen sin ambigüedad, y esa unambigüedad es exactamente lo que
+        permite que el modelo cite la fuente en vez de parafrasearla como si fuera suya.
+
+        La cita no es decorativa: es lo que permite decir "esto lo dice tu documento de
+        autenticación" en vez de afirmar una regla como si fuera una regla general.
         """
 
         return (
-            f"### {self.title}\n"
-            f"_tipo: {self.doc_type} · descripcion: {self.description}_\n\n"
+            f"[DOCUMENTO OKF: {self.title} ({self.doc_type})]\n"
+            f"{self.description}\n"
+            "---\n"
             f"{self.body}\n"
         )
 

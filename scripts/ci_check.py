@@ -198,6 +198,22 @@ GATES: tuple[Gate, ...] = (
         titulo="Paridad de traducciones es/en",
         comando=[sys.executable, str(Path(__file__).with_name("ci_i18n_check.py"))],
     ),
+    # La auditoria de paridad va como puerta y no como informe que alguien lee cuando le
+    # apetece, por una razon concreta: un informe generado a mano envejece mas rapido que el
+    # codigo que audita, y en cuanto sus numeros dejan de coincidir con la realidad nadie lo
+    # nota. Lo unico que lo mantiene honesto es que genera un codigo de salida.
+    #
+    # Y el codigo de salida importa mas que el Markdown: la auditoria falla si aparece un literal
+    # de la marca en algo que el usuario lee, y ese es el residuo que de verdad no se puede
+    # defender en un despliegue.
+    Gate(
+        clave="paridad",
+        titulo="Auditoria de paridad funcional",
+        comando=[
+            sys.executable,
+            str(RAIZ / "scripts" / "audit_strix_parity.py"),
+        ],
+    ),
 )
 
 

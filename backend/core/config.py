@@ -243,6 +243,63 @@ class Settings(BaseSettings):
     default_strix_llm: str = Field(min_length=1)
     llm_api_key: SecretStr = Field(min_length=1, repr=False)
     llm_api_base: str = ""
+
+    # ----------------------------------------------------------------- #
+    # Parametros del chat con agentes.
+    #
+    # R1: ninguno de estos vive en el codigo del runner. Son comportamiento del
+    # producto —que tan directa es la respuesta, cuanto contexto se le da, cuanto
+    # historial recuerda— y se ajustan por despliegue, no por acuerdo comercial con
+    # un cliente, pero siguen siendo configuracion: un numero escrito en el modulo
+    # del runner es un numero que nadie puede cambiar sin redesplegar.
+    # ----------------------------------------------------------------- #
+
+    #: Temperatura de las respuestas del asistente. **No** es cero, a diferencia del
+    #: `autofix`.
+    #:
+    #: El `autofix` va a cero porque tiene que ser reproducible: la misma evidencia tiene que
+    #: producir el mismo diff, o no hay forma de auditar por que cambio. Una respuesta de
+    #: consultor no tiene ese requisito, y a cero el modelo tiende a devolver siempre la misma
+    #: formulacion, que en un chat se lee como que no esta pensando la respuesta.
+    #:
+    #: El techo es `1.0` y no mas alto porque por encima el modelo empieza a inventar detalles
+    #: técnicos —un nombre de funcion, un puerto— con la misma seguridad con la que acierta. En
+    #: una herramienta de pentesting, una suposicion presentada como hecho es un falso positivo
+    #: con apariencia de conclusion.
+    chat_temperature: float = Field(default=0.4, ge=0.0, le=1.0)
+
+    #: Tope de tokens de la respuesta. Acota lo que un paso puede costar antes de que el
+    #: proveedor decida pararlo, que es la diferencia entre un cobro acotado y uno que se
+    #: descubre en la factura.
+    chat_max_tokens: int = Field(default=2_048, ge=256, le=32_768)
+
+    #: Cuantos mensajes de historial se reenvian al modelo.
+    #:
+    #: Es el limite que decide si el chat recuerda o amnesia. Se cuentan **mensajes** y no
+    #: turnos porque el historial es una lista de filas y recortarla por parejas haria que una
+    #: conversation empezada con un mensaje de sistema terminara con un turno descuadrado. Un
+    #: numero impar deja el ultimo mensaje del usuario como el que se responde, que es lo que
+    #: quiere el usuario: la respuesta a lo ultimo que escribio.
+    chat_history_messages: int = Field(default=12, ge=0, le=200)
+
+    #: Cuantos documentos de la base de conocimiento se inyectan por paso.
+    #:
+    #: El valor por defecto tiene que coincidir con el de la firma de `recuperar_documentos` en
+    #: `backend/apps/knowledge/retrieval.py`. Dos numeros distintos para lo mismo hacen que "el
+    #: valor por defecto" sea una de las dos cosas y no la otra, y el que se equivoca es el que
+    #: lee la otra. Hay una prueba que los compara.
+    #:
+    #: Cuatro es lo que cabe sin que el contexto del cliente desplace a la pregunta, que es lo
+    #: que el usuario ha escrito. Con mas, el modelo empieza a responder sobre reglas que nadie
+    #: le ha preguntado, y el usuario recibe una respuesta correcta sobre algo que no pregunto.
+    chat_context_documents: int = Field(default=4, ge=0, le=20)
+
+    #: Longitud maxima del texto de un mensaje, en caracteres.
+    #:
+    #: Es un tope de entrada, no un capricho de formato: sin el, un mensaje de dos megabytes se
+    #: convierte en un prompt que el proveedor acepta y a cambio del cual no hay respuesta que
+    #: quepa, y el gasto se produce igualmente porque la peticion ya salio.
+    chat_max_content_chars: int = Field(default=16_000, ge=100, le=200_000)
     # R1: ni el margen, ni la conversión a créditos, ni el precio de un escaneo
     # viven en el código de las rutas. Son política comercial y cambian por
     # acuerdo comercial, no por despliegue de software.

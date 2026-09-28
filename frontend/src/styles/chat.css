@@ -1,0 +1,916 @@
+/* ==========================================================================
+   Chat con agentes (MENU-MAP §5).
+
+   Todo se construye con los tokens de `design-dark.md`: superficies `#121316`,
+   inputs y estados activos `#16181B`, bordes de 1px `#1E2024` y acento `#17A163`.
+   No hay ninguna utilidad de Tailwind en este archivo ni en los componentes del
+   chat, por el mismo motivo que no las hay en el resto del panel: las utilidades
+   son un segundo lenguaje de color que hay que mantener en paralelo a los tokens,
+   y en cuanto las dos existen la marca se ve en la mitad de los superficies.
+   ========================================================================== */
+
+.chat-page {
+  /* La altura viene del padre, no de una cuenta con el viewport.
+   *
+   * Antes se calculaba con `calc(100dvh - var(--topbar-height))` y se pasaba de alto por dos
+   * motivos a la vez: el alto real del topbar es su contenido mas su `padding`, no el token, y
+   * el `padding` del contenedor padre no estaba en la cuenta. El resultado era un scroll de
+   * pagina de unos treinta pixeles: lo justo para que el compositor quedara medio fuera de la
+   * vista. Ese es el peor tamano de error posible, porque no se lee como un fallo.
+   *
+   * Ahora `.app-shell-fija` reparte el alto y esta pagina toma el suyo con `flex: 1`. */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+  /* El `page-section` base es un grid con `gap: 24px`; en una columna de una sola fila el hueco
+     no se ve, pero el grid impone su propia altura minima al contenido. Convertirlo en flex
+     aqui evita que ese grid participe en el calculo del alto. */
+  gap: 0;
+}
+
+.chat-layout {
+  display: grid;
+  /* 280px para el menu. Suficiente para un titulo de unas cuarenta letras, que
+     es lo que cabe en dos lineas a este ancho sin partir palabras raras. */
+  grid-template-columns: 280px 1fr;
+  flex: 1 1 0%;
+  min-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   El menu lateral
+   -------------------------------------------------------------------------- */
+
+.chat-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  /* El fondo del menu es el mismo `--color-raised` que el sidebar principal, no
+     `--color-surface`. La distincion es de un pixel de borde, no de tono: dos
+     superficies casi iguales con bordes iguales se leen como un bloque plano, y
+     de este modo el menu se separa de la conversacion sin recurrir a un color
+     mas claro que competiria con los mensajes. */
+  padding: 14px;
+  background: var(--color-raised);
+  border-right: 1px solid var(--color-border);
+}
+
+.chat-new-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.chat-sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.chat-sidebar-count {
+  padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.chat-sidebar-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-secondary);
+}
+
+.chat-sidebar-note-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--color-high);
+}
+
+.chat-conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  /* Se reserva el hueco de la barra de scroll para que el menu no salte de
+     ancho cuando aparecen mas de cinco hilos. */
+  scrollbar-gutter: stable;
+}
+
+.chat-conversation {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-radius: 7px;
+  transition: background-color 120ms ease;
+}
+
+.chat-conversation:hover {
+  background: var(--color-surface-elevated);
+}
+
+/* El hilo activo se marca con un fondo **y** con un borde de acento, no solo con
+   el fondo. Un fondo distinto por si solo no sobrevive a que el usuario pase el
+   raton por encima, y en ese instante ya no sabe cual es el hilo que tiene
+   abierto. El borde del lado izquierdo es la senal que no cambia con el hover. */
+.chat-conversation-active,
+.chat-conversation-active:hover {
+  background: var(--color-surface-elevated);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.chat-conversation-open {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 0%;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.chat-conversation-open:focus-visible,
+.chat-conversation-delete:focus-visible,
+.chat-chip:focus-visible,
+.chat-card:focus-visible,
+.chat-scope-button:focus-visible,
+.chat-code-copy:focus-visible,
+.chat-composer-input:focus-visible,
+.chat-scope-input:focus-visible,
+.chat-conversation:focus-within {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+.chat-conversation-title {
+  font-size: 0.86rem;
+  color: var(--color-primary);
+  /* Un unico titulo, no tres lineas: un menu lateral con un titulo largo que
+     empuja la fecha fuera de la vista obliga a hacer scroll para leer cuando de
+     verdad. La fecha y el contador estan en la siguiente linea, y con el titulo
+     recortado siempre caben. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-conversation-meta {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-conversation-delete {
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  opacity: 0;
+  transition: color 120ms ease, opacity 120ms ease;
+}
+
+/* El borrado solo aparece al pasar el raton **o** al tener el foco dentro. Con
+   `opacity: 0` permanente seria un icono invisible en la lista, y con
+   `opacity: 1` permanente serian quince iconos de papelera compitiendo con los
+   titulos. El `:focus-within` es lo que lo mantiene visible para quien navega
+   con teclado, que es el unico caso en que no hay raton que lo revele. */
+.chat-conversation:hover .chat-conversation-delete,
+.chat-conversation:focus-within .chat-conversation-delete {
+  opacity: 1;
+}
+
+.chat-conversation-delete:hover {
+  color: var(--color-critical);
+}
+
+/* --------------------------------------------------------------------------
+   La pantalla de inicio
+   -------------------------------------------------------------------------- */
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.chat-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* `justify-content: center` con `flex: 1 1 0%` centra el bloque en el espacio que sobra. Con
+     `flex: 1` a secas, en una pantalla alta el bloque se pega arriba y deja un vacio enorme
+     debajo, que es lo que hace que una pantalla de inicio parezca descuidada. */
+  justify-content: center;
+  gap: 10px;
+  flex: 1 1 0%;
+  min-height: 0;
+  /* Scrollea **por dentro** si la ventana es mas baja que el bloque. Es la degradacion
+     correcta: el contenido se sigue viendo entero, y en vez de obligar a la pagina a hacer
+     scroll -lo que arrastraria el compositor y la cabecera- solo se mueve la zona central. En
+     1080p y en un portatil de 13 pulgadas no hace falta llegar aqui. */
+  overflow-y: auto;
+  padding: 24px;
+  text-align: center;
+}
+
+.chat-welcome-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.chat-welcome-subtitle {
+  max-width: 46ch;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--color-secondary);
+}
+
+.chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.chat-chip:hover {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+}
+
+.chat-cards {
+  display: grid;
+  /* `repeat(auto-fit, minmax(...))` y no cuatro columnas fijas: a 1200px caben
+     cuatro y a 900 caben tres, y con columnas fijas la de 900 deja una fila
+     vacia a la derecha que descuadra el conjunto. */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 900px;
+  margin-top: 22px;
+}
+
+.chat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 15px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.chat-card:hover {
+  background: var(--color-raised);
+  border-color: var(--color-accent);
+}
+
+.chat-card-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.chat-card-description {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--color-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   El hilo
+   -------------------------------------------------------------------------- */
+
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* `flex: 1 1 0%` y no `flex: 1`: con `flex: 1` la base es el contenido, y el hilo se queda
+     con la altura que le pide su contenido en vez de repartirse el sobrante. Eso es lo que
+     empuja el compositor por debajo de la ventana cuando el hilo es largo. */
+  flex: 1 1 0%;
+  min-height: 0;
+  padding: 20px 22px;
+  /* El **unico** elemento con scroll vertical de la vista. Con el resto quieto, el scroll
+     pertenece a la conversacion y no a la pagina. */
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  /* Las burbujas se centran en una columna de lectura en vez de repartirse todo el ancho. */
+  align-items: center;
+}
+
+/* La columna de lectura. Se aplica a los hijos directos y no a las burbujas, para que el
+   indicador de escritura, el aviso de contexto y el ancla de scroll compartan el mismo ancho que
+   los mensajes: si solo se limitara las burbujas, el resto quedaria pegado al borde y el ojo
+   saltaria de un sitio a otro al bajar. */
+.chat-thread > * {
+  width: 100%;
+  max-width: var(--chat-readable-width);
+}
+
+.chat-thread-empty,
+.chat-thread-loading {
+  margin: auto 0;
+  font-size: 0.88rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  max-width: 76%;
+  padding: 11px 15px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+}
+
+/* El ancho maximo del 76% es lo que hace legible el hilo. Sin tope, un mensaje
+   largo del asistente ocupa toda la linea y obliga a la vista a saltar de un
+   borde al otro en cada parrafo, que es la forma mas rapida de perder el sitio. */
+.chat-bubble-user {
+  align-self: flex-end;
+  background: var(--color-surface-elevated);
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble-assistant {
+  align-self: flex-start;
+  background: var(--color-raised);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble-text {
+  font-size: 0.89rem;
+  line-height: 1.55;
+  /* `pre-wrap` y no `normal`: sin el, un prompt con varios parrafos se pega en
+     una sola linea larguisima que el usuario no puede leer antes de enviarla. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-primary);
+}
+
+.chat-bubble-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.chat-cost {
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-cost-unverified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-medium);
+}
+
+.chat-model {
+  padding: 1px 6px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.66rem;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.chat-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--color-secondary);
+}
+
+.chat-typing-spinner {
+  animation: chat-spin 900ms linear infinite;
+  color: var(--color-accent);
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* El indicador de escritura se anuncia con `role="status"` en el componente, y
+   aqui solo se evita que el lector de pantalla lo lea tres veces por segundo: la
+   animacion no produce texto nuevo, pero el `aria-label` fijo en un elemento que
+   gira puede llegar a repetirse. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-typing-spinner {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Markdown del asistente
+   -------------------------------------------------------------------------- */
+
+.chat-paragraph {
+  margin: 0 0 9px;
+  font-size: 0.89rem;
+  line-height: 1.6;
+  color: var(--color-primary);
+  overflow-wrap: anywhere;
+}
+
+.chat-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.chat-heading {
+  margin: 14px 0 7px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-primary);
+}
+
+.chat-heading:first-child {
+  margin-top: 0;
+}
+
+.chat-list {
+  margin: 0 0 9px;
+  padding-left: 20px;
+  font-size: 0.89rem;
+  line-height: 1.6;
+  color: var(--color-primary);
+}
+
+.chat-list li {
+  margin-bottom: 3px;
+}
+
+.chat-inline-code {
+  padding: 1px 5px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.84em;
+  color: var(--color-accent-bright);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.chat-quote {
+  margin: 0 0 9px;
+  padding: 2px 0 2px 12px;
+  font-size: 0.87rem;
+  line-height: 1.55;
+  color: var(--color-caption);
+  border-left: 2px solid var(--color-border-hover);
+}
+
+.chat-rule {
+  margin: 13px 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.chat-table-wrapper {
+  /* Sin esto, una tabla de cinco columnas en un panel de 900px fuerza scroll
+     horizontal en todo el hilo y arrastra al resto del contenido. */
+  overflow-x: auto;
+  margin-bottom: 9px;
+}
+
+.chat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.chat-table th,
+.chat-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+}
+
+.chat-table th {
+  font-weight: 600;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+}
+
+.chat-table td {
+  color: var(--color-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Los bloques de codigo
+   -------------------------------------------------------------------------- */
+
+.chat-code {
+  margin: 0 0 9px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  background: var(--color-raised);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chat-code-language {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+.chat-code-copy {
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 0.7rem;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.chat-code-copy:hover {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+}
+
+.chat-code-body {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.79rem;
+  line-height: 1.55;
+  color: var(--color-primary);
+  tab-size: 2;
+}
+
+/* --------------------------------------------------------------------------
+   Los documentos de contexto
+   -------------------------------------------------------------------------- */
+
+.chat-sources {
+  align-self: stretch;
+  padding: 11px 13px;
+  background: var(--color-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+}
+
+.chat-sources-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--color-caption);
+}
+
+.chat-sources-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-sources-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 2px solid var(--color-accent);
+}
+
+.chat-sources-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.chat-sources-description {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   El compositor
+   -------------------------------------------------------------------------- */
+
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  /* `flex: 0 0 auto` es lo que **fija** el compositor abajo. Sin el, es un hijo mas que se
+     reparte el espacio con el hilo, y con un hilo largo se queda estrecho y medio fuera de la
+     vista. Es la regla que convierte "el hilo scrollea" en "el hilo scrollea y el compositor no
+     se mueve". */
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: var(--chat-readable-width);
+  margin-inline: auto;
+  /* El padding de seguridad de abajo: en un movil con barra de direcciones o con el teclado
+     abierto, el pliegue se come justo la caja. `env(safe-area-inset-bottom)` suma lo que el
+     dispositivo oculte y `env()` sin valor en un navegador de escritorio no rompe nada. */
+  padding: 13px 22px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.chat-composer-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--color-high);
+  background: var(--color-raised);
+  border: 1px solid var(--color-border);
+  border-left: 2px solid var(--color-high);
+  border-radius: 7px;
+}
+
+.chat-composer-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  padding: 8px 8px 8px 13px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  transition: border-color 120ms ease;
+}
+
+.chat-composer-box:focus-within {
+  border-color: var(--color-accent);
+}
+
+.chat-composer-input {
+  flex: 1 1 0%;
+  min-height: 26px;
+  max-height: 220px;
+  padding: 3px 0;
+  font: inherit;
+  font-size: 0.89rem;
+  line-height: 1.5;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  resize: none;
+}
+
+.chat-composer-input:focus {
+  outline: none;
+}
+
+.chat-composer-input::placeholder {
+  color: var(--color-placeholder);
+}
+
+.chat-composer-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chat-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-scope-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.76rem;
+  color: var(--color-secondary);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.chat-scope-button:hover {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+}
+
+/* El alcance activo se marca con el acento y con un texto mas claro, no solo con
+   el color: el boton de credenciales activándose es la senal de que algo del
+   prompt se tratara de forma distinta, y si no se distingue de un boton pulsado
+   cualquiera el usuario no sabe que ha cambiado algo. */
+.chat-scope-active {
+  color: var(--color-accent-bright);
+  border-color: var(--color-accent);
+}
+
+.chat-scope-badge {
+  padding: 0 5px;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-primary);
+  background: var(--color-accent);
+  border-radius: 999px;
+}
+
+.chat-scope-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
+  background: var(--color-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.chat-scope-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--color-secondary);
+}
+
+.chat-scope-input {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.chat-scope-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.chat-scope-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-scope-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px 2px 9px;
+  font-size: 0.75rem;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.chat-scope-list button {
+  display: flex;
+  padding: 2px;
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chat-scope-list button:hover {
+  color: var(--color-critical);
+}
+
+.chat-scope-panel-text {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-secondary);
+}
+
+.chat-scope-panel-warning {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-medium);
+}
+
+.chat-composer-footnote {
+  margin: 0;
+  font-size: 0.73rem;
+  color: var(--color-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Pantallas estrechas
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .chat-page {
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Por debajo de 900px el menu lateral se coloca encima del hilo en lugar de
+     al lado. Mantener las dos columnas aqui squeeze el hilo a 300px, que es
+     ilegible para un texto con bloques de codigo, y un codigo ilegible en una
+     herramienta de pentesting es peor que un menu que hay que desplazar. */
+  .chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar {
+    max-height: 260px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .chat-bubble {
+    max-width: 90%;
+  }
+
+  .chat-thread,
+  .chat-composer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}

@@ -164,7 +164,22 @@ async def test_pr_reviews_isolates_tenants(integration_session: AsyncSession) ->
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
-    assert body["items"][0]["repository_name"] == alpha_repository.full_name
+    # Se comprueba **todas** las filas y no solo la primera.
+    #
+    # Con la consulta que había, sin `JOIN`, el resultado era un producto cartesiano: cada
+    # revisión se cruzaba con cada repositorio de la base, el contenido se filtraba por
+    # organización pero el `repository_name` salía del primer repositorio que se encontrara.
+    # Mirar solo `items[0]` hacía la prueba intermitente, porque dependía de qué fila
+    # devolviera el planificador; el nombre de otro tenant podía aparecer en la segunda fila
+    # sin que el test lo notara. Afirmar que **ninguna** fila nombra un repositorio ajeno es lo
+    # que hace que el fallo sea un fallo y no una coincidencia.
+    assert body["items"], "el listado del tenant emptiness no puede salir vacio"
+    for item in body["items"]:
+        assert item["repository_name"] == alpha_repository.full_name
+    nombres = {item["repository_name"] for item in body["items"]}
+    assert nombres == {alpha_repository.full_name}, (
+        f"el listado nombra repositorios que no son del tenant: {nombres}"
+    )
 
 
 @pytest.mark.asyncio
@@ -256,7 +271,7 @@ async def test_pr_review_metrics_count_audited_clean_and_blocking(
 
     Se cuenta por revisión, no por hallazgo: una revisión con doce hallazgos sigue
     siendo una revisión. Y una revisión con `merge_blocked` cuenta como bloqueante
-    aunque su estado sea `PASSED`, porque lo que阻止 el merge es la bandera, no el
+    aunque su estado sea `PASSED`, porque lo que bloquea el merge es la bandera, no el
     estado del escaneo.
     """
 

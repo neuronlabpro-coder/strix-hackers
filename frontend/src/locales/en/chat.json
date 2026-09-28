@@ -1,0 +1,90 @@
+{
+  "title": "Agent chat",
+  "sidebar": {
+    "label": "Conversations",
+    "new": "New chat",
+    "heading": "Conversations",
+    "loading": "Loading conversations…",
+    "empty": "No conversations yet. Start one with the button above.",
+    "loadFailed": "Conversations could not be loaded.",
+    "retry": "Retry",
+    "deleteAria": "Delete the conversation {{title}}",
+    "messageCount": "{{count}} message",
+    "messageCount_other": "{{count}} messages"
+  },
+  "welcome": {
+    "title": "What do you want to secure today?",
+    "subtitle": "Fenix answers with Red Team judgement about your systems, your code and your own rules. The documents you upload to the knowledge base are its context.",
+    "chipsLabel": "Starting points by category",
+    "cardsLabel": "Quick attacks"
+  },
+  "categories": {
+    "web": "Web",
+    "code": "Code",
+    "cloud": "Cloud",
+    "recon": "Recon",
+    "network": "Network",
+    "intel": "Threat intel",
+    "compliance": "Compliance"
+  },
+  "attackCards": {
+    "api": {
+      "title": "API authorization",
+      "description": "Checks whether every endpoint cares who is calling, not just whether the caller is authenticated.",
+      "prompt": "Analyse the authorization of my API: look for endpoints where an IDOR or a horizontal privilege escalation lets one user read another user's data."
+    },
+    "oauth": {
+      "title": "OAuth flows",
+      "description": "Reviews the redirect_uri, state, PKCE and the scopes that get granted when they do not need to be.",
+      "prompt": "Review my OAuth 2.0 flows: check the redirect_uri validation, the use of the state parameter, whether PKCE is implemented properly, and whether the granted scopes are the minimum."
+    },
+    "ssrf": {
+      "title": "SSRF vectors",
+      "description": "Finds user-supplied input that ends up in an outgoing request the user controls.",
+      "prompt": "Detect SSRF vectors in my code: find where a URL or a host controlled by the user ends up in an outgoing request, and which filters it bypasses."
+    },
+    "logica": {
+      "title": "Business logic",
+      "description": "The flows that work as expected, where the order of the operations is what opens the door.",
+      "prompt": "Audit the business logic of my application: look for flows where changing the order of operations, repeating a request or skipping a step allows achieving something that should not be possible."
+    }
+  },
+  "composer": {
+    "placeholder": "Tell Fenix what to audit, or describe a target…",
+    "send": "Send",
+    "sendFailed": "The turn could not be completed. Your message was not sent.",
+    "retry": "Retry",
+    "footnote": "Each turn consumes credits according to the steps the assistant takes. You can check your balance under Billing."
+  },
+  "scope": {
+    "credentials": "Credentials",
+    "domains": "Limit domains",
+    "repositories": "Add repositories",
+    "credentialsHelp": "Fenix will not repeat any credential value in its response: it will describe it by type and scope instead. The material goes inside the message, and you can read it before sending.",
+    "credentialsWarning": "Read the pasted text before you send it: whatever you put here goes to the inference provider, which is not the owner of your data.",
+    "domainsLabel": "Domains the analysis is limited to",
+    "domainsPlaceholder": "api.client.com and press Enter",
+    "domainsLimit": "Four domains is the scope limit. If the analysis needs more, describe them in the message: the bounded list is what Fenix promises not to go beyond.",
+    "removeDomain": "Remove the domain {{domain}}",
+    "repositoriesLabel": "Repositories the analysis is limited to",
+    "repositoriesPlaceholder": "my-backend and press Enter",
+    "removeRepository": "Remove the repository {{repository}}"
+  },
+  "thread": {
+    "empty": "This thread has no messages yet.",
+    "loading": "Loading the conversation…",
+    "thinking": "Fenix is thinking…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "code": "Code",
+    "cost": "{{count}} credits consumed",
+    "cost_other": "{{count}} credits consumed",
+    "unverified": "Unverified usage: no credits were charged",
+    "unverifiedHelp": "The inference provider did not publish the usage for this turn, so nothing was charged. The work was done and the answer is delivered all the same."
+  },
+  "sources": {
+    "title": "Context used",
+    "title_other": "Documents used as context",
+    "empty": "No workspace document matched this question, so the answer relies on general knowledge only."
+  }
+}

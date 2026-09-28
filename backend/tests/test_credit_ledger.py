@@ -80,6 +80,28 @@ async def _tenant(
 async def _entries(
     session: AsyncSession, organization_id: uuid.UUID
 ) -> list[CreditLedger]:
+    """Los asientos de una organización, **sin garantía de orden**.
+
+    ## Por qué no lleva `ORDER BY`
+
+    Porque no hay ningún campo por el que ordenar. `created_at` es `server_default=func.now()`,
+    y en PostgreSQL `now()` es `transaction_timestamp()`: **la misma** para todas las filas de una
+    transacción. Los tres asientos de esta prueba se escriben en la misma, así que comparten
+    marca de tiempo hasta el microsegundo, y el `id` es un UUIDv4, que tampoco ordena por
+    tiempo de inserción.
+
+    Anadir un `ORDER BY created_at` daria una apariencia de orden sin ser una: el
+    resultado seguiria dependiendo del plan de ejecucion, y una prueba que
+    construyera hipotesis sobre las posiciones fallaria de forma intermitente.
+    posiciones fallaría de forma intermitente y sin explicación útil.
+
+    ## Qué hacer con las filas
+
+    Identificarlas por su contenido —`reason`, `reference_id`, `amount_delta`— y no por su
+    posición. Y para comprobar la **cadena** de saldos, usar los objetos que devuelve
+    `apply_credit_delta`: ahí está el orden, porque lo calculó la función en el momento de
+    insertar, y no hay que deducirlo de la tabla.
+    """
     result = await session.execute(
         select(CreditLedger).where(CreditLedger.organization_id == organization_id)
     )
@@ -154,13 +176,40 @@ async def test_apply_credit_delta_updates_balance_and_records_snapshot(
     assert await credit_balance_of(integration_session, organization_id) == Decimal("310.25")
 
     entries = await _entries(integration_session, organization_id)
-    # El primero es el bono de apertura que siembra `_tenant`.
     assert len(entries) == 3
-    assert entries[0].reason == LedgerReasonEnum.SIGNUP_BONUS
-    assert entries[1].reason == LedgerReasonEnum.STRIPE_PURCHASE
-    assert entries[1].reference_id == "cs_test_123"
-    assert entries[1].balance_after == Decimal("350.50")
-    assert entries[2].reason == LedgerReasonEnum.SCAN_CONSUMPTION
+
+    # Cada asiento se busca por lo que lo identifica, no por su posición.
+    #
+    # La versión anterior afirmaba `entries[0].reason == SIGNUP_BONUS`, `entries[1]...` y así
+    # hasta el tercero. Parecía funcionar porque PostgreSQL devolvía las filas en el orden en
+    # que se habían insertado, y eso es una casualidad de la implementation actual, no una
+    # garantía: no hay `ORDER BY`, y como los tres asientos comparten `transaction_timestamp()`,
+    # tampoco hay una columna por la que ordenar. Bastó con que el plan de ejecución cambiara para
+    # que el bono de apertura saliera en otra posición y la prueba fallara sin que hubiera
+    # cambiado nada del comportamiento que comprueba.
+    #
+    # La cadena de saldos sí se verifica, y de forma más fuerte que antes: los objetos que
+    # devuelve `apply_credit_delta` llevan cada `balance_after` ya calculado, y son el orden real
+    # de inserción. Eso no se deduce de la tabla, que es justamente lo que no se puede.
+    # El bono de apertura lo siembra `_tenant` y no devuelve su handle, así que se identifica
+    # por su razón, que en esta prueba es única: solo hay un asiento de ese tipo.
+    bonos = [entry for entry in entries if entry.reason == LedgerReasonEnum.SIGNUP_BONUS]
+    assert len(bonos) == 1
+    bono = bonos[0]
+    assert bono.amount_delta == Decimal("100")
+    assert bono.balance_after == Decimal("100")
+
+    por_id = {entry.id: entry for entry in entries}
+
+    compra = por_id[purchase.id]
+    assert compra.reason == LedgerReasonEnum.STRIPE_PURCHASE
+    assert compra.reference_id == "cs_test_123"
+    assert compra.balance_after == Decimal("350.50")
+
+    gasto = por_id[consumption.id]
+    assert gasto.reason == LedgerReasonEnum.SCAN_CONSUMPTION
+    assert gasto.balance_after == Decimal("310.25")
+
     # La suma de los deltas reconstruye el saldo sin recalcular nada.
     assert sum((entry.amount_delta for entry in entries), Decimal(0)) == Decimal("310.25")
 
@@ -364,13 +413,32 @@ async def test_quick_scan_costs_less_than_a_standard_scan(
 
     assert standard.status_code == 201
     assert quick.status_code == 201
-    consumed = [
-        abs(entry.amount_delta)
-        for entry in await _entries(integration_session, organization_id)
-        if entry.reason == LedgerReasonEnum.SCAN_CONSUMPTION
-    ]
-    assert len(consumed) == 2
-    assert consumed[1] < consumed[0]
+
+    # Cada consumo se empareja con **su** escaneo por `reference_id`, y no por la posicion que
+    # ocupa en la lista.
+    #
+    # `consumed[1] < consumed[0]` sostenia que el segundo asiento de la lista era el mas barato,
+    # y que eso era por ser el escaneo rapido. Lo que media en realidad era el orden en que
+    # PostgreSQL devolvia las filas, que no esta garantizado: los dos asientos se escriben en la
+    # misma transaccion, comparten `transaction_timestamp()`, y el `id` es un UUIDv4 que no
+    # ordena. Cuando el orden se invirtió, la prueba fallo diciendo que el escaneo rapido costaba
+    # mas que el estandar, que es un resultado absurdo y era solo una casualidad del plan de
+    # ejecucion.
+    #
+    # El `reference_id` es el identificador del escaneo, asi que emparejar por el convierte una
+    # hipotesis sobre el orden en un hecho comprobable.
+    consumos: dict[str, Decimal] = {}
+    for entry in await _entries(integration_session, organization_id):
+        if entry.reason == LedgerReasonEnum.SCAN_CONSUMPTION:
+            assert entry.reference_id is not None
+            consumos[entry.reference_id] = abs(entry.amount_delta)
+
+    assert len(consumos) == 2
+    estandar_id = standard.json()["id"]
+    rapido_id = quick.json()["id"]
+    assert consumos[rapido_id] < consumos[estandar_id], (
+        f"el escaneo rapido costo {consumos[rapido_id]} y el estandar {consumos[estandar_id]}"
+    )
 
 
 @pytest.mark.asyncio

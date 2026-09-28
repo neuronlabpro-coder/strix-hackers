@@ -317,8 +317,8 @@ def construir_prompt(vulnerability: Vulnerability) -> str:
 
 #: Los precios del catálogo están **por millón de tokens**, que es como los publica el
 #: proveedor. La conversión vive aquí y no en cada aserto porque es el único sitio donde cabe
-#: equivocarse: con el factor de un millón忘记, el cargo sale un millón de veces más caro, y
-#: con él disappears la probabilidad de que alguien se queje.
+#: equivocarse: si el factor fuera un billón en vez de un millón, el cargo sale un millón
+#: de veces más caro, y con él desaparece la probabilidad de que alguien se queje.
 TOKENS_POR_MILLON: Final[Decimal] = Decimal(1_000_000)
 
 

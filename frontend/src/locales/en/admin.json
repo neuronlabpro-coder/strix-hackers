@@ -247,6 +247,8 @@
   "actions": {
     "cancel": "Cancel",
     "close": "Close",
-    "retry": "Retry"
+    "retry": "Retry",
+    "costInputAria": "Base input cost of {{modelId}}, in dollars per million tokens",
+    "costOutputAria": "Base output cost of {{modelId}}, in dollars per million tokens"
   }
 }

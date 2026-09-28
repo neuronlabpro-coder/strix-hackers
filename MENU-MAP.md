@@ -19,9 +19,10 @@
     - [ ] `Pentests` (`/pentests`)
     - [ ] `Issues` (`/issues`)
     - [ ] `PR Reviews` (`/pr-reviews`)
-    - [ ] `Supply Chain` (Bloqueado con candado · Tier Enterprise)
+    - [x] `Supply Chain` (`/supply-chain`) —cerrado en Fase 6; sigue detras del candado de
+          Tier Enterprise en el menu, que es una decision comercial y no tecnica
     - [ ] `Containers` (Bloqueado con candado · Tier Enterprise)
-    - [ ] `Chat` (`/chat`)
+    - [x] `Chat` (`/chat`) —cerrado en Fase 6
   - [ ] Separador de Activos & Configuración:
     - [ ] `Repositories` (`/repositories`)
     - [ ] `Domains` (`/domains`)
@@ -148,19 +149,23 @@
 
 ## 5. Consola Conversacional con Agentes (`/chat`)
 
-- [ ] **5.0 · Interfaz de Chat con el Agente Ofensivo**
-  - [ ] Cabecera con advertencia de créditos: *"A chat uses part of a credit for each agent step. Your balance is in Billing"*
-  - [ ] Entrada de prompt multimodal con adjuntos:
-    - [ ] Botón `Credentials` (Inyectar credenciales temporales de prueba)
-    - [ ] Botón `Scope domains` (Delimitar dominios permitidos)
-    - [ ] Botón `Add repositories` (Vincular repositorios como contexto)
-- [ ] **5.1 · Atajos de Auditoría Guiada por Categoría**
-  - [ ] Pestañas: `Web`, `Code`, `Cloud`, `Recon`, `Network`, `Threat Intel`, `Compliance`
-  - [ ] Cards preconfiguradas:
-    - [ ] `Test API authorization`: Comprobación de BOLA / IDOR y escalada de privilegios
-    - [ ] `Analyze OAuth flows`: Validación de tokens, redirecciones y CSRF en OAuth
-    - [ ] `Detect SSRF vectors`: Detección de peticiones del lado del servidor hacia servicios internos
-    - [ ] `Audit business logic`: Condiciones de carrera, manipulación de precios y bypass de flujos
+- [x] **5.0 · Interfaz de Chat con el Agente Ofensivo**
+  - [x] Cabecera con advertencia de créditos: *"Un chat consume parte de un crédito por cada paso del asistente. Saldo en Facturación"*
+  - [x] Entrada de prompt con adjuntos de contexto:
+    - [x] Botón `Credenciales` (marca de material sensible; el material viaja en el texto visible)
+    - [x] Botón `Limitar dominios` (acota el análisis a los dominios indicados)
+    - [x] Botón `Añadir repositorios` (acota el análisis a los repositorios indicados)
+- [x] **5.1 · Atajos de Auditoría Guiada por Categoría**
+  - [x] Chips: `Web`, `Code`, `Cloud`, `Recon`, `Network`, `Threat Intel`, `Compliance`
+  - [x] Cards preconfiguradas:
+    - [x] `Autorización de API`: Comprobación de BOLA / IDOR y escalada de privilegios
+    - [x] `Flujos OAuth`: Validación de tokens, redirecciones y CSRF en OAuth
+    - [x] `Vectores SSRF`: Detección de peticiones del lado del servidor hacia servicios internos
+    - [x] `Lógica de negocio`: Condiciones de carrera, manipulación de precios y bypass de flujos
+- [x] **5.2 · Hilo, Coste y Procedencia** _(añadido en Fase 6 al construir el runner)_
+  - [x] Historial lateral de conversaciones con fecha relativa y borrado en cascada
+  - [x] Coste por turno, y aviso distinto cuando el consumo no se pudo verificar
+  - [x] Procedencia del contexto: qué documentos del cliente se usaron en el último turno
 
 ---
 
@@ -173,7 +178,7 @@
   - [x] `Status`: Not tested / Tested / Scanning
   - [x] `Issues`: Conteo de vulnerabilidades abiertas
   - [x] `PR reviews`: Toggle interactivo para activar/desactivar revisiones automáticas
-  - [ ] `Supply chain`: Estado de SBOM de dependencias  _(pendiente: Strix aún no expone SBOM)_
+  - [x] `Supply chain`: inventario de dependencias del manifiesto  _(Fase 6; la columna se llama así y no "SBOM" porque lo que se guarda no es un documento normalizado)_
   - [x] `Last tested`: Fecha y hora de la última auditoría
 
 ### 6.2 Dominios y APIs (`/domains`)

@@ -53,16 +53,21 @@ def _token() -> str:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_catalog_has_exactly_forty_seven_scopes() -> None:
+def test_the_catalog_has_exactly_forty_nine_scopes() -> None:
     """El número es parte del contrato, no un resultado de contar.
 
     Se afirma el número exacto y no `len(ALL_SCOPES)`, porque una prueba que compara un
     valor consigo misma sigue pasando cuando alguien borra un permiso por error.
+
+    Son 49 desde que el chat aportó `chat:read` y `chat:write`. Esos dos se cuentan aparte
+    porque son la razón de que el número suba en dos y no en uno: son el grupo que mas
+    justifica estar separado, ya que un token de solo lectura tiene que poder **mostrar** el
+    historial del chat sin poder **gastarlo**.
     """
 
-    assert len(ALL_SCOPES) == 47, f"el catálogo tiene {len(ALL_SCOPES)} scopes y son 47"
-    # Y los 47 se reparten en 17 grupos, que son los que ve el panel.
-    assert len(SCOPE_CATALOG) == 17
+    assert len(ALL_SCOPES) == 49, f"el catálogo tiene {len(ALL_SCOPES)} scopes y son 49"
+    # Y los 49 se reparten en 18 grupos, que son los que ve el panel.
+    assert len(SCOPE_CATALOG) == 18
 
 
 def test_every_group_declares_the_scopes_the_owner_asked_for() -> None:
@@ -98,13 +103,14 @@ def test_every_group_declares_the_scopes_the_owner_asked_for() -> None:
         "llm": {"models_read", "usage_read"},
         "admin": {"models_manage", "analytics_read"},
         "mcp": {"connect", "invoke"},
+        "chat": {"read", "write"},
     }
     real = {
         grupo: {scope.action for scope in scopes} for grupo, scopes in SCOPE_CATALOG.items()
     }
     assert real == esperado
-    # 17 grupos. Se afirma para que un grupo nuevo obligue a decidir si suma o no.
-    assert len(SCOPE_CATALOG) == 17
+    # 18 grupos. Se afirma para que un grupo nuevo obligue a decidir si suma o no.
+    assert len(SCOPE_CATALOG) == 18
 
 
 def test_the_scope_string_is_group_and_action() -> None:

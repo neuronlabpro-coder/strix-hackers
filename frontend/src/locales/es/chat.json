@@ -1,0 +1,90 @@
+{
+  "title": "Chat con agentes",
+  "sidebar": {
+    "label": "Conversaciones",
+    "new": "Nuevo chat",
+    "heading": "Conversaciones",
+    "loading": "Cargando conversaciones…",
+    "empty": "Todavía no hay conversaciones. Empieza una con el botón de arriba.",
+    "loadFailed": "No se pudieron cargar las conversaciones.",
+    "retry": "Reintentar",
+    "deleteAria": "Eliminar la conversación {{title}}",
+    "messageCount": "{{count}} mensaje",
+    "messageCount_other": "{{count}} mensajes"
+  },
+  "welcome": {
+    "title": "¿Qué quieres auditar hoy?",
+    "subtitle": "Fenix responde con criterio de Red Team sobre tus sistemas, tu código y tus reglas. Los documentos que hayas subido a la base de conocimiento son su contexto.",
+    "chipsLabel": "Puntos de partida por categoría",
+    "cardsLabel": "Ataques rápidos"
+  },
+  "categories": {
+    "web": "Web",
+    "code": "Código",
+    "cloud": "Cloud",
+    "recon": "Recon",
+    "network": "Red",
+    "intel": "Inteligencia de amenazas",
+    "compliance": "Cumplimiento"
+  },
+  "attackCards": {
+    "api": {
+      "title": "Autorización de API",
+      "description": "Comprueba si cada endpoint respeta quién llama, no solo si está autenticado.",
+      "prompt": "Analiza la autorización de mi API: busca endpoints donde un IDOR o una escalada horizontal permiten leer datos de otro usuario."
+    },
+    "oauth": {
+      "title": "Flujos OAuth",
+      "description": "Revisa el redirect_uri, el state, el PKCE y los permisos que se conceden de más.",
+      "prompt": "Revisa mis flujos OAuth 2.0: fíjate en la validación del redirect_uri, el uso del parámetro state, si PKCE está bien implementado y si los scopes concedidos son los mínimos."
+    },
+    "ssrf": {
+      "title": "Vectores SSRF",
+      "description": "Localiza entradas de usuario que acaban en peticiones salientes controlables.",
+      "prompt": "Detecta vectores SSRF en mi código: busca dónde una URL o un host controlado por el usuario acaba en una petición saliente, y qué filtros se saltan."
+    },
+    "logica": {
+      "title": "Lógica de negocio",
+      "description": "Los flujos que funcionan como se espera, pero donde el orden de las operaciones abre la puerta.",
+      "prompt": "Audita la lógica de negocio de mi aplicación: busca flujos donde cambiar el orden de las operaciones, repetir una petición o saltarse un paso permita conseguir algo que no debería."
+    }
+  },
+  "composer": {
+    "placeholder": "Dile a Fenix qué auditar o describe un objetivo…",
+    "send": "Enviar",
+    "sendFailed": "El turno no se pudo completar. Tu mensaje no se ha enviado.",
+    "retry": "Reintentar",
+    "footnote": "Cada turno consume créditos según los pasos que da el asistente. Tienes el saldo en Facturación."
+  },
+  "scope": {
+    "credentials": "Credenciales",
+    "domains": "Limitar dominios",
+    "repositories": "Añadir repositorios",
+    "credentialsHelp": "Fenix no va a repetir el valor de ninguna credencial en su respuesta: lo describirá por su tipo y su alcance. El material va dentro del mensaje, y puedes leerlo antes de enviarlo.",
+    "credentialsWarning": "Revisa el texto pegado antes de enviarlo: lo que pongas aquí se envía al proveedor de inferencia, que no es el propietario de tus datos.",
+    "domainsLabel": "Dominios a los que se acota el análisis",
+    "domainsPlaceholder": "api.cliente.com y pulsa Intro",
+    "domainsLimit": "Cuatro dominios es el máximo del alcance. Si el análisis necesita más, descríbelo en el mensaje: la lista acotada es lo que Fenix se promete no sobrepasar.",
+    "removeDomain": "Quitar el dominio {{domain}}",
+    "repositoriesLabel": "Repositorios a los que se acota el análisis",
+    "repositoriesPlaceholder": "mi-backend y pulsa Intro",
+    "removeRepository": "Quitar el repositorio {{repository}}"
+  },
+  "thread": {
+    "empty": "Este hilo todavía no tiene mensajes.",
+    "loading": "Cargando la conversación…",
+    "thinking": "Fenix está pensando…",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "code": "Código",
+    "cost": "{{count}} créditos consumidos",
+    "cost_other": "{{count}} créditos consumidos",
+    "unverified": "Consumo no verificado: no se han descontado créditos",
+    "unverifiedHelp": "El proveedor de inferencia no publicó el consumo de este turno, así que no se ha cobrado nada. El trabajo se ha hecho y la respuesta se entrega igual."
+  },
+  "sources": {
+    "title": "Contexto usado",
+    "title_other": "Documentos usados como contexto",
+    "empty": "No se ha encontrado ningún documento del workspace para esta pregunta, así que la respuesta se apoya solo en conocimiento general."
+  }
+}
