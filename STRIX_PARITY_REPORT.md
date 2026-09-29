@@ -5,9 +5,9 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 ## Resumen
 
 - Modulos auditados: **40**
-- Funcionales: **33**
+- Funcionales: **31**
 - En paridad: **2**
-- Bloqueados por Fase 6: **0**
+- Bloqueados por Fase 6: **2**
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
@@ -25,8 +25,8 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 | Detalle de Vulnerabilidad | Funcional |  |
 | PR Reviews | Funcional |  |
 | Supply Chain | Funcional |  |
-| Contenedores | Funcional |  |
-| Redes | Funcional |  |
+| Contenedores | Bloque de Fase 6 | la ruta monta un `PlaceholderPage` (`pending.containers`) |
+| Redes | Bloque de Fase 6 | la ruta monta un `PlaceholderPage` (`pending.networks`) |
 | Chat | Funcional |  |
 | Repositorios | Funcional |  |
 | Dominios | Funcional |  |
@@ -230,7 +230,7 @@ _Y 110 mas._
 | comentario | `scripts/audit_strix_parity.py:142` | # ## Por que no un patron que encuentre "strix" dentro del identificador | explicacion interna |
 | comentario | `scripts/audit_strix_parity.py:148` | # "strix", asi que en `StrixSandboxManager` el `[A-Za-z_]` se come la "S" inicial y lo ... | explicacion interna |
 | comentario | `scripts/audit_strix_parity.py:149` | # es "trixSandboxManager", donde ya no hay un "strix" que emparejar. Se busco con mas g... | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:419` | # modulos de Strix—. Se listan aparte para que sean visibles sin marcar el despliegue como | explicacion interna |
+| comentario | `scripts/audit_strix_parity.py:471` | # modulos de Strix—. Se listan aparte para que sean visibles sin marcar el despliegue como | explicacion interna |
 
 ## Metodo
 

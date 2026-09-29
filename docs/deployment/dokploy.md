@@ -20,9 +20,9 @@ Empieza con todas las claves de `.env.example`, que contiene tanto los valores d
 | Variable(s) | Valor requerido |
 | --- | --- |
 | `SECRET_KEY` | Secreto aleatorio propio, de al menos 32 caracteres. |
-| `ENVIRONMENT`, `DEBUG` | `production`, `false`. El compose fija estos valores. |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DATABASE_URL` | Datos de PostgreSQL 16 alcanzables desde el host Dokploy por Tailscale. `DATABASE_URL` debe coincidir exactamente con `DB_*`; usa el formato `postgresql+asyncpg://usuario:contraseña@host:5433/base`. |
-| `REDIS_PASSWORD` | Secreto de Redis; no uses `@` ni `:` porque Compose lo inserta en `REDIS_URL`. |
+| `ENVIRONMENT`, `DEBUG`, `RUN_MIGRATIONS` | `production`, `false`, `false`. El compose fija estos valores; el esquema debe estar migrado antes de desplegar. |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DATABASE_URL` | Datos de PostgreSQL 16 alcanzables desde el host Dokploy por Tailscale. Usa las credenciales de `FENIX_POSTGRES_*` del servidor de datos; `DATABASE_URL` debe coincidir exactamente con `DB_*`. |
+| `REDIS_PASSWORD` | Debe ser igual a `FENIX_REDIS_PASSWORD` del servidor de datos. Si incluye caracteres reservados, codifícalos en `REDIS_URL`. |
 | `GIT_ENCRYPTION_KEY` | Clave base64 que decodifique a 32 bytes. No sirve el valor de ejemplo del repositorio. |
 | `DEFAULT_STRIX_LLM`, `LLM_API_KEY`, `LLM_API_BASE` | Modelo existente en la cuenta del proveedor, credencial y base HTTPS OpenAI-compatible. |
 | `STRIX_LLM_KEY_EXPOSURE_ACK` | Para habilitar el lanzamiento de escaneos, escribe exactamente `la-clave-del-proveedor-entra-en-el-contenedor-aceptado`. La clave LLM se entrega al sandbox; considera primero un proxy de inferencia o credenciales limitadas por escaneo. |
@@ -30,7 +30,7 @@ Empieza con todas las claves de `.env.example`, que contiene tanto los valores d
 | `EMAIL_VERIFICATION_DELIVERY_MODE`, `FRONTEND_BASE_URL`, `API_PUBLIC_BASE_URL` | `smtp`, `https://panel.mindguardredteam.com`, `https://api.mindguardredteam.com`. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `EMAIL_VERIFICATION_FROM` | SMTP accesible desde Dokploy; usuario y contraseña juntos, TLS `true` y remitente válido. |
 | `VITE_API_URL` | `https://api.mindguardredteam.com`. Es argumento de build; cambia el bundle cuando cambie. |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `CELERY_REDIS_DB` | El compose deriva la conexión interna a `redis:6379`, bases 0 y 1. La contraseña debe ser la misma que `REDIS_PASSWORD`. |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `CELERY_REDIS_DB`, `REDIS_URL` | Dirección Tailscale del Redis externo (por ejemplo `100.89.59.70:6380`), bases 0 y 1. `REDIS_URL` debe coincidir con host, puerto, contraseña y base 0. |
 
 Genera los secretos fuera del repositorio. Por ejemplo, para `GIT_ENCRYPTION_KEY`:
 
@@ -42,7 +42,7 @@ Si una contraseña de PostgreSQL contiene caracteres reservados de URL (`@`, `:`
 
 ## Variables de Compose opcionales
 
-`.env.example` deja valores iniciales para `IMAGE_TAG`, `API_WORKERS`, `BACKEND_MEM_LIMIT`, `BACKEND_CPUS`, `BACKEND_PIDS_LIMIT`, `CELERY_LOGLEVEL`, `CELERY_CONCURRENCY`, `CELERY_MAX_TASKS_PER_CHILD` y `REDIS_MEM_LIMIT`. Se pueden ajustar desde Dokploy. `DOCKER_GID` debe ser el GID del grupo dueño de `/var/run/docker.sock` en el host; consulta con `stat -c '%g' /var/run/docker.sock` y reemplaza el `999` de ejemplo.
+`.env.example` deja valores iniciales para `IMAGE_TAG`, `API_WORKERS`, `BACKEND_MEM_LIMIT`, `BACKEND_CPUS`, `BACKEND_PIDS_LIMIT`, `CELERY_LOGLEVEL` y `CELERY_MAX_TASKS_PER_CHILD`. Se pueden ajustar desde Dokploy. `DOCKER_GID` debe ser el GID del grupo dueño de `/var/run/docker.sock` en el host; consulta con `stat -c '%g' /var/run/docker.sock` y reemplaza el `999` de ejemplo.
 
 Antes de desplegar, prepara en el host Dokploy la ruta temporal de los workspaces y dale acceso al UID/GID de la aplicación (`10001`):
 
@@ -54,6 +54,8 @@ El worker usa el socket Docker del host para crear los contenedores sandbox. El 
 
 ## Acceso a los datos
 
-Dokploy y sus contenedores deben tener Tailscale conectado a la red donde escucha PostgreSQL. Mantén PostgreSQL sin puertos públicos; `DB_HOST` debe ser una IP Tailscale alcanzable desde Dokploy, no `localhost` ni un nombre DNS público. Redis queda en el compose y no publica puertos al host.
+El host Dokploy y el servidor de datos deben estar en la misma tailnet. Usa en `DB_HOST` y `REDIS_HOST` la IP Tailscale del servidor de datos (la captura muestra `100.89.59.70`), con los puertos `5433` y `6380`. El compose de la aplicación conserva su bridge de salida `fenix` y conecta únicamente API y panel a `dokploy-network` para el proxy entrante. No intentes unir este stack a `fenix-network` del servidor de datos: las redes bridge son locales a cada host Docker, así que la conexión entre servidores debe ir por Tailscale.
+
+Este compose no contiene servicio `migrate`, PostgreSQL ni Redis. `RUN_MIGRATIONS=false` impide que el entrypoint intente aplicar cambios de esquema durante el despliegue. API y workers conectan a las bases existentes por Tailscale.
 
 Tras guardar Environment y configurar Domains, redepliega. Si falla el build del frontend, confirma que no aparece `setcap` y que el paso de runtime termina. Si frontend compila pero el dominio no responde, revisa que el dominio del panel tenga puerto `8080`, que el de API tenga `8000` y que ambos contenedores estén conectados a `dokploy-network`.

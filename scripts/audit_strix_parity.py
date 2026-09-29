@@ -213,6 +213,44 @@ def rutas_relativas(texto: str) -> set[str]:
     return set(re.findall(r'<Route\s+path="([a-z][^"/]*)"', texto))
 
 
+def rutas_de_placeholder(texto: str) -> dict[str, str]:
+    """Las rutas cuyo `<Route>` monta un `PlaceholderPage`, con el motivo que declara.
+
+    ## Por qué hace falta, y por qué no es un refinamiento
+
+    Porque `comprobar_superficie` decidía "funcional" con una sola pregunta —¿la ruta está en el
+    enrutador?— y esa pregunta tiene una respuesta que no significa lo que parece. Una ruta que
+    renderiza `PlaceholderPage` **existe**, así que se certificaba funcional, y el informe
+    publicaba `| Contenedores | Funcional |` sobre una pantalla que no hace nada. Un gate que
+    declara terminado lo que no está terminado es peor que no tener gate: no da un falso
+    negativo, da un falso positivo con sello oficial, y además lo repetiría en cada generación
+    del informe porque el informe se genera con esta misma comparación.
+
+    ## Por qué se busca por bloques de `<Route>` y no con una expresión regular suelta
+
+    Porque `path` y `element` no están en la misma línea: el `element` abre un bloque multilínea
+    con el componente dentro. Buscar `PlaceholderPage` en todo el fichero daría rutas de
+    inferencia; buscarlo entre dos `<Route>` consecutivos acota al que le pertenece. Y el
+    `reasonKey` se lee del mismo bloque, porque **el motivo importa en el informe**: un
+    placeholder que dice "llega con la Fase 6" y otro que dice "no se puede hacer" son
+    estados distintos y quien lea el informe tiene que ver la diferencia.
+    """
+
+    bloques: dict[str, str] = {}
+    posiciones = [m.start() for m in re.finditer(r"<Route\b", texto)]
+    for indice, inicio in enumerate(posiciones):
+        fin = posiciones[indice + 1] if indice + 1 < len(posiciones) else len(texto)
+        bloque = texto[inicio:fin]
+        if "PlaceholderPage" not in bloque:
+            continue
+        ruta = re.search(r'<Route\s+path="([^"]*)"', bloque)
+        if ruta is None:
+            continue
+        motivo = re.search(r'reasonKey="([^"]*)"', bloque)
+        bloques[ruta.group(1)] = motivo.group(1) if motivo else ""
+    return bloques
+
+
 def scopes_del_backend() -> dict[str, str]:
     """El enum `Scope`, como mapa de miembro a valor.
 
@@ -400,13 +438,27 @@ def comprobar_superficie(resultado: Resultado) -> None:
     presentes = rutas_del_enrutador()
     texto = leer(RUTAS_FUENTE)
     relativas = rutas_relativas(texto)
+    placeholders = rutas_de_placeholder(texto)
 
     declaradas = {ruta for _, ruta, _, _ in MODULOS_ESPERADOS}
     for nombre, ruta, _, nota in MODULOS_ESPERADOS:
-        if ruta in presentes:
-            resultado.anota(nombre, "funcional", nota)
-        else:
+        if ruta not in presentes:
             resultado.anota(nombre, "falta", f"no esta en el enrutador (se esperaba `{ruta}`)")
+        elif ruta in placeholders:
+            # Una ruta que monta un `PlaceholderPage` existe y no funciona. Declararla
+            # funcional sería el falso positivo que hace este gate inútil, así que se declara
+            # bloqueado y se copia el motivo que la propia pantalla declara, para que el
+            # informe diga por qué y no solo que falta.
+            motivo = placeholders[ruta]
+            resultado.anota(
+                nombre,
+                "bloqueado",
+                f"la ruta monta un `PlaceholderPage`"
+                + (f" (`{motivo}`)" if motivo else "")
+                + (f"; {nota}" if nota else ""),
+            )
+        else:
+            resultado.anota(nombre, "funcional", nota)
 
     for nombre, padre, hijo in SUBNODOS:
         if hijo in relativas:
