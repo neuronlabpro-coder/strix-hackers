@@ -66,7 +66,6 @@ from enum import StrEnum
 from typing import Final
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -88,7 +87,9 @@ from backend.core.database import Base
 #: distinguir de un vistazo una credencial de panel de una de agente. Además permite que
 #: `get_current_agent` decida **sin tocar la base** que un token no es suyo, que es la primera
 #: barrera y la más barata.
-AGENT_TOKEN_PREFIX: Final[str] = "mgf_agent_"
+#: El `noqa` es el mismo que lleva `API_TOKEN_PREFIX`: un prefijo público no es un secreto, y
+#: `S105` no lo distingue de una contraseña porque solo mira el nombre de la constante.
+AGENT_TOKEN_PREFIX: Final[str] = "mgf_agent_"  # noqa: S105 - prefijo público, no un secreto
 
 #: Bytes de entropía del secreto, los mismos que en la API pública: 256 bits generados por
 #: `secrets.token_hex`.
@@ -153,7 +154,12 @@ class ScannerAgent(Base):
         # este índice no es una optimización, es el camino normal. Y único, porque una
         # colisión de SHA-256 tiene que ser un error de inserción y no dos filas con el mismo
         # secreto.
-        Index("uq_scanner_agents_token_hash", "token_hash", unique=True),
+        #
+        # Es `UniqueConstraint` y no `Index(unique=True)` porque es lo que creó la migración y
+        # las dos cosas **no** son la misma para el comparador de esquema: `alembic check` las
+        # ve como "borra una restricción y añade un índice" y se pone en rojo. Como la
+        # migración ya está aplicada, la que se ajusta es la declaración del modelo.
+        UniqueConstraint("token_hash", name="uq_scanner_agents_token_hash"),
         # La lista de agentes del panel filtra por organización y ordena por alta.
         Index("ix_scanner_agents_org_enrolled", "organization_id", "enrolled_at"),
         # `revoked_at` entra en la condición de los agentes vigentes. Sin este índice
@@ -289,7 +295,9 @@ class AgentJob(Base):
         server_default=AgentJobStatusEnum.QUEUED.name,
         index=True,
     )
-    priority_order: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    priority_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
 
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     #: Fin de la reserva. Vencido sin resultado, el trabajo vuelve a `QUEUED`. Es lo que
@@ -298,7 +306,9 @@ class AgentJob(Base):
         DateTime(timezone=True), nullable=True
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    attempt_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     #: Los hechos que devuelve el agente: para un contenedor, el digest de la imagen, su
     #: sistema operativo y sus paquetes; para una red, los hosts vivos y sus puertos. JSONB y

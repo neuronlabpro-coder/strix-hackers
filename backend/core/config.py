@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import ipaddress
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -417,7 +418,7 @@ class Settings(BaseSettings):
     @field_validator("llm_api_base")
     @classmethod
     def validate_llm_api_base(cls, value: str) -> str:
-        """Rechaza que `LLM_API_BASE` traiga ya el endpoint de chat incluido.
+        """Normaliza un endpoint de chat pegado completo en `LLM_API_BASE`.
 
         ## Que se rompia
 
@@ -459,11 +460,8 @@ class Settings(BaseSettings):
             base = base[: -len(endpoint_suffix)].rstrip("/")
         if "completions" in base.lower():
             raise ValueError(
-                "LLM_API_BASE es la BASE del proveedor, no el endpoint de chat. El cliente "
-                "le anade '/chat/completions' por su cuenta, asi que con "
-                f"'{value}' la ruta final sale duplicada y el proveedor responde 404. "
-                "Ponla sin el endpoint: por OpenRouter, "
-                "'https://openrouter.ai/api/v1'; por OpenAI, 'https://api.openai.com/v1'."
+                "LLM_API_BASE debe ser la base del proveedor, no una ruta de completions. "
+                "Usa https://openrouter.ai/api/v1 o https://api.openai.com/v1."
             )
         return base
 
@@ -572,6 +570,18 @@ class Settings(BaseSettings):
 
         if not self._redis_url_matches_components():
             raise ValueError("REDIS_URL no coincide con las variables REDIS_* configuradas")
+        if self.environment == "production":
+            try:
+                redis_ip = ipaddress.ip_address(self.redis_host)
+            except ValueError as exc:
+                raise ValueError(
+                    "REDIS_HOST debe ser la IP Tailscale del servidor Redis remoto "
+                    "(rango 100.64.0.0/10); no uses un alias Docker como fenix-redis"
+                ) from exc
+            if redis_ip not in ipaddress.ip_network("100.64.0.0/10"):
+                raise ValueError(
+                    "REDIS_HOST debe pertenecer al rango Tailscale 100.64.0.0/10"
+                )
         if self.celery_redis_db == self.redis_db:
             raise ValueError("CELERY_REDIS_DB debe ser distinto de REDIS_DB")
 

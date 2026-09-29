@@ -258,7 +258,9 @@ services:
     # El fichero de estado de beat **tiene** que vivir en un volumen. Sin él, cada reinicio del
     # contenedor lo pierde y `beat` vuelve a lanzar desde el principio las tareas periódicas.
     volumes:
-      - celery_beat_state:/var/lib/celery/beat
+      # Volumen nuevo para que Docker lo inicialice con el UID 10001 de la imagen.
+      # El volumen anterior pudo crearse como root y no permite a Beat escribir el PID.
+      - celery_beat_state_v2:/var/lib/celery/beat
     healthcheck:
       # Se comprueba el fichero de **estado**, no el de pid: el pid existe desde el arranque y
       # no dice nada de si el planificador está avanzando. Un healthcheck que pasa
@@ -312,4 +314,4 @@ networks:
     external: true
 
 volumes:
-  celery_beat_state:
+  celery_beat_state_v2:

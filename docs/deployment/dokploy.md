@@ -32,6 +32,8 @@ Empieza con todas las claves de `.env.example`, que contiene tanto los valores d
 | `VITE_API_URL` | `https://api.mindguardredteam.com`. Es argumento de build; cambia el bundle cuando cambie. |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `CELERY_REDIS_DB`, `REDIS_URL` | Dirección Tailscale del Redis externo (por ejemplo `100.89.59.70:6380`), bases 0 y 1. `REDIS_URL` debe coincidir con host, puerto, contraseña y base 0. |
 
+En Dokploy, `REDIS_HOST` debe ser la IP Tailscale literal del servidor remoto y `REDIS_URL` debe usar esa misma IP con `/0` al final. No uses `fenix-redis`: ese nombre solo resolvería si Redis estuviera en la misma red Docker, y este Compose no crea ese servicio. Celery deriva la base `/1` automáticamente desde `REDIS_URL`.
+
 Genera los secretos fuera del repositorio. Por ejemplo, para `GIT_ENCRYPTION_KEY`:
 
 ```powershell

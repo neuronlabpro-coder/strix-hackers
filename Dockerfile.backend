@@ -97,6 +97,10 @@ RUN apt-get update \
 RUN groupadd --gid 10001 appuser \
     && useradd --uid 10001 --gid 10001 --shell /usr/sbin/nologin --no-create-home appuser
 
+# Celery Beat persiste aquí su schedule. Crear la ruta con el UID de runtime permite que
+# Docker inicialice correctamente un volumen nombrado vacío sin ejecutar Beat como root.
+RUN install -d --owner=appuser --group=appuser /var/lib/celery/beat
+
 COPY --from=build --chown=appuser:appuser /app /app
 
 WORKDIR /app/backend

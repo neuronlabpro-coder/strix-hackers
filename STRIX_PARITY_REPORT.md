@@ -11,7 +11,7 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **852** funciones (34 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de backend: **862** funciones (34 con `@parametrize`, que generan mas de un caso cada una)
 - Pruebas de frontend: **43**
 
 ## Superficie funcional
@@ -132,10 +132,11 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 
 ### por revisar: ninguna
 
-### identidad tecnica (170)
+### identidad tecnica (171)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
+| identidad tecnica | `backend/apps/agents/models.py:5` | El sandbox de Strix vive en un bridge aislado cuyo cerco de salida permite DNS, HTTPS y | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:3` | Vive aquí y no en el router de pentests porque el worker de Strix también lo | identificador: Strix |
 | identidad tecnica | `backend/apps/cve_database/models.py:6` | el impacto real de un `cve_id` que Strix reporte. | identificador: Strix |
 | identidad tecnica | `backend/apps/pentests/router.py:38` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
@@ -158,46 +159,45 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/vulnerabilities/autofix.py:5` | Strix **trae** el parche desde dentro del contenedor: el escaneo analiza el código y el... | identificador: Strix |
 | identidad tecnica | `backend/apps/vulnerabilities/autofix.py:418` | MAX_RESPONSE_CHARS: Final[int] = settings.strix_max_autofix_chars | identificador: strix_max_autofix_chars |
 | identidad tecnica | `backend/apps/vulnerabilities/remediation.py:299` | max_tokens=settings.strix_max_autofix_chars // 4, | identificador: strix_max_autofix_chars |
-| identidad tecnica | `backend/core/config.py:87` | default="@fenix-team review,@strix review", | identificador: strix |
-| identidad tecnica | `backend/core/config.py:224` | strix_max_output_bytes: int = Field(default=10_000_000, gt=0, le=50_000_000) | identificador: strix_max_output_bytes |
-| identidad tecnica | `backend/core/config.py:225` | strix_max_findings: int = Field(default=10_000, gt=0, le=100_000) | identificador: strix_max_findings |
-| identidad tecnica | `backend/core/config.py:226` | strix_max_description_chars: int = Field(default=100_000, gt=0, le=1_000_000) | identificador: strix_max_description_chars |
-| identidad tecnica | `backend/core/config.py:227` | strix_max_poc_chars: int = Field(default=1_000_000, gt=0, le=5_000_000) | identificador: strix_max_poc_chars |
-| identidad tecnica | `backend/core/config.py:228` | strix_max_autofix_chars: int = Field(default=2_000_000, gt=0, le=10_000_000) | identificador: strix_max_autofix_chars |
-| identidad tecnica | `backend/core/config.py:229` | strix_sandbox_image: str = Field( | identificador: strix_sandbox_image |
-| identidad tecnica | `backend/core/config.py:230` | default="ghcr.io/usestrix/strix-sandbox:latest", | identificador: strix, usestrix |
-| identidad tecnica | `backend/core/config.py:233` | strix_workspace_root: str = Field(default="/tmp/fenix_workspaces", min_length=1)  # noq... | identificador: strix_workspace_root |
-| identidad tecnica | `backend/core/config.py:234` | strix_network_prefix: str = Field(default="strix_net", min_length=1) | identificador: strix_net, strix_network_prefix |
-| identidad tecnica | `backend/core/config.py:235` | strix_network_pool: str = Field( | identificador: strix_network_pool |
-| identidad tecnica | `backend/core/config.py:239` | strix_require_egress_fence: bool = Field( | identificador: strix_require_egress_fence |
-| identidad tecnica | `backend/core/config.py:242` | strix_require_llm_key_exposure_ack: bool = Field( | identificador: strix_require_llm_key_exposure_ack |
-| identidad tecnica | `backend/core/config.py:245` | strix_llm_key_exposure_ack: str = Field(default="") | identificador: strix_llm_key_exposure_ack |
-| identidad tecnica | `backend/core/config.py:246` | strix_memory_limit: str = Field(default="4g", min_length=1) | identificador: strix_memory_limit |
-| identidad tecnica | `backend/core/config.py:247` | strix_cpu_limit: float = Field(default=2.0, gt=0, le=8) | identificador: strix_cpu_limit |
-| identidad tecnica | `backend/core/config.py:248` | strix_pids_limit: int = Field(default=256, gt=0, le=100_000) | identificador: strix_pids_limit |
-| identidad tecnica | `backend/core/config.py:249` | strix_worker_concurrency: int = Field(default=1, gt=0, le=32) | identificador: strix_worker_concurrency |
-| identidad tecnica | `backend/core/config.py:250` | strix_hard_timeout_seconds: int = Field(default=1800, gt=0, le=86400) | identificador: strix_hard_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:251` | strix_soft_timeout_seconds: int = Field(default=1500, gt=0, le=86400) | identificador: strix_soft_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:252` | strix_watchdog_interval_seconds: int = Field(default=300, gt=0, le=86400) | identificador: strix_watchdog_interval_seconds |
-| identidad tecnica | `backend/core/config.py:253` | strix_watchdog_stale_after_seconds: int = Field(default=1860, gt=0, le=172800) | identificador: strix_watchdog_stale_after_seconds |
-| identidad tecnica | `backend/core/config.py:254` | default_strix_llm: str = Field(min_length=1) | identificador: default_strix_llm |
-| identidad tecnica | `backend/core/config.py:446` | @field_validator("strix_network_pool") | identificador: strix_network_pool |
-| identidad tecnica | `backend/core/config.py:448` | def validate_strix_network_pool(cls, value: str) -> str: | identificador: validate_strix_network_pool |
-| identidad tecnica | `backend/core/config.py:484` | f"STRIX_NETWORK_POOL={value!r} no es un CIDR IPv4 valido. Debe tener la forma " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:490` | f"STRIX_NETWORK_POOL={value!r} tiene que ser IPv4: las reglas de salida del " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:495` | f"STRIX_NETWORK_POOL={value!r} tiene un prefijo de /{red.prefixlen}, demasiado " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:597` | if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_soft_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:598` | raise ValueError("El timeout suave de Strix debe ser menor que el duro") | identificador: Strix |
-| identidad tecnica | `backend/core/config.py:599` | if self.strix_hard_timeout_seconds >= self.celery_task_soft_time_limit_seconds: | identificador: strix_hard_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:600` | raise ValueError("Strix hard timeout debe ser menor que el timeout suave de Celery") | identificador: Strix |
-| identidad tecnica | `backend/core/config.py:601` | if self.strix_watchdog_stale_after_seconds <= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_watchdog_stale_after_seconds |
-| identidad tecnica | `backend/core/config.py:602` | raise ValueError("El watchdog debe esperar más que el timeout duro de Strix") | identificador: Strix |
+| identidad tecnica | `backend/core/config.py:88` | default="@fenix-team review,@strix review", | identificador: strix |
+| identidad tecnica | `backend/core/config.py:245` | strix_max_output_bytes: int = Field(default=10_000_000, gt=0, le=50_000_000) | identificador: strix_max_output_bytes |
+| identidad tecnica | `backend/core/config.py:246` | strix_max_findings: int = Field(default=10_000, gt=0, le=100_000) | identificador: strix_max_findings |
+| identidad tecnica | `backend/core/config.py:247` | strix_max_description_chars: int = Field(default=100_000, gt=0, le=1_000_000) | identificador: strix_max_description_chars |
+| identidad tecnica | `backend/core/config.py:248` | strix_max_poc_chars: int = Field(default=1_000_000, gt=0, le=5_000_000) | identificador: strix_max_poc_chars |
+| identidad tecnica | `backend/core/config.py:249` | strix_max_autofix_chars: int = Field(default=2_000_000, gt=0, le=10_000_000) | identificador: strix_max_autofix_chars |
+| identidad tecnica | `backend/core/config.py:250` | strix_sandbox_image: str = Field( | identificador: strix_sandbox_image |
+| identidad tecnica | `backend/core/config.py:251` | default="ghcr.io/usestrix/strix-sandbox:latest", | identificador: strix, usestrix |
+| identidad tecnica | `backend/core/config.py:254` | strix_workspace_root: str = Field(default="/tmp/fenix_workspaces", min_length=1)  # noq... | identificador: strix_workspace_root |
+| identidad tecnica | `backend/core/config.py:255` | strix_network_prefix: str = Field(default="strix_net", min_length=1) | identificador: strix_net, strix_network_prefix |
+| identidad tecnica | `backend/core/config.py:256` | strix_network_pool: str = Field( | identificador: strix_network_pool |
+| identidad tecnica | `backend/core/config.py:260` | strix_require_egress_fence: bool = Field( | identificador: strix_require_egress_fence |
+| identidad tecnica | `backend/core/config.py:263` | strix_require_llm_key_exposure_ack: bool = Field( | identificador: strix_require_llm_key_exposure_ack |
+| identidad tecnica | `backend/core/config.py:266` | strix_llm_key_exposure_ack: str = Field(default="") | identificador: strix_llm_key_exposure_ack |
+| identidad tecnica | `backend/core/config.py:267` | strix_memory_limit: str = Field(default="4g", min_length=1) | identificador: strix_memory_limit |
+| identidad tecnica | `backend/core/config.py:268` | strix_cpu_limit: float = Field(default=2.0, gt=0, le=8) | identificador: strix_cpu_limit |
+| identidad tecnica | `backend/core/config.py:269` | strix_pids_limit: int = Field(default=256, gt=0, le=100_000) | identificador: strix_pids_limit |
+| identidad tecnica | `backend/core/config.py:270` | strix_worker_concurrency: int = Field(default=1, gt=0, le=32) | identificador: strix_worker_concurrency |
+| identidad tecnica | `backend/core/config.py:271` | strix_hard_timeout_seconds: int = Field(default=1800, gt=0, le=86400) | identificador: strix_hard_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:272` | strix_soft_timeout_seconds: int = Field(default=1500, gt=0, le=86400) | identificador: strix_soft_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:273` | strix_watchdog_interval_seconds: int = Field(default=300, gt=0, le=86400) | identificador: strix_watchdog_interval_seconds |
+| identidad tecnica | `backend/core/config.py:274` | strix_watchdog_stale_after_seconds: int = Field(default=1860, gt=0, le=172800) | identificador: strix_watchdog_stale_after_seconds |
+| identidad tecnica | `backend/core/config.py:275` | default_strix_llm: str = Field(min_length=1) | identificador: default_strix_llm |
+| identidad tecnica | `backend/core/config.py:470` | @field_validator("strix_network_pool") | identificador: strix_network_pool |
+| identidad tecnica | `backend/core/config.py:472` | def validate_strix_network_pool(cls, value: str) -> str: | identificador: validate_strix_network_pool |
+| identidad tecnica | `backend/core/config.py:508` | f"STRIX_NETWORK_POOL={value!r} no es un CIDR IPv4 valido. Debe tener la forma " | identificador: STRIX_NETWORK_POOL |
+| identidad tecnica | `backend/core/config.py:514` | f"STRIX_NETWORK_POOL={value!r} tiene que ser IPv4: las reglas de salida del " | identificador: STRIX_NETWORK_POOL |
+| identidad tecnica | `backend/core/config.py:519` | f"STRIX_NETWORK_POOL={value!r} tiene un prefijo de /{red.prefixlen}, demasiado " | identificador: STRIX_NETWORK_POOL |
+| identidad tecnica | `backend/core/config.py:621` | if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_soft_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:622` | raise ValueError("El timeout suave de Strix debe ser menor que el duro") | identificador: Strix |
+| identidad tecnica | `backend/core/config.py:623` | if self.strix_hard_timeout_seconds >= self.celery_task_soft_time_limit_seconds: | identificador: strix_hard_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:624` | raise ValueError("Strix hard timeout debe ser menor que el timeout suave de Celery") | identificador: Strix |
+| identidad tecnica | `backend/core/config.py:625` | if self.strix_watchdog_stale_after_seconds <= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_watchdog_stale_after_seconds |
+| identidad tecnica | `backend/core/config.py:626` | raise ValueError("El watchdog debe esperar más que el timeout duro de Strix") | identificador: Strix |
 | identidad tecnica | `backend/workers/celery_app.py:31` | worker_concurrency=settings.strix_worker_concurrency, | identificador: strix_worker_concurrency |
 | identidad tecnica | `backend/workers/celery_app.py:40` | "schedule": timedelta(seconds=settings.strix_watchdog_interval_seconds), | identificador: strix_watchdog_interval_seconds |
 | identidad tecnica | `backend/workers/tasks.py:45` | from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output | identificador: extract_strix_scan_id, parse_strix_output, strix_parser |
-| identidad tecnica | `backend/workers/tasks.py:47` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 
-_Y 110 mas._
+_Y 111 mas._
 
 ### comentario (28)
 

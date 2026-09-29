@@ -124,7 +124,7 @@ async def test_el_agente_no_guarda_el_token_sino_su_hash(integration_session: As
 
 
 @pytest.mark.asyncio
-async def test_dos_agentes_no_pueden_Compartir_nombre_en_la_misma_organizacion(
+async def test_dos_agentes_no_pueden_compartir_nombre_en_la_misma_org(
     integration_session: AsyncSession,
 ) -> None:
     """El duplicado es el mismo agente instalándose dos veces.
@@ -173,6 +173,7 @@ async def test_otro_tenant_puede_registrar_un_agente_con_el_mismo_nombre(
             text("SELECT count(*) FROM scanner_agents WHERE name = 'agente'")
         )
     ).scalar()
+    assert total is not None
     assert int(total) == 2
 
 
