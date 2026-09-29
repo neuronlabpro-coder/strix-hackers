@@ -232,6 +232,17 @@ class Settings(BaseSettings):
     )
     strix_workspace_root: str = Field(default="/tmp/fenix_workspaces", min_length=1)  # noqa: S108
     strix_network_prefix: str = Field(default="strix_net", min_length=1)
+    strix_network_pool: str = Field(
+        default="172.31.0.0/16",
+        min_length=1,
+    )
+    strix_require_egress_fence: bool = Field(
+        default=True,
+    )
+    strix_require_llm_key_exposure_ack: bool = Field(
+        default=True,
+    )
+    strix_llm_key_exposure_ack: str = Field(default="")
     strix_memory_limit: str = Field(default="4g", min_length=1)
     strix_cpu_limit: float = Field(default=2.0, gt=0, le=8)
     strix_pids_limit: int = Field(default=256, gt=0, le=100_000)
@@ -381,6 +392,111 @@ class Settings(BaseSettings):
         if len(decoded) != 32:
             raise ValueError("GIT_ENCRYPTION_KEY debe contener exactamente 32 bytes")
         return decoded
+
+    @field_validator("llm_api_base")
+    @classmethod
+    def validate_llm_api_base(cls, value: str) -> str:
+        """Rechaza que `LLM_API_BASE` traiga ya el endpoint de chat incluido.
+
+        ## Que se rompia
+
+        `LLM_API_BASE` es la **base** del proveedor, y el cliente le añade
+        `CHAT_COMPLETIONS_PATH`. Poner ahi el endpoint entero produce una URL con el
+        endpoint dos veces, y el proveedor responde `404`. Con OpenRouter:
+
+            LLM_API_BASE=https://openrouter.ai/api/v1
+            ruta completa: https://openrouter.ai/api/v1/chat/completions   correcta
+
+            LLM_API_BASE=https://openrouter.ai/api/v1/chat/completions
+            ruta completa: .../api/v1/chat/completions/chat/completions     404
+
+        ## Por que hace falta un validador y no basta con corregir el `.env`
+
+        Porque el sintoma que produce es un `404` **dentro de una peticion del chat**, no un
+        error de arranque. El operador ve "el chat no funciona" en el panel, sin rastro de que
+        la causa es una variable de entorno mal puesta, y el `404` no dice que variable es.
+        Esa es justo la clase de fallo que se investiga en el sitio equivocado durante horas.
+
+        ## Por que `completions` y no un chequeo generico de "tiene ruta"
+
+        Porque la forma equivocada que se ve en la practica es esa: la gente copia la URL del
+        endpoint de la documentacion del proveedor, que es lo que encuentra Google primero. Un
+        chequeo generico de "tiene mas de un segmento de ruta" rechazaria tambien
+        `https://api.openai.com/v1`, que es **correcto** y es el valor por defecto de
+        `.env.example`. Falsear un valor bueno para cazar uno malo hace que la gente arregle
+        la variable al reves.
+        """
+
+        base = value.strip().rstrip("/")
+        if not base:
+            # Vacia la acepta `validate_runtime_and_endpoints`, que decide si el proveedor es
+            # obligatorio segun si el chat esta habilitado. Aqui no se decide nada: una base
+            # vacia es valida si no hay chat.
+            return base
+        if "completions" in base.lower():
+            raise ValueError(
+                "LLM_API_BASE es la BASE del proveedor, no el endpoint de chat. El cliente "
+                "le anade '/chat/completions' por su cuenta, asi que con "
+                f"'{value}' la ruta final sale duplicada y el proveedor responde 404. "
+                "Ponla sin el endpoint: por OpenRouter, "
+                "'https://openrouter.ai/api/v1'; por OpenAI, 'https://api.openai.com/v1'."
+            )
+        return base
+
+    @field_validator("strix_network_pool")
+    @classmethod
+    def validate_strix_network_pool(cls, value: str) -> str:
+        """Exige un CIDR IPv4 del que se pueda comprobar el cerco de salida.
+
+        ## Que representa
+
+        No es el pool del que el runner corta la subred —esa la elige Docker, y solo se conoce
+        una vez creada la red—. Es el **rango dentro del cual** tiene que caer la subred del
+        trabajo, y sirve para que la comprobacion del cerco pueda afirmar algo concreto: si la
+        subred cae dentro de este rango, hay un cerco declarado que la cubre.
+
+        ## Por que el runner no puede instalar el cerco
+
+        Porque la subred se elige **despues** de crear la red, y la regla tiene que existir
+        **antes** de que haya trafico que filtrar. El orden no se puede invertir con la API de
+        Docker que usa el worker: `networks.create` no acepta configuracion de IPAM, con lo que
+        el runner no puede fijar la subred de antemano.
+
+        De ahi la division: `scripts/harden_runner_egress.sh` instala las reglas en el host
+        durante el arranque, y `egress_fence` comprueba antes de cada escaneo que el cerco
+        existe. Un despliegue sin el script **no arranca escaneos**, en vez de arrancarlos sin
+        proteccion y avisar en un log que nadie lee.
+
+        ## Por que se valida y no se documenta
+
+        Porque un pool mal escrito haria que la comprobacion del cerco mirara un rango que
+        ninguna red va a usar, y pasara siempre: el runner creeria que esta protegido y el
+        contenedor saldria con la misma salida de siempre. Un fallo silencioso de una proteccion
+        es peor que no tenerla, porque ocupa el sitio de la proteccion.
+        """
+
+        import ipaddress as _ipaddress
+
+        try:
+            red = _ipaddress.ip_network(value, strict=False)
+        except ValueError as error:
+            raise ValueError(
+                f"STRIX_NETWORK_POOL={value!r} no es un CIDR IPv4 valido. Debe tener la forma "
+                "172.31.0.0/16, y es el rango dentro del cual la comprobacion del cerco de "
+                "salida espera ver la subred del trabajo."
+            ) from error
+        if red.version != 4:
+            raise ValueError(
+                f"STRIX_NETWORK_POOL={value!r} tiene que ser IPv4: las reglas de salida del "
+                "host se escriben para IPv4 y una red IPv6 se colaria sin filtrar."
+            )
+        if red.prefixlen > 24:
+            raise ValueError(
+                f"STRIX_NETWORK_POOL={value!r} tiene un prefijo de /{red.prefixlen}, demasiado "
+                "estrecho para que quepan las subredes que Docker corta para los trabajos "
+                "simultaneos de un host. Se espera /16 o /20 como mucho."
+            )
+        return value
 
     @field_validator("git_encryption_key")
     @classmethod

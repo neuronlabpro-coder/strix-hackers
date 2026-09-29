@@ -62,7 +62,7 @@
     "creating": "Registrando…",
     "cancel": "Cancelar",
     "done": "Hecho",
-    "instructionsLead": "Falta una cosa para tomar el control de {domain}: publica este registro en su zona DNS y vuelve a verificar.",
+    "instructionsLead": "Falta una cosa para tomar el control de {{domain}}: publica este registro en su zona DNS y vuelve a verificar.",
     "recordName": "Nombre",
     "recordNameHint": "El campo «nombre» o «host» de tu proveedor. Se antepone el dominio automáticamente.",
     "recordValue": "Valor",

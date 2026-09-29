@@ -107,16 +107,25 @@ export function IssuesPage() {
         recta y las etiquetas conservan su separación respecto a su campo.
       */}
       <div className="filter-bar">
-        <label className="search-field">
-          <Search size={16} aria-hidden="true" />
-          <span className="visually-hidden">{t('filters.searchLabel')}</span>
-          <input
-            type="search"
-            value={query.search}
-            placeholder={t('filters.searchPlaceholder')}
-            onChange={(event) => setQuery({ ...query, search: event.target.value })}
-          />
-        </label>
+        {/*
+          El buscador lleva etiqueta **visible** y vive dentro de un `.filter-field`, igual que
+          los selectores. Antes era un `<label className="search-field">` suelto con la etiqueta
+          oculta, o sea con una fila menos, y sus controles quedaban una fila por encima de los
+          demas. La razon larga esta en `PentestsPage`, que es el mismo patron.
+        */}
+        <div className="filter-field filter-field-search">
+          <label htmlFor="issue-search">{t('filters.searchLabel')}</label>
+          <span className="search-field">
+            <Search size={16} aria-hidden="true" />
+            <input
+              id="issue-search"
+              type="search"
+              value={query.search}
+              placeholder={t('filters.searchPlaceholder')}
+              onChange={(event) => setQuery({ ...query, search: event.target.value })}
+            />
+          </span>
+        </div>
         <div className="filter-field">
           <label htmlFor="issue-severity">{t('filters.severity')}</label>
           <select

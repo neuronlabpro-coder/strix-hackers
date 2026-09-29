@@ -33,6 +33,9 @@ from backend.workers.runner.exceptions import (
     SandboxTimeoutError,
 )
 
+from .egress_fence import exigir_cerco_de_salida, subred_de_la_red
+from .llm_key_exposure import exigir_reconocimiento_de_exposicion
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,7 +150,7 @@ class StrixSandboxManager:
 
         environment = {
             "STRIX_LLM": self.llm_model,
-            "LLM_API_KEY": settings.llm_api_key.get_secret_value(),
+            "LLM_API_KEY": exigir_reconocimiento_de_exposicion(),
             "LLM_API_BASE": settings.llm_api_base,
             "STRIX_NON_INTERACTIVE": "1",
             "STRIX_HEADLESS": "1",
@@ -160,9 +163,22 @@ class StrixSandboxManager:
             )
         return environment
 
+    def _verificar_cerco_de_salida(self) -> None:
+        """Se niega a continuar si el cerco de salida no cubre la red recien creada.
+
+        Va justo despues de crear la red y **antes** de arrancar el contenedor, y ese orden es
+        la parte que importa: crear la red no da salida a nada, arrancarla si. Comprobar
+        despues seria comprobar un contenedor que ya ha podido falar con la red interna.
+
+        Se propaga la excepcion, no se avisa: el trabajo se marca como fallido y el operador ve
+        el motivo, que es lo unico accionable. Un `logger.warning` aqui dejaria el contenedor
+        ejecutandose con salida completa.
+        """
+
+        exigir_cerco_de_salida(subred_de_la_red(self.network))
+
     @staticmethod
     def _read_output_file(path: Path) -> str:
-        """Lee un archivo regular sin seguir symlinks y con límite estricto."""
 
         try:
             path_stat = path.lstat()
@@ -234,11 +250,18 @@ class StrixSandboxManager:
             else:
                 workspace_dir = self.setup_workspace()
             # Un bridge dedicado por run evita compartir el namespace del bridge por defecto.
+            #
+            # La subred la elige Docker y solo se conoce **despues** de crearla, que es
+            # justamente por lo que no se puede instalar aqui el cerco de salida: una regla de
+            # `iptables` del host tiene que existir antes de que la red exista. Lo que se hace
+            # es comprobar que el cerco esta puesto antes de lanzar nada, y negarse a ejecutar
+            # si no lo esta. Ver `egress_fence.py`.
             self.network = self.client.networks.create(
                 name=self.network_name,
                 driver="bridge",
                 labels={"fenix.run_id": self.run_id},
             )
+            self._verificar_cerco_de_salida()
             volumes = {
                 str(workspace_dir / "workspace"): {
                     "bind": "/workspace/target",

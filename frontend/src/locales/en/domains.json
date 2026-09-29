@@ -62,7 +62,7 @@
     "creating": "Registering…",
     "cancel": "Cancel",
     "done": "Done",
-    "instructionsLead": "One step left to take control of {domain}: publish this record in its DNS zone and verify again.",
+    "instructionsLead": "One step left to take control of {{domain}}: publish this record in its DNS zone and verify again.",
     "recordName": "Name",
     "recordNameHint": "The \"name\" or \"host\" field at your provider. The domain is appended automatically.",
     "recordValue": "Value",

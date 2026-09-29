@@ -324,9 +324,26 @@ def gate_timeout(gate: Gate) -> int:
     Los de la base de datos necesitan mucho más que los de frontend porque arrancan un
     contexto nuevo, ejecutan migraciones implícitas y, en el caso de `pytest`, abren y cierran
     un `savepoint` por prueba.
+
+    ## Por qué `pytest` tiene 3600 y no 1800
+
+    Porque la bateria tarda de verdad entre 20 y 26 minutos, y con 1800 s el gate se quedaba
+    sin tiempo a mitad de la ejecucion y lo mataba. El resultado era un **rojo que no
+    significaba que hubiera fallado un test**: el proceso recibia `SIGTERM`, pytest no llegaba
+    a imprimir el resumen, y el gate solo decia "FALLO".
+
+    Eso es lo peor que puede hacer un gate: un rojo que hay que aprender a ignorar. Y para
+    distinguir un fallo real de un timeout hay que volver a lanzar veinte y cinco minutos de
+    pruebas para confirmar que no habia ningun fallo.
+
+    El margen se ha puesto casi al doble del peor tiempo observado, no al del mejor: el mejor
+    medido fueron 16 minutos y el peor 26, y un timeout que solo aguanta el mejor vuelve a
+    disparar el mismo problema en cuanto la maquina va algo mas cargada.
     """
 
-    if gate.clave in {"pytest", "alembic"}:
+    if gate.clave == "pytest":
+        return 3_600
+    if gate.clave == "alembic":
         return 1_800
     if gate.clave == "build":
         return 600

@@ -278,10 +278,22 @@ export function AdminUsersPage() {
           >
             <header className="modal-header">
               <h2 id="user-confirm-title">
-                {(confirming.is_active
-                  ? t('users.confirm.title')
-                  : t('users.confirmReactivate.title')
-                ).replace('{name}', confirming.full_name || confirming.email)}
+                {/*
+                      Antes de esto habia un `.replace('{name}', ...)` a mano sobre el
+                      resultado de `t()`. Funcionaba solo porque la traduccion estaba rota:
+                      i18next interpola con llaves dobles, y con llaves simples las dejaba
+                      tal cual, asi que el `replace` encontraba el texto. En cuanto las
+                      llaves se han arreglado, ese `replace` ya no encontraria nada y el
+                      titulo se quedaria con un `{{name}}` dentro.
+
+                      El nombre se pasa como variable de `t()` y se hace por el camino que
+                      llevan las otras 32 pantallas del panel.
+                    */}
+                {confirming.is_active
+                  ? t('users.confirm.title', { name: confirming.full_name || confirming.email })
+                  : t('users.confirmReactivate.title', {
+                      name: confirming.full_name || confirming.email,
+                    })}
               </h2>
               <button
                 className="icon-button"

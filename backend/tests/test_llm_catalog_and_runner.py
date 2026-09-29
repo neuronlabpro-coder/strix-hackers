@@ -44,6 +44,17 @@ EXPECTED_CATALOG = [
 
 # Modelos del catálogo anterior que el Owner retiró. Ninguno debe quedar activo: un
 # fallback que enrute a un modelo que producto ya no ofrece es un coste sincobrar.
+#
+# Los cinco primeros ya **no están** en la tabla: la migración `d4e5f6a7b8c9` los borra, y
+# solo puede hacerlo porque no tienen eventos de consumo asociados —la FK de
+# `llm_usage_events` es `ON DELETE CASCADE`, así que borrarlos con historial borraría el
+# registro de coste, y por eso la migración se niega a hacerlo en vez de dejárselo al
+# `CASCADE`—. Los dos últimos no se borran porque nunca se sembraron en este despliegue y
+# `openrouter/auto` sigue presente por decisión propia: enruta al proveedor.
+#
+# La lista se mantiene entera, sin filtrar, a proposito: la aserción de abajo tiene que
+# seguir valiendo para un `model_id` que se reincorporase por error, y para eso hace falta
+# que el nombre siga escrito aqui.
 RETIRED_MODEL_IDS = (
     "anthropic/claude-3.7-sonnet",
     "deepseek/deepseek-r1",
@@ -85,11 +96,21 @@ async def test_official_catalog_is_seeded_in_fallback_order(
 async def test_retired_models_are_not_active(
     integration_session: AsyncSession,
 ) -> None:
-    """Un modelo retirado sale de la cadena, pero conserva su historial de consumo.
+    """Un modelo retirado sale de la cadena, y de la tabla si no tiene historial que perder.
 
-    No se borra si tiene eventos asociados porque `llm_usage_events` lo referencia; lo
-    que se garantiza es que `is_active` es falso, que es lo que `resolve_model_chain`
-    filtra.
+    Hay dos finales posibles y los dos son correctos, asi que la asercion los acepta a los
+    dos:
+
+    - **No esta en la tabla.** Es lo que ocurre con los cinco que la migracion
+      `d4e5f6a7b8c9` borro, porque no tenian eventos de consumo.
+    - **Esta pero con `is_active` falso.** Es lo que corresponde a un retirado con historial
+      attached, o a `openrouter/auto`, que sigue en la tabla por decision propia. Lo que no
+      puede es estar activo: eso es justo lo que `resolve_model_chain` no filtra, y lo que
+      haria que el motor lo usara.
+
+    Lo que esta asercion **no** puede hacer es declarar que un retirado no debe existir: si
+    mañana se decide conservar uno por su historial, esta prueba tiene que seguir pasando. Por
+    eso la condicion es "si esta, que no este activo", y no "que no este".
     """
 
     assert integration_session is not None
@@ -434,7 +455,7 @@ async def test_telemetry_charges_the_ledger_and_records_usage(
 ) -> None:
     assert integration_session is not None
     organization = await _funded_tenant(integration_session, "1000")
-    model = await _catalog_model(integration_session, "anthropic/claude-3.7-sonnet")
+    model = await _catalog_model(integration_session, "deepseek/deepseek-v4-pro-0813")
     before = await credit_balance_of(integration_session, organization.id)
 
     telemetry = LlmUsageTelemetry(
@@ -450,9 +471,11 @@ async def test_telemetry_charges_the_ledger_and_records_usage(
         credits_per_usd=settings.credits_per_usd,
     )
 
+    # 1,20 USD de coste base con 200 % de recargo = 3,60 USD al cliente, que a
+    # `credits_per_usd = 1` son 3,60 créditos. El margen son los 2,40 de diferencia.
     assert charged is not None
-    assert charged.client_cost_credits == Decimal("7.5000")
-    assert await credit_balance_of(integration_session, organization.id) == before - Decimal("7.5")
+    assert charged.client_cost_credits == Decimal("3.6000")
+    assert await credit_balance_of(integration_session, organization.id) == before - Decimal("3.6")
 
     entry = (
         await integration_session.execute(
@@ -462,7 +485,7 @@ async def test_telemetry_charges_the_ledger_and_records_usage(
         )
     ).scalars().all()
     assert len(entry) == 1
-    assert entry[0].amount_delta == -Decimal("7.5000")
+    assert entry[0].amount_delta == -Decimal("3.6000")
 
     usage_events = (
         await integration_session.execute(
@@ -471,8 +494,8 @@ async def test_telemetry_charges_the_ledger_and_records_usage(
     ).scalars().all()
     assert len(usage_events) == 1
     assert usage_events[0].prompt_tokens == 1_000_000
-    assert usage_events[0].base_cost_usd == Decimal("3.00")
-    assert usage_events[0].net_profit_usd == Decimal("4.50")
+    assert usage_events[0].base_cost_usd == Decimal("1.20")
+    assert usage_events[0].net_profit_usd == Decimal("2.40")
 
 
 @pytest.mark.asyncio
@@ -483,7 +506,7 @@ async def test_telemetry_charges_nothing_without_token_usage(
 
     assert integration_session is not None
     organization = await _funded_tenant(integration_session, "100")
-    model = await _catalog_model(integration_session, "deepseek/deepseek-chat")
+    model = await _catalog_model(integration_session, "deepseek/deepseek-v4.1-flash")
 
     telemetry = LlmUsageTelemetry(
         model=model,
@@ -520,7 +543,7 @@ async def test_telemetry_refunds_the_overcharged_reserve(
 
     assert integration_session is not None
     organization = await _funded_tenant(integration_session, "100")
-    model = await _catalog_model(integration_session, "openai/o3-mini")
+    model = await _catalog_model(integration_session, "deepseek/deepseek-v4-pro-0813")
     reserved = Decimal("10")
     starting = await credit_balance_of(integration_session, organization.id)
 
@@ -547,12 +570,12 @@ async def test_telemetry_refunds_the_overcharged_reserve(
         reserved_credits=reserved,
     )
 
-    # 1,10 USD de coste con 150 % de recargo = 2,75 USD = 2,75 créditos. La reserva
-    # de 10 sobraba, así que se devuelven 7,25 y el saldo final es 100 - 2,75.
+    # 1,20 USD de coste con 200 % de recargo = 3,60 USD = 3,60 créditos. La reserva
+    # de 10 sobraba, así que se devuelven 6,40 y el saldo final es 100 - 3,60.
     assert charged is not None
-    assert charged.client_cost_credits == Decimal("2.7500")
+    assert charged.client_cost_credits == Decimal("3.6000")
     assert await credit_balance_of(integration_session, organization.id) == (
-        starting - Decimal("2.75")
+        starting - Decimal("3.60")
     )
 
 
@@ -568,7 +591,7 @@ async def test_telemetry_collects_consumption_above_the_reserve(
 
     assert integration_session is not None
     organization = await _funded_tenant(integration_session, "100")
-    model = await _catalog_model(integration_session, "openai/o3-mini")
+    model = await _catalog_model(integration_session, "deepseek/deepseek-v4-pro-0813")
     reserved = Decimal("1")
     starting = await credit_balance_of(integration_session, organization.id)
 
@@ -595,10 +618,10 @@ async def test_telemetry_collects_consumption_above_the_reserve(
     )
 
     assert charged is not None
-    assert charged.client_cost_credits == Decimal("2.7500")
-    # Se cobran 2,75 en total: 1 de reserva más 1,75 de exceso.
+    assert charged.client_cost_credits == Decimal("3.6000")
+    # Se cobran 3,60 en total: 1 de reserva más 2,60 de exceso.
     assert await credit_balance_of(integration_session, organization.id) == (
-        starting - Decimal("2.75")
+        starting - Decimal("3.60")
     )
 
 
@@ -610,8 +633,8 @@ async def test_telemetry_writes_no_ledger_entry_when_the_charge_is_exact(
 
     assert integration_session is not None
     organization = await _funded_tenant(integration_session, "100")
-    model = await _catalog_model(integration_session, "openai/o3-mini")
-    exact = Decimal("2.75")
+    model = await _catalog_model(integration_session, "deepseek/deepseek-v4-pro-0813")
+    exact = Decimal("3.60")
 
     charged = await LlmUsageTelemetry(
         model=model,
@@ -644,7 +667,7 @@ async def test_telemetry_writes_no_ledger_entry_when_the_charge_is_exact(
         )
     ).scalars().all()
     assert len(events) == 1
-    assert events[0].net_profit_usd == Decimal("1.65")
+    assert events[0].net_profit_usd == Decimal("2.40")
 
 
 def test_compute_charge_matches_the_documented_markup_for_the_seed() -> None:

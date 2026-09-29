@@ -121,6 +121,58 @@ async def bind_health_probe_redis() -> AsyncIterator[None]:
         await cliente.aclose()
 
 
+@pytest.fixture(autouse=True)
+def controles_del_runner_desactivados(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Desactiva los dos controles de seguridad del runner para toda la bateria.
+
+    ## Los dos controles que se desactivan
+
+    1. **El cerco de salida.** `exigir_cerco_de_salida` falla cerrado: sin una regla de
+       `iptables` que cubra la red del trabajo, se niega a lanzarlo. En la bateria no hay demonio
+       de Docker, no hay `DOCKER-USER`, y en Windows ni hay `iptables`.
+    2. **El reconocimiento de exposicion de la clave.** Igual de cerrado: sin la frase exacta en
+       `STRIX_LLM_KEY_EXPOSURE_ACK`, no se entrega la clave del proveedor y no hay escaneo.
+
+    Los dos fallan cerrados **a proposito**: en un despliegue en el que nadie ha decidido nada,
+    lo que debe pasar es que no escaneen. Que la bateria tenga que desactivarlos a mano es el
+    precio de esa garantia, y se paga en un unico sitio y a la vista. Ninguno se apaga por
+    defecto en el codigo, porque un interruptor de seguridad apagado por omision no es un
+    interruptor de seguridad.
+
+    ## Por que se sustituye la funcion y no se cambia el ajuste
+
+    Porque `Settings` es **congelado** —la garantia de la que ya se sirve `llm_router.client`—
+    y mutarlo exigiria `object.__setattr__`, que es justo el truco que la inmutabilidad existe
+    para evitar.
+
+    Cada control tiene su propia prueba, que **si** lo exercise de verdad:
+    `test_runner_egress_fence.py` y `test_runner_llm_key_exposure.py`.
+    """
+
+    monkeypatch.setattr("backend.workers.runner.sandbox.exigir_cerco_de_salida", _sin_cerco)
+    monkeypatch.setattr(
+        "backend.workers.runner.sandbox.exigir_reconocimiento_de_exposicion",
+        _sin_reconocimiento,
+    )
+
+
+def _sin_cerco(_subred: str | None) -> None:
+    """Sustituto de `exigir_cerco_de_salida` para la bateria de pruebas."""
+
+    return None
+
+
+def _sin_reconocimiento() -> str:
+    """Sustituto de `exigir_reconocimiento_de_exposicion`: devuelve la clave sin comprobar.
+
+    Devuelve la clave de verdad y no un marcador, porque hay pruebas que comparan el entorno
+    que construye el contenedor, y un marcador haria que se estuviera probando un caso que
+    nunca ocurre.
+    """
+
+    return settings.llm_api_key.get_secret_value()
+
+
 @pytest.fixture
 async def integration_session(request: pytest.FixtureRequest) -> AsyncIterator[AsyncSession | None]:
     """Proporciona una sesión de integración aislada por transacción y savepoints."""

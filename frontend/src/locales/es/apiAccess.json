@@ -72,7 +72,7 @@
   },
   "reveal": {
     "title": "Token emitido",
-    "description": "Este es el token «{name}». Cópialo antes de continuar.",
+    "description": "Este es el token «{{name}}». Cópialo antes de continuar.",
     "warning": "Guarda este token ahora en un lugar seguro. Por motivos de seguridad, no podrás volver a consultarlo.",
     "fieldLabel": "Token",
     "copy": "Copiar",
@@ -85,7 +85,7 @@
   },
   "revoke": {
     "title": "Revocar token",
-    "description": "«{name}» dejará de servir de inmediato. Las integraciones que lo usen empezarán a recibir 401.",
+    "description": "«{{name}}» dejará de servir de inmediato. Las integraciones que lo usen empezarán a recibir 401.",
     "auditNote": "La fila no se borra: queda marcada como revocada para conservar el rastro de qué credenciales existieron.",
     "confirm": "Revocar",
     "failed": "No se pudo revocar el token."
@@ -94,12 +94,12 @@
     "loading": "Cargando tokens…",
     "loadFailed": "No se pudieron cargar los tokens",
     "loadFailedHint": "Comprueba la sesión y vuelve a intentarlo. Sin esta respuesta no se puede distinguir «no tienes tokens» de «no se pudo preguntar».",
-    "count": "{active} activos de {total}",
+    "count": "{{active}} activos de {{total}}",
     "includeRevoked": "Mostrar revocados",
     "empty": "Todavía no hay tokens",
     "emptyHint": "Emite uno para conectar CI, un script o un agente de IA.",
     "neverUsed": "Nunca",
-    "usedAt": "hace {value}",
+    "usedAt": "hace {{value}}",
     "columns": {
       "name": "Nombre",
       "prefix": "Prefijo",
@@ -110,14 +110,14 @@
     }
   },
   "scopes": {
-    "selectedOf": "{chosen} de {total} seleccionados",
+    "selectedOf": "{{chosen}} de {{total}} seleccionados",
     "selectAll": "Seleccionar todos",
     "clearAll": "Borrar selección",
     "selectGroup": "Seleccionar grupo",
     "clearGroup": "Borrar grupo",
-    "privilegedWarning": "{count} de los seleccionados son permisos de plataforma. Actívalos solo si la integración es de confianza.",
+    "privilegedWarning": "{{count}} de los seleccionados son permisos de plataforma. Actívalos solo si la integración es de confianza.",
     "privilegedShort": "Permiso de plataforma",
-    "more": "+{count}",
+    "more": "+{{count}}",
     "noPermissions": "Sin permisos",
     "actions": {
       "read": "Leer",
@@ -158,7 +158,7 @@
     "loading": "Cargando webhooks…",
     "loadFailed": "No se pudieron cargar los webhooks",
     "loadFailedHint": "Comprueba la sesión y vuelve a intentarlo.",
-    "count": "{total} endpoints registrados",
+    "count": "{{total}} endpoints registrados",
     "empty": "Todavía no hay endpoints",
     "emptyHint": "Registra uno para recibir escaneos, vulnerabilidades y revisiones de PR en tu propio sistema.",
     "addEndpoint": "Añadir endpoint",
@@ -168,7 +168,7 @@
     "autoDisabledHint": "El endpoint alcanzó 10 entregas fallidas seguidas y la plataforma lo pausó. Reactívalo tras corregir el problema.",
     "ping": "Probar",
     "pingHint": "Envía un evento de prueba y registra la entrega",
-    "pingOk": "{code} en {ms} ms",
+    "pingOk": "{{code}} en {{ms}} ms",
     "pingFailed": "La prueba no llegó",
     "history": "Historial",
     "columns": {
@@ -201,7 +201,7 @@
     },
     "delete": {
       "title": "Eliminar endpoint",
-      "description": "{url} dejará de recibir eventos de inmediato.",
+      "description": "{{url}} dejará de recibir eventos de inmediato.",
       "historyNote": "El historial de entregas se borra con el endpoint. El rastro de auditoría no: si el endpoint se apagó solo, su asiento sobrevive y se puede seguir explicando.",
       "confirm": "Eliminar"
     },
@@ -209,10 +209,10 @@
     "historyLoading": "Cargando entregas…",
     "historyFailed": "No se pudo cargar el historial.",
     "historyEmpty": "Este endpoint todavía no tiene entregas registradas.",
-    "historyCount": "{total} entregas registradas",
+    "historyCount": "{{total}} entregas registradas",
     "noResponse": "sin respuesta",
-    "attempt": "intento {n}",
-    "inMs": "{ms} ms",
+    "attempt": "intento {{n}}",
+    "inMs": "{{ms}} ms",
     "payloadLabel": "Cuerpo enviado",
     "responseLabel": "Respuesta del receptor",
     "noBody": "(sin cuerpo)"

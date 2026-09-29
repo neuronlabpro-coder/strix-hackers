@@ -239,10 +239,41 @@ services:
       redis:
         condition: service_healthy
     # El worker necesita hablar con el demonio de Docker para lanzar los sandboxes. Es el
-    # único punto del despliegue donde se expone un socket, y por eso el montaje es de solo
-    # lectura y el socket se expone con `rw` por separado. El backend —que atiende peticiones
-    # de usuarios— **no** lo monta: no necesita lanzar contenedores y no tiene por qué poder
-    # hacerlo.
+    # unico punto del despliegue donde se expone un socket, y el backend --que atiende
+    # peticiones de usuarios-- **no** lo monta: no necesita lanzar contenedores y no tiene
+    # por que poder hacerlo.
+    #
+    # ## Por que el `:ro` de este montaje NO es una proteccion
+    #
+    # El `:ro` restringe la escritura en el **sistema de ficheros**, y un socket unix no es un
+    # fichero: es un punto de comunicacion. `connect()` funciona igual con el montaje de solo
+    # lectura, asi que el worker puede seguir enviando peticiones de escritura al demonio --
+    # crear un contenedor privilegiado, ejecutar dentro de otro, montar cualquier ruta del
+    # host-- sin que el `:ro` estorbe en nada. Quien leyera "solo lectura" aqui y se quedara
+    # tranquilo estaria leyendo una garantia que el nucleo no da.
+    #
+    # ## Que es lo que limita de verdad al worker
+    #
+    # Un **proxy delante del socket** que solo deje pasar las siete superficies que el runner
+    # usa. La lista esta fijada y verificada en `backend/tests/test_runner_docker_surface.py`,
+    # que falla si el runner anade una llamada nueva sin que la lista sea revisada a mano:
+    #
+    #   POST   /containers/create                 POST /containers/{id}/start
+    #   POST   /containers/{id}/kill              POST /containers/{id}/wait
+    #   GET    /containers/{id}/json              DELETE /containers/{id}
+    #   POST   /networks/create                   GET|DELETE /networks/{name}
+    #
+    # Fuera de esa lista quedan `exec`, `build`, `images/create` y `volumes/create`, que son
+    # las que convierten al worker en el host.
+    #
+    # El cliente del runner se construye con `docker.from_env()` (`workers/runner/docker_client.py`),
+    # que respeta `DOCKER_HOST`. Por eso poner el proxy es cambiar la variable de entorno del
+    # worker y quitar este montaje, sin tocar el codigo del runner. Esa misma prueba comprueba
+    # que `from_env()` siga ahi: si alguien escribe el socket a mano, el proxy dejaria de
+    # existir sin que ninguna otra prueba se entere.
+    #
+    # Mientras el proxy no este desplegado, el worker tiene, de hecho, los permisos del
+    # demonio. Es un riesgo aceptado y **documentado**, no un riesgo mitigado.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${STRIX_WORKSPACE_ROOT:-/tmp/fenix_workspaces}:/tmp/fenix_workspaces

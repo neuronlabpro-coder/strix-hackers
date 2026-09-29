@@ -20,24 +20,26 @@ en la respuesta.
   validación de la URL inicial, así que **no se siguen** y la redirección se registra
   como el resultado.
 - Tiempo y tamaño de respuesta, para que un endpoint lento o enorme no retenga al worker.
+- **DNS rebinding.** Se resuelve y se valida, y la conexión **no vuelve a resolver**: se hace
+  contra la IP que se validó, con el nombre enviado en la cabecera `Host` y en el SNI de TLS.
+  Ver `pinned_destination`.
 
 **No defiendes, y conviene saberlo:**
 
-- **DNS rebinding puro.** Se resuelve y se valida antes de conectar, y entre la validación
-  y la conexión el nombre podría resolver a otra IP. Cerrarlo del todo exige fijar la IP
-  en la conexión y manejar SNI y `Host` por separado, que es más frágil que el hueco
-  que cierra: pierde validación de certificado para los hosts que lo necesiten. Se
-  asume ese riesgo residual y se anota aquí en vez de fingir que está cubierto.
 - Que un endpoint activo **sí** reciba tráfico de salida legítimo. Lo que se impide es
   apuntarlo a la red interna, no usarlo.
+- El contenido de la respuesta de un endpoint malicioso. La guarda decide **a qué** se envía, no
+  qué devuelve el receptor: quien controle el host elegido ve su propia respuesta, y eso no es
+  un riesgo de red.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import socket
+from collections.abc import Sequence
 from typing import Final
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from backend.core.config import settings
 
@@ -248,16 +250,81 @@ def resolve_and_validate(url: str) -> list[str]:
     return direcciones
 
 
-def ensure_delivery_url_allowed(url: str) -> None:
-    """Valida una URL justo antes de despachar, no solo al registrarla.
+def ensure_delivery_url_allowed(url: str) -> list[str]:
+    """Valida una URL justo antes de despachar, y devuelve las IP a las que se puede conectar.
 
     Una URL aceptada hace seis meses puede haber cambiado de IP. Revalidar en el momento
     del envío cuesta una resolución DNS y es la unica vez que la comprobacion afecta de
     verdad a la peticion que sale. Sin esto, el registro no protege nada: se registra una
     IP publica y meses despues el mismo nombre apunta a la red interna.
+
+    ## Por que devuelve la lista en vez de no devolver nada
+
+    Porque el nombre que devuelve **se vuelve a resolver** al conectar, y entre esta
+    validacion y la conexion un atacante con control sobre el DNS puede cambiar lo que
+    resuelve. Validar y despues dejar que el cliente resuelva por su cuenta es no validar.
+
+    Quien llama tiene que usar la lista con `pinned_destination` para que la conexion vaya
+    a una de las IP que se han comprobado. Devolver `None` era lo que hacia que el hueco
+    fuera invisible: la funcion se llamaba, no fallaba, y todo el mundo leia "validado".
     """
 
-    resolve_and_validate(url)
+    return resolve_and_validate(url)
+
+
+def pinned_destination(url: str, direcciones: Sequence[str]) -> tuple[str, str]:
+    """La URL a la que hay que conectar y el nombre que hay que anunciar, para un destino fijado.
+
+    Devuelve `(url_fijada, nombre_original)`, y son los dos datos que hacen falta para cerrar
+    el DNS rebinding:
+
+    - `url_fijada` lleva la **IP** en lugar del nombre. Es lo que hace que la conexion no
+      vuelva a resolver: no hay nombre que resolver.
+    - `nombre_original` va en dos sitios a la vez, y los dos son necesarios. En la cabecera
+      `Host`, para que el servidor web vea el host que espera y enrute el virtual host
+      correcto. Y en la extension `sni_hostname` de httpx, que httpcore pasa a
+      `server_hostname` del socket TLS: sin eso, TLS validaria el certificado contra la **IP**,
+      que casi ningun certificado cubre, y toda conexion https a un webhook fallaria.
+
+    ## Por que con varias IP se elige la primera y no una al azar
+
+    Porque la lista ya viene **validada** —`resolve_and_validate` rechaza el conjunto entero
+    si una sola direccion es privada— y porque el orden de `getaddrinfo` es estable para un
+    host dado. Rotar entre ellas introduciria la posibilidad de que un cliente entregue a una
+    IP que en una resolucion posterior resultaria bloqueada. Si la primera no responde, el
+    error de red se registra como entrega fallida, que es lo que el usuario necesita ver.
+
+    ## Por que la IP entre corchetes si es IPv6
+
+    Porque en una URL `https://[::1]/` los corchetes son sintaxis, no parte de la direccion.
+    Sin ellos, `urlsplit` vuelve a leer el primer grupo como host y el resto como puerto, que es
+    exactamente la ambiguedad que `resolve_and_validate` ya rechaza en la entrada.
+    """
+
+    if not direcciones:
+        raise DnsResolutionError(
+            "No hay ninguna direccion validada para fijar; no se puede despachar a un destino "
+            "sin comprobar"
+        )
+
+    partes = urlsplit(url)
+    if not partes.hostname:
+        raise SsrfBlockedError(f"La URL no tiene un host válido: {url}")
+
+    direccion = direcciones[0]
+    try:
+        ip_literal = ipaddress.ip_address(direccion)
+    except ValueError:  # pragma: no cover - la lista viene de getaddrinfo
+        raise DnsResolutionError(f"La direccion fijada {direccion} no es una IP valida") from None
+
+    host_en_url = f"[{direccion}]" if ip_literal.version == 6 else direccion
+    # El puerto se conserva: un webhook en un puerto no estandar lo necesita igual que el
+    # nombre. `partes.netloc` puede traer usuario e informacion, que en una URL de webhook no
+    # tienen sentido, asi que se reconstruye desde la IP y el puerto explicitos.
+    netloc = f"{host_en_url}:{partes.port}" if partes.port else host_en_url
+    reconstruido = partes._replace(netloc=netloc)
+
+    return urlunsplit(reconstruido), partes.hostname
 
 
 def truncate_response(body: str) -> str:

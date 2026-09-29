@@ -172,12 +172,12 @@
       "grantSuper": "Grant superuser"
     },
     "confirm": {
-      "title": "Disable {name}?",
+      "title": "Disable {{name}}?",
       "caption": "The account will no longer be able to sign in. Its scan, finding and billing history is kept, and it can be enabled again.",
       "confirm": "Disable"
     },
     "confirmReactivate": {
-      "title": "Enable {name}?",
+      "title": "Enable {{name}}?",
       "caption": "The account will be able to sign in again with its current credentials.",
       "confirm": "Enable"
     },

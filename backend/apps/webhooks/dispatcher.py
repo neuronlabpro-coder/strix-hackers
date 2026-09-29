@@ -61,6 +61,7 @@ from backend.core.ssrf import (
     SsrfBlockedError,
     ensure_delivery_url_allowed,
     is_redirect,
+    pinned_destination,
     truncate_response,
 )
 
@@ -228,7 +229,7 @@ async def dispatch_webhook(
     """
 
     try:
-        ensure_delivery_url_allowed(endpoint.url)
+        direcciones = ensure_delivery_url_allowed(endpoint.url)
     except SsrfBlockedError as error:
         # Se registra como entrega fallida en vez de lanzar: la fila es lo que permite
         # ver que un endpoint dejó de ser válido, que es un estado que el usuario necesita
@@ -261,6 +262,16 @@ async def dispatch_webhook(
     headers = signed.headers(event_type, str(uuid.uuid4()))
     crear = client_factory or _default_client_factory
 
+    # Destino fijado: se despacha a una de las IP que se acaban de validar, en vez de dejar
+    # que el cliente vuelva a resolver el nombre. Sin esto, la comprobacion de arriba no
+    # protege la peticion que sale, solo la que se pretendia: entre validar y conectar, un
+    # atacante con control sobre el DNS puede cambiar lo que el nombre resuelve.
+    #
+    # El nombre original viaja en la cabecera `Host` y en el SNI de TLS, que son las dos
+    # cosas que el servidor necesita para no romperse. Ver `ssrf.pinned_destination`.
+    url_fijada, host_original = pinned_destination(endpoint.url, direcciones)
+    cabeceras_envio = {**headers, "Host": host_original}
+
     status_code: int | None = None
     response_body: str | None = None
     error_message: str | None = None
@@ -268,7 +279,15 @@ async def dispatch_webhook(
 
     try:
         with crear() as client:
-            respuesta = client.post(endpoint.url, content=signed.body, headers=headers)
+            respuesta = client.post(
+                url_fijada,
+                content=signed.body,
+                headers=cabeceras_envio,
+                # `sni_hostname` es lo que hace que TLS valide el certificado contra el
+                # **nombre** y no contra la IP. Sin esta extension, todo https a un webhook
+                # falla la verificacion, porque casi ningun certificado cubre una IP.
+                extensions={"sni_hostname": host_original},
+            )
             status_code = respuesta.status_code
             response_body = truncate_response(respuesta.text)
     except httpx.TimeoutException:

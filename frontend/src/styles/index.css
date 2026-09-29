@@ -1316,7 +1316,11 @@ code.mono,
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* `start` y no `center`. Los campos de la barra llevan todos la misma estructura —etiqueta
+     arriba, control debajo— y con `center` el mas corto baja a quedar centrado respecto al alto
+     en vez de compartir linea de etiqueta. Un campo con pista debajo, como el buscador de
+     tickets, es justo el caso donde `center` mas se nota. */
+  align-items: start;
   gap: 12px;
 }
 
@@ -3104,17 +3108,45 @@ code.mono,
 /* ------------------------------------------------------------------------- *
  * Controles de filtro alineados a la base.
  *
- * `align-items: flex-end` alinea los fondos, no los tops: los campos llevan etiqueta
- * encima y el buscador no, así que alinear por arriba dejaría el buscador 20 px más
- * alto que sus vecinos. Alineando por abajo, la fila de campos queda recta.
+ * ## Por qué aquí ya no hay un `align-items: flex-end`
+ *
+ * Había uno, con esta misma explicación: *"`align-items: flex-end` alinea los fondos, no los
+ * tops: los campos llevan etiqueta encima y el buscador no, así que alinear por arriba dejaría
+ * el buscador 20 px más alto que sus vecinos"*.
+ *
+ * La observación era correcta y la solución era un parche sobre un síntoma. El buscador de
+ * Pentests e Issues era un `<label className="search-field">` con la etiqueta en
+ * `visually-hidden`, es decir con **una fila menos** que sus vecinos: `[icono + input]` frente a
+ * `[etiqueta + select]`. Con `start` sus controles quedaban una fila por encima, y alguien
+ * solved el síntoma alineando por abajo.
+ *
+ * Ahora el buscador lleva etiqueta **visible** dentro de un `.filter-field`, igual que sus
+ * vecinos, así que los tres controles comparten linea con `start` y no hace falta el parche.
+ * Y la etiqueta visible es mejor por dos razones que el parche no arreglaba: el buscador deja de
+ * ser el único filtro sin nombre de la barra, y su `placeholder` —"Dominio, repositorio o
+ * API"— es el **formato** de lo que se busca, no el nombre del campo, así que no servía como
+ * etiqueta accesible.
+ *
+ * El `align-items` vive **una sola vez**, en la regla `.filter-bar` de arriba. Estaba declarado
+ * tres veces con tres valores distintos —`center`, `flex-end` y `start`— y el que ganaba
+ * dependía del orden del fichero, que es la forma más difícil de depurar de un fallo de layout.
  * ------------------------------------------------------------------------- */
-
-.filter-bar {
-  align-items: flex-end;
-}
 
 .filter-field {
   min-width: 168px;
+}
+
+/* El buscador de Pentests e Issues, que es el campo que más ocupa de los tres y el único que
+   puede ceder sitio sin partir su etiqueta. El ancho se fija en el `.search-field` y no aquí
+   porque es el `input` el que debe estirarse; el contenedor solo necesita poder crecer, y
+   `min-width: 0` es lo que permite que ceda antes que los selectores en una ventana estrecha. */
+.filter-bar .filter-field-search {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.filter-bar .filter-field-search .search-field {
+  width: 100%;
 }
 
 /* Altura única para buscador y desplegables. El buscador es un `label` envolvente
@@ -4523,13 +4555,13 @@ select option:checked {
   align-content: start;
 }
 
-/* El contenedor tambien se alinea por arriba. `center` es lo que produce el
-   desplazamiento en `.filter-bar`; el buscador de la barra de tickets lleva una pista
-   debajo que los selectores no llevan, asi que centrar es incorrecto en los dos
-   sitios. */
-.filter-bar {
-  align-items: start;
-}
+/* El `align-items` de `.filter-bar` se declara **una sola vez**, en la regla base del principio de
+   este fichero, con el razonamiento completo. Aqui lo sobreescribian dos reglas posteriores —una
+   con `center` para el modal de alta de modelo y otra con `flex-end` como parche del buscador sin
+   etiqueta— y el valor efectivo dependia del orden del fichero, que es la forma mas dificil de
+   depurar de un fallo de layout. El buscador de Pentests e Issues lleva ya etiqueta visible, asi
+   que el parche de `flex-end` es innecesario y `align-items: start` es correcto en todas las
+   barras. */
 
 /* --------------------------------------------------------------------------
    4. La columna de estado: el texto caia a la derecha de su propia cabecera
