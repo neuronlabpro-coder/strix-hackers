@@ -191,10 +191,11 @@ arrancar_uvicorn() {
 
 main() {
   local aplicar_migraciones_flag="${RUN_MIGRATIONS:-false}"
+  local solo_migraciones="false"
 
   while (( $# > 0 )); do
     case "$1" in
-      --migrate) aplicar_migraciones_flag="true" ;;
+      --migrate) aplicar_migraciones_flag="true"; solo_migraciones="true" ;;
       --seed) SEED_ON_EMPTY="true" ;;
       --help|-h)
         cat <<'AYUDA'
@@ -245,6 +246,11 @@ print(get_settings().database_url_sync)
 
   if [[ "${aplicar_migraciones_flag}" == "true" ]]; then
     aplicar_migraciones
+  fi
+
+  if [[ "${solo_migraciones}" == "true" ]]; then
+    log "migraciones completadas; salida del servicio migrate"
+    return 0
   fi
 
   sembrar_si_esta_vacia

@@ -712,12 +712,16 @@ code.mono,
   font-family: var(--font-mono);
 }
 
+/* La caja del buscador. El ancho **no** se decide aquí: depende de si el buscador es un
+   hermano más de la barra o va con etiqueta dentro de un `.filter-field`, y se decide una
+   sola vez por contexto mas abajo. Lo único que se fija aquí es lo que es igual en todos los
+   casos —una fila que centra su contenido, con relleno solo horizontal— y `min-width: 0`, que
+   es lo que le permite ceder antes que sus vecinos cuando la ventana se estrecha. */
 .search-field {
   display: flex;
-  width: 100%;
-  max-width: 420px;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   padding: 0 12px;
   color: var(--color-secondary);
   background: var(--color-surface);
@@ -833,7 +837,7 @@ code.mono,
 }
 
 /* Estados de remediacion (issues). La severidad ya se comunica con el swatch
-   cromatico, asi que el badge de estado permanece monocromo por decision de
+   cromatico, asi que el badge de estado permanece monocromo por decisión de
    diseno: el color aqui volveria a competir con la rampa de severidad. */
 .badge-status-open,
 .badge-status-in_progress,
@@ -1326,7 +1330,7 @@ code.mono,
 
 .filter-field {
   display: flex;
-  min-width: 160px;
+  min-width: 168px;
   flex-direction: column;
   gap: 6px;
 }
@@ -3130,28 +3134,77 @@ code.mono,
  * El `align-items` vive **una sola vez**, en la regla `.filter-bar` de arriba. Estaba declarado
  * tres veces con tres valores distintos —`center`, `flex-end` y `start`— y el que ganaba
  * dependía del orden del fichero, que es la forma más difícil de depurar de un fallo de layout.
+ *
+ * Por el mismo motivo, el `min-width` de `.filter-field` no aparece aqui: vivia en una segunda
+ * regla del mismo selector, mas abajo, con `160px` contra los `168px` de la original. Dos
+ * declaraciones del mismo selector con valores distintos, y la que ganaba dependia otra vez del
+ * orden. Vive una sola vez, junto al resto de la caja.
  * ------------------------------------------------------------------------- */
 
-.filter-field {
-  min-width: 168px;
+/* ------------------------------------------------------------------------- *
+ * Ancho y altura del buscador, decididos una sola vez y por contexto.
+ *
+ * ## Por qué el buscador se comía la barra
+ *
+ * `width: 100%` en un hijo de una fila flex significa «el ancho de toda la fila»: el buscador
+ * medía lo que la barra menos el `gap` y los desplegables se quedaban sin sitio. Peor en
+ * Pentests e Issues, donde el envoltorio llevaba `flex: 1 1 260px` y además **crecía** con el
+ * espacio libre: el buscador ocupaba prácticamente toda la pantalla y empujaba STATUS y MODE al
+ * extremo opuesto. Un buscador no es un campo que commande la barra; es un filtro más, y como
+ * tal comparte línea con sus vecinos.
+ *
+ * ## Por qué `flex: 0 1 300px` y no un `width`
+ *
+ * Porque en un hijo de una fila flex manda el `flex-basis`, no el `width`: escribir el ancho
+ * ahí no hace nada. El `0` es la parte que corrige el defecto —**no crece**— y el `1` es lo que
+ * mantiene lo bueno: **sí cede** cuando la ventana se estrecha, en vez de forzar la barra a dar
+ * la vuelta.
+ *
+ * Y el `min-width: 0` no es opcional: sin él, el `min-width: auto` de un elemento flex impide
+ * bajar del tamaño del contenido, y un `placeholder` largo dejaría el buscador por encima de los
+ * 300 px para siempre.
+ *
+ * ## Por qué `align-self: end` solo en la barra, y no en todas partes
+ *
+ * Es lo que devuelve al buscador a la línea de los controles cuando **no** lleva etiqueta
+ * visible —CVE, Supply Chain, Knowledge—, donde es una fila más corta que sus vecinos y queda
+ * con su caja pegada a las etiquetas y su campo una línea por encima de los desplegables. En
+ * Pentests e Issues la etiqueta **sí** es visible, los tres controles ya comparten línea, y
+ * `align-items: start` de la barra acierta: un `end` los hundiría de más.
+ * ------------------------------------------------------------------------- */
+
+/* El buscador como hermano directo de la barra: una línea, ancho cómodo, y alineado con los
+   controles en vez de con las etiquetas. */
+.filter-bar > .search-field {
+  flex: 0 1 300px;
+  align-self: end;
 }
 
-/* El buscador de Pentests e Issues, que es el campo que más ocupa de los tres y el único que
-   puede ceder sitio sin partir su etiqueta. El ancho se fija en el `.search-field` y no aquí
-   porque es el `input` el que debe estirarse; el contenedor solo necesita poder crecer, y
-   `min-width: 0` es lo que permite que ceda antes que los selectores en una ventana estrecha. */
+/* El buscador con etiqueta dentro de un `.filter-field`: el ancho se lo da el envoltorio, que
+   es el elemento que acompaña a los desplegables. */
 .filter-bar .filter-field-search {
-  flex: 1 1 260px;
-  min-width: 220px;
+  flex: 0 1 300px;
 }
 
-.filter-bar .filter-field-search .search-field {
+/* Dentro de una columna no hay ancho que repartir, así que se estira a lo ancho del envoltorio.
+   El `flex: none` no es cosmetico: sin él heredaria el `flex` de fila de arriba, y en un
+   contenedor de columna un basis de 300 px es una **altura** de 300 px. */
+.filter-bar .filter-field-search > .search-field {
+  flex: none;
   width: 100%;
 }
 
-/* Altura única para buscador y desplegables. El buscador es un `label` envolvente
-   con el input dentro, así que su altura se fija en el contenedor y el input cede. */
-.search-field,
+/* La barra de herramientas de Repositories no lleva etiquetas, así que su `align-items: center`
+   ya coloca el buscador donde toca y no hay que tocar su alineación. */
+.toolbar > .search-field {
+  flex: 0 1 300px;
+}
+
+/* Altura única para los desplegables. El buscador se aparta del grupo por una razon concreta:
+   es una fila que centra su contenido, y el relleno vertical le robaba altura al input de
+   dentro —un `height` fijo dentro de una caja con `box-sizing: border-box`— de modo que el
+   campo se salia de su propia caja. Por eso el buscador no lleva relleno vertical y su input
+   cede la altura al contenedor en lugar de fijarla. */
 .filter-field select,
 .filter-field input {
   height: 36px;
@@ -3161,7 +3214,15 @@ code.mono,
   font-size: 0.75rem;
 }
 
+.search-field {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
+  background: var(--color-surface);
+}
+
 .search-field input {
+  height: 100%;
   min-height: 0;
   padding: 0;
   font-size: inherit;

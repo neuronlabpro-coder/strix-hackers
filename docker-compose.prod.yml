@@ -40,7 +40,7 @@
 #   REDIS_PASSWORD             sin `@` ni `:`, porque va incrustada en REDIS_URL
 #   STRIPE_SECRET_KEY          `sk_live_...`
 #   STRIPE_WEBHOOK_SECRET      `whsec_...` del endpoint de producción
-#   SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / SMTP_FROM
+#   SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / EMAIL_VERIFICATION_FROM
 #   LLM_API_KEY                la del proveedor de modelos
 #   FRONTEND_ORIGIN_ALLOWED    si se usa, en vez de depender de FRONTEND_BASE_URL
 #
@@ -55,8 +55,6 @@
 # backend guarda ahí estado de presentación y de cola, y mezclar los dos espacios de claves
 # hace que un `FLUSHDB` de diagnóstico borre trabajos pendientes. El validador de
 # configuración de `Settings` ya rechaza que coincidan, y este compose lo mantiene.
-
-name: mind-guard-fenix
 
 x-backend-base: &backend-base
   build:
@@ -82,13 +80,13 @@ x-backend-base: &backend-base
     # pertenece al despliegue. Las que sí lo son —`STRIPE_SECRET_KEY`,
     # `STRIPE_WEBHOOK_SECRET` y las credenciales SMTP— tienen que estar en el `.env`, y no
     # caben en un fichero versionado.
-    EMAIL_VERIFICATION_DELIVERY_MODE: smtp
-    SMTP_USE_TLS: "true"
+    EMAIL_VERIFICATION_DELIVERY_MODE: ${EMAIL_VERIFICATION_DELIVERY_MODE:-smtp}
+    SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
     # HTTPS obligatorio en producción. Con el valor de desarrollo (`http://localhost:5173`)
     # el validador también lo rechaza, y por el mismo motivo: el enlace de verificación que
     # llega por correo apuntaría a una máquina que no existe para el cliente.
-    FRONTEND_BASE_URL: https://panel.mindguardredteam.com
-    API_PUBLIC_BASE_URL: https://api.mindguardredteam.com
+    FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Define FRONTEND_BASE_URL en Dokploy}
+    API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:?Define API_PUBLIC_BASE_URL en Dokploy}
     # -------------------------------------------------------------------------
     # Redis: las cuatro variables, no solo dos
     # -------------------------------------------------------------------------
@@ -175,7 +173,6 @@ services:
   # haria que el `migrate` fallara con un error de SMTP en un despliegue que si podia migrar.
   migrate:
     <<: *backend-base
-    container_name: fenix-migrate
     command: ["/app/scripts/start_prod.sh", "--migrate"]
     restart: "no"
 
@@ -184,7 +181,14 @@ services:
   # -------------------------------------------------------------------------
   backend:
     <<: *backend-base
-    container_name: fenix-backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    networks:
+      - fenix
+      - dokploy-network
     # Dos workers porque el cuello de Uvicorn con una sola instancia es la espera a las
     # peticiones HTTP, no el trabajo asíncrono. Subirlo más sin medir antes solo aumenta el
     # consumo de memoria por proceso, que es lo que más caro sale en un VPS pequeño.
@@ -220,7 +224,10 @@ services:
   # -------------------------------------------------------------------------
   celery_worker:
     <<: *backend-base
-    container_name: fenix-celery-worker
+    group_add:
+      # El worker corre como UID 10001 y necesita permiso para usar el socket Docker del host.
+      # Configurar DOCKER_GID con el GID del grupo propietario de /var/run/docker.sock.
+      - ${DOCKER_GID:-999}
     command:
       - celery
       - -A
@@ -236,6 +243,8 @@ services:
       - --prefetch-multiplier=1
       - --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-20}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     # El worker necesita hablar con el demonio de Docker para lanzar los sandboxes. Es el
@@ -290,7 +299,6 @@ services:
   # -------------------------------------------------------------------------
   celery_beat:
     <<: *backend-base
-    container_name: fenix-celery-beat
     command:
       - celery
       - -A
@@ -309,6 +317,8 @@ services:
       - --schedule=/var/lib/celery/beat/celerybeat-schedule
       - --pidfile=/var/lib/celery/beat/celerybeat.pid
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     # El fichero de estado de beat **tiene** que vivir en un volumen. Sin él, cada reinicio del
@@ -337,14 +347,16 @@ services:
         # La URL de la API se compila **dentro** del bundle, porque las variables `VITE_` de
         # Vite se resuelven al construir. Cambiar la URL de la API exige reconstruir la
         # imagen, no solo reiniciar el contenedor.
-        VITE_API_URL: ${VITE_API_URL:-https://api.mindguardredteam.com}
+        VITE_API_URL: ${VITE_API_URL:?Define VITE_API_URL en Dokploy}
     image: mindguard/frontend:${IMAGE_TAG:-latest}
-    container_name: fenix-frontend
     restart: unless-stopped
+    expose:
+      - "8080"
     environment:
       NGINX_PORT: "8080"
     networks:
       - fenix
+      - dokploy-network
     # No lleva `env_file`: el panel es un conjunto de ficheros estáticos y no habla con la
     # base de datos ni con Redis. Cargarle el `.env` de producción le daría acceso a
     # `SECRET_KEY` y a las claves de Stripe sin necesitar ninguno de los dos.
@@ -369,7 +381,6 @@ services:
     #
     # Aqui se acota el contenedor; el `maxmemory` lo fija el servicio de datos de Dokploy.
     mem_limit: ${REDIS_MEM_LIMIT:-768m}
-    container_name: fenix-redis
     restart: unless-stopped
     # `--requirepass` sin `--appendonly` sería un broker que pierde los trabajos al reiniciar.
     # Los trabajos de escaneo son caros de reintentar y caros de perder en silencio: un
@@ -409,6 +420,8 @@ networks:
     # queda en `QUEUED` sin error— no señala la red. La política de salida se aplica en el
     # firewall del host, no aquí.
     internal: false
+  dokploy-network:
+    external: true
 
 volumes:
   redis_data:

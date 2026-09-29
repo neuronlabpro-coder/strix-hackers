@@ -26,20 +26,41 @@ pytestmark = pytest.mark.integration
 
 # Catálogo oficial elegido por el Owner: (model_id, coste in, out, markup, prioridad, caso de uso)
 #
-# `z-ai/glm-5.3` es el primario de toda la plataforma. Va declarado como `ALL` y no
-# como `DEEP_PENTEST` porque una fila solo puede tener un caso de uso y `model_id` es
-# único; `ALL` es transversal y `resolve_model_chain` lo incluye en cada cadena, así
-# que el comportamiento pedido —primario en todas, incluida DEEP_PENTEST— se cumple
-# sin duplicar la fila ni relajar la restricción de unicidad.
+# Catálogo activo, con su orden de fallback. El precio y el recargo van por unidad de
+# `Decimal` para que la comparación sea exacta y no dependa de cómo el driver traiga el
+# `NUMERIC` de la base.
+#
+# ## Por qué el primario es un modelo de coste cero
+#
+# `stealth/space-bunny-alpha` lo entro a peticion del Owner para poder hacer pruebas sin
+# coste, y OpenRouter lo publica a `0` de entrada y `0` de salida. Va declarado como `ALL` y
+# no con un caso concreto porque una fila solo admite un caso de uso y `model_id` es unico;
+# `ALL` es transversal y `resolve_model_chain` lo incluye en cada cadena, asi que el
+# comportamiento pedido —primario en todas, incluida `DEEP_PENTEST`— se cumple sin duplicar
+# la fila ni relajar la restriccion de unicidad.
+#
+# ## Por qué esta tabla se lee y no se escribe
+#
+# Porque el primario **cambia**, y cambiandolo cambiaron antes las prioridades de todos los
+# demas. Un test que fija el nombre del primario no se rompe cuando el Owner elige otro
+# modelo: se rompe cuando el Owner elige otro modelo, que es exactamente cuando no deberia
+#considered un fallo. Por eso las pruebas de este fichero comprueban la **regla** —el de
+# prioridad 1 encabeza, y es transversal— y dejan el nombre en la tabla, que es la parte que
+# si hay que revisar a mano cuando la cadena de modelos se reconfigura.
+#
+# El resto de las pruebas del fichero no nombran ningun primario, y eso es deliberado: si el
+# primario vuelve a cambiar, estas pruebas siguen diciendo la verdad sobre el mecanismo.
 EXPECTED_CATALOG = [
-    ("z-ai/glm-5.3", "0.40", "1.60", "200.00", 1, "ALL"),
-    ("openai/gpt-6-astra", "4.00", "18.00", "150.00", 2, "DEEP_PENTEST"),
-    ("anthropic/claude-opus-5.5", "5.00", "25.00", "150.00", 3, "DEEP_PENTEST"),
-    ("deepseek/deepseek-v4-pro-0813", "1.20", "4.80", "200.00", 4, "DEEP_PENTEST"),
-    ("anthropic/claude-fable-5.1", "2.00", "8.00", "150.00", 5, "AUTOFIX"),
-    ("openai/gpt-6-sol", "1.50", "6.00", "200.00", 6, "ALL"),
-    ("moonshotai/kimi-k3", "0.80", "3.20", "250.00", 7, "ALL"),
-    ("deepseek/deepseek-v4.1-flash", "0.15", "0.60", "300.00", 8, "QUICK_SCAN"),
+    # (model_id, coste entrada, coste salida, recargo, prioridad, caso de uso)
+    ("stealth/space-bunny-alpha", "0", "0", "0", 1, "ALL"),
+    ("z-ai/glm-5.3", "0.40", "1.60", "200.00", 2, "ALL"),
+    ("openai/gpt-6-astra", "4.00", "18.00", "150.00", 3, "DEEP_PENTEST"),
+    ("anthropic/claude-opus-5.5", "5.00", "25.00", "150.00", 4, "DEEP_PENTEST"),
+    ("deepseek/deepseek-v4-pro-0813", "1.20", "4.80", "200.00", 5, "DEEP_PENTEST"),
+    ("anthropic/claude-fable-5.1", "2.00", "8.00", "150.00", 6, "AUTOFIX"),
+    ("openai/gpt-6-sol", "1.50", "6.00", "200.00", 7, "ALL"),
+    ("moonshotai/kimi-k3", "0.80", "3.20", "250.00", 8, "ALL"),
+    ("deepseek/deepseek-v4.1-flash", "0.15", "0.60", "300.00", 9, "QUICK_SCAN"),
 ]
 
 # Modelos del catálogo anterior que el Owner retiró. Ninguno debe quedar activo: un
@@ -155,22 +176,44 @@ async def test_credit_balance_uses_twelve_four_numeric(
     "use_case",
     [LLMUseCaseEnum.ALL, LLMUseCaseEnum.DEEP_PENTEST, LLMUseCaseEnum.QUICK_SCAN],
 )
-async def test_glm_53_is_the_primary_of_every_chain(
+async def test_el_de_prioridad_uno_encabeza_cada_cadena(
     integration_session: AsyncSession,
     use_case: LLMUseCaseEnum,
 ) -> None:
-    """`z-ai/glm-5.3` es lo primero que se inyecta al contenedor, en toda cadena.
+    """Lo que se inyecta al contenedor es, exactamente, el modelo de prioridad 1.
 
-    Es el requisito del Owner y la razón por la que el modelo se declara `ALL`: al ser
-    transversal, encabeza las tres cadenas sin duplicar la fila. La comprobación se hace
-    sobre la cadena resuelta y no sobre el orden de la tabla, porque lo que importa es
-    qué recibe el runner.
+    Se comprueba la **regla** y no un nombre. La regla es la que el Owner quiere en cada
+    reconfiguracion —el primario encabeza todas las cadenas, incluido `DEEP_PENTEST`—, y el
+    nombre lo decide el catalogo. Comprobar el nombre aqui haria que cambiar de primario
+    pareciera un fallo, cuando es una decision legitima; comprobar la regla hace que se
+    detecte el fallo de verdad, que es que el primario deje de encabezar.
     """
 
     assert integration_session is not None
+
+    # El primario se lee del catalogo, no se escribe: asi la prueba sigue diciendo algo
+    # verdadero sea cual sea el modelo que este activo.
+    activos = (
+        (
+            await integration_session.execute(
+                select(LLMModelConfig).where(LLMModelConfig.is_active.is_(True))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    primarios = [model for model in activos if model.priority_order == 1]
+    assert len(primarios) == 1, "tiene que haber exactamente un modelo activo de prioridad 1"
+    primario = primarios[0]
+    # Transversal, para que incluya en cada cadena. Sin esto, encabezaria solo la suya.
+    assert primario.use_case == LLMUseCaseEnum.ALL, (
+        "el primario tiene que ser ALL: una fila solo admite un caso de uso y model_id es "
+        "unico, asi que 'primario de todas' solo se expresa con ALL, no duplicando la fila"
+    )
+
     chain = await resolve_model_chain(integration_session, use_case)
     assert chain, f"la cadena de {use_case.value} no debe estar vacía"
-    assert chain[0].model_id == "z-ai/glm-5.3", use_case.value
+    assert chain[0].model_id == primario.model_id, use_case.value
     # La cadena sale ordenada por prioridad y solo con modelos activos.
     priorities = [model.priority_order for model in chain]
     assert priorities == sorted(priorities), use_case.value
@@ -202,14 +245,13 @@ async def test_quick_scan_chain_keeps_the_flash_fallback(
     assert integration_session is not None
     chain = await resolve_model_chain(integration_session, LLMUseCaseEnum.QUICK_SCAN)
     ids = [model.model_id for model in chain]
-    # El modelo barato existe como último recurso de la cadena rápida. Con el primacy
-    # de `glm-5.3` en prioridad 1 no es el primario, y esta prueba lo deja escrito para
-    # que una recalibración de prioridades no pase inadvertida.
+    # El modelo barato existe como último recurso de la cadena rápida. El primario actual
+    # cuesta cero, así que **no** se puede comparar precios para demostrar que el flash no
+    # es el primario: sobre un coste base de cero cualquier comparacion de precios es
+    # inmediata. Lo que se comprueba es la posicion, que es lo que determina el gasto.
     assert "deepseek/deepseek-v4.1-flash" in ids
     assert chain[-1].model_id == "deepseek/deepseek-v4.1-flash"
-    # Y el resto de la cadena rápida es más caro que el flash: si se eligiera el flash
-    # como primario, el resto no tendría sentido.
-    assert chain[0].base_cost_input_m > chain[-1].base_cost_input_m
+    assert chain[0].model_id != "deepseek/deepseek-v4.1-flash"
 
 
 # --------------------------------------------------------------------------- #
@@ -242,7 +284,10 @@ async def test_primary_model_reaches_the_container_as_strix_llm(
     )
     environment = manager.container_environment()
 
-    assert environment["STRIX_LLM"] == "z-ai/glm-5.3"
+    # Lo que llega al contenedor es el primario **de la cadena resuelta**, no un nombre
+    # escrito aqui. Escribirlo fijaria en el test una decision que es del Owner, y el fallo
+    # que hay que cazar es que el contenedor reciba otra cosa, no que el primario cambie.
+    assert environment["STRIX_LLM"] == chain[0].model_id
     # `STRIX_LLM_MODEL` no existe para el motor. Si alguien lo añade aquí creyendo que
     # es un alias, el contenedor lo ignorará en silencio y esta aserción no lo detectaría;
     # por eso se comprueba explícitamente que la variable antigua no está.
@@ -252,16 +297,20 @@ async def test_primary_model_reaches_the_container_as_strix_llm(
 def test_sandbox_injects_the_resolved_model_instead_of_the_default() -> None:
     """El contenedor recibe el modelo resuelto, no el `DEFAULT_STRIX_LLM` fijo."""
 
+    # Un identificador cualquiera, y no el primario del catálogo: esta prueba comprueba que
+    # lo resuelto gana a lo configurado, y para eso el valor no importa mientras sea
+    # distinto del respaldo.
+    resuelto = "proveedor/un-modelo-resuelto-explicitamente"
     manager = StrixSandboxManager(
         "6f1b1f5c-2f4a-4a2f-9a1c-9c2f1a7d5e10",
         "app.example.com",
         "DEEP",
         client=object(),  # type: ignore[arg-type]
-        llm_model="z-ai/glm-5.3",
+        llm_model=resuelto,
     )
     environment = manager.container_environment()
 
-    assert environment["STRIX_LLM"] == "z-ai/glm-5.3"
+    assert environment["STRIX_LLM"] == resuelto
     assert environment["STRIX_LLM"] != settings.default_strix_llm
     assert environment["STRIX_NON_INTERACTIVE"] == "1"
 
