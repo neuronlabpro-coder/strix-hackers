@@ -453,3 +453,71 @@ def test_settings_repr_hides_sensitive_values() -> None:
     assert "clave-postgresql-de-prueba" not in rendered
     assert "clave-redis-de-prueba" not in rendered
     assert "clave-de-cifrado-de-prueba" not in rendered
+
+
+# --------------------------------------------------------------------------- #
+# R6: Redis solo se alcanza por Tailscale en produccion
+# --------------------------------------------------------------------------- #
+
+
+def test_produccion_exige_que_redis_sea_una_ip_de_tailscale() -> None:
+    """En produccion, `REDIS_HOST` tiene que ser una IP del rango de Tailscale.
+
+    ## Por qué esta prueba está aquí y no la había
+
+    Porque la comprobación **se quitó** y nadie lo notó: no había ninguna prueba que la
+    cubriera, y un `git log` de la puerta atrás de este cambio no muestra un test rojo, porque
+    no había ningún test. Eso es exactamente lo que hace una guarda que solo existe en el
+    código: nadie se entera de que ya no está.
+
+    Y se quitó por un motivo razonable, que es lo que la hace peligrosa. El
+    `docker-compose.prod.yml` sugiere `fenix-redis` como valor, que es un **alias de Docker**
+    y no una dirección. Con el alias puesto, la comprobación bloquea el arranque, y la salida
+    que elige cualquiera es quitar la comprobación en vez de corregir la variable. El fallo
+    real era el consejo del compose.
+
+    Por eso esta prueba mira el caso del alias y el de una IP de internet, y no solo el de
+    "una IP cualquiera": el alias es el valor que la documentación del proyecto sugiere, y es
+    el que hay que cazar.
+    """
+
+    # El valor correcto: una IP dentro de 100.64.0.0/10, que es lo que reserva Tailscale.
+    valores = production_values()
+    valores["redis_host"] = "100.89.59.70"
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@100.89.59.70:6380/0"
+    Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+
+    # El alias de Docker que sugiere el propio compose. El mensaje tiene que decir cuál es la
+    # forma buena, porque el que se topa con esto no sabe todavía que hay una red de por medio.
+    #
+    # `REDIS_URL` se deja **sin tocar** a propósito: la coherencia del par también falla, pero
+    # la comprobación de Tailscale va antes en el validador y es la que debe ganar. El orden
+    # importa porque el mensaje de incoherencia induce a arreglar `REDIS_URL` para que cuadre
+    # con el alias, que es justo el error que se quiere evitar.
+    valores = production_values()
+    valores["redis_host"] = "fenix-redis"
+    with pytest.raises(ValidationError, match="fenix-redis"):
+        Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+
+    # Una IP de internet: no es una IP de Tailscale aunque sea una IP válida.
+    valores = production_values()
+    valores["redis_host"] = "8.8.8.8"
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@8.8.8.8:6380/0"
+    with pytest.raises(ValidationError, match="100.64.0.0/10"):
+        Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+
+
+def test_desarrollo_no_exige_tailscale_para_redis() -> None:
+    """La comprobación es **solo** de producción, y por eso hay que comprobar que no es de más.
+
+    En desarrollo el `.env` local puede apuntar a un Redis de contenedor o a ninguno, y exigir
+    una IP de Tailscale ahí sería hacer el desarrollo local imposible sin ganar nada. Una
+    guarda que se aplica donde no toca entrena a ignorar el mensaje cuando sí importa, que es
+    el peor resultado posible de una comprobación de configuración.
+    """
+
+    valores = build_environment_values()
+    valores["redis_host"] = "localhost"
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@localhost:6380/0"
+    settings = Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+    assert settings.redis_host == "localhost"

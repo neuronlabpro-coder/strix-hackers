@@ -157,25 +157,54 @@ def test_las_excepciones_son_las_justificadas_y_no_mas() -> None:
             )
 
 
-def test_el_validador_rechaza_la_base_con_el_endpoint_dentro() -> None:
-    """`LLM_API_BASE` con `/chat/completions` dentro produce un 404 en el chat, no al arrancar."""
+def test_el_validador_normaliza_el_endpoint_de_chat_pegado_dentro() -> None:
+    """Un endpoint de chat pegado en `LLM_API_BASE` se recorta, no se rechaza.
 
-    valores_malos = [
-        "https://openrouter.ai/api/v1/chat/completions",
-        "https://openrouter.ai/api/v1/chat/completions/",
-        "https://api.openai.com/v1/completions",
-        "https://api.openai.com/v1/CHAT/COMPLETIONS",
-    ]
-    for valor in valores_malos:
-        # Se espera `ValueError` y no `ValidationError` porque la prueba llama al validador
-        # **por su funcion**, no construyendo un modelo. Es pydantic quien convierte un
-        # `ValueError` en `ValidationError` al validar; aqui, al saltar ese paso, lo que sale es
-        # el `ValueError` original. La clase exacta no importa: lo que se comprueba es que
-        # **rechaza** y que el mensaje es utilizable.
+    ## Por qué normalizar y no rechazar, que era lo que hacía antes
+
+    Porque el síntoma de este error es un `404` **dentro de una petición del chat**, no un
+    error de arranque, y la variable que hay que corregir no viene mencionada en ninguna parte.
+    Negarse a arrancar por un `/chat/completions` de más convierte un error de tecleo en una
+    caída del servicio entero, y el operador que pegó la URL de la documentación del proveedor
+    —que es exactamente lo que devuelve el buscador— recibe un portazo en vez de un arreglo.
+
+    Normalizar devuelve la base correcta y sigue funcionando, y el valorNormalized es además
+    lo que se ve en `/admin`, así que una configuración silenciosamente reparada se puede
+    comprobar en la pantalla en vez de tener que confiar en que pasó.
+
+    La comparación es en minúsculas a propósito: `.../CHAT/COMPLETIONS` es el mismo error
+    copiado de una página en mayúsculas, y un recorte sensible a mayúsculas dejaría pasar
+    justo el caso que se quiere tapar.
+    """
+
+    recortados = {
+        "https://openrouter.ai/api/v1/chat/completions": "https://openrouter.ai/api/v1",
+        "https://openrouter.ai/api/v1/chat/completions/": "https://openrouter.ai/api/v1",
+        "https://api.openai.com/v1/CHAT/COMPLETIONS": "https://api.openai.com/v1",
+    }
+    for valor, esperado in recortados.items():
+        assert _validar_base(valor) == esperado, valor
+
+
+def test_el_validador_rechaza_la_base_con_otra_ruta_de_completions() -> None:
+    """`/v1/completions` no se puede recortar y sí se rechaza, con mensaje utilizable.
+
+    Es el caso que la normalización no cubre, y la razón de que siga existiendo: el sufijo que
+    se recorta es exactamente `/chat/completions`, no "lo que acaben en completions". Cualquier
+    otra ruta de `completions` significa que la variable apunta a un sitio que el cliente no va
+    a usar, y adivinar cuál quería convertiría un error en un escaneo que sale a otro sitio.
+
+    Un `ValueError` y no un `ValidationError` porque la prueba llama al validador **por su
+    función**: es pydantic quien lo convierte en `ValidationError` al construir el modelo, y al
+    saltar ese paso sale el `ValueError` original. Lo que importa es que rechace y que el
+    mensaje sea utilizable.
+    """
+
+    for valor in ("https://api.openai.com/v1/completions", "https://api.openai.com/v1/COMPLETIONS"):
         with pytest.raises(ValueError) as error:
             _validar_base(valor)
-        # El mensaje tiene que **nombrar la variable** y decir cual es la forma buena. Un
-        # "valor invalido" sin mas obliga a ir a buscar la variable a mano.
+        # El mensaje tiene que **nombrar la variable** y decir cuál es la forma buena. Un
+        # "valor invalido" sin más obliga a ir a buscar la variable a mano.
         texto = str(error.value)
         assert "LLM_API_BASE" in texto, f"el mensaje no nombra la variable: {texto[:200]}"
         assert "completions" in texto.lower(), (

@@ -34,7 +34,15 @@
 #   SECRET_KEY                 32 caracteres o más, y distinta de la de desarrollo
 #   DATABASE_URL               PostgreSQL en `fenix-network` (nunca en este compose)
 #   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD   deben coincidir con DATABASE_URL
-#   REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_URL  Redis en `fenix-network`
+#   REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_URL  Redis remoto por Tailscale
+#
+# `REDIS_HOST` es la **IP de Tailscale** del VPS (`100.x.y.z`), no el alias de Docker
+# `fenix-redis`. No es una preferencia: R6 exige que los datos remotos solo se alcancen por la
+# red del mesh, y `Settings` rechaza en producción cualquier `REDIS_HOST` que no esté en
+# `100.64.0.0/10`. Un alias como `fenix-redis` solo resuelve desde dentro de la red de
+# contenedores y, fuera de ella, o no resuelve o resuelve contra otro Redis: en los dos casos
+# el síntoma es un error de conexión que no dice nada de la red equivocada. Si el arranque falla
+# con un mensaje que menciona Tailscale, lo que hay que corregir es la variable, no el validador.
 #   STRIPE_SECRET_KEY          `sk_live_...`
 #   STRIPE_WEBHOOK_SECRET      `whsec_...` del endpoint de producción
 #   SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / EMAIL_VERIFICATION_FROM
@@ -88,7 +96,11 @@ x-backend-base: &backend-base
     API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:?Define API_PUBLIC_BASE_URL en Dokploy}
     # Redis vive en otro stack, pero comparte `fenix-network`: usar el alias del contenedor y
     # el puerto interno 6379. El puerto 6380 solo sirve para clientes fuera de Docker.
-    REDIS_HOST: ${REDIS_HOST:?Define REDIS_HOST=fenix-redis en Dokploy}
+    # El hint dice Tailscale y no `fenix-redis` a propósito: un alias de Docker aquí hace que
+    # el arranque falle en producción con un mensaje de Tailscale, y la respuesta impulsiva a ese
+    # mensaje es quitar la comprobación. Que el hint ya diga la forma correcta evita tener que
+    # llegar a ese punto.
+    REDIS_HOST: ${REDIS_HOST:?Define REDIS_HOST con la IP Tailscale del VPS (100.x.y.z) en Dokploy}
     REDIS_PORT: ${REDIS_PORT:?Define REDIS_PORT=6379 en Dokploy}
     REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD en Dokploy}
     REDIS_URL: ${REDIS_URL:?Define REDIS_URL de Redis en Dokploy}
@@ -288,7 +300,6 @@ services:
     expose:
       - "80"
     networks:
-      - fenix
       - dokploy-network
     # No lleva `env_file`: el panel es un conjunto de ficheros estáticos y no habla con la
     # base de datos ni con Redis. Cargarle el `.env` de producción le daría acceso a

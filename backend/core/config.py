@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import ipaddress
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -567,8 +568,44 @@ class Settings(BaseSettings):
         if not self._database_url_matches_components():
             raise ValueError("DATABASE_URL no coincide con las variables DB_* configuradas")
 
+        # R6: en produccion, Redis se alcanza por la red Tailscale y por ningun otro camino.
+        #
+        # ## Por que esta comprobacion va **antes** de la de coherencia del par
+        #
+        # Porque el orden de los mensajes decide lo que hace el operador. Si primero saltase
+        # `REDIS_URL no coincide con las variables REDIS_*`, la respuesta a ese mensaje sería
+        # arreglar `REDIS_URL` para que cuadre con `REDIS_HOST` —es decir, apuntar las dos
+        # variables al alias de Docker—, que es exactamente el error que ya se está intentando
+        # evitar. El mensaje de Tailscale va primero porque nombra el problema de fondo y dice
+        # cuál es la forma buena.
+        #
+        # ## Por que la comprobacion existe
+        #
+        # Porque `REDIS_HOST` admite un **alias de Docker** como `fenix-redis`, que es lo que el
+        # propio compose usa para su red interna. Ese alias solo resuelve desde dentro de la red
+        # de contenedores: puesto en produccion, o no resuelve, o resuelve contra el servicio
+        # Redis del propio despliegue. En los dos casos el síntoma es un error de conexión que
+        # no dice nada de la red equivocada.
+        #
+        # El rango de Tailscale es `100.64.0.0/10`. Se comprueba **la direccion**, no la
+        # resolucion del nombre: lo que se quiere garantizar es que el tráfico no sale a
+        # internet, y eso lo garantiza la direccion.
+        if self.environment == "production":
+            try:
+                redis_ip = ipaddress.ip_address(self.redis_host)
+            except ValueError as exc:
+                raise ValueError(
+                    "REDIS_HOST debe ser la IP Tailscale del servidor Redis remoto "
+                    "(rango 100.64.0.0/10); no uses un alias Docker como fenix-redis"
+                ) from exc
+            if redis_ip not in ipaddress.ip_network("100.64.0.0/10"):
+                raise ValueError(
+                    "REDIS_HOST debe pertenecer al rango Tailscale 100.64.0.0/10"
+                )
+
         if not self._redis_url_matches_components():
             raise ValueError("REDIS_URL no coincide con las variables REDIS_* configuradas")
+
         if self.celery_redis_db == self.redis_db:
             raise ValueError("CELERY_REDIS_DB debe ser distinto de REDIS_DB")
 
