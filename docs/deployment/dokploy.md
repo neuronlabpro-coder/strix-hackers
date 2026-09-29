@@ -9,9 +9,9 @@ No declares un servicio Traefik en este compose ni dupliques las etiquetas que D
 | Servicio | Dominio | Puerto del contenedor |
 | --- | --- | ---:|
 | `backend` | `api.mindguardredteam.com` | `8000` |
-| `frontend` | `panel.mindguardredteam.com` | `8080` |
+| `frontend` | `panel.mindguardredteam.com` | `80` |
 
-El panel escucha en 8080 dentro del contenedor. Si Dokploy lo enruta al puerto 80 (como en una configuración anterior), Traefik intentará conectar al puerto equivocado. El compose conecta solo API y panel a la red externa `dokploy-network`; el resto queda en la red privada del servicio.
+El panel escucha en el puerto 80 dentro del contenedor, coincidiendo con el dominio frontend de Dokploy. El compose conecta solo API y panel a la red externa `dokploy-network`; el resto queda en la red privada del servicio.
 
 ## Valores de producción obligatorios
 
@@ -58,4 +58,4 @@ El host Dokploy y el servidor de datos deben estar en la misma tailnet. Usa en `
 
 Este compose no contiene servicio `migrate`, PostgreSQL ni Redis. `RUN_MIGRATIONS=false` impide que el entrypoint intente aplicar cambios de esquema durante el despliegue. API y workers conectan a las bases existentes por Tailscale.
 
-Tras guardar Environment y configurar Domains, redepliega. Si falla el build del frontend, confirma que no aparece `setcap` y que el paso de runtime termina. Si frontend compila pero el dominio no responde, revisa que el dominio del panel tenga puerto `8080`, que el de API tenga `8000` y que ambos contenedores estén conectados a `dokploy-network`.
+Tras guardar Environment y configurar Domains, redepliega. Si falla el build del frontend, confirma que no aparece `setcap` y que el paso de runtime termina. Si frontend compila pero el dominio no responde, revisa que el dominio del panel tenga puerto `80`, que el de API tenga `8000` y que ambos contenedores estén conectados a `dokploy-network`.
