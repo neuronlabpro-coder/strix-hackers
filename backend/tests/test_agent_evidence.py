@@ -21,6 +21,7 @@ escaneo de un tenant a otro, el tenant que lo recibe tendría un informe de una 
 suya, y el que lo pagó se quedaría sin él.
 """
 
+import json
 import uuid
 
 import pytest
@@ -203,7 +204,13 @@ async def test_el_resultado_de_un_trabajo_terminado_no_se_puede_reescribir(
                 "UPDATE agent_jobs SET result = CAST(:resultado AS jsonb) WHERE id = :trabajo_id"
             ),
             {
-                "resultado": {"hosts": [{"ip": "10.10.0.7", "ports": [22]}]},
+                # Serializado a mano y no pasado como `dict`: `asyncpg` no sabe codificar un
+                # diccionario como parametro de texto, y el error que sale dice
+                # "'dict' object has no attribute 'encode'", que no parece tener nada que ver con
+                # una columna JSONB. El `CAST` de la sentencia hace el resto.
+                "resultado": json.dumps(
+                    {"hosts": [{"ip": "10.10.0.7", "ports": [22]}]}
+                ),
                 "trabajo_id": trabajo.id,
             },
         )
@@ -338,7 +345,7 @@ async def test_un_trabajo_en_cola_sí_se_puede_gestionar(
             "UPDATE agent_jobs SET status = 'COMPLETED', result = CAST(:resultado AS jsonb), "
             "result_digest = :huella, completed_at = now() WHERE id = :trabajo_id"
         ),
-        {"resultado": {"paquetes": 88}, "huella": "c" * 64, "trabajo_id": trabajo.id},
+        {"resultado": json.dumps({"paquetes": 88}), "huella": "c" * 64, "trabajo_id": trabajo.id},
     )
     await integration_session.flush()
     await integration_session.commit()

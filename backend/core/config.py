@@ -2,13 +2,14 @@
 
 import base64
 import binascii
+import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
@@ -112,7 +113,7 @@ class Settings(BaseSettings):
     #: lista conceptual: "los orígenes desde los que se sirve nuestro frontend". Separarlos
     #: en dos variables por entorno haría que añadir un dominio de staging se olvidara, y se
     #: olvidaría **en el sitio donde solo se descubre cuando ya está desplegado**.
-    cors_origins: list[str] = Field(
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
@@ -120,6 +121,26 @@ class Settings(BaseSettings):
             "https://mindguardredteam.com",
         ],
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: object) -> object:
+        """Acepta la lista CSV documentada o una lista JSON en variables de entorno."""
+
+        if not isinstance(value, str):
+            return value
+
+        value = value.strip()
+        if value.startswith("["):
+            try:
+                decoded = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ValueError("CORS_ORIGINS debe ser CSV o una lista JSON válida") from exc
+            if not isinstance(decoded, list):
+                raise ValueError("CORS_ORIGINS en JSON debe ser una lista")
+            return decoded
+
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
 
     @model_validator(mode="after")
     def resolve_cors_origins(self) -> Self:
