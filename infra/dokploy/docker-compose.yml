@@ -1,11 +1,13 @@
 services:
   fenix-postgres:
     image: postgres:16-alpine
+    container_name: fenix-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?configurar POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER:?configurar POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?configurar POSTGRES_PASSWORD}
+    # Acceso desde desarrollo local por Tailscale; los contenedores del host usan 5432.
     ports:
       - "${TAILSCALE_BIND_IP:?configurar TAILSCALE_BIND_IP}:5433:5432"
     volumes:
@@ -15,13 +17,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+    networks:
+      - fenix-network
 
   fenix-redis:
     image: redis:7-alpine
+    container_name: fenix-redis
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?configurar REDIS_PASSWORD}
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?configurar REDIS_PASSWORD}", "--appendonly", "yes"]
+    # Acceso desde desarrollo local por Tailscale; los contenedores del host usan 6379.
     ports:
       - "${TAILSCALE_BIND_IP:?configurar TAILSCALE_BIND_IP}:6380:6379"
     volumes:
@@ -31,7 +37,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+    networks:
+      - fenix-network
 
 volumes:
   fenix_postgres_data:
   fenix_redis_data:
+
+networks:
+  fenix-network:
+    name: fenix-network
+    driver: bridge

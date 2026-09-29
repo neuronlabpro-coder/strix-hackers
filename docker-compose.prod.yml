@@ -10,11 +10,11 @@
 # ve su panel sin responder. Separados, el límite del API no depende de lo que estén haciendo
 # los workers.
 #
-# ## PostgreSQL y Redis son servicios externos
+# ## PostgreSQL y Redis son servicios externos a este stack y comparten `fenix-network`
 #
-# Los dos viven en el servidor de datos, fuera de este proyecto Dokploy. El backend llega a
-# ellos mediante sus direcciones Tailscale configuradas en `.env`; este compose no crea,
-# publica ni administra esos servicios. `STRIX_SANDBOX_IMAGE` tampoco se declara aquí: la
+# Los dos viven en el mismo host Dokploy, en un stack distinto. El backend llega mediante
+# sus alias Docker y puertos internos a través de `fenix-network`; este compose no crea,
+# publica ni administra esos servicios. Tailscale se usa desde desarrollo local. `STRIX_SANDBOX_IMAGE` tampoco se declara aquí: la
 # imagen del sandbox la descarga el runner cuando la necesita.
 #
 # ## Sobre los secretos
@@ -32,9 +32,9 @@
 # diagnostique por separado ocho veces:
 #
 #   SECRET_KEY                 32 caracteres o más, y distinta de la de desarrollo
-#   DATABASE_URL               PostgreSQL remoto alcanzable por Tailscale (nunca en este compose)
+#   DATABASE_URL               PostgreSQL en `fenix-network` (nunca en este compose)
 #   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD   deben coincidir con DATABASE_URL
-#   REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_URL  Redis remoto alcanzable por Tailscale
+#   REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_URL  Redis en `fenix-network`
 #   STRIPE_SECRET_KEY          `sk_live_...`
 #   STRIPE_WEBHOOK_SECRET      `whsec_...` del endpoint de producción
 #   SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / EMAIL_VERIFICATION_FROM
@@ -86,11 +86,10 @@ x-backend-base: &backend-base
     # llega por correo apuntaría a una máquina que no existe para el cliente.
     FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Define FRONTEND_BASE_URL en Dokploy}
     API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:?Define API_PUBLIC_BASE_URL en Dokploy}
-    # Redis es externo. Pasar estas variables explícitamente hace que Dokploy falle pronto si
-    # falta una clave y evita sustituir accidentalmente el host/puerto de Tailscale por un
-    # alias de servicio local que este compose ya no proporciona.
-    REDIS_HOST: ${REDIS_HOST:?Define REDIS_HOST de Tailscale en Dokploy}
-    REDIS_PORT: ${REDIS_PORT:?Define REDIS_PORT de Redis en Dokploy}
+    # Redis vive en otro stack, pero comparte `fenix-network`: usar el alias del contenedor y
+    # el puerto interno 6379. El puerto 6380 solo sirve para clientes fuera de Docker.
+    REDIS_HOST: ${REDIS_HOST:?Define REDIS_HOST=fenix-redis en Dokploy}
+    REDIS_PORT: ${REDIS_PORT:?Define REDIS_PORT=6379 en Dokploy}
     REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD en Dokploy}
     REDIS_URL: ${REDIS_URL:?Define REDIS_URL de Redis en Dokploy}
     REDIS_DB: ${REDIS_DB:-0}
@@ -303,13 +302,8 @@ services:
 
 networks:
   fenix:
-    driver: bridge
-    # `internal` impediría que los contenedores salieran a Internet, y los workers **necesitan**
-    # salir: clonar repositorios, llamar a la API del modelo y al proveedor de IA. Marcarlo
-    # rompería los escaneos en el momento del despliegue, y el síntoma —un escaneo que se
-    # queda en `QUEUED` sin error— no señala la red. La política de salida se aplica en el
-    # firewall del host, no aquí.
-    internal: false
+    external: true
+    name: fenix-network
   dokploy-network:
     external: true
 

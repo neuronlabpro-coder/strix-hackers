@@ -182,17 +182,17 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/core/config.py:273` | strix_watchdog_interval_seconds: int = Field(default=300, gt=0, le=86400) | identificador: strix_watchdog_interval_seconds |
 | identidad tecnica | `backend/core/config.py:274` | strix_watchdog_stale_after_seconds: int = Field(default=1860, gt=0, le=172800) | identificador: strix_watchdog_stale_after_seconds |
 | identidad tecnica | `backend/core/config.py:275` | default_strix_llm: str = Field(min_length=1) | identificador: default_strix_llm |
-| identidad tecnica | `backend/core/config.py:470` | @field_validator("strix_network_pool") | identificador: strix_network_pool |
-| identidad tecnica | `backend/core/config.py:472` | def validate_strix_network_pool(cls, value: str) -> str: | identificador: validate_strix_network_pool |
-| identidad tecnica | `backend/core/config.py:508` | f"STRIX_NETWORK_POOL={value!r} no es un CIDR IPv4 valido. Debe tener la forma " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:514` | f"STRIX_NETWORK_POOL={value!r} tiene que ser IPv4: las reglas de salida del " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:519` | f"STRIX_NETWORK_POOL={value!r} tiene un prefijo de /{red.prefixlen}, demasiado " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:621` | if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_soft_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:622` | raise ValueError("El timeout suave de Strix debe ser menor que el duro") | identificador: Strix |
-| identidad tecnica | `backend/core/config.py:623` | if self.strix_hard_timeout_seconds >= self.celery_task_soft_time_limit_seconds: | identificador: strix_hard_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:624` | raise ValueError("Strix hard timeout debe ser menor que el timeout suave de Celery") | identificador: Strix |
-| identidad tecnica | `backend/core/config.py:625` | if self.strix_watchdog_stale_after_seconds <= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_watchdog_stale_after_seconds |
-| identidad tecnica | `backend/core/config.py:626` | raise ValueError("El watchdog debe esperar más que el timeout duro de Strix") | identificador: Strix |
+| identidad tecnica | `backend/core/config.py:467` | @field_validator("strix_network_pool") | identificador: strix_network_pool |
+| identidad tecnica | `backend/core/config.py:469` | def validate_strix_network_pool(cls, value: str) -> str: | identificador: validate_strix_network_pool |
+| identidad tecnica | `backend/core/config.py:505` | f"STRIX_NETWORK_POOL={value!r} no es un CIDR IPv4 valido. Debe tener la forma " | identificador: STRIX_NETWORK_POOL |
+| identidad tecnica | `backend/core/config.py:511` | f"STRIX_NETWORK_POOL={value!r} tiene que ser IPv4: las reglas de salida del " | identificador: STRIX_NETWORK_POOL |
+| identidad tecnica | `backend/core/config.py:516` | f"STRIX_NETWORK_POOL={value!r} tiene un prefijo de /{red.prefixlen}, demasiado " | identificador: STRIX_NETWORK_POOL |
+| identidad tecnica | `backend/core/config.py:618` | if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_soft_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:619` | raise ValueError("El timeout suave de Strix debe ser menor que el duro") | identificador: Strix |
+| identidad tecnica | `backend/core/config.py:620` | if self.strix_hard_timeout_seconds >= self.celery_task_soft_time_limit_seconds: | identificador: strix_hard_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:621` | raise ValueError("Strix hard timeout debe ser menor que el timeout suave de Celery") | identificador: Strix |
+| identidad tecnica | `backend/core/config.py:622` | if self.strix_watchdog_stale_after_seconds <= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_watchdog_stale_after_seconds |
+| identidad tecnica | `backend/core/config.py:623` | raise ValueError("El watchdog debe esperar más que el timeout duro de Strix") | identificador: Strix |
 | identidad tecnica | `backend/workers/celery_app.py:31` | worker_concurrency=settings.strix_worker_concurrency, | identificador: strix_worker_concurrency |
 | identidad tecnica | `backend/workers/celery_app.py:40` | "schedule": timedelta(seconds=settings.strix_watchdog_interval_seconds), | identificador: strix_watchdog_interval_seconds |
 | identidad tecnica | `backend/workers/tasks.py:45` | from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output | identificador: extract_strix_scan_id, parse_strix_output, strix_parser |

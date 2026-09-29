@@ -2,7 +2,6 @@
 
 import base64
 import binascii
-import ipaddress
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -570,18 +569,6 @@ class Settings(BaseSettings):
 
         if not self._redis_url_matches_components():
             raise ValueError("REDIS_URL no coincide con las variables REDIS_* configuradas")
-        if self.environment == "production":
-            try:
-                redis_ip = ipaddress.ip_address(self.redis_host)
-            except ValueError as exc:
-                raise ValueError(
-                    "REDIS_HOST debe ser la IP Tailscale del servidor Redis remoto "
-                    "(rango 100.64.0.0/10); no uses un alias Docker como fenix-redis"
-                ) from exc
-            if redis_ip not in ipaddress.ip_network("100.64.0.0/10"):
-                raise ValueError(
-                    "REDIS_HOST debe pertenecer al rango Tailscale 100.64.0.0/10"
-                )
         if self.celery_redis_db == self.redis_db:
             raise ValueError("CELERY_REDIS_DB debe ser distinto de REDIS_DB")
 
