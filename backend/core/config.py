@@ -454,6 +454,9 @@ class Settings(BaseSettings):
             # obligatorio segun si el chat esta habilitado. Aqui no se decide nada: una base
             # vacia es valida si no hay chat.
             return base
+        endpoint_suffix = "/chat/completions"
+        if base.lower().endswith(endpoint_suffix):
+            base = base[: -len(endpoint_suffix)].rstrip("/")
         if "completions" in base.lower():
             raise ValueError(
                 "LLM_API_BASE es la BASE del proveedor, no el endpoint de chat. El cliente "
