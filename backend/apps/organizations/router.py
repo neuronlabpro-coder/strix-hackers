@@ -356,9 +356,9 @@ async def invite_member(
             detail="Acceso a la organización denegado",
         )
 
-    invitation = await create_invitation(session, organization_id, payload)
+    invitation, token = await create_invitation(session, organization_id, payload)
     try:
-        await deliver_invitation(invitation.email, invitation.token)
+        await deliver_invitation(invitation.email, token)
     except EmailDeliveryError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -372,8 +372,11 @@ async def invite_member(
         role=invitation.role,
         expires_at=invitation.expires_at,
         accepted=invitation.accepted,
+        # El token solo se devuelve en desarrollo, y solo porque en staging y produccion el
+        # correo es el unico canal: publicarlo en la respuesta seria una segunda via de entrega
+        # de una credencial que la plataforma no puede volver a mostrar.
         invitation_token=(
-            invitation.token if settings.email_verification_delivery_mode == "development" else None
+            token if settings.email_verification_delivery_mode == "development" else None
         ),
     )
 

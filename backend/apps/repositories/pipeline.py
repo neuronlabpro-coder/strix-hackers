@@ -15,6 +15,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from backend.apps.billing.models import LedgerReasonEnum
+from backend.apps.billing.pricing import scan_credit_cost
+from backend.apps.billing.service import InsufficientCreditsError, apply_credit_delta
 from backend.apps.pentests.models import (
     PentestRun,
     ScanModeEnum,
@@ -123,6 +126,59 @@ def _parse_review_id(review_id: str) -> UUID:
         raise PRPipelineError("review_id no contiene un UUID válido") from error
 
 
+async def _marcar_revision_sin_saldo(
+    session: AsyncSession,
+    review: PullRequestReview,
+    review_id: UUID,
+    repository_id: UUID,
+    pr_number: int,
+    organization_id: UUID,
+) -> None:
+    """Deja la revisión en `ERROR` y publica el evento, con los identificadores ya copiados.
+
+    ## Por qué los identificadores vienen como argumentos y no se leen aquí
+
+    Porque se llama **después** de un `rollback`, y después de un rollback los objetos de ORM
+    están expirados: leer `review.id` es una recarga que necesita contexto verde, y en una
+    corrutina eso es un `MissingGreenlet`. No es un detalle teórico — una prueba lo falló antes de
+    que este comentario existiera.
+
+    Por eso se copian en el llamador, **antes** del rollback, que es el mismo patrón y la misma
+    explicación que usa el bloque de «revisiones deshabilitadas» de este fichero y que ya está
+    escrito ahí. Se copia en vez de inventar otro, y la firma lo hace explícito: si mañana alguien
+    llama a esta función sin pasar los ids, no compila.
+
+    ## Por qué el motivo va en el evento y no en la fila
+
+    Porque `PullRequestReview` **no tiene columna de error**, y no se añade una aquí: el motivo
+    de un fallo de revisión ya viaja en el evento `PR_REVIEW_FAILED` y en su `error_code`, que es
+    donde el panel lo lee. Meterlo también en la fila sería la misma información en dos sitios, y
+    la que no se actualiza es la que miente.
+
+    ## Por qué un `error_code` estable y no el texto
+
+    Porque el `error_code` es lo que el panel puede **filtrar** y agrupar. Un mensaje en español
+    es un texto que hay que leer uno a uno; un código estable es el que permite ver «esta
+    organización lleva veinte revisiones rechazadas por saldo» de un vistazo, que es la pregunta
+    que se hace alguien con un panel lleno de errores.
+    """
+
+    await session.refresh(review)
+    payload = pr_review_payload(
+        review_id=review_id,
+        repository_id=repository_id,
+        pr_number=pr_number,
+        status=PRReviewStatusEnum.ERROR.value,
+        findings_count=0,
+        blocking=True,
+        error_code="INSUFFICIENT_CREDITS",
+    )
+    review.status = PRReviewStatusEnum.ERROR
+    review.finished_at = datetime.now(UTC)
+    await session.commit()
+    await publish_event(session, EventType.PR_REVIEW_FAILED, organization_id, payload)
+
+
 def _target_identifier(repository: Repository, pr_number: int) -> str:
     return f"{repository.full_name}#PR-{pr_number}"[:512]
 
@@ -201,6 +257,59 @@ async def _claim_review(
         )
         session.add(run)
         await session.flush()
+        # Y aquí se cobra, que es lo que no pasaba.
+        #
+        # ## Por qué este camino también paga
+        #
+        # Porque es un **segundo punto de entrada a un escaneo**, y `pentests/service.py`
+        # declara que R4 «no tolera dos caminos para lo mismo». Era exactamente lo que la
+        # auditoría encontró: este bloque construía el `PentestRun` directamente, sin pasar por
+        # `queue_pentest`, y por tanto sin `apply_credit_delta`, sin comprobación de saldo y sin
+        # asiento en el ledger. El resultado es que una revisión de PR disparada por un **webhook
+        # de Git** ejecutaba un escaneo real que consumía tokens de la plataforma y no se
+        # contabilizaba en ninguna parte.
+        #
+        # ## Por qué se cobra a precio de `QUICK` y no uno propio
+        #
+        # Porque el `run` de arriba **ya declara** `scan_mode=QUICK`. Cobrar otra cosa sería
+        # inventar un precio que R1 prohíbe escribir en el código, y cobrar más de lo que cuesta
+        # la operación que de verdad se ejecuta sería cobrar de más. `scan_credit_cost(QUICK)` es
+        # el precio configurado de un escaneo `QUICK`, y esto es uno.
+        #
+        # Lo que **no** se implementa aquí es el cupo de revisiones por asiento que mencionan
+        # `ARCHITECTURE.md` y la fase 5: no existe en ninguna parte del backend, y decidir su
+        # valor y su quién lo consume es una decisión de producto, no un arreglo de seguridad.
+        try:
+            await apply_credit_delta(
+                session=session,
+                organization_id=review.organization_id,
+                amount=-scan_credit_cost(ScanModeEnum.QUICK),
+                reason=LedgerReasonEnum.SCAN_CONSUMPTION,
+                reference_id=str(run.id),
+                actor_user_id=None,
+            )
+        except InsufficientCreditsError:
+            # No hay cliente HTTP al que responderle un `402`: esto lo dispara un webhook. Lo que
+            # se puede es **dejar constancia**, y una revisión de PR marcada como fallida con el
+            # motivo es constancia que el cliente ve en su panel y que un operador puede auditar.
+            #
+            # Y es mejor que ejecutar: el trabajo no llega a lanzarse, así que no se consume nada
+            # de la plataforma. Un escaneo de revisión sin pagar sería un escaneo gratis
+            # automatizado por un webhook, que es el peor caso posible.
+            #
+            # Los identificadores se copian **antes** del rollback, por el motivo que está
+            # escrito en `_marcar_revision_sin_saldo`.
+            review_id = review.id
+            repository_id = review.repository_id
+            pr_number = review.pr_number
+            organization_id = review.organization_id
+            await session.rollback()
+            await _marcar_revision_sin_saldo(
+                session, review, review_id, repository_id, pr_number, organization_id
+            )
+            raise PRPipelineError(
+                "La organización no tiene saldo para la revisión automática"
+            ) from None
     run.status = ScanStatusEnum.RUNNING
     run.started_at = run.started_at or datetime.now(UTC)
     if celery_task_id is not None:

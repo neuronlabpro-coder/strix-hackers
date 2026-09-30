@@ -27,6 +27,7 @@ from backend.apps.knowledge.schemas import (
     KnowledgeDocumentPage,
 )
 from backend.core.middleware import (
+    AdminRequired,
     SessionDependency,
     TenantContext,
     get_current_tenant,
@@ -39,6 +40,7 @@ from backend.core.middleware import (
 TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
 
 router = APIRouter(prefix="/api/v1/knowledge/documents", tags=["knowledge"])
+
 
 
 def _no_encontrado() -> HTTPException:
@@ -82,7 +84,24 @@ async def listar_documentos(
     )
 
 
-@router.post("", response_model=KnowledgeDocumentDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=KnowledgeDocumentDetail,
+    status_code=status.HTTP_201_CREATED,
+    # Exige `ADMIN`.
+    #
+    # ## Por qué estos documentos son una superficie de escritura privilegiada
+    #
+    # Porque no son un cadastro: alimentan el contexto RAG del chat y del agente, y el panel los
+    # devuelve como `context_sources` con título y descripción. Es decir: **lo que se escribe
+    # aquí es lo que lee el modelo** cuando responde en nombre del cliente.
+    #
+    # El catálogo de scopes ya lo dice —`KNOWLEDGE_WRITE` y `KNOWLEDGE_DELETE` están marcados
+    # `is_privileged=True`—, lo que documenta que la intención siempre fue de alto privilegio. Lo
+    # que faltaba era aplicarlo en la ruta, y el aislamiento por tenant —que sí está bien— no
+    # dice nada sobre el rol: un `MEMBER` writing en el contexto de todo el workspace.
+    dependencies=[AdminRequired],
+)
 async def crear_documento(
     tenant: TenantDependency,
     session: SessionDependency,
@@ -130,7 +149,13 @@ async def leer_documento(
     return KnowledgeDocumentDetail.model_validate(documento)
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    # Por el mismo motivo que el alta: borrar del contexto RAG es cambiar lo que el modelo cree
+    # del cliente, y eso no lo hace un `MEMBER`.
+    dependencies=[AdminRequired],
+)
 async def borrar_documento(
     tenant: TenantDependency,
     session: SessionDependency,

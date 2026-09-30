@@ -42,6 +42,7 @@ from backend.apps.supply_chain.schemas import (
 )
 from backend.apps.supply_chain.sync import _cargar_repositorio
 from backend.core.middleware import (
+    AdminRequired,
     SessionDependency,
     TenantContext,
     get_current_tenant,
@@ -157,6 +158,11 @@ async def resumen_inventario(
     "/packages/index",
     response_model=SupplyChainIndexResult,
     status_code=status.HTTP_201_CREATED,
+    # Exige `ADMIN` por la misma razon que la sincronizacion de arriba, y una mas: esta escribe
+    # con `INSERT ... ON CONFLICT`, o sea que un `MEMBER` puede **anadir** dependencias al
+    # inventario de su organizacion. Un inventario de dependencias es la entrada de la
+    # superficie de ataque; poder escribir en el cambia la postura que el cliente ve.
+    dependencies=[AdminRequired],
 )
 async def indexar_manifiesto(
     payload: SupplyChainIndexRequest,
@@ -201,9 +207,15 @@ __all__ = ["PAGE_SIZE", "router"]
 
 
 @router.post(
+    # Exige `ADMIN`, y por lo mismo que en los documentos de conocimiento: la sincronización
+    # abre un cliente Git con la **credencial del workspace** y escribe masivamente en
+    # `supply_chain_packages`. El aislamiento por tenant está bien resuelto —además replicado
+    # dentro del servicio—, pero sin esto cualquier miembro dispara peticiones salientes con la
+    # credencial de la empresa y escribe en la base.
     "/repositories/{repository_id}/sync",
     response_model=SupplyChainSyncResult,
     status_code=status.HTTP_200_OK,
+    dependencies=[AdminRequired],
 )
 async def sync_repository_manifests(
     repository_id: uuid.UUID,

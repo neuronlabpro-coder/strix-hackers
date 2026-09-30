@@ -96,7 +96,19 @@ class RemediationResponse(BaseModel):
     """
 
     vulnerability_id: UUID
-    remediation_pr_url: str
+    #: URL del PR de remediación.
+    #:
+    #: ## Por qué `AnyHttpUrl` y no `str`
+    #:
+    #: Porque su hermano de la misma respuesta —`autofix_url`, unas líneas más arriba— **sí**
+    #: valida, y la asimetría no tenía motivo. Hoy el valor viene de `html_url` de la API de
+    #: GitHub o de `web_url` de la de GitLab, sobre TLS, así que un `javascript:` no llega.
+    #:
+    #: Pero el valor acaba en un `href` de un `<a>`, y la garantía de que no lo es depende de dos
+    #: cosas que no están en este fichero: la API del proveedor y el tipo de la columna. Un
+    #: cambio de proveedor, o un `str` más arriba, rompe la cadena sin que nada falle. El tipo
+    #: lo dice en el sitio donde se decide el tipo.
+    remediation_pr_url: AnyHttpUrl
     status: IssueStatusEnum
 
 

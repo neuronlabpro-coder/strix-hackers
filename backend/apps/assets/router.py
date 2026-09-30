@@ -40,10 +40,22 @@ SessionDependency = Annotated[AsyncSession, Depends(get_db)]
 TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
 
 
-def _exigir_admin(tenant: TenantContext) -> None:
-    """Exige rol `ADMIN` del tenant para las operaciones de escritura."""
+# La regla vive en `core/middleware.exigir_admin_del_tenant` y la comparten `assets`, `agents`,
+# `knowledge` y `supply_chain`. Antes había una copia por router, y la diferencia entre
+# `!=` y `is not` entre ellas ya era una divergencia real: un `"ADMIN"` de tipo `str` pasaba en
+# una copia y no en la otra.
+async def _exigir_admin(tenant: TenantDependency) -> None:
+    """Exige rol `ADMIN` del tenant para las operaciones de escritura.
 
-    if tenant.role != RoleEnum.ADMIN and not tenant.user.is_superuser:
+    ## Por qué esta indirección y no llamar directamente a la de `core`
+
+    Porque la de `core` es una dependencia de FastAPI y aquí se llama en el **cuerpo** de la
+    ruta, después de que la ruta ya ha hecho su trabajo. Reenviarla mantiene el mensaje de
+    error específico de la superficie de ataque —que es más útil que el genérico— sin
+    reescribir la comparación, que es la parte que puede estar mal.
+    """
+
+    if tenant.role is not RoleEnum.ADMIN and not tenant.user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Se requiere permiso de administrador para gestionar la superficie de ataque",
@@ -68,7 +80,7 @@ async def create_domain(
     la propiedad del dominio; ver la nota de `service.DomainConflictError`.
     """
 
-    _exigir_admin(tenant)
+    await _exigir_admin(tenant)
     try:
         dominio = await service.create_domain(
             session, tenant.organization.id, payload
@@ -119,7 +131,7 @@ async def verify_domain(
     El resultado va en el cuerpo, y el código dice que la comprobación se ha hecho.
     """
 
-    _exigir_admin(tenant)
+    await _exigir_admin(tenant)
     try:
         _, resultado = await service.verify_domain(
             session, tenant.organization.id, domain_id
@@ -148,7 +160,7 @@ async def delete_domain(
     borrarlo sin dejar rastro sería hacer desaparecer la superficie de ataque registrada.
     """
 
-    _exigir_admin(tenant)
+    await _exigir_admin(tenant)
     try:
         await service.delete_domain(session, tenant.organization.id, domain_id)
     except service.DomainNotFoundError as error:
@@ -208,7 +220,7 @@ async def enqueue_discovery(
     seguirlo.
     """
 
-    _exigir_admin(tenant)
+    await _exigir_admin(tenant)
     try:
         dominio = await service.get_domain(session, tenant.organization.id, domain_id)
     except service.DomainNotFoundError as error:

@@ -324,12 +324,14 @@ async def test_el_flujo_propone_publica_y_cambia_el_estado(
         invoke_llm=_invocador("Primero explico el error.\n\n" + DIFF_DE_EJEMPLO),
         publicar=_publicar,
     )
-    assert url.endswith("/pull/7")
+    # La URL vuelve ya validada como `AnyHttpUrl`: el tipo **es** la prueba de que pasó por
+    # `_url_de_pr_de_confiar`, y por eso el aserto va sobre el texto que se guarda.
+    assert str(url).endswith("/pull/7")
     assert len(publicadas) == 1
 
     await session.refresh(hallazgo)
     assert hallazgo.status is IssueStatusEnum.REMEDIATION_PROPOSED
-    assert hallazgo.remediation_pr_url == url
+    assert hallazgo.remediation_pr_url == str(url)
     # El diff guardado no lleva ni la explicación ni las vallas.
     assert hallazgo.remediation_patch_diff is not None
     assert hallazgo.remediation_patch_diff.startswith("diff --git")

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fenix-agent"
+version = "1.0.0"
+description = "Agente de escaneo de contenedores y redes de Mind Guard Fenix Team"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+# Sin dependencias, y a propósito.
+#
+# Este agente se instala en la red de un cliente, muchas veces segmentada y con una política de
+# paquetes que solo deja pasar un repositorio interno. Pedirle `pip install` un árbol de
+# dependencias significa pedir acceso a un indice de paquetes desde dentro de esa red, y eso es
+# una conversación con el cliente que no hace falta tener.
+#
+# La consecuencia es que todo lo que hace —el registro OCI, los sockets, el INI, el JSON— está en
+# la biblioteca estándar. Y la otra consecuencia, que es la buena, es que no hay nada que pueda
+# romperse al actualizar.
+dependencies = []
+
+[project.scripts]
+fenix-agent = "fenix_agent.bucle:main"
+
+[tool.setuptools]
+packages = ["fenix_agent"]

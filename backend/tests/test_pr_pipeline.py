@@ -2,6 +2,7 @@ import json
 import shutil
 import uuid
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -32,6 +33,11 @@ async def _create_pipeline_review(
     organization = Organization(
         name=f"PR pipeline {suffix}",
         slug=f"pr-pipeline-{suffix}",
+        # La revisión de PR **cobra** un escaneo `QUICK` desde el webhook, que es el segundo punto
+        # de entrada a un escaneo y el que antes no pasaba por contabilidad. Una organización de
+        # prueba sin saldo no llega ni a lanzarse, que es el comportamiento correcto y no un
+        # accident de la prueba.
+        credit_balance=Decimal("1000"),
     )
     session.add(organization)
     await session.flush()

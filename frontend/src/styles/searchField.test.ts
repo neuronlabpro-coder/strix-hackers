@@ -247,6 +247,12 @@ describe('cada pagina que usa el buscador tiene el contexto que el CSS dimension
     { fichero: 'repositories/RepositoriesPage.tsx', contenedor: 'toolbar', conEtiquetaVisible: false },
     { fichero: 'pentests/PentestsPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
     { fichero: 'issues/IssuesPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    // Las dos pantallas de escaneo y la de la consola. Las tres llevan etiqueta visible, que es
+    // el mismo contexto que Pentests e Issues, asi que **no necesitan ninguna regla nueva**: se
+    // anaden aqui para que este test siga siendo la lista completa de quien usa el buscador.
+    { fichero: 'agents/ContainersPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    { fichero: 'agents/NetworksPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    { fichero: 'admin/AdminAgentsPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
   ]
 
   function ficherosConBuscador(): string[] {

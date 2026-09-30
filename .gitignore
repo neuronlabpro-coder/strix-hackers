@@ -105,6 +105,39 @@ node_modules/
 .venv/
 containers/
 
+# --- Configuración local y credenciales ---------------------------------------
+#
+# ## Por qué `.env*` y no solo `.env`
+#
+# Porque el patrón `.env` **sin comodín** solo casa el nombre exacto. `.env.production`,
+# `.env.staging` y `.envrc` no estaban cubiertos, y los tres existen en la práctica: son los
+# nombres que usa la gente, y un fichero de credenciales que no está en `.gitignore` está a un
+# `git add .` de distancia.
+#
+# Y `!.env.example` es la contraparte obligatoria: sin ella, la regla de arriba escondería el
+# fichero que documenta las variables, que es lo que hay que commitear.
+.env*
+!.env.example
+!frontend/.env.example
+
+# La configuración del agente es un INI con un **token de agente**, que da acceso a la red
+# interna del cliente. El README lo sitúa en `/etc/fenix-agent/fenix-agent.ini`, pero `--config`
+# acepta cualquier ruta y un `fenix-agent.ini` en el directorio de trabajo es lo natural.
+# La regla cubre los dos nombres por si alguien usa el otro.
+fenix-agent.ini
+agent/fenix-agent.ini
+agent/*.ini
+
+# Claves privadas y material criptográfico, por si alguien los deja en el árbol.
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+.netrc
+htpasswd
+
+
 # Binarios de herramientas descargados en local.
 #
 # `stripe.exe` pesa ~11 MB y se reinstala con scripts\install-stripe-cli.ps1, que lo

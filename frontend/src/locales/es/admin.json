@@ -14,6 +14,7 @@
     "users": "Usuarios",
     "sales": "Ventas e ingresos",
     "audit": "Auditoría global",
+    "agents": "Agentes de escaneo",
     "llm": "Modelos LLM",
     "backToApp": "Volver a la App",
     "tickets": "Tickets y soporte"
@@ -277,5 +278,49 @@
     "retry": "Reintentar",
     "costInputAria": "Coste base de entrada de {{modelId}}, en dólares por millón de tokens",
     "costOutputAria": "Coste base de salida de {{modelId}}, en dólares por millón de tokens"
+  },
+  "agents": {
+    "eyebrow": "Conectividad",
+    "title": "Agentes de escaneo",
+    "subtitle": "Los agentes de todos los clientes, vistos desde la plataforma. Un cliente ve los suyos; aquí se ve si alguno de ellos está dado de alta y nunca ha conectado.",
+    "refresh": "Actualizar",
+    "listTitle": "Agentes dados de alta",
+    "loadFailed": "No se han podido cargar los agentes",
+    "emptyTitle": "No hay ningún agente dado de alta",
+    "emptyBody": "Ningún cliente ha registrado todavía un agente de escaneo. Es lo normal: un agente corre dentro de la red del cliente, así que se da de alta cuando ese cliente lo despliega.",
+    "kpis": {
+      "total": "Agentes dados de alta",
+      "totalCaption": "en todos los clientes",
+      "connected": "Conectados ahora",
+      "connectedIn": "conectados en los últimos {{minutes}} min"
+    },
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "nombre, cliente o plataforma…"
+    },
+    "filtered": "Mostrando {{shown}} de {{total}} agentes de esta página.",
+    "table": {
+      "agent": "Agente",
+      "tenant": "Cliente",
+      "platform": "Plataforma",
+      "enrolled": "Alta",
+      "lastSeen": "Último contacto",
+      "actions": "Acciones"
+    },
+    "never": "Nunca ha conectado",
+    "stale": "Sin conexión",
+    "revoke": "Dar de baja",
+    "revoked": "Agente «{{name}}» dado de baja.",
+    "revokeFailed": "No se ha podido dar de baja el agente.",
+    "revokeTitle": "Dar de baja «{{name}}»",
+    "revokeWarning": "Se va a cortar el token de este agente. A partir de ahora no podrá reclamar trabajos ni reportar resultados.",
+    "revokeInFlight": "Lo que ya estaba en marcha se queda sin a quién reportar: el cliente verá esos escaneos como fallidos, y no habrá forma de recuperarlos. Los resultados ya guardados se conservan.",
+    "revokeReason": "Motivo de la baja",
+    "revokeReasonPlaceholder": "Por qué se corta el acceso a la red de este cliente",
+    "revokeReasonHint": "Queda en el registro de auditoría. Sin él, dentro de seis meses no hay forma de saber por qué este cliente dejó de escanear.",
+    "revokeConfirm": "Dar de baja",
+    "status": {
+      "REVOKED": "Dado de baja"
+    }
   }
 }

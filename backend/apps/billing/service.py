@@ -113,7 +113,28 @@ async def ensure_sufficient_credits(
     organization_id: UUID,
     required: Decimal,
 ) -> Decimal:
-    """Comprueba saldo suficiente sin escribir. Devuelve el saldo disponible."""
+    """Comprueba saldo suficiente sin escribir, y devuelve el saldo disponible.
+
+    ## Por qué se queda aquí siendo que nadie lo llama
+
+    Porque borrarla es ganar la batalla y perder la guerra. La próxima persona que quiera un
+    «error bonito» antes de `apply_credit_delta` escribe las tres líneas de nuevo, y esta vez sin
+    el comentario que explica por qué están mal. Dejar el helper con su aviso convierte un error
+    de arquitectura en un error de lectura: se ve al abrir el módulo.
+
+    ## Por qué no debe usarse, y por qué está aquí
+
+    Porque la comprobación previa de saldo es **exactamente la ventana que la arquitectura
+    prohíbe**. Entre «comprobar» y «cobrar» cabe otro gasto, y quien gaste en ese hueco deja el
+    saldo por debajo de lo que la comprobación dijo que había. `chat/billing.py:59-66` lo dice
+    con todas las letras: delegar es lo que garantiza que el chat y los escaneos gastan con las
+    mismas reglas.
+
+    Y delegar significa `apply_credit_delta`, que ya toma `SELECT ... FOR UPDATE` sobre la
+    organización: comprueba y escribe bajo el mismo bloqueo. Aquí no hay bloqueo, y por eso esta
+    función es únicamente para **mostrar** un saldo —una pantalla de aviso, un cálculo previo—
+    y jamás para decidir si se puede gastar.
+    """
 
     result = await session.execute(
         select(Organization.credit_balance).where(Organization.id == organization_id)

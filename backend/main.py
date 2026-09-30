@@ -2,11 +2,13 @@
 
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from backend.apps.admin.router import router as admin_router
+from backend.apps.agents.router import router as agents_router
 from backend.apps.api_access.mcp_router import router as mcp_router
 from backend.apps.api_access.router import router as api_access_router
 from backend.apps.assets.router import router as assets_router
@@ -30,7 +32,37 @@ from backend.apps.vulnerabilities.router import router as vulnerabilities_router
 from backend.apps.webhooks.router import router as webhooks_router
 from backend.core.config import settings
 
-app = FastAPI(title="Mind Guard Fenix Team API")
+#: Si la documentación interactiva y el esquema se sirven en este despliegue.
+#:
+#: ## Por qué no en staging ni en producción
+#:
+#: Porque `/openapi.json` es el **mapa de la superficie de ataque**: cada ruta, cada nombre de
+#: parámetro y cada esquema de error, enumerados y ordenados, gratis y sin autenticación. Y
+#: `/docs` lo hace legible. No es una fuga de datos, es una entrega de inventario.
+#:
+#: Y no basta con protegerlos con autenticación, porque el esquema también se sirve desde
+#: OpenAPI en el panel de Swagger: proteger uno y no el otro deja el mismo mapa accesible por la
+#: otra puerta. Se desactivan los tres, o ninguno.
+#:
+#: ## Por qué tampoco se pueden dejar «abiertos pero inofensivos»
+#:
+#: Porque en este proyecto la autenticación se declara con `Depends`, no con `Security`. FastAPI
+#: deduce el `securitySchemes` de la **firma** de la función, y una dependencia de `Depends` no
+#: genera ninguna: el esquema sale sin un solo `securityScheme`, y Swagger ni siquiera puede
+#: autenticar una petición. Es decir: la documentación no solo filtra la superficie, es que además
+#: está incompleta. Pasarlo a `Security` en veinte rutas es lo correcto y es un arreglo aparte;
+#: desactivar la documentación fuera de desarrollo es lo que cabe aquí.
+#:
+#: Y se decide por **entorno**, no por bandera, para que no exista el caso de alguien que
+#: desactive la comprobación en producción creyendo que la tiene activa.
+_EXPONE_DOCUMENTACION: bool = settings.environment == "development"
+
+app = FastAPI(
+    title="Mind Guard Fenix Team API",
+    docs_url="/docs" if _EXPONE_DOCUMENTACION else None,
+    redoc_url="/redoc" if _EXPONE_DOCUMENTACION else None,
+    openapi_url="/openapi.json" if _EXPONE_DOCUMENTACION else None,
+)
 
 # --------------------------------------------------------------------------- #
 # CORS
@@ -74,6 +106,66 @@ app.add_middleware(
     # valor es deliberado y no un 600 que alguien escribió una vez.
     max_age=600,
 )
+
+# --------------------------------------------------------------------------- #
+# Cabeceras de cache
+# --------------------------------------------------------------------------- #
+#
+# ## Qué cubre y qué no
+#
+# Cubre lo que un **caché intermedio** —CDN, proxy corporativo, el de un router de un banco—
+# puede hacer con una respuesta: guardarla y servirla. Y CORS no mitiga eso, porque gobierna la
+# lectura desde JavaScript, no el almacenamiento por el intermediario.
+#
+# ## Por qué `no-store` y no `private`
+#
+# Porque `private` permite al caché **del navegador** guardar la respuesta, y el token vive en
+# `sessionStorage`: cerrar la pestaña y volver a abrirla en un equipo compartido dejaría la lista
+# de vulnerabilidades del cliente a la vista del siguiente usuario de la máquina. `no-store` lo
+# prohíbe en los dos sitios.
+#
+# ## Por qué `Vary` y no solo `no-store`
+#:
+#: Porque no todos los intermediarios respetan `no-store` —algunos lo tratan como una sugerencia
+#: y cachean igual—, y el `Vary` es la defensa que sí sobrevive a un caché maleducado: le dice
+#: que la respuesta **cambia** con `Authorization` y con `X-Organization-Id`, así que no puede
+#: servir la de un cliente a otro. Es el mismo motivo por el que el aislamiento multi-tenant no se
+#: apoya solo en el filtro del `WHERE`.
+#:
+#: ## Por qué no va un middleware
+#:
+#: Porque un middleware de respuesta tiene que reescribir la respuesta de cada ruta, y aquí
+#: bastan tres cabeceras sobre las que ya se trabaja. La alternativa sería un `HTTPResponse`
+#: completo, que es un middleware que además se puede equivocar.
+#:
+#: ## Por qué no se toca `/health` ni la raíz
+#:
+#: Porque no llevan datos de tenant. Ponerles `no-store` obligaría a cada sonda del orquestador
+#: a Traversar el camino entero y a un `HEAD` de comprobación de vida a no poder cachear una
+#: respuesta que existe para poder cachearse.
+
+
+class _CabecerasDeCache(BaseHTTPMiddleware):
+    """Añade `Cache-Control` y `Vary` a lo que no sea una ruta de vida."""
+
+    #: Rutas que no llevan datos de tenant y sí se pueden cachear. La sonda del orquestador
+    #: pregunta cada pocos segundos y no tiene ninguna razón para ir al origen.
+    #: `/docs` no está porque solo existe en desarrollo, y ahí no hay caché que poisoning.
+    RUTAS_DE_VIDA: frozenset[str] = frozenset({"/health", "/"})
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        respuesta = await call_next(request)
+        if request.url.path not in self.RUTAS_DE_VIDA:
+            respuesta.headers["Cache-Control"] = "no-store, max-age=0"
+            respuesta.headers["Pragma"] = "no-cache"
+            # El orden de los valores no importa, pero el conjunto sí: sin `Authorization` y
+            # `X-Organization-Id` un caché puede servir la respuesta de un cliente a otro, y con
+            # ambos puede decidir bien.
+            respuesta.headers["Vary"] = "Authorization, X-Organization-Id, Accept-Encoding"
+        return respuesta
+
+
+app.add_middleware(_CabecerasDeCache)
 
 
 class ServiceInfoResponse(BaseModel):
@@ -145,3 +237,4 @@ app.include_router(mcp_router)
 # anadir un router nuevo al final del bloque sea la regla y no la excepcion.
 app.include_router(chat_router)
 app.include_router(supply_chain_router)
+app.include_router(agents_router)

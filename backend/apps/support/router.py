@@ -56,6 +56,25 @@ from backend.core.middleware import TenantContext, get_current_tenant
 SessionDependency = Annotated[AsyncSession, Depends(get_db)]
 TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
 
+# El router de soporte, y el de la consola de SuperAdmin para las rutas de tickets.
+#
+# ## Por que estan los dos en este fichero y no en dos
+#
+# Porque comparten la logica de ticket y los esquemas: partirlo obligaria a duplicar el
+# `TicketPage`, el `TicketDetail` y las transiciones de estado, y las dos copias divergirian. Lo
+# que se separa es la **puerta**: `/api/v1/support/*` va con sesion de cliente y
+# `/api/v1/admin/tickets/*` con `SuperuserDependency`.
+#
+# ## Por que se declara `admin_router` **una sola vez**, aqui arriba
+#
+# Porque habia dos `admin_router = APIRouter()`, esta y otra unas doscientas lineas mas abajo, y
+# la segunda **pisaba** la primera: todas las decoraciones `@admin_router.*` de tickets estan
+# despues de la segunda, asi que hoy las rutas se registran bien y la consola funciona.
+#
+# Pero el objeto de la primera se descartaba en silencio, y ahi se escondia la bomba: anadir una
+# ruta entre las dos, siguiendo la lectura de arriba, la registraria sobre un router que `main.py`
+# **nunca importa**, y el endpoint desapareceria sin error ni aviso. Un fallo de disponibilidad que
+# solo se manifiesta cuando alguien anade una ruta en el sitio equivocado.
 router = APIRouter()
 admin_router = APIRouter()
 
@@ -295,7 +314,6 @@ async def reply_to_ticket(
 # ignora. La frontera es `is_superuser`, exigida en cada una por `SuperuserDependency`,
 # que además entrega el `User` del agente.
 
-admin_router = APIRouter()
 
 
 @admin_router.get("/api/v1/admin/tickets", response_model=TicketPage)

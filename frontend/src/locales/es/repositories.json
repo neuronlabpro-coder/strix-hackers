@@ -85,7 +85,9 @@
     "importingSelected": "Importando…",
     "bulkSuccess": "Se han importado {{count}} repositorios",
     "bulkPartial": "Importados {{ok}} de {{total}}. Han fallado: {{failed}}",
-    "bulkFailed": "No se ha importado ninguno. Han fallado: {{failed}}"
+    "bulkFailed": "No se ha importado ninguno. Han fallado: {{failed}}",
+    "countAll": "{{shown}} de {{total}} repositorios. Se muestran {{shown}} porque la lista se trae por tandas: usa el buscador para ver el resto.",
+    "countFiltered": "{{shown}} de {{total}} repositorios coinciden con tu búsqueda."
   },
   "autofix": {
     "notFromReview": "Este hallazgo no procede de una revisión de Pull Request, así que el autofix no puede abrirse automáticamente."

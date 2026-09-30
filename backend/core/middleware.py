@@ -163,3 +163,52 @@ async def get_current_tenant(
 
     request.state.current_tenant = tenant_context
     return tenant_context
+
+
+TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
+
+
+async def exigir_admin_del_tenant(tenant: TenantDependency) -> None:
+    """Falla cerrado si quien llama no es `ADMIN` del workspace, o superusuario.
+
+    ## Por qué vive aquí y no en cada router
+
+    Porque «escribir exige `ADMIN`» es una regla de la plataforma, no de un módulo. Estaba
+    escrita cuatro veces —en `assets`, en `agents`, y las copias que hicieron `knowledge` y
+    `supply_chain`— y cuatro copias de una regla de autorización son cuatro reglas que
+    divergen en cuanto una cambia. La divergencia que ya existía: dos usaban `Depends` y
+    llamaban a la función, dos la metían en el `dependencies=[...]` del decorador, y solo
+    una de esas cuatro formas funciona con FastAPI (ver abajo).
+
+    ## Por qué `async` y por qué el alias, y no `TenantContext` a secas
+
+    Porque con la anotación suelta, `Depends(exigir_admin_del_tenant)` le dice a FastAPI que
+    `TenantContext` es un **modelo de respuesta**: lo lee como un `dataclass` que Pydantic tiene
+    que convertir, no como un parámetro que ya tiene un valor, y la aplicación no arranca con
+
+        `FastAPIError: Invalid args for response field! Hint: check that <class
+        'backend.core.middleware.TenantContext'> is a valid Pydantic field type.`
+
+    El alias `Annotated[TenantContext, Depends(get_current_tenant)]` lleva la dependencia
+    declarada, así que FastAPI sabe que hay que resolverla antes de llamar. Es el mismo motivo
+    por el que `enforce_pentest_rate_limit` declara `tenant: TenantDependency`.
+
+    ## Por qué también pasa el superusuario
+
+    Porque la consola de plataforma puede tener que reparar el contexto de un cliente, y negarle
+    eso obliga a pedir a alguien del cliente que lo haga.
+
+    Y por qué `is not` en vez de `!=`: `RoleEnum` es un enumerado de `str`, y con `str` el
+    operador `!=` no lanza pero compara contenido, de modo que un `"ADMIN"` suelto —el tipo
+    que llega de un `dict` de una prueba o de un descodificador— pasaría como si fuera el
+    enumerado. `is not` no acepta el impostor.
+    """
+
+    if tenant.role is not RoleEnum.ADMIN and not tenant.user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere permiso de administrador para esta operación",
+        )
+
+
+AdminRequired = Depends(exigir_admin_del_tenant)

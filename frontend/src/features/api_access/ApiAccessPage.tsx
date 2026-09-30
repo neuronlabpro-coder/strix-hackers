@@ -197,7 +197,7 @@ function TokensTab({
         <p className="cve-count">
           {t('tokens.count', { active: activeCount, total: tokens.length })}
         </p>
-        <label className="filter-field">
+        <label className="toggle-field">
           <input
             type="checkbox"
             checked={includeRevoked}

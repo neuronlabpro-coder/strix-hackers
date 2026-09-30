@@ -32,7 +32,10 @@ def test_git_models_define_provider_status_and_required_indexes() -> None:
         "ERROR",
     ]
     assert "ix_repositories_org_provider" in {index.name for index in repository_table.indexes}
-    assert "uq_repositories_provider_remote" in {
+    # El nombre lleva `org_` porque la unicidad es **por organización**, no global. Con la global,
+    # un tenant podía reclamar un repositorio popular y bloquear a otro para siempre: la
+    # restricción de integridad haciéndose mecanismo de denegación de servicio entre clientes.
+    assert "uq_repositories_org_provider_remote" in {
         constraint.name for constraint in repository_table.constraints
     }
     assert "ix_git_credentials_org_provider" in {

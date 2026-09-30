@@ -6,6 +6,7 @@ import adminEn from './locales/en/admin.json'
 import assetDiscoveryEn from './locales/en/assetDiscovery.json'
 import billingEn from './locales/en/billing.json'
 import chatEn from './locales/en/chat.json'
+import agentsEn from './locales/en/agents.json'
 import supplyChainEn from './locales/en/supplyChain.json'
 import commonEn from './locales/en/common.json'
 import apiAccessEn from './locales/en/apiAccess.json'
@@ -31,6 +32,7 @@ import adminEs from './locales/es/admin.json'
 import assetDiscoveryEs from './locales/es/assetDiscovery.json'
 import billingEs from './locales/es/billing.json'
 import chatEs from './locales/es/chat.json'
+import agentsEs from './locales/es/agents.json'
 import supplyChainEs from './locales/es/supplyChain.json'
 import commonEs from './locales/es/common.json'
 import apiAccessEs from './locales/es/apiAccess.json'
@@ -69,6 +71,7 @@ void i18n.use(initReactI18next).init({
   resources: {
     es: {
       chat: chatEs,
+      agents: agentsEs,
       supplyChain: supplyChainEs,
       common: commonEs,
       auth: authEs,
@@ -96,6 +99,7 @@ void i18n.use(initReactI18next).init({
     },
     en: {
       chat: chatEn,
+      agents: agentsEn,
       supplyChain: supplyChainEn,
       common: commonEn,
       auth: authEn,

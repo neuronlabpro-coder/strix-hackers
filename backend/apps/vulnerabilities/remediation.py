@@ -34,7 +34,9 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit
 
+from pydantic import AnyHttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -90,14 +92,61 @@ async def _publicar_en_hilo(review_id: str, vulnerability_id: str) -> str:
     return await asyncio.to_thread(create_autofix_branch_and_pr, review_id, vulnerability_id)
 
 
+def _url_de_pr_de_confiar(url: str) -> AnyHttpUrl:
+    """Convierte la URL que devuelve el publicador en una `AnyHttpUrl`, o falla.
+
+    ## Por qué aquí y no solo en el esquema
+
+    Porque el esquema de la respuesta es el **último** sitio por el que pasa la URL, y para
+    entonces ya está en tres sitios que no lo revalidan: la columna
+    `vulnerabilities.remediation_pr_url` —un `VARCHAR(512)` sin tipo—, el evento
+    `vulnerability.status_changed` que se publica a los suscriptores del webhook, y el
+    `assert` del test. Si el publicador devolviera `javascript:alert(1)`, los tres se la
+    quedarían y el `422` de Pydantic llegaría después, con el dato ya escrito.
+
+    ## Por qué se falla en vez de devolver la URL tal cual
+
+    Porque un publicador que devuelve algo que no es una URL de PR ha fallado, y fallar en voz
+    alta es mejor que propagar un valor dudoso. Se levanta `PublicarRemediationError` —que el
+    router traduce a `502`— y no un `ValueError` suelto, porque el consumidor ya pagó los
+    tokens y necesita un mensaje que le diga que reintentar cuesta dinero.
+
+    ## Por qué se comprueba el esquema y no basta con `AnyHttpUrl`
+
+    Porque `AnyHttpUrl` acepta `http` **y** `https`, y un PR de un repositorio no viaja por
+    `http` en ningún caso legítimo. La comprobación es aquí, junto a la validación, y no
+    dentro de un validador de Pydantic reutilizable, porque no hay un validador de Pydantic
+    que exprese "una URL de página de un for-hosted de código" y porque la regla es de este
+    dominio, no del tipo.
+    """
+
+    partes = urlsplit(url)
+    if partes.scheme.lower() != "https" or not partes.netloc:
+        raise PublicarRemediationError(
+            "El proveedor devolvió una URL de pull request que no es HTTPS con host"
+        )
+    try:
+        return AnyHttpUrl(url)
+    except ValueError as error:
+        raise PublicarRemediationError(
+            "El proveedor devolvió una URL de pull request inválida"
+        ) from error
+
+
 async def generar_y_publicar(
     session: AsyncSession,
     vulnerability: Vulnerability,
     *,
     invoke_llm: Callable[..., Awaitable[Any]] | None = None,
     publicar: Callable[[str, str], Awaitable[str]] = _publicar_en_hilo,
-) -> str:
+) -> AnyHttpUrl:
     """Genera el parche, lo publica y actualiza el hallazgo. Devuelve la URL de la PR.
+
+    ## Por qué devuelve `AnyHttpUrl` y no `str`
+
+    Porque el valor no es de fiar hasta que pasa por `_url_de_pr_de_confiar`, y un tipo que no
+    lo dice permite que el siguiente que llame a esta función se ahorre la conversión. El
+    `str` se reaparece en los dos bordes que de verdad lo necesitan: la columna y el evento.
 
     ## Por qué `invoke_llm` y `publicar` son parámetros
 
@@ -189,17 +238,22 @@ async def generar_y_publicar(
 
     review_id = await _review_id_del_hallazgo(session, vulnerability)
     try:
-        url = await publicar(review_id, str(vulnerability.id))
+        url_publicada = await publicar(review_id, str(vulnerability.id))
     except (AutofixError, ValueError) as error:
         raise PublicarRemediationError(
             "No se pudo abrir la pull request con la corrección"
         ) from error
 
+    # La validación va **después** del `try` de arriba y **antes** de la primera escritura: si
+    # el proveedor devuelve algo que no es una URL, la transacción no se toca y el cobro no se
+    # liquida. Ver la nota de `_url_de_pr_de_confiar` para por qué no basta con el esquema.
+    url = _url_de_pr_de_confiar(url_publicada)
+
     # El estado previo se lee de la fila y no de un literal: un hallazgo que venía de
     # `IN_PROGRESS` debe publicar ese, no `OPEN`. Hardcodearlo haría que un consumidor que
     # rebuilda su vista a partir del evento viera una transición que no ocurrió.
     previous_status = vulnerability.status
-    vulnerability.remediation_pr_url = url
+    vulnerability.remediation_pr_url = str(url)
     vulnerability.status = IssueStatusEnum.REMEDIATION_PROPOSED
     await session.commit()
 
@@ -246,7 +300,7 @@ async def _emitir_cambio_de_estado(
     session: AsyncSession,
     vulnerability: Vulnerability,
     previous_status: IssueStatusEnum,
-    url: str,
+    url: AnyHttpUrl,
 ) -> None:
     """Publica `vulnerability.status_changed` con la PR incluida.
 
@@ -274,7 +328,7 @@ async def _emitir_cambio_de_estado(
             ),
             # La URL viaja en el evento porque es lo que hace que un suscriptor pueda abrir
             # la propuesta sin una segunda llamada a la API.
-            "remediation_pr_url": url,
+            "remediation_pr_url": str(url),
         },
     )
 

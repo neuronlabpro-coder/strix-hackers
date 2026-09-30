@@ -560,6 +560,46 @@ export interface AdminUserPage {
   offset: number
 }
 
+/**
+ * Un agente de escaneo, visto desde la consola de plataforma.
+ *
+ * ## Por que `organization_id` y `organization_name` van los dos
+ *
+ * Porque hacen falta los dos para cosas distintas. El identificador es lo que permite filtrar
+ * y enlazar; el nombre es lo que un operador lee. Un UUID en una lista de cuarenta agentes no
+ * dice nada de quien es cada uno y obliga a abrir la fila para averiguarlo.
+ *
+ * ## Por que `connected` lo decide el servidor
+ *
+ * Porque la ventana de "conectado" es un criterio, y un criterio que se evalua en dos sitios
+ * con dos relojes es un criterio que un dia no coincide. Si el backend cambiara el plazo y el
+ * frontend no, la insignia de la consola y el KPI del panel dirian cosas distintas del mismo
+ * agente en la misma pantalla.
+ */
+export interface AdminAgent {
+  id: string
+  name: string
+  organization_id: string
+  organization_name: string
+  token_prefix: string
+  status: 'ACTIVE' | 'REVOKED'
+  platform_hint: string | null
+  agent_version: string | null
+  enrolled_at: string
+  last_seen_at: string | null
+  connected: boolean
+}
+
+export interface AdminAgentPage {
+  items: AdminAgent[]
+  total: number
+  limit: number
+  offset: number
+  /** La ventana de vida, en segundos, para poder decirla en la pantalla. */
+  ventana_de_vida: number
+}
+
+
 export interface AdminSale {
   id: string
   event_id: string

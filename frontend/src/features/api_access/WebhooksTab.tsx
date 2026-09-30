@@ -232,7 +232,7 @@ function WebhookRow({
         </span>
       </td>
       <td>
-        <label className="filter-field">
+        <label className="toggle-field">
           <input
             type="checkbox"
             checked={endpoint.is_active}

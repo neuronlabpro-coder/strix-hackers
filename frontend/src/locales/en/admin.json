@@ -14,6 +14,7 @@
     "users": "Users",
     "sales": "Sales and revenue",
     "audit": "Global audit",
+    "agents": "Scanning agents",
     "llm": "LLM models",
     "backToApp": "Back to the App",
     "tickets": "Tickets & support"
@@ -277,5 +278,49 @@
     "retry": "Retry",
     "costInputAria": "Base input cost of {{modelId}}, in dollars per million tokens",
     "costOutputAria": "Base output cost of {{modelId}}, in dollars per million tokens"
+  },
+  "agents": {
+    "eyebrow": "Connectivity",
+    "title": "Scanning agents",
+    "subtitle": "The agents of every customer, seen from the platform. A customer sees their own; here you see whether any of them is enrolled and has never connected.",
+    "refresh": "Refresh",
+    "listTitle": "Enrolled agents",
+    "loadFailed": "The agents could not be loaded",
+    "emptyTitle": "No agent enrolled yet",
+    "emptyBody": "No customer has registered a scanning agent yet. That is expected: an agent runs inside the customer network, so it gets enrolled when that customer deploys it.",
+    "kpis": {
+      "total": "Enrolled agents",
+      "totalCaption": "across all customers",
+      "connected": "Connected now",
+      "connectedIn": "connected in the last {{minutes}} min"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "name, customer or platform…"
+    },
+    "filtered": "Showing {{shown}} of {{total}} agents on this page.",
+    "table": {
+      "agent": "Agent",
+      "tenant": "Customer",
+      "platform": "Platform",
+      "enrolled": "Enrolled",
+      "lastSeen": "Last seen",
+      "actions": "Actions"
+    },
+    "never": "Never connected",
+    "stale": "Offline",
+    "revoke": "Revoke",
+    "revoked": "Agent “{{name}}” revoked.",
+    "revokeFailed": "The agent could not be revoked.",
+    "revokeTitle": "Revoke “{{name}}”",
+    "revokeWarning": "This agent's token is about to be cut. From now on it will not be able to claim jobs or report results.",
+    "revokeInFlight": "Whatever is already running is left with nobody to report to: the customer will see those scans as failed, and there is no way to recover them. Results already stored are kept.",
+    "revokeReason": "Reason for revoking",
+    "revokeReasonPlaceholder": "why access to this customer's network is being cut",
+    "revokeReasonHint": "It goes to the audit log. Without it, six months from now there is no way to know why this customer stopped scanning.",
+    "revokeConfirm": "Revoke",
+    "status": {
+      "REVOKED": "Revoked"
+    }
   }
 }

@@ -14,7 +14,7 @@ para que añadir una ruta nueva no la haga pública por descuido.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -25,6 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.apps.admin import queries
 from backend.apps.admin.dependencies import SuperuserDependency
 from backend.apps.admin.schemas import (
+    AdminAgentItem,
+    AdminAgentPage,
+    AdminAgentRevoke,
     AdminAuditPage,
     AdminCreditGrant,
     AdminCreditGrantResult,
@@ -39,6 +42,8 @@ from backend.apps.admin.schemas import (
     InfrastructureHealthResponse,
 )
 from backend.apps.admin.service import check_infrastructure
+from backend.apps.agents.models import AgentStatusEnum, ScannerAgent
+from backend.apps.agents.service import VENTANA_DE_VIDA_SEGUNDOS
 from backend.apps.audit.models import AuditActionEnum
 from backend.apps.llm_router.models import LLMModelConfig
 from backend.apps.llm_router.schemas import (
@@ -72,6 +77,125 @@ def _llm_response(
         if key != "usage" and hasattr(model, key)
     }
     return LLMModelResponse(**payload, usage=usage or empty_usage())
+
+
+@router.get("/agents", response_model=AdminAgentPage)
+async def list_platform_agents(
+    _superuser: SuperuserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+) -> AdminAgentPage:
+    """Los agentes de escaneo de **todos** los tenants, con su nombre de organización.
+
+    ## Por qué esta vista existe y no la hay dentro de cada tenant
+
+    Porque un operador de plataforma tiene una pregunta que ningún cliente puede contestar: si
+    los agentes están conectados. Un cliente ve los suyos, que es lo que necesita para escanear, y
+    el operador ve si hay diez clientes con un agente dado de alta que nunca se ha conectado —
+    que es un problema de despliegue, no de cliente, y solo se ve desde fuera.
+
+    Y no lleva `X-Organization-Id`, como ninguna otra ruta de esta consola: una vista que
+    aceptara un tenant haría creer que está acotada, y aquí justamente lo que se busca es no
+    estarlo.
+    """
+
+    total = int(
+        (await session.execute(select(func.count()).select_from(ScannerAgent))).scalar_one()
+    )
+    ventana = timedelta(seconds=VENTANA_DE_VIDA_SEGUNDOS)
+    corte = datetime.now(UTC) - ventana
+    filas = (
+        (
+            await session.execute(
+                select(ScannerAgent, Organization.name)
+                .join(Organization, Organization.id == ScannerAgent.organization_id)
+                .order_by(ScannerAgent.enrolled_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        )
+        .tuples()
+        .all()
+    )
+    return AdminAgentPage(
+        items=[
+            AdminAgentItem(
+                id=agente.id,
+                name=agente.name,
+                organization_id=agente.organization_id,
+                organization_name=nombre,
+                token_prefix=agente.token_prefix,
+                status=agente.status,
+                platform_hint=agente.platform_hint,
+                agent_version=agente.agent_version,
+                enrolled_at=agente.enrolled_at,
+                last_seen_at=agente.last_seen_at,
+                connected=bool(agente.last_seen_at and agente.last_seen_at >= corte),
+            )
+            for agente, nombre in filas
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+        ventana_de_vida=VENTANA_DE_VIDA_SEGUNDOS,
+    )
+
+
+@router.post("/agents/{agent_id}/revoke")
+async def revoke_platform_agent(
+    agent_id: UUID,
+    payload: AdminAgentRevoke,
+    _superuser: SuperuserDependency,
+    session: SessionDependency,
+) -> dict[str, str]:
+    """Da de baja el agente de un cliente desde la consola de plataforma.
+
+    ## Por qué esta ruta existe y no se reutiliza la del panel del cliente
+
+    Porque la del panel resuelve el tenant por la cabecera `X-Organization-Id` y comprueba que
+    el agente es de ese tenant. Aquí no hay tenant: un operador no pertenece a un workspace, y
+    construir uno en la petición para que la comprobación pase sería theater de aislamiento —
+    la ruta seguiría cruzando tenants, solo que con un disguise. Una ruta propia lo dice.
+
+    ## Por qué el operador puede dar de baja y no dar de alta
+
+    Un token de agente es una credencial con acceso a la red de ese cliente. Que el operador de
+    la plataforma se lleve una credencial de la red de un cliente por la vía de un botón es
+    justo lo que un superusuario no debería poder hacer. Puede cortar el acceso; el alta es del
+    cliente.
+
+    Y el motivo **no** es opcional: va al registro de auditoría, y es la única forma de saber
+    dentro de seis meses por qué un cliente dejó de escanear sin que nadie se acuerde.
+    """
+
+    from backend.apps.agents.service import revocar_agente
+
+    agente = (
+        await session.execute(select(ScannerAgent).where(ScannerAgent.id == agent_id))
+    ).scalar_one_or_none()
+    if agente is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El agente no existe en esta plataforma",
+        )
+    if agente.status == AgentStatusEnum.REVOKED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El agente ya estaba dado de baja",
+        )
+
+    # Se reutiliza el servicio del panel, y se le pasa **la organización del propio agente**.
+    # El servicio filtra por `organization_id` para no dejar tocar un agente ajeno; aquí el
+    # tenant no viene de una cabecera sino de la fila que ya se ha cargado, así que el filtro
+    # sigue siendo cierto y no hay forma de que la ruta pueda salir de ese tenant.
+    await revocar_agente(
+        session,
+        organization_id=agente.organization_id,
+        agent_id=agent_id,
+        motivo=payload.reason,
+    )
+    return {"estado": AgentStatusEnum.REVOKED.value}
 
 
 @router.get("/llm/", response_model=LLMModelPage)

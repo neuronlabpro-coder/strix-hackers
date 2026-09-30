@@ -44,6 +44,7 @@ from backend.apps.webhooks.emission import (
 )
 from backend.core.config import settings
 from backend.core.database import get_db
+from backend.core.http_body import leer_cuerpo_acotado
 from backend.core.middleware import TenantContext, get_current_tenant
 from backend.core.rate_limit import enforce_checkout_rate_limit
 
@@ -53,10 +54,6 @@ router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 SessionDependency = Annotated[AsyncSession, Depends(get_db)]
 TenantDependency = Annotated[TenantContext, Depends(get_current_tenant)]
 CheckoutRateLimit = Depends(enforce_checkout_rate_limit)
-
-# Tope del cuerpo del webhook. Stripe envía payloads pequeños; un límite duro
-# evita que alguien use el endpoint sin firma para gastar memoria.
-MAX_WEBHOOK_BYTES = 256 * 1024
 
 CHECKOUT_COMPLETED = "checkout.session.completed"
 
@@ -346,12 +343,11 @@ async def receive_stripe_webhook(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Falta la cabecera Stripe-Signature",
         )
-    body = await request.body()
-    if len(body) > MAX_WEBHOOK_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="El cuerpo del webhook supera el tamaño permitido",
-        )
+    # La lectura acotada va **antes** de la firma a propósito. Antes era `await
+    # request.body()` con un `if len(body) > ...` detrás, que materializa el cuerpo entero para
+    # luego decir que era demasiado grande: un atacante sin firma ganaba la memoria antes de que
+    # el tope se aplicara. Ver `core/http_body.py`.
+    body = await leer_cuerpo_acotado(request, settings.stripe_webhook_max_body_bytes)
 
     try:
         client = get_stripe_client()

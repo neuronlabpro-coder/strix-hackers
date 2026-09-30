@@ -216,6 +216,50 @@ class AdminUserUpdate(BaseModel):
     is_superuser: bool | None = None
 
 
+class AdminAgentItem(BaseModel):
+    """Un agente de escaneo, con el nombre del tenant al que pertenece.
+
+    El `organization_id` **y** el `organization_name` van los dos. El identificador es lo que
+    permite filtrar y enlazar; el nombre es lo que un operador lee, porque un UUID en una lista
+    de cuarenta agentes no dice nada y obliga a abrir cada fila para ver de quién es.
+    """
+
+    id: UUID
+    name: str
+    organization_id: UUID
+    organization_name: str
+    token_prefix: str
+    status: str
+    platform_hint: str | None
+    agent_version: str | None
+    enrolled_at: datetime
+    last_seen_at: datetime | None
+    #: Si se ha identificado en la ventana reciente. Se calcula en el servidor para que el
+    #: criterio sea el mismo que en el panel del cliente, y no un `Date.now()` en cada lado con
+    #: dos relojes que pueden no coincidir.
+    connected: bool
+
+
+class AdminAgentPage(BaseModel):
+    items: list[AdminAgentItem]
+    total: int
+    limit: int
+    offset: int
+    ventana_de_vida: int
+
+
+class AdminAgentRevoke(BaseModel):
+    """Por qué se da de baja un agente.
+
+    El motivo **no** es opcional aquí, a diferencia de en el panel del cliente. La razón es que
+    esta la pulsa un operador de plataforma sobre la red de otro, y un corte de agente sin
+    explicación es indistinguible de una intervención sin justificar. El panel del cliente se
+    justifica a sí mismo; aquí hace falta dejarlo escrito.
+    """
+
+    reason: str = Field(min_length=3, max_length=500)
+
+
 class AdminUserPage(BaseModel):
     """Página de usuarios registrados."""
 

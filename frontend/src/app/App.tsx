@@ -10,6 +10,8 @@ import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
 import { RequireSuperuser } from '../features/admin/RequireSuperuser'
 import { BillingPage } from '../features/billing/BillingPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
+import { ContainersPage } from '../features/agents/ContainersPage'
+import { NetworksPage } from '../features/agents/NetworksPage'
 import { ApiAccessPage } from '../features/api_access/ApiAccessPage'
 import { IssuesPage } from '../features/issues/IssuesPage'
 import { VulnerabilityDetailPage } from '../features/issues/VulnerabilityDetailPage'
@@ -19,10 +21,6 @@ import { PrReviewsPage } from '../features/prReviews/PrReviewsPage'
 import { PentestsPage } from '../features/pentests/PentestsPage'
 import { PentestRunPage } from '../features/pentests/PentestRunPage'
 import { RepositoriesPage } from '../features/repositories/RepositoriesPage'
-// `PlaceholderPage` sigue en uso por las rutas que todavia no tienen pantalla. El chat y el
-// supply chain salieron de aqui; `/assets`, `/containers` y `/networks` siguen en el mismo
-// estado.
-import { PlaceholderPage } from '../features/shared/PlaceholderPage'
 import { SettingsLayout } from '../features/settings/SettingsLayout'
 import { SettingsGeneralPage } from '../features/settings/SettingsGeneralPage'
 import { SettingsAuditPage } from '../features/settings/SettingsAuditPage'
@@ -126,6 +124,9 @@ const AdminSalesPage = lazy(() =>
 )
 const AdminAuditPage = lazy(() =>
   import('../features/admin/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })),
+)
+const AdminAgentsPage = lazy(() =>
+  import('../features/admin/AdminAgentsPage').then((m) => ({ default: m.AdminAgentsPage })),
 )
 const LlmModelsPage = lazy(() =>
   import('../features/admin/LlmModelsPage').then((m) => ({ default: m.LlmModelsPage })),
@@ -238,19 +239,8 @@ export default function App() {
           <Route path="/domains" element={<DomainsPage />} />
           <Route path="/asset-discovery" element={<AssetDiscoveryPage />} />
           <Route path="/supply-chain" element={<SupplyChainPage />} />
-          <Route
-            path="/containers"
-            element={
-              <PlaceholderPage
-                titleKey="navigation:containers"
-                reasonKey="pending.containers"
-              />
-            }
-          />
-          <Route
-            path="/networks"
-            element={<PlaceholderPage titleKey="navigation:networks" reasonKey="pending.networks" />}
-          />
+          <Route path="/containers" element={<ContainersPage />} />
+          <Route path="/networks" element={<NetworksPage />} />
           <Route path="/integrations" element={<IntegrationsPage />} />
           <Route path="/api-access" element={<ApiAccessPage />} />
           <Route path="/billing" element={<BillingPage />} />
@@ -326,6 +316,14 @@ export default function App() {
             element={
               <Suspense fallback={<LazySection />}>
                 <AdminAuditPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="agents"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminAgentsPage />
               </Suspense>
             }
           />

@@ -1,0 +1,88 @@
+# Lo que **no** entra en la imagen.
+#
+# ## Por qué existe
+#
+# Porque `COPY backend/ ./backend/` y `COPY frontend/ ./` copian **directorios enteros**, y
+# `.gitignore` no restringe nada a Docker: solo a Git. Un `backend/.env` local —ignorado por Git
+# porque es un secreto, pero presente en el disco de quien desarrolla— entra en el contexto de
+# build, va a la imagen final, y `ENV_FILE = Path(__file__).resolve().parents[2] / ".env"` lo
+# carga **automáticamente**, pisando la configuración que Dokploy inyecta por entorno.
+#
+# Es un camino de silencio: no hay error, el contenedor arranca, y la configuración de producción
+# es la del portátil de alguien.
+#
+# ## Por qué se excluye `.git` entero y no solo sus secretos
+#
+# Porque son 2.400 commits que van al demonio de Docker en cada build, y porque un historial
+# contiene rutas de fichero de un proyecto que no necesita estar en la imagen. `COPY` no admite
+# exclusions, así que la única forma de excluirlos es no copiarlos.
+#
+# ## Lo que hay que **añadir** a esta lista cuando se cree un fichero
+#
+# Cualquier cosa que sea una credencial, un artefacto de construcción o una máquina virtual. La
+# pregunta no es «¿está en `.gitignore`?» sino «¿tiene que estar en la imagen para que la
+# aplicación funcione?». Si la respuesta es no y el fichero existe en el disco de alguien, aquí.
+
+# --- Secretos y configuracion local ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+htpasswd
+.netrc
+secrets/
+**/fenix-agent.ini
+
+# --- Version control e historial ---
+.git
+.gitignore
+.gitattributes
+
+# --- Entornos de ejecucion y editores ---
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+.coverage.*
+htmlcov
+coverage.xml
+*.log
+
+# --- Dependencias: las reinstala el Dockerfile ---
+node_modules
+.venv
+**/__pycache__
+
+# --- Artefactos de construccion ---
+dist
+build
+*.tsbuildinfo
+.vite
+
+# --- Maquinas virtuales y editores ---
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# --- Los motores de solo lectura: no se instalan y no se usan ---
+# R2 los declara de solo lectura, y además no sirven para nada en una imagen de la plataforma.
+engines/
+agent/.venv
+
+# --- Datos y cache locales ---
+*.sqlite3
+*.db
+.cache
+tmp/

@@ -225,12 +225,28 @@ def exigir_scope(principal: TenantPrincipal, scope: Scope) -> None:
     que puede ver el inventario de la superficie de ataque de una empresa no debería poder
     lanzar un pentest contra ella por el mismo hecho de poder hablar MCP.
 
-    ## Por qué el usuario web **no** pasa por aquí
+    ## Por qué el usuario web **no** pasa por aquí, y por qué la comprobación es solo de token
 
-    Entra por sesión y su autorización es el rol, que ya se comprobó al resolver el sujeto. Un
-    usuario `ADMIN` del panel tiene todas las herramientas, igual que tiene todas las
-    pantallas. Un `MEMBER` tampoco: el servidor MCP exige credencial de servicio, así que este
-    camino no lo alcanza.
+    Entra por sesión y su autorización es el rol, que ya se comprobó al resolver el sujeto: un
+    `ADMIN` del panel tiene todas las herramientas, igual que tiene todas las pantallas, y un
+    `MEMBER` no tiene ninguna.
+
+    Y la línea de abajo solo mira `TokenPrincipal` a propósito. Un token de API tiene **scopes**,
+    y el scope es la granularidad fina: `mcp:invoke` abre la puerta y el scope de la herramienta
+    decide qué se puede hacer. Un usuario web no tiene scopes —`UserPrincipal` ni siquiera tiene
+    el método—, así que para él esta comprobación sería un no-op y su autorización es el rol.
+
+    ## Por qué antes esto decía otra cosa
+
+    Porque el docstring afirmaba que el servidor MCP exige credencial de servicio y que el
+    usuario web no alcanzaba este camino, y **no era cierto**: `allow_admin_user` venía con
+    `True` por defecto en `require_scope` y `require_all_scopes`, de modo que una sesión web de
+    `ADMIN` sí pasaba `require_all_scopes([MCP_CONNECT, MCP_INVOKE])`.
+
+    La consecuencia no era una escalada dentro del tenant —ya era admin— sino una **segunda vía
+    no declarada** a una operación que encola escaneos y descuenta créditos, con un perfil `core`
+    que no la restringía. Y el efecto sobre la revisión era peor que el fallo: un revisor que
+    confiara en el comentario no lo vería nunca.
     """
 
     if isinstance(principal, TokenPrincipal) and not principal.has_scope(scope):

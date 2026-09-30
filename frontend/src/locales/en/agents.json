@@ -1,0 +1,288 @@
+{
+  "states": {
+    "QUEUED": "Queued",
+    "CLAIMED": "Claimed",
+    "RUNNING": "Running",
+    "COMPLETED": "Completed",
+    "FAILED": "Failed"
+  },
+  "agent": {
+    "title": "Scanning agents",
+    "whyShort": "A scan does not happen without an agent connected inside the network being measured.",
+    "register": "Register agent",
+    "registered": "Agent registered",
+    "tokenShownOnce": "This token is shown once",
+    "tokenWarning": "The platform stores its hash, not the secret. If you close this window without copying it, the token is lost and you have to revoke the agent and register another one.",
+    "tokenNextStep": "Copy it and deploy the agent inside the network you want to measure: the steps are right below.",
+    "copyToken": "Copy token",
+    "copied": "Copied",
+    "done": "Done",
+    "noneConnected": "No agent is connected. Until one is, scans stay queued and nothing comes out.",
+    "emptyTitle": "No agent yet",
+    "emptyBody": "An agent is a process running inside the customer network. Without it, this platform cannot see what is in that network: from outside, it is unreachable.",
+    "revoke": "Revoke",
+    "revokeReasonPlaceholder": "Reason for revoking (optional)",
+    "never": "Never connected",
+    "live": "Connected",
+    "stale": "Offline",
+    "form": {
+      "intro": "The agent is enrolled here and then deployed inside the customer network. It only needs HTTPS egress to the platform; it needs no inbound ports open.",
+      "name": "Agent name",
+      "namePlaceholder": "production-agent-01",
+      "nameRequired": "The name cannot be empty.",
+      "system": "Where is it going to be deployed?",
+      "systemWhy": "The agent is a dependency-free Python script, so it runs the same on Linux, Windows Server and macOS. What changes are the paths and how it is left running, and this answer picks the instructions you get."
+    },
+    "table": {
+      "name": "Name",
+      "platform": "Platform",
+      "enrolled": "Enrolled",
+      "lastSeen": "Last seen",
+      "actions": "Actions",
+      "system": "System"
+    },
+    "status": {
+      "ACTIVE": "Active",
+      "REVOKED": "Revoked"
+    },
+    "copy": "Copy",
+    "showSetup": "See the deployment steps",
+    "system": {
+      "linux": {
+        "name": "Linux",
+        "hint": "systemd"
+      },
+      "windows": {
+        "name": "Windows Server",
+        "hint": "Task Scheduler"
+      },
+      "macos": {
+        "name": "macOS",
+        "hint": "launchd"
+      },
+      "desconocido": {
+        "name": "Not specified",
+        "hint": "Linux instructions"
+      }
+    },
+    "setupCalloutTitle": "There is an agent that has never connected",
+    "setupCalloutBody": "That is almost always a deployment with the token pasted wrong, not a platform failure. Here are the three steps, with your URL and your system already filled in.",
+    "hideSetup": "Hide the steps",
+    "platformHintLabel": "reported by the agent"
+  },
+  "containers": {
+    "eyebrow": "Container images",
+    "title": "Containers",
+    "subtitle": "The inventory of the images running in the customer network, read from an agent running inside it.",
+    "refresh": "Refresh",
+    "newScan": "Scan image",
+    "scans": {
+      "title": "Image scans"
+    },
+    "noAgent": "You need a connected agent to scan. Register one above.",
+    "kpis": {
+      "images": "Images scanned",
+      "packages": "Packages",
+      "layers": "Layers",
+      "agents": "Agents",
+      "inventoried": "With readable inventory",
+      "ecosystems": "apk / dpkg",
+      "withoutInventory": "With unreadable inventory",
+      "connectedIn": "connected in the last {{minutes}} min"
+    },
+    "charts": {
+      "trendEyebrow": "Activity",
+      "trendTitle": "Scans per day",
+      "trendAria": "{{total}} scans over the last fifteen days.",
+      "statusEyebrow": "Status",
+      "statusTitle": "How they end",
+      "statusAria": "{{done}} scans completed.",
+      "ecosystemEyebrow": "Inventory",
+      "ecosystemTitle": "Packages per ecosystem",
+      "ecosystemAria": "{{total}} packages split by package manager."
+    },
+    "filters": {
+      "search": "Search image",
+      "searchPlaceholder": "alpine:3.20, ghcr.io/org/app…",
+      "status": "Status",
+      "allStatuses": "All statuses"
+    },
+    "table": {
+      "image": "Image",
+      "os": "System",
+      "packages": "Packages",
+      "layers": "Layers",
+      "status": "Status",
+      "date": "Date",
+      "attempts": "Attempts",
+      "started": "Started",
+      "evidence": "Evidence",
+      "digest": "Digest",
+      "reference": "Reference",
+      "size": "size",
+      "morePackages": "+{{count}} more",
+      "count": "Showing {{shown}} of {{total}} scans."
+    },
+    "detail": {
+      "packages": "Inventory: {{count}} packages",
+      "package": "Package",
+      "version": "Version",
+      "ecosystem": "Ecosystem",
+      "noPackages": "No package could be read from this image. The reason is in the notice above."
+    },
+    "form": {
+      "title": "Scan image",
+      "intro": "The agent downloads the image inside the customer network and reads its inventory. The image is not sent to the platform.",
+      "target": "Image reference",
+      "placeholder": "alpine:3.20",
+      "help": "Reference, digest or repository. Common registry formats: alpine, docker.io/library/nginx, ghcr.io/organization/application:1.4.",
+      "submit": "Queue scan",
+      "emptyTarget": "Type the image reference."
+    },
+    "empty": {
+      "title": "No image scanned yet",
+      "body": "Register an agent, wait for it to connect and queue the first scan. The agent is what gets inside the customer network.",
+      "filtered": "No image matches the filter",
+      "filteredBody": "Try another reference or clear the status filter."
+    },
+    "errors": {
+      "loadFailed": "The scans could not be loaded"
+    },
+    "waitingForAgent": "This scan is queued: no connected agent has claimed it yet.",
+    "inProgress": "An agent is running this scan right now.",
+    "noResult": "The scan finished with no result. That is what happens when the image does not exist or the registry could not be reached."
+  },
+  "networks": {
+    "eyebrow": "Network segments",
+    "title": "Networks",
+    "subtitle": "What is open inside the customer network segments, measured from an agent running inside them.",
+    "refresh": "Refresh",
+    "newScan": "Scan network",
+    "scans": {
+      "title": "Network scans"
+    },
+    "noAgent": "You need a connected agent to scan. Register one above.",
+    "kpis": {
+      "networks": "Networks scanned",
+      "hosts": "Hosts with ports",
+      "ports": "Open ports",
+      "agents": "Agents",
+      "addresses": "Addresses analysed",
+      "hostsCaption": "addresses that answered",
+      "distinctPorts": "distinct ports",
+      "connectedIn": "connected in the last {{minutes}} min"
+    },
+    "charts": {
+      "portsEyebrow": "Exposure",
+      "portsTitle": "Open ports",
+      "portsAria": "{{total}} open ports, grouped by number.",
+      "statusEyebrow": "Status",
+      "statusTitle": "How they end",
+      "statusAria": "{{done}} scans completed.",
+      "trendEyebrow": "Activity",
+      "trendTitle": "Scans per day",
+      "trendAria": "{{total}} scans over the last fifteen days."
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "10.10.0.0/24, 10.10.0.5…",
+      "status": "Status",
+      "allStatuses": "All statuses"
+    },
+    "table": {
+      "cidr": "Segment",
+      "hosts": "Hosts",
+      "topPorts": "Top ports",
+      "addresses": "Addresses",
+      "status": "Status",
+      "date": "Date",
+      "attempts": "Attempts",
+      "started": "Started",
+      "evidence": "Evidence",
+      "duration": "Duration",
+      "count": "Showing {{shown}} of {{total}} scans."
+    },
+    "detail": {
+      "hosts": "Hosts with open ports: {{count}}",
+      "ip": "Address",
+      "port": "Port",
+      "service": "Service",
+      "banner": "Banner",
+      "noHosts": "No host with open ports was found in this segment."
+    },
+    "form": {
+      "title": "Scan network",
+      "intro": "The agent walks the segment from the inside and checks the common ports on every address. Everything happens in the customer network.",
+      "target": "Segment (CIDR)",
+      "placeholder": "10.10.0.0/24",
+      "help": "A segment in CIDR notation. It is walked in a single pass and the result reports how many addresses were actually looked at.",
+      "submit": "Queue scan",
+      "emptyTarget": "Type the segment in CIDR notation.",
+      "tooWide": "That segment has too many addresses. Use a /22 or narrower: anything wider gets truncated and stops measuring what you asked for."
+    },
+    "empty": {
+      "title": "No network scanned yet",
+      "body": "Register an agent, wait for it to connect and queue the first segment. The agent is what gets inside the customer network.",
+      "filtered": "No segment matches the filter",
+      "filteredBody": "Try another address or clear the status filter."
+    },
+    "errors": {
+      "loadFailed": "The scans could not be loaded"
+    },
+    "waitingForAgent": "This scan is queued: no connected agent has claimed it yet.",
+    "inProgress": "An agent is walking this segment right now.",
+    "noResult": "The scan finished with no result. Usually that means a segment with no addresses reachable from the agent."
+  },
+  "jobs": {
+    "evidenciaIntact": "Evidence intact",
+    "evidenciaAlterada": "Evidence altered"
+  },
+  "limits": {
+    "vulnerabilitiesTitle": "What this scan does not say",
+    "vulnerabilities": "The agent measures what is there, not whether it is vulnerable. Crossing the inventory against the CVE database is the platform's job: here you only see the measurement. The vulnerabilities of these targets come from scanning their services.",
+    "incompleteTitle": "Incomplete inventory",
+    "rpm": "An image with RPM packages does not give up its inventory: the format is binary and the agent does not interpret it. The package count for that image is a zero that does not mean it has no packages.",
+    "sinBaseDePaquetes": "The package database (neither apk nor dpkg) does not appear in the image. Without it there is no way to know what is inside, so it is declared instead of returning an empty inventory.",
+    "prefijoTruncado": "The prefix contained {{total}} addresses and this agent analyses at most {{maximo}}. The scan was truncated to those {{maximo}} addresses: split the network into parts to measure all of it.",
+    "privateRegistry": "Private registry",
+    "privateRegistryBody": "The agent carries no credentials, on purpose. A private registry returns an authentication error and the image cannot be read.",
+    "dockerSocket": "Running containers",
+    "dockerSocketBody": "What is read is the image, not what is running. Live containers, their environment variables and their mounts are not visible from here."
+  },
+  "setup": {
+    "differs": {
+      "linux": "On Linux: the file goes in /etc/fenix-agent/ and it is left running with systemd. Copy the block below and you are done.",
+      "windows": "On Windows Server: the file goes in C:\\ProgramData\\FenixAgent\\ and it is left running with Task Scheduler, which ships with the system. Copy the block below and you are done.",
+      "macos": "On macOS: the file goes in /usr/local/etc/fenix-agent/ and it is left running with launchd. Copy the block below and you are done.",
+      "desconocido": "We do not know which system you are installing on. Pick yours above: the three steps are the same and only the file path and the startup block change. If you are not sure, look at where the file is kept on the machine: if it is under /etc/..., it is Linux."
+    },
+    "intervalo": "15",
+    "intro": "The agent runs inside the network you want to measure. It only needs Python and outbound HTTPS to the platform: it asks for no inbound ports, which is what makes it installable in a production network without a firewall exception.",
+    "needsBody": "Python 3.11 or later, nothing else: the module uses only the standard library, so installing it on a segmented network does not mean pulling packages from outside.",
+    "needsTitle": "And what it needs",
+    "noToken": "The token cannot be shown here: the platform stores its hash, not the secret, and it cannot be requested again. Copy the block, leave the placeholder in place, and substitute the real token when you have it in front of you.",
+    "permissionsBody": "The agent creates its results directory with 0700 permissions, which on Linux leaves the file readable only by its owner. Windows has no POSIX permissions: the 0700 is ignored and what protects the file is the folder's ACL. Restrict it to the service user and to administrators, or the scan results stay readable by anyone on the machine.",
+    "permissionsTitle": "File permissions are not the same on Windows",
+    "runTitle": "console",
+    "serviceDescription": "Mind Guard Fenix Team scanning agent",
+    "stepIni": "Create the configuration file",
+    "stepIniBody": "On the machine where the agent will run. The [plataforma] section and the url and token keys are not translated: the agent reads them, not a person.",
+    "stepRun": "Start the agent",
+    "stepRunBody": "In the foreground, so you can see the output. If it prints \"agente registrado\" with its identifier, the connection works.",
+    "stepService": "Leave it running as a service",
+    "stepServiceBody": {
+      "linux": "Save the unit in /etc/systemd/system/, reload systemd and enable it. An agent that goes down and does not come back stops launching scans, and a scan that never starts looks exactly like a scan that does not exist.",
+      "windows": "Run this in an elevated PowerShell prompt. It registers the task with Task Scheduler, which ships with Windows Server, so it starts with the system. It is not sc.exe because a Python process is not a Windows service: it would start and die immediately, and the SCM would restart it in a loop.",
+      "macos": "Save the plist in /Library/LaunchDaemons/ and load it with launchctl. KeepAlive makes it come back on its own if it goes down.",
+      "desconocido": "Save the unit in /etc/systemd/system/, reload systemd and enable it. If your machine does not use systemd, the previous step —running it in the foreground—is enough and the agent stays in the foreground."
+    },
+    "systemLabel": "System the agent is installed on",
+    "title": "How to deploy the agent",
+    "tokenPlaceholder": "mgf_agent_paste_the_token_here",
+    "urlMissing": "This panel is being served without an API URL, so the block comes out with no url and the agent will not start.",
+    "urlMissingWhy": "It is the VITE_API_URL variable on the frontend. In development it is left empty on purpose because the browser goes through the Vite proxy, but to pull the configuration file out you need the real one: https://api.mindguardredteam.com in production, or http://localhost:8000 if the agent runs on the same machine.",
+    "urlPlaceholder": "paste_the_platform_url_here",
+    "verifyBody": "Come back to this screen and reload. The badge goes from \"Never connected\" to \"Connected\" as soon as the agent registers its first heartbeat, which is every fifteen seconds by default. If it does not change, the agent log has the reason: almost always a mistyped token or a URL that is not the public one.",
+    "verifyTitle": "How to check that it connected"
+  }
+}

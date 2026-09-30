@@ -14,7 +14,6 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.apps.organizations.models import RoleEnum
 from backend.apps.repositories.clients.base import BaseGitClient, GitClientError
 from backend.apps.repositories.clients.factory import UnsupportedGitProviderError
 from backend.apps.repositories.inventory import (
@@ -49,7 +48,12 @@ from backend.apps.repositories.services import (
 )
 from backend.core.crypto import CryptoError
 from backend.core.database import get_db
-from backend.core.middleware import TenantContext, get_current_tenant
+from backend.core.middleware import (
+    AdminRequired,
+    TenantContext,
+    exigir_admin_del_tenant,
+    get_current_tenant,
+)
 from backend.core.rate_limit import enforce_repository_management_rate_limit
 
 logger = logging.getLogger(__name__)
@@ -63,12 +67,42 @@ _IN_PROGRESS_REVIEW_STATUSES = (PRReviewStatusEnum.QUEUED, PRReviewStatusEnum.SC
 _SUPPORTED_MANAGEMENT_PROVIDERS = frozenset({GitProviderEnum.GITHUB, GitProviderEnum.GITLAB})
 
 
-def _require_admin(tenant: TenantContext) -> None:
-    if tenant.role != RoleEnum.ADMIN:
+async def _require_admin(tenant: TenantDependency) -> None:
+    """Exige `ADMIN` del workspace, o superusuario.
+
+    ## Por qué `async` y por qué `TenantDependency`, y no `TenantContext` a secas
+
+    Porque esta función se usa de las dos formas: en el `dependencies=[...]` de un decorador
+    **y** llamada en el cuerpo de otras rutas. Con la anotación suelta, la forma del decorador
+    le dice a FastAPI que `TenantContext` es un modelo de respuesta, no un parámetro ya
+    resuelto, y la aplicación no arranca:
+
+        `FastAPIError: Invalid args for response field! Hint: check that <class
+        'backend.core.middleware.TenantContext'> is a valid Pydantic field type.`
+
+    El alias `Annotated[TenantContext, Depends(get_current_tenant)]` lleva la dependencia
+    declarada y las dos formas funcionan.
+
+    ## Por qué se delega en la regla de `core` en vez de repetirla
+
+    Porque antes esta comparaba `tenant.role != RoleEnum.ADMIN` **sin** la excepción del
+    superusuario, y las otras cuatro copias del módulo sí la tenían. Cuatro reglas de
+    autorización que se distinguen en un `and not` son cuatro reglas, y un superusuario que
+    podía administrar un recurso por un router y no por otro es exactamente el tipo de
+    diferencia que se descubre cuando un cliente necesita arreglado algo.
+
+    Y por qué el mensaje sigue siendo el de este módulo: es el que lee quien llama, y un
+    `403` que dice «repositorios» localiza el problema más rápido que uno que dice «esta
+    operación».
+    """
+
+    try:
+        await exigir_admin_del_tenant(tenant)
+    except HTTPException as error:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=error.status_code,
             detail="Se requiere permiso de administrador",
-        )
+        ) from error
 
 
 def _translate_client_error(error: GitClientError) -> HTTPException:
@@ -154,10 +188,57 @@ def _normalized_inventory(
     return normalized
 
 
+def _filtrar_inventario(
+    inventory: list[NormalizedRepository], search: str | None
+) -> list[NormalizedRepository]:
+    """Filtra el inventario por un texto, o lo devuelve entero si no hay texto.
+
+    ## Por qué compara `full_name`, `name` y `default_branch`
+
+    Porque los tres son cosas que el usuario escribe. `acme/api-gateway` se busca por `gateway`,
+    y una rama `feature/shy-redesign` se busca por `shy`. Con solo el `full_name`, buscar `shy`
+    no encuentra un repositorio cuya rama lo tenga, y el usuario concluye que el repositorio no
+    existe.
+
+    ## Por qué ignora mayúsculas pero no acentos
+
+    Porque el nombre de un repositorio en GitHub no distingue mayúsculas de minúsculas, así que
+    `API-Gateway` y `api-gateway` son la misma búsqueda y tratarlas distinto sería una sorpresa.
+    Con los acentos pasa lo contrario: `diseño` y `diseno` **son** cadenas distintas en un
+    nombre de GitHub, y un desplegar un `unicode`-folding introduciría colisiones que no existen
+    en el proveedor. Se compara lo que el proveedor considera la misma cadena.
+    """
+    ## Por qué no hay un atajo para la búsqueda vacía
+    #
+    # ## Por qué no hay vuelta atrás para la búsqueda vacía
+    #
+    # Porque no hace falta, y se comprobó. La aguja vacía es subcadena de cualquier cadena, así
+    # que `"" in texto` es `True` para todo repositorio y la lista comprehensión devuelve el
+    # inventario entero igual que lo haría un `if consulta == "": return inventory`.
+    #
+    # Se dejó puesto un atajo, y al reintroducir los defectos uno a uno salió el único que ningún
+    # test detectaba: quitarlo no cambiaba nada. Eso lo convierte en código muerto, y el código
+    # muerto en una función de tres líneas es peor que la línea que ahorra: parece que importa.
+    #
+    # Y el `strip()` de arriba es lo que de verdad resuelve el caso de los espacios: una búsqueda
+    # de «   » llega aquí como aguja vacía, y sin el `strip` sería una búsqueda literal de tres
+    # espacios que no encuentra nada. `test_una_busqueda_vacia_o_de_solo_espacios_no_filtra` es
+    # el que vigila esa parte.
+    consulta = (search or "").strip().lower()
+    return [
+        repository
+        for repository in inventory
+        if consulta
+        in "\n".join(
+            (repository.full_name, repository.name, repository.default_branch)
+        ).lower()
+    ]
+
+
 @router.get(
     "/api/v1/repositories/remote",
     response_model=RemoteRepositoryPage,
-    dependencies=[ManagementRateLimit],
+    dependencies=[ManagementRateLimit, AdminRequired],
 )
 async def list_remote_repositories(
     tenant: TenantDependency,
@@ -165,8 +246,24 @@ async def list_remote_repositories(
     provider: Annotated[GitProviderEnum, Query()],
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
+    search: Annotated[str | None, Query(max_length=200)] = None,
 ) -> RemoteRepositoryPage:
-    """Lista el inventario accesible con la credencial conectada del tenant."""
+    """Lista el inventario accesible con la credencial conectada del tenant.
+
+    ## Por qué hay un `search` aquí y no solo en el cliente
+
+    Porque el inventario **no** se descarga entero: `limit` está topado a 100, así que un
+    workspace con 500 repositorios solo deja ver 50 si el buscador filtra en el navegador. El
+    síntoma era buscar `shy` y ver un resultado de los doce que hay, sin ninguna pista de que
+    faltaran los otros once.
+
+    ## Por qué aquí no cuesta nada y en el cliente sí
+
+    Porque el cliente del proveedor se llama una vez y devuelve **el inventario entero** —eso
+    ya lo hacía esta función para el `total`—. El corte por `limit`/`offset` es posterior, así
+    que filtrar por `search` es recorrer una lista que ya está en memoria. No hay una segunda
+    ida al proveedor y no hay una consulta a la base: el filtro va donde ya estaban los datos.
+    """
 
     connected_result = await session.execute(
         select(Repository.remote_repo_id).where(
@@ -181,7 +278,8 @@ async def list_remote_repositories(
         except GitClientError as error:
             raise _translate_client_error(error) from error
         normalized = _normalized_inventory(provider, raw_repositories)
-    window = normalized[offset : offset + limit]
+    filtrados = _filtrar_inventario(normalized, search)
+    window = filtrados[offset : offset + limit]
     return RemoteRepositoryPage(
         items=[
             RemoteRepositoryResponse.from_normalized(
@@ -190,7 +288,11 @@ async def list_remote_repositories(
             )
             for repository in window
         ],
-        total=len(normalized),
+        # El total es el de la lista **filtrada**, no el del inventario entero. Con lo
+        # contrario, buscando `shy` la interfaz respondería «12 de 500» cuando lo que hay son 12
+        # de 12, y el número que sirve para saber si falta algo —`total`— mentiría justo cuando
+        # el usuario está intentando saber si le falta algo.
+        total=len(filtrados),
         limit=limit,
         offset=offset,
         provider=provider,
@@ -210,19 +312,42 @@ async def connect_repository(
 ) -> RepositoryConnectResponse:
     """Da de alta el repositorio verificando sus metadatos contra el proveedor."""
 
-    _require_admin(tenant)
+    await _require_admin(tenant)
+    # La búsqueda va **con** `organization_id` y no contra una tabla entera.
+    #
+    # ## Por qué esto ya no distingue «existe en otra organización»
+    #
+    # Antes se buscaba por `(provider, remote_repo_id)` a secas y, si la fila era de otro tenant,
+    # se devolvía un `409` con el texto de que ya estaba vinculada a otra organización. Eso era un
+    # oráculo: `remote_repo_id` es un identificador público de GitHub, y recorrerlos con un
+    # `ADMIN` de la propia organización permitía enumerar **qué repositorios tienen conectados
+    # otros clientes de la plataforma** y aprender su `provider`.
+    #
+    # Y contradecía frontalmente el criterio del proyecto, que usa `404` en vez de `403` para no
+    # confirmar la existencia de un recurso ajeno —`_load_tenant_repository`, línea 605, y
+    # `list_pr_reviews`, línea 440, lo hacen en este mismo fichero.
+    #
+    # ## Por qué el `409` tampoco era necesario
+    #
+    # Porque la unicidad de `repositories` pasó a ser **por organización**
+    # (`uq_repositories_org_provider_remote`). Dos clientes conectando el mismo repositorio no es
+    # un problema —cada uno tiene su credencial, su espacio de revisión y su cargo— y con la
+    # restricción global la organización A reclamaba un repositorio popular y la B no podía
+    # conectarlo nunca. Sin esa restricción, no hay conflicto que señalar.
+    #
+    # ## Por qué se sigue mirando la fila del propio tenant
+    #
+    # Para que conectar dos veces el mismo repositorio en la misma organización sea un
+    # **actualizar**, que es lo que hace el resto de la función, y no un error de unicidad que el
+    # cliente no puede distinguir de un fallo suyo.
     existing_result = await session.execute(
         select(Repository).where(
+            Repository.organization_id == tenant.organization.id,
             Repository.provider == payload.provider,
             Repository.remote_repo_id == payload.remote_repo_id,
         )
     )
     existing = existing_result.scalar_one_or_none()
-    if existing is not None and existing.organization_id != tenant.organization.id:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El repositorio ya está vinculado a otra organización",
-        )
 
     async with _open_client(session, tenant.organization.id, payload.provider) as client:
         try:
@@ -528,7 +653,7 @@ async def update_repository(
 ) -> RepositoryResponse:
     """Actualiza la política de revisiones y la rama por defecto del repositorio."""
 
-    _require_admin(tenant)
+    await _require_admin(tenant)
     repository = await _load_tenant_repository(session, tenant.organization.id, repository_id)
     if payload.pr_reviews_enabled is not None:
         repository.pr_reviews_enabled = payload.pr_reviews_enabled
@@ -553,7 +678,7 @@ async def delete_repository(
 ) -> Response:
     """Desvincula el repositorio y elimina el webhook en el proveedor si es posible."""
 
-    _require_admin(tenant)
+    await _require_admin(tenant)
     repository = await _load_tenant_repository(session, tenant.organization.id, repository_id)
     in_progress_result = await session.execute(
         select(func.count())

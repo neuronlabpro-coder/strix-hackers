@@ -1,0 +1,288 @@
+{
+  "states": {
+    "QUEUED": "En cola",
+    "CLAIMED": "Reservado",
+    "RUNNING": "En curso",
+    "COMPLETED": "Terminado",
+    "FAILED": "Fallido"
+  },
+  "agent": {
+    "title": "Agentes de escaneo",
+    "whyShort": "Un escaneo no ocurre sin un agente conectado dentro de la red que se quiere medir.",
+    "register": "Registrar agente",
+    "registered": "Agente registrado",
+    "tokenShownOnce": "Este token se muestra una sola vez",
+    "tokenWarning": "La plataforma guarda su huella, no el secreto. Si cierras esta ventana sin copiarlo, el token se pierde y hay que dar de baja el agente y registrar otro.",
+    "tokenNextStep": "Cópialo y despliega el agente dentro de la red que quieres medir: los pasos están justo debajo.",
+    "copyToken": "Copiar token",
+    "copied": "Copiado",
+    "done": "Hecho",
+    "noneConnected": "No hay ningún agente conectado. Mientras no lo haya, los escaneos se quedan en cola y no salen.",
+    "emptyTitle": "Todavía no hay ningún agente",
+    "emptyBody": "Un agente es un proceso que corre dentro de la red del cliente. Sin él, esta plataforma no puede ver lo que hay en esa red: desde fuera no se alcanza.",
+    "revoke": "Dar de baja",
+    "revokeReasonPlaceholder": "Motivo de la baja (opcional)",
+    "never": "Nunca ha conectado",
+    "live": "Conectado",
+    "stale": "Sin conexión",
+    "form": {
+      "intro": "El agente se da de alta aquí y luego se despliega dentro de la red del cliente. Solo necesita salida HTTPS a la plataforma; no necesita puertos entrantes abiertos.",
+      "name": "Nombre del agente",
+      "namePlaceholder": "agente-produccion-01",
+      "nameRequired": "El nombre no puede estar vacío.",
+      "system": "¿Dónde se va a desplegar?",
+      "systemWhy": "El agente es un script de Python sin dependencias, así que corre igual en Linux, en Windows Server y en macOS. Lo que cambia son las rutas y cómo se deja arrancando solo, y esta respuesta decide qué instrucciones te enseño."
+    },
+    "table": {
+      "name": "Nombre",
+      "platform": "Plataforma",
+      "enrolled": "Alta",
+      "lastSeen": "Último contacto",
+      "actions": "Acciones",
+      "system": "Sistema"
+    },
+    "status": {
+      "ACTIVE": "Activo",
+      "REVOKED": "Dado de baja"
+    },
+    "copy": "Copiar",
+    "showSetup": "Ver los pasos de despliegue",
+    "system": {
+      "linux": {
+        "name": "Linux",
+        "hint": "systemd"
+      },
+      "windows": {
+        "name": "Windows Server",
+        "hint": "Programador de tareas"
+      },
+      "macos": {
+        "name": "macOS",
+        "hint": "launchd"
+      },
+      "desconocido": {
+        "name": "Sin especificar",
+        "hint": "Instrucciones de Linux"
+      }
+    },
+    "setupCalloutTitle": "Hay un agente que no ha conectado nunca",
+    "setupCalloutBody": "Eso casi siempre es un despliegue con el token mal pegado, no un fallo de la plataforma. Estos son los tres pasos, con tu URL y tu sistema ya puestos.",
+    "hideSetup": "Ocultar los pasos",
+    "platformHintLabel": "reportado por el agente"
+  },
+  "containers": {
+    "eyebrow": "Imágenes de contenedor",
+    "title": "Contenedores",
+    "subtitle": "El inventario de las imágenes que se ejecutan en la red del cliente, leído desde un agente que corre dentro de ella.",
+    "refresh": "Actualizar",
+    "newScan": "Escanear imagen",
+    "scans": {
+      "title": "Escaneos de imagen"
+    },
+    "noAgent": "Necesitas un agente conectado para escanear. Regístralo arriba.",
+    "kpis": {
+      "images": "Imágenes escaneadas",
+      "packages": "Paquetes",
+      "layers": "Capas",
+      "agents": "Agentes",
+      "inventoried": "Con inventario leído",
+      "ecosystems": "apk / dpkg",
+      "withoutInventory": "Sin inventario legible",
+      "connectedIn": "conectados en los últimos {{minutes}} min"
+    },
+    "charts": {
+      "trendEyebrow": "Actividad",
+      "trendTitle": "Escaneos por día",
+      "trendAria": "{{total}} escaneos en los últimos quince días.",
+      "statusEyebrow": "Estado",
+      "statusTitle": "Cómo terminan",
+      "statusAria": "{{done}} escaneos terminados.",
+      "ecosystemEyebrow": "Inventario",
+      "ecosystemTitle": "Paquetes por ecosistema",
+      "ecosystemAria": "{{total}} paquetes repartidos por gestor de paquetes."
+    },
+    "filters": {
+      "search": "Buscar imagen",
+      "searchPlaceholder": "alpine:3.20, ghcr.io/org/app…",
+      "status": "Estado",
+      "allStatuses": "Todos los estados"
+    },
+    "table": {
+      "image": "Imagen",
+      "os": "Sistema",
+      "packages": "Paquetes",
+      "layers": "Capas",
+      "status": "Estado",
+      "date": "Fecha",
+      "attempts": "Intentos",
+      "started": "Inicio",
+      "evidence": "Evidencia",
+      "digest": "Digest",
+      "reference": "Referencia",
+      "size": "tamaño",
+      "morePackages": "+{{count}} más",
+      "count": "Mostrando {{shown}} de {{total}} escaneos."
+    },
+    "detail": {
+      "packages": "Inventario: {{count}} paquetes",
+      "package": "Paquete",
+      "version": "Versión",
+      "ecosystem": "Ecosistema",
+      "noPackages": "De esta imagen no se ha podido leer ningún paquete. El motivo está en el aviso de arriba."
+    },
+    "form": {
+      "title": "Escanear imagen",
+      "intro": "El agente descargará la imagen dentro de la red del cliente y leerá su inventario. La imagen no se envía a la plataforma.",
+      "target": "Referencia de la imagen",
+      "placeholder": "alpine:3.20",
+      "help": "Referencia, digest o repositorio. Formatos habituales de registro: alpine, docker.io/library/nginx, ghcr.io/organizacion/aplicacion:1.4.",
+      "submit": "Encolar escaneo",
+      "emptyTarget": "Escribe la referencia de la imagen."
+    },
+    "empty": {
+      "title": "Todavía no hay ninguna imagen escaneada",
+      "body": "Registra un agente, espera a que se conecte y encola el primer escaneo. El agente es el que entra en la red del cliente.",
+      "filtered": "Ninguna imagen coincide con el filtro",
+      "filteredBody": "Prueba con otra referencia o quita el filtro de estado."
+    },
+    "errors": {
+      "loadFailed": "No se han podido cargar los escaneos"
+    },
+    "waitingForAgent": "Este escaneo está en cola: ningún agente conectado lo ha reclamado todavía.",
+    "inProgress": "Un agente está ejecutando este escaneo ahora mismo.",
+    "noResult": "El escaneo terminó sin dejar resultado. Es lo que pasa cuando la imagen no existe o el registro no dejó alcanzarlo."
+  },
+  "networks": {
+    "eyebrow": "Segmentos de red",
+    "title": "Redes",
+    "subtitle": "Qué hay abierto dentro de los segmentos de red del cliente, medido desde un agente que corre dentro de ellos.",
+    "refresh": "Actualizar",
+    "newScan": "Escanear red",
+    "scans": {
+      "title": "Escaneos de red"
+    },
+    "noAgent": "Necesitas un agente conectado para escanear. Regístralo arriba.",
+    "kpis": {
+      "networks": "Redes escaneadas",
+      "hosts": "Hosts con puertos",
+      "ports": "Puertos abiertos",
+      "agents": "Agentes",
+      "addresses": "Direcciones analizadas",
+      "hostsCaption": "direcciones que respondieron",
+      "distinctPorts": "puertos distintos",
+      "connectedIn": "conectados en los últimos {{minutes}} min"
+    },
+    "charts": {
+      "portsEyebrow": "Exposición",
+      "portsTitle": "Puertos abiertos",
+      "portsAria": "{{total}} puertos abiertos, agrupados por número.",
+      "statusEyebrow": "Estado",
+      "statusTitle": "Cómo terminan",
+      "statusAria": "{{done}} escaneos terminados.",
+      "trendEyebrow": "Actividad",
+      "trendTitle": "Escaneos por día",
+      "trendAria": "{{total}} escaneos en los últimos quince días."
+    },
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "10.10.0.0/24, 10.10.0.5…",
+      "status": "Estado",
+      "allStatuses": "Todos los estados"
+    },
+    "table": {
+      "cidr": "Segmento",
+      "hosts": "Hosts",
+      "topPorts": "Puertos principales",
+      "addresses": "Direcciones",
+      "status": "Estado",
+      "date": "Fecha",
+      "attempts": "Intentos",
+      "started": "Inicio",
+      "evidence": "Evidencia",
+      "duration": "Duración",
+      "count": "Mostrando {{shown}} de {{total}} escaneos."
+    },
+    "detail": {
+      "hosts": "Hosts con puertos abiertos: {{count}}",
+      "ip": "Dirección",
+      "port": "Puerto",
+      "service": "Servicio",
+      "banner": "Banner",
+      "noHosts": "No se encontró ningún host con puertos abiertos en este segmento."
+    },
+    "form": {
+      "title": "Escanear red",
+      "intro": "El agente recorre el segmento desde dentro y comprueba los puertos comunes de cada dirección. Todo ocurre en la red del cliente.",
+      "target": "Segmento (CIDR)",
+      "placeholder": "10.10.0.0/24",
+      "help": "Un segmento en notación CIDR. Se recorre una sola pasada y el resultado dice cuántas direcciones se miraron en realidad.",
+      "submit": "Encolar escaneo",
+      "emptyTarget": "Escribe el segmento en notación CIDR.",
+      "tooWide": "Ese segmento tiene demasiadas direcciones. Usa un /22 o más estrecho: por encima de eso el escaneo se recorta y deja de medir lo que pediste."
+    },
+    "empty": {
+      "title": "Todavía no hay ninguna red escaneada",
+      "body": "Registra un agente, espera a que se conecte y encola el primer segmento. El agente es el que entra en la red del cliente.",
+      "filtered": "Ningún segmento coincide con el filtro",
+      "filteredBody": "Prueba con otra dirección o quita el filtro de estado."
+    },
+    "errors": {
+      "loadFailed": "No se han podido cargar los escaneos"
+    },
+    "waitingForAgent": "Este escaneo está en cola: ningún agente conectado lo ha reclamado todavía.",
+    "inProgress": "Un agente está recorriendo este segmento ahora mismo.",
+    "noResult": "El escaneo terminó sin dejar resultado. Suele ser un segmento sin direcciones alcanzables desde el agente."
+  },
+  "jobs": {
+    "evidenciaIntact": "Evidencia intacta",
+    "evidenciaAlterada": "Evidencia alterada"
+  },
+  "limits": {
+    "vulnerabilitiesTitle": "Lo que este escaneo no dice",
+    "vulnerabilities": "El agente lee qué hay, no si está vulnerable. Cruzar el inventario con la base de CVEs es trabajo de la plataforma: aquí solo se ve la medida. Las vulnerabilidades de estos objetivos salen de escanear sus servicios.",
+    "incompleteTitle": "Inventario incompleto",
+    "rpm": "Una imagen con paquetes RPM no da su inventario: el formato es binario y el agente no lo interpreta. El número de paquetes de esa imagen es un cero que no significa que no tenga paquetes.",
+    "sinBaseDePaquetes": "En la imagen no aparece la base de datos de paquetes (apk ni dpkg). Sin ella no hay forma de saber qué lleva dentro, y se declara en vez de devolver un inventario vacío.",
+    "prefijoTruncado": "El prefijo contenía {{total}} direcciones y este agente analiza como máximo {{maximo}}. El escaneo se recortó a esas {{maximo}} direcciones: divide la red en partes para medirla entera.",
+    "privateRegistry": "Registro privado",
+    "privateRegistryBody": "El agente no lleva credenciales, a propósito. Un registro privado le devuelve un error de autenticación y la imagen no se puede leer.",
+    "dockerSocket": "Contenedores en ejecución",
+    "dockerSocketBody": "Se lee la imagen, no lo que hay corriendo. Los contenedores en marcha, sus variables y sus montajes no se ven desde aquí."
+  },
+  "setup": {
+    "differs": {
+      "linux": "En Linux: el fichero va en /etc/fenix-agent/ y se deja arrancando con systemd. Copia el bloque de abajo, y ya está.",
+      "windows": "En Windows Server: el fichero va en C:\\ProgramData\\FenixAgent\\ y se deja arrancando con el Programador de tareas, que viene con el sistema. Copia el bloque de abajo, y ya está.",
+      "macos": "En macOS: el fichero va en /usr/local/etc/fenix-agent/ y se deja arrancando con launchd. Copia el bloque de abajo, y ya está.",
+      "desconocido": "No sabemos en qué sistema vas a instalarlo. Elige el tuyo arriba: los tres pasos son los mismos y solo cambian la ruta del fichero y el bloque de arranque. Si no estás seguro, mira la carpeta donde se guarda el fichero en la máquina: si es /etc/..., es Linux."
+    },
+    "intervalo": "15",
+    "intro": "El agente corre dentro de la red que quieres medir. Solo necesita Python y salida HTTPS hacia la plataforma: no pide puertos entrantes, que es lo que permite instalarlo en una red de producción sin abrir una excepción en el cortafuegos.",
+    "needsBody": "Python 3.11 o superior, nada más: el módulo usa solo la biblioteca estándar, así que instalarlo en una red segmentada no consiste en resolver paquetes de fuera.",
+    "needsTitle": "Y qué necesita",
+    "noToken": "Aquí no se puede enseñar el token: la plataforma guarda su huella, no el secreto, y no se puede volver a pedir. Copia el bloque, déjalo con el marcador y sustitúyelo por el token cuando lo tengas delante.",
+    "permissionsBody": "El agente crea su carpeta de resultados con permisos 0700, que en Linux deja el archivo solo legible por su propietario. En Windows no hay permisos POSIX: el 0700 se ignora y lo que protege el archivo es la ACL de la carpeta. Restríngela al usuario del servicio y a los administradores, o el resultado de los escaneos queda legible por cualquiera de la máquina.",
+    "permissionsTitle": "En Windows los permisos del archivo no son los mismos",
+    "runTitle": "consola",
+    "serviceDescription": "Agente de escaneo de Mind Guard Fenix Team",
+    "stepIni": "Crea el fichero de configuración",
+    "stepIniBody": "En la máquina donde va a correr el agente. La sección [plataforma] y las claves url y token no se traducen: las lee el agente, no una persona.",
+    "stepRun": "Arranca el agente",
+    "stepRunBody": "A mano, para ver la salida. Si escribe «agente registrado» con su identificador, la conexión funciona.",
+    "stepService": "Déjalo como servicio",
+    "stepServiceBody": {
+      "linux": "Guarda la unidad en /etc/systemd/system/, recarga systemd y actívala. Un agente que se cae solo no vuelve a levantarse, y un escaneo que no se lanza parece un escaneo que no existe.",
+      "windows": "Ejecuta esto en una consola de PowerShell como administrador. Registra la tarea con el Programador de tareas, que viene con Windows Server, para que arranque con el sistema. No se usa sc.exe porque un proceso de Python no es un servicio de Windows: arrancaría y moriría al instante, y el SCM lo reiniciaría en bucle.",
+      "macos": "Guarda el plist en /Library/LaunchDaemons/ y cárgalo con launchctl. KeepAlive hace que vuelva a levantarse solo si se cae.",
+      "desconocido": "Guarda la unidad en /etc/systemd/system/, recarga systemd y actívala. Si tu máquina no usa systemd, el paso anterior —arrancarlo a mano— es suficiente y el agente se queda en primer plano."
+    },
+    "systemLabel": "Sistema donde se instala el agente",
+    "title": "Cómo se despliega el agente",
+    "tokenPlaceholder": "mgf_agent_pega_aqui_el_token",
+    "urlMissing": "Este panel se está sirviendo sin URL de la API, así que el bloque sale sin la url y el agente no arrancará.",
+    "urlMissingWhy": "Es la variable VITE_API_URL del frontend. En desarrollo se deja vacía a propósito porque el navegador usa el proxy de Vite, pero para sacar el fichero de configuración hace falta la real: https://api.mindguardredteam.com en producción, o http://localhost:8000 si el agente corre en la misma máquina.",
+    "urlPlaceholder": "pega_aqui_la_url_de_la_plataforma",
+    "verifyBody": "Vuelve a esta pantalla y recarga. La insignia pasa de «Nunca ha conectado» a «Conectado» en cuanto el agente registra su primer latido, que es de quince segundos por defecto. Si no cambia, el log del agente tiene el motivo: casi siempre es un token mal copiado o una URL que no es la pública.",
+    "verifyTitle": "Cómo se comprueba que ha conectado"
+  }
+}

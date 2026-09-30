@@ -15,6 +15,7 @@
 
 import { API_BASE_URL } from '../config'
 import type {
+  AdminAgentPage,
   AdminAuditEntry,
   AdminCreditGrantResult,
   AdminMetric,
@@ -171,6 +172,53 @@ export function updateAdminUser(
   return adminRequest(
     `/api/v1/admin/users/${userId}`,
     { method: 'PATCH', body: JSON.stringify(changes) },
+    token,
+  )
+}
+// --------------------------------------------------------------------------- //
+// Agentes de escaneo
+// --------------------------------------------------------------------------- //
+
+/**
+ * Los agentes de **todos** los tenants, con el nombre de su organizacion.
+ *
+ * ## Por que esta ruta no lleva `organizationId`
+ *
+ * Por lo que dice el comentario de la cabecera del fichero, y aqui con mas fuerza: el
+ * operador de plataforma tiene una pregunta que ningun cliente puede contestar —si los agentes
+ * estan conectados— y esa pregunta solo tiene respuesta desde fuera. Anadirle el tenant por
+ * costumbre haria que la pantalla pareciera acotada cuando justamente lo que se busca es no
+ * estarlo.
+ */
+export function getAdminAgents(
+  token: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<AdminAgentPage> {
+  return adminRequest(`/api/v1/admin/agents${query({ limit: 50, offset: 0, ...params })}`, {}, token)
+}
+
+/**
+ * Da de baja el agente de un cliente desde la consola.
+ *
+ * ## Por que tiene su propia ruta y no la del panel del cliente
+ *
+ * Porque la del panel resuelve el tenant por `X-Organization-Id` y comprueba que el agente es
+ * de ese tenant. Aqui no hay tenant: un operador de plataforma no pertenece a un workspace.
+ * Reutilizar la ruta obligaria a inventar uno en la peticion solo para que la comprobacion
+ * pasara, que es aislamiento de mentira: la vista seguiria cruzando tenants, con un disfraz.
+ *
+ * Y el motivo es **obligatorio** aqui y opcional en el panel, y la diferencia es quien esta
+ * pulsando: un corte sobre la red de otro cliente sin explicacion es indistinguible de una
+ * intervencion sin justificar.
+ */
+export function revokeAgentAsAdmin(
+  token: string,
+  agentId: string,
+  reason: string,
+): Promise<{ estado: string }> {
+  return adminRequest(
+    `/api/v1/admin/agents/${agentId}/revoke`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
     token,
   )
 }

@@ -46,8 +46,14 @@ def test_invitation_has_organization_fk_and_unique_token_index() -> None:
     organization_foreign_key = next(iter(invitation_table.foreign_keys))
 
     assert organization_foreign_key.ondelete == "CASCADE"
-    assert invitation_table.c.token.unique is True
-    assert "ix_invitations_token" in {index.name for index in invitation_table.indexes}
+    # La columna es `token_hash`, no `token`: el token de invitación se guarda **hasheado**, como
+    # el de verificación de correo de su hermano. Era una credencial de portador en texto plano
+    # en la tabla, y leer la tabla —un backup, un `SELECT` de un operador— era incorporarse a
+    # cualquier workspace con el rol que le asignó el invitador.
+    assert hasattr(invitation_table.c, "token_hash")
+    assert not hasattr(invitation_table.c, "token")
+    assert invitation_table.c.token_hash.unique is True
+    assert "ix_invitations_token_hash" in {index.name for index in invitation_table.indexes}
 
 
 def test_user_email_is_unique_and_indexed_and_starts_unverified() -> None:

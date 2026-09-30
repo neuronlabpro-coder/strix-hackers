@@ -239,12 +239,26 @@ export function getOAuthAuthorizationUrl(
   )
 }
 
+/** La ventana que se pide al servidor. `limit` está topado a 100 por la API. */
+const VENTANA_INVENTARIO = 100
+
 export function getRemoteRepositories(
   token: string,
   organizationId: string,
   provider: GitProvider,
+  opciones: { search?: string; offset?: number } = {},
 ): Promise<RemoteRepositoryPage> {
-  const query = new URLSearchParams({ provider, limit: '50', offset: '0' })
+  // La búsqueda va en la consulta porque el inventario no se descarga entero: el `limit` del
+  // servidor es 100 como máximo, así que filtrar en el navegador solo deja ver 100 de 500. Es
+  // el mismo bug que se vio con la búsqueda de `shy`, y por eso aquí no hay opción de filtrar
+  // en el cliente: el `total` que llega es el de lo que coincide.
+  const query = new URLSearchParams({
+    provider,
+    limit: String(VENTANA_INVENTARIO),
+    offset: String(opciones.offset ?? 0),
+  })
+  const busqueda = opciones.search?.trim()
+  if (busqueda) query.set('search', busqueda)
   return request<RemoteRepositoryPage>(
     `/api/v1/repositories/remote?${query.toString()}`,
     {},

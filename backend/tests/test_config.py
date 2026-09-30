@@ -460,64 +460,79 @@ def test_settings_repr_hides_sensitive_values() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_produccion_exige_que_redis_sea_una_ip_de_tailscale() -> None:
-    """En produccion, `REDIS_HOST` tiene que ser una IP del rango de Tailscale.
+def test_produccion_acepta_el_alias_de_redis_de_la_red_interna() -> None:
+    """En Dokploy, `REDIS_HOST` es `fenix-redis`: el alias del servicio en la red interna.
 
-    ## Por qué esta prueba está aquí y no la había
+    ## Por qué esta prueba existe
 
-    Porque la comprobación **se quitó** y nadie lo notó: no había ninguna prueba que la
-    cubriera, y un `git log` de la puerta atrás de este cambio no muestra un test rojo, porque
-    no había ningún test. Eso es exactamente lo que hace una guarda que solo existe en el
-    código: nadie se entera de que ya no está.
+    Porque se falló justo aquí. Se escribió una comprobación que exigía que `REDIS_HOST` fuera
+    una IP del rango de Tailscale en producción, y broke Dokploy: el backend es un contenedor
+    del mismo despliegue y habla con Redis por la red interna, no por el mesh. Los síntomas
+    eran errores de Celery sin conexión con la cola, que no señalaban la causa.
 
-    Y se quitó por un motivo razonable, que es lo que la hace peligrosa. El
-    `docker-compose.prod.yml` sugiere `fenix-redis` como valor, que es un **alias de Docker**
-    y no una dirección. Con el alias puesto, la comprobación bloquea el arranque, y la salida
-    que elige cualquiera es quitar la comprobación en vez de corregir la variable. El fallo
-    real era el consejo del compose.
-
-    Por eso esta prueba mira el caso del alias y el de una IP de internet, y no solo el de
-    "una IP cualquiera": el alias es el valor que la documentación del proyecto sugiere, y es
-    el que hay que cazar.
+    Confundir "Tailscale" con "R6" fue el error. R6 pide que los puertos de datos **no se
+    alcancen desde Internet**, y el alias de la red interna cumple eso por construcción. Un
+    nombre que solo resuelve dentro de la red de Docker no necesita ser una IP para estar
+    protegido.
     """
 
-    # El valor correcto: una IP dentro de 100.64.0.0/10, que es lo que reserva Tailscale.
-    valores = production_values()
-    valores["redis_host"] = "100.89.59.70"
-    valores["redis_url"] = "redis://:clave-redis-de-prueba@100.89.59.70:6380/0"
-    Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
-
-    # El alias de Docker que sugiere el propio compose. El mensaje tiene que decir cuál es la
-    # forma buena, porque el que se topa con esto no sabe todavía que hay una red de por medio.
-    #
-    # `REDIS_URL` se deja **sin tocar** a propósito: la coherencia del par también falla, pero
-    # la comprobación de Tailscale va antes en el validador y es la que debe ganar. El orden
-    # importa porque el mensaje de incoherencia induce a arreglar `REDIS_URL` para que cuadre
-    # con el alias, que es justo el error que se quiere evitar.
     valores = production_values()
     valores["redis_host"] = "fenix-redis"
-    with pytest.raises(ValidationError, match="fenix-redis"):
-        Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@fenix-redis:6380/0"
+    settings = Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+    assert settings.redis_host == "fenix-redis"
 
-    # Una IP de internet: no es una IP de Tailscale aunque sea una IP válida.
+
+def test_produccion_rechaza_una_redis_publica() -> None:
+    """Lo que R6 prohíbe de verdad es que la dirección sea de Internet.
+
+    Y no se comprueba solo que la IP sea inválida o que no cuadre con `REDIS_URL`: se comprueba
+    que **no salga a Internet**, que es la propiedad. Da igual si ese Redis existe o si el
+    despliegue arranca: en cuanto la dirección es pública, la credencial de la plataforma está
+    en manos de quien administre ese servicio, y un `docker logs` puede acabar en un sitio que
+    nadie ha revisado.
+    """
+
     valores = production_values()
     valores["redis_host"] = "8.8.8.8"
     valores["redis_url"] = "redis://:clave-redis-de-prueba@8.8.8.8:6380/0"
-    with pytest.raises(ValidationError, match="100.64.0.0/10"):
+    with pytest.raises(ValidationError, match="direcci"):
+        Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+
+    # Y el mensaje tiene que decir cuál es la forma buena, porque el que se topa con esto no
+    # sabe todavía que hay una red interna detrás.
+    valores = production_values()
+    valores["redis_host"] = "8.8.8.8"
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@8.8.8.8:6380/0"
+    with pytest.raises(ValidationError, match="fenix-redis"):
         Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
 
 
-def test_desarrollo_no_exige_tailscale_para_redis() -> None:
+def test_produccion_acepta_una_ip_privada_para_redis() -> None:
+    """Una IP privada no es pública, y hay despliegues legítimos que la usan.
+
+    La comprobación es "no pública" y no "es un alias", porque la categoría es lo único cierto
+    en todos los despliegues. Si se exigiera el alias, un despliegue con la IP privada del
+    servicio en su misma máquina —que es igual de interno— quedaría fuera sin motivo.
+    """
+
+    valores = production_values()
+    valores["redis_host"] = "10.0.0.5"
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@10.0.0.5:6380/0"
+    settings = Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
+    assert settings.redis_host == "10.0.0.5"
+
+
+def test_desarrollo_no_rechaza_una_redis_publica() -> None:
     """La comprobación es **solo** de producción, y por eso hay que comprobar que no es de más.
 
-    En desarrollo el `.env` local puede apuntar a un Redis de contenedor o a ninguno, y exigir
-    una IP de Tailscale ahí sería hacer el desarrollo local imposible sin ganar nada. Una
-    guarda que se aplica donde no toca entrena a ignorar el mensaje cuando sí importa, que es
-    el peor resultado posible de una comprobación de configuración.
+    En desarrollo se puede apuntar a un Redis de pruebas en cualquier parte, y bloquearlo estorba
+    sin ganar nada. Una guarda que se aplica donde no toca entrena a ignorar el mensaje cuando
+    sí importa, que es el peor resultado posible de una comprobación de configuración.
     """
 
     valores = build_environment_values()
-    valores["redis_host"] = "localhost"
-    valores["redis_url"] = "redis://:clave-redis-de-prueba@localhost:6380/0"
+    valores["redis_host"] = "8.8.8.8"
+    valores["redis_url"] = "redis://:clave-redis-de-prueba@8.8.8.8:6380/0"
     settings = Settings(_env_file=None, **valores)  # pyright: ignore[reportCallIssue]
-    assert settings.redis_host == "localhost"
+    assert settings.redis_host == "8.8.8.8"

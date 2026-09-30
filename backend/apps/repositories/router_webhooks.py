@@ -22,6 +22,7 @@ from backend.apps.repositories.models import GitProviderEnum, Repository
 from backend.apps.repositories.tasks import process_git_webhook_event
 from backend.core.config import settings
 from backend.core.database import get_db
+from backend.core.http_body import leer_cuerpo_acotado
 from backend.core.rate_limit import (
     enforce_git_webhook_rate_limit,
     get_rate_limit_redis,
@@ -154,16 +155,10 @@ async def _release_delivery(
         logger.exception("No se pudo liberar la reserva de entrega del webhook")
 
 
-async def _read_limited_body(request: Request) -> bytes:
-    body = bytearray()
-    async for chunk in request.stream():
-        if len(body) + len(chunk) > settings.git_webhook_max_body_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Payload demasiado grande",
-            )
-        body.extend(chunk)
-    return bytes(body)
+# Antes vivía aquí `_read_limited_body`, y lo único que hacía era repetir lo que ahora hace
+# `core/http_body.leer_cuerpo_acotado`. Se ha ido al módulo común porque la otra ruta que
+# leía un cuerpo entrante —el webhook de Stripe— tenía la versión sin acotar, y dos copias de
+# la misma comprobación garantiza que un día una de las dos se queda atrás sin que nada falle.
 
 
 @router.post(
@@ -191,7 +186,7 @@ async def receive_git_webhook(
     if not provided_signature:
         return _invalid_signature()
 
-    body = await _read_limited_body(request)
+    body = await leer_cuerpo_acotado(request, settings.git_webhook_max_body_bytes)
     try:
         decoded = cast(object, json.loads(body))
     except (TypeError, ValueError) as error:

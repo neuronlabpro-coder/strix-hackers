@@ -203,6 +203,34 @@ class ScannerAgent(Base):
     agent_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     platform_hint: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    #: El sistema que el operador declaró en el alta, a diferencia de `platform_hint`, que lo
+    #: mide el agente cuando se conecta. Sirve para elegir qué instrucciones de despliegue se le
+    #: enseñan, y no para autorizar nada: ninguna ruta compara contra él.
+    # El `default` de Python **y** el `server_default` de la migración son las dos mitades de
+    # lo mismo, y hacen falta las dos por razones distintas:
+    #
+    # - El `default` cubre todo lo que se inserta **por el ORM**: es lo que rellena el valor
+    #   cuando alguien hace `ScannerAgent(organization_id=..., name=...)` sin nombrarlo.
+    # - El `server_default` cubría lo contrario: lo que se inserta con SQL crudo.
+    #
+    # ## Por qué el `server_default` no basta, y se quitó de la migración
+    #
+    # Porque la migración lo rellena y lo **retira**, que es lo correcto para producción: un
+    # default permanente en la base significa que un `INSERT` futuro que se olvide del campo no
+    # falla, se queda probado en silencio. Pero al retirarlo, cualquier ruta que inserte por el
+    # ORM sin pasar por `AgentCreate` revienta con un `NotNullViolationError` en una columna que
+    # el propio módulo acaba de crear. Pasó: los tests que montan un `ScannerAgent` a mano
+    # fallaron con «null value in column "sistema_objetivo"».
+    #
+    # ## Por qué el default de Python es el que resuelve el hueco
+    #
+    # Porque vive en la capa que ve **todas** las rutas de inserción, incluidas las que nadie
+    # piensa al añadir una columna. El `server_default` solo cubría el SQL crudo, y esa es la
+    # ruta que menos se usa.
+    sistema_objetivo: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="desconocido"
+    )
+
     enrolled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

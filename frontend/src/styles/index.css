@@ -671,9 +671,27 @@ a {
   gap: 16px;
 }
 
+/*
+ * Tres columnas, no dos.
+ *
+ * ## Por qué
+ *
+ * Porque las tres pantallas que usan esta clase —contenedores, redes y el panel— ponen
+ * **exactamente tres** gráficos. Con dos columnas, el tercero baja a una segunda fila y deja
+ * una celda vacía al lado, y los escaneos —que es lo que el operador ha venido a mirar— quedan
+ * dos alturas más abajo. La rejilla estaba contando mal sus hijos.
+ *
+ * ## Por qué tres caben sin quedar estrechas
+ *
+ * Con `.main-content` en `max-width: 1440px` y `padding: 32px`, y una barra lateral de 256, el
+ * ancho útil de la rejilla va de 1376 px en un monitor grande a 830 px en uno de 1150. Repartido
+ * en tres, eso son de 448 px a 266 px por gráfico, que es de sobra para uno de 220 de alto con
+ * pocas categorías. Por debajo de 1150 la rejilla baja a una columna, y no a dos: con dos y
+ * tres hijos vuelve a aparecer el hueco que esto arregla.
+ */
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -1897,6 +1915,7 @@ code.mono,
   padding-right: 2rem;
 }
 
+
 .cve-kev-icon {
   margin-left: 6px;
   vertical-align: middle;
@@ -1983,13 +2002,13 @@ code.mono,
   gap: 8px;
 }
 
-.filter-field-check input[type='checkbox'] {
-  min-height: 0;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  accent-color: var(--color-accent);
-}
+/*
+  La casilla de este bloque la dimensiona la regla global `input[type='checkbox']` de mas abajo.
+  Aqui no hay ninguna, y antes si la habia: era identica a la global salvo por el `flex`, lo que
+  dejaba dos reglas con el mismo cuerpo en el fichero. Con dos, cualquier correccion hade sobre
+  la que apareciera primero por orden de fichero, y `filter-field-check` estaba antes. Esa
+  duplicacion es justo lo que hace imposible razonar sobre cual de las dos manda.
+*/
 
 .filter-field-check label {
   text-transform: none;
@@ -2539,7 +2558,24 @@ code.mono,
   color: var(--color-primary);
 }
 
-@media (max-width: 1050px) {
+/*
+ * El corte va en 1150, no en 1050, y las dos rejillas bajan juntas.
+ *
+ * ## Por qué 1150
+ *
+ * Porque es el ancho de viewport al que el hueco por gráfico baja de 266 px. Medido desde lo
+ * que el CSS ya declara —256 de barra lateral, 64 de relleno, 32 de separación—: 1150 - 256 - 64
+ * = 830 de rejilla, y (830 - 64) / 3 = 255 px. Por debajo de eso un gráfico con eje de fechas
+ * empieza a recortar las etiquetas, y un gráfico que esconde datos es peor que un gráfico
+ * apilado.
+ *
+ * ## Por qué los KPI y los gráficos bajan en el mismo punto
+ *
+ * Porque los dos se leen como una sola banda. Si los KPI bajaran antes que los gráficos, la
+ * banda se rompe en el punto en que la pantalla se estrecha más y queda un hueco de 20 píxeles
+ * entre dos bloques que antes eran una sola línea.
+ */
+@media (max-width: 1150px) {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3230,6 +3266,82 @@ code.mono,
 
 .filter-field label {
   margin-bottom: 6px;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Tamaño de las casillas de verificación.
+ *
+ * ## Por qué hace falta una regla global y no una por componente
+ *
+ * Porque había dos tamaños distintos, y los dos por la misma razón: **nadie las declaraba**.
+ *
+ * - Las de una lista, dentro de `.scope-item`, se dejaban al navegador. Y como el reset hace
+ *   `button, input { font: inherit }`, la casilla heredaba la fuente de la página y su tamaño
+ *   dependía del motor: 13 px en unos, 40 px en otros. Un control cuyo tamaño decide el
+ *   navegador es un control que nadie ha diseñado.
+ * - Las de los filtros, dentro de `.filter-field`, caían en la regla de los campos de texto,
+ *   que impone `min-height: 34px` y `padding: 6px 12px`. Una casilla de verificación con
+ *   relleno de texto es una caja de 34 px, y además `align-items: stretch` de la columna la
+ *   estiraba de ancho. De ahí las dos que se veían enorme en API Access.
+ *
+ * ## Por qué `min-height: 0` y no solo `width` y `height`
+ *
+ * Porque `min-height` le gana a `height`: un `min-height: 34px` heredado seguiría mandando
+ * sobre un `height: 16px`, y la casilla seguiría alta. Hay que bajar el mínimo explícitamente.
+ *
+ * ## Por qué 16 px
+ *
+ * Porque es lo que ya usa `.filter-field-check input[type='checkbox']`, y tener dos tamaños de
+ * casilla en la misma aplicación es peor que tener los dos equivocados. Y no hace falta un área
+ * de golpeo mayor: en las listas la casilla vive dentro de un `<label>` que ocupa la fila
+ * entera, así que el área pulsable es la fila, no la caja.
+ *
+ * ## Por qué `.switch input` queda fuera
+ *
+ * Porque en un conmutador la casilla **no se ve**: es el control invisible que lleva el estado
+ * y que ocupa la pista entera con `position: absolute; inset: 0`. Ponerle 16 px lo encogería a
+ * un punto y dejaría de ser pulsable. Por eso la excepción es explícita y no se deja al azar.
+ *
+ * Y `flex: 0 0 auto` para que una etiqueta larga no la aplaste. Sin eso, un `flex-shrink`
+ * por defecto la deja en un ancho que ya no es una casilla.
+ * ------------------------------------------------------------------------- */
+
+input[type='checkbox']:not(.switch input) {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  padding: 0;
+  accent-color: var(--color-accent);
+}
+
+/* La casilla de una fila de lista se alinea con la primera linea del texto, no con su caja. La
+   primera linea mide `0.8rem` de fuente con `line-height: 1.55`, unos 20 px de alto, y una casilla
+   de 16 px centrada dentro de eso va 2 px por debajo del borde superior. */
+.scope-item input[type='checkbox'] {
+  margin-top: 2px;
+}
+
+/* Una casilla con su texto **al lado**, y no encima.
+ *
+ * `filter-field` es `flex-direction: column`, pensado para etiqueta-arriba y control-debajo. Para
+ * un conmutador de una sola casilla eso pone la caja encima de su texto y deja una celda de tabla
+ * alta y estrecha. Aquí la fila es en línea, que es como se lee «Activado».
+ *
+ * Es la unica diferencia con `filter-field`: el alto de la celda lo marca el texto, no el hueco
+ * de una etiqueta vacia. */
+.toggle-field {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  min-width: 0;
+  padding-top: 0;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.toggle-field span {
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -4869,4 +4981,388 @@ select option:checked {
    ser seleccionable de un tiron. */
 .console-table .cell-modelo {
   white-space: nowrap;
+}
+
+
+/* ========================================================================== *
+ * Los bloques de `/containers` y `/networks`
+ *
+ * ## Por que viven todos aqui y no dispersos
+ *
+ * Porque las dos pantallas comparten la mitad de sus piezas —la insignia de estado, la
+ * tabla, la celda de detalle— y un `.chip` definido en un componente y un `.cell-muted`
+ * definido en otro acaban siendo dos reglas con el mismo nombre y distinta medida, que es
+ * como una pantalla deja de parecer parte de la misma aplicacion.
+ *
+ * ## Por que el chip de paquete recorta en vez de crecer
+ *
+ * Porque una imagen de `alpine` tiene veinte paquetes y una de `ubuntu` tiene cuatrocientos.
+ * Con `flex-wrap` la celda crece hacia abajo y la tabla pasa de cuatro filas a una, que es
+ * un inventario disfrazado de tabla. Se recortan a seis y el numero de lo que falta se
+ * escribe al lado, de modo que el recorte se ve en vez de deducirse. El inventario entero
+ * esta en el detalle, que es donde se busca un paquete concreto.
+ * ========================================================================== */
+
+.metric-suffix {
+  color: var(--color-caption);
+  font-size: 1rem;
+}
+
+.package-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  max-width: 320px;
+  overflow: hidden;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  color: var(--color-secondary);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* El chip de «y N mas» no lleva el mono: es un recuento, no un nombre de paquete, y en la
+   misma celda que los nombres draw la diferencia de lo que es dato y lo que es texto. */
+.chip-more {
+  color: var(--color-caption);
+  font-family: var(--font-sans);
+}
+
+.chip-count {
+  color: var(--color-caption);
+  font-size: 0.66rem;
+}
+
+.cell-target {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-primary);
+}
+
+/* El digest es lo unico de la fila que no se puede leer a ojo y hay que copiar entero, asi que
+   se recorta en la celda y se muestra completo en el detalle con `title`. Partirlo en dos
+   lineas no lo hace legible y si ilegible de copiar. */
+.cell-digest {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-caption);
+}
+
+/* El banner es lo que se leyo de la red y a veces son trescientos caracteres. Se recorta en
+   la tabla y se ensena entero en el detalle, porque recortarlo aqui seria tirar el dato y
+   dejar solo la forma. */
+.cell-banner {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+}
+
+.row-clickable {
+  cursor: pointer;
+}
+
+.row-clickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.table-caption {
+  margin: 12px 0 0;
+  color: var(--color-caption);
+  font-size: 0.72rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr;
+  gap: 8px 20px;
+  margin: 0 0 20px;
+}
+
+.detail-grid dt {
+  color: var(--color-caption);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detail-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.modal-intro {
+  margin: 0 0 16px;
+  color: var(--color-caption);
+  font-size: 0.85rem;
+}
+
+.modal-subtitle {
+  margin: 24px 0 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.section-hint {
+  margin: 4px 0 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+}
+
+.token-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.token-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  /* El token no se parte ni se recorta: son 64 caracteres que hay que copiar de un tirón, y
+     partido en dos lineas deja de ser seleccionable con un arrastre. */
+  overflow-wrap: normal;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Guía de despliegue del agente.
+ *
+ * ## Por qué tiene CSS propio y no reutiliza el de las listas del README
+ *
+ * Porque la guía mete un `.code-panel` —el bloque de código con su botón de copiar— dentro de
+ * un `<ol>`, y el `<ol>` de `index.css` es una lista de navegación con su sangría y su color.
+ * Reutilizarlo dejaría el bloque de código indentado como si fuera un elemento de menú, y
+ * corregirlo ahí tocaría reglas que usa el resto del panel por el aspecto de un componente que
+ * solo aparece en dos sitios.
+ *
+ * ## Por qué los dos avisos van en cajas y no en párrafos
+ *
+ * Porque en la captura anterior los dos párrafos finales —«cómo se comprueba» y «qué necesita»—
+ * salían en una sola línea y el texto se comía al de al lado. La causa no era el texto: era
+ * que `.inline-notice` no tiene una rejilla y sus `<p>` fluyen como texto corrido. Aquí son dos
+ * cajas, cada una con su título, y cada una con su ancho: se leen en vertical o en dos columnas
+ * según el sitio, y en ningún caso se mezclan.
+ *
+ * ## Por qué el selector de sistema son casillas y no un `<select>`
+ *
+ * Porque las cuatro opciones se distinguen por una línea de explicación, no por su nombre. Un
+ * desplegable esconde la explicación detrás del clic, y la explicación es lo que dice que el
+ * agente corre igual en los tres.
+ */
+.setup-guide {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* El botón que abre la guía, y el texto que lo acompaña. */
+.setup-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.setup-callout-body p {
+  margin: 0;
+}
+
+.setup-callout-body .setup-callout-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.setup-system-fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.setup-system-fieldset legend {
+  padding: 0 6px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.setup-system-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.setup-system-option:hover {
+  background: var(--color-raised);
+}
+
+.setup-system-option > span {
+  display: grid;
+  gap: 2px;
+}
+
+.setup-system-option .cell-muted {
+  font-size: 0.78rem;
+}
+
+.setup-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* El selector de sistema: cuatro pestañas que cambian la ruta y el bloque de arranque. */
+.setup-system-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.setup-system-tab {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.setup-system-tab:hover {
+  background: var(--color-raised);
+}
+
+.setup-system-tab.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-surface-raised);
+}
+
+.setup-system-tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.setup-system-tab-name {
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+
+.setup-system-tab-hint {
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+}
+
+/* La frase que dice qué cambia, que es la razón de que el selector exista. */
+.setup-differs {
+  margin: -4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.setup-steps {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.setup-steps > li::marker {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-steps h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 0.86rem;
+}
+
+.setup-steps .field-hint {
+  margin: 0 0 8px;
+}
+
+.setup-steps .code-block {
+  max-height: 220px;
+}
+
+/* Las dos notas finales, en rejilla y no en texto corrido. */
+.setup-notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.setup-note {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.setup-note p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.setup-note .setup-note-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.setup-note-warning {
+  border-color: var(--color-warning);
+}
+
+.setup-measured {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
 }

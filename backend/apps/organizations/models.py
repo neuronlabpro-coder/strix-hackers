@@ -189,7 +189,23 @@ class Invitation(TimestampMixin, Base):
         default=RoleEnum.MEMBER,
         server_default=RoleEnum.MEMBER.name,
     )
-    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    #: La huella del token, **nunca** el token.
+    #:
+    #: ## Por qué esto era un token en claro y ya no lo es
+    #:
+    #: Era una credencial de portador en texto plano, y su hermano de la misma tabla —`User.
+    #: email_verification_token_hash`, línea 120— ya estaba hasheado. Leer la tabla
+    #: `invitations` —un backup, un `SELECT` de un operador, una réplica— eranable incorporarse a
+    #: cualquier workspace con el rol que le asignó el invitador, y el token no caduca hasta que
+    #: se acepta.
+    #:
+    #: ## Por qué SHA-256 y no una función lenta
+    #:
+    #: Porque el token tiene 256 bits de entropía (`secrets.token_urlsafe(32)`). No hay espacio
+    #: que recorrer: quien tiene la fila tiene la clave. Una función lenta solo añadiría latencia
+    #: a la aceptación de una invitación. Es el mismo razonamiento que el token de API, y el
+    #: mismo criterio: la entropía del token es la protección, no la lentitud del hash.
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"

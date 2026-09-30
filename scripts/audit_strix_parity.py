@@ -108,6 +108,7 @@ SUBNODOS: tuple[tuple[str, str, str], ...] = (
     ("Admin > Usuarios", "/admin", "users"),
     ("Admin > Ventas", "/admin", "sales"),
     ("Admin > Auditoría", "/admin", "audit"),
+    ("Admin > Agentes", "/admin", "agents"),
     ("Admin > Catálogo LLM", "/admin", "llm"),
     ("Admin > Tickets", "/admin", "tickets"),
 )
@@ -453,7 +454,7 @@ def comprobar_superficie(resultado: Resultado) -> None:
             resultado.anota(
                 nombre,
                 "bloqueado",
-                f"la ruta monta un `PlaceholderPage`"
+                "la ruta monta un `PlaceholderPage`"
                 + (f" (`{motivo}`)" if motivo else "")
                 + (f"; {nota}" if nota else ""),
             )

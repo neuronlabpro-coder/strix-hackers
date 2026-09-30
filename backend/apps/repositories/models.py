@@ -59,9 +59,10 @@ class Repository(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_repositories_org_provider", "organization_id", "provider"),
         UniqueConstraint(
+            "organization_id",
             "provider",
             "remote_repo_id",
-            name="uq_repositories_provider_remote",
+            name="uq_repositories_org_provider_remote",
         ),
         UniqueConstraint(
             "id",

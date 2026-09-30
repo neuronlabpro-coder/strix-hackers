@@ -6,7 +6,7 @@ import ipaddress
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Literal, Self
+from typing import Annotated, Final, Literal, Self
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
@@ -45,6 +45,32 @@ def _scheme_of(url: str) -> str:
         return ""
 
 
+#: El valor que entrega `.env.example` para `SECRET_KEY`, y que en staging y producción es
+#: exactamente igual de inválido que el de ejemplo de `GIT_ENCRYPTION_KEY`.
+#:
+#: ## Por qué esto necesita ser una constante y no un literal en el validador
+#:
+#: Porque el literal está en **dos** sitios —aquí y en `.env.example`— y si divergen la guarda
+#: deja de funcionar sin que nada avise: el despliegue arranca con la clave de ejemplo y la
+#: comprobación pasa porque el texto ya no coincide. Ponerlo aquí hace que la prueba pueda
+#: leerlo y afirmar que `.env.example` dice exactamente esto.
+#:
+#: ## Por qué el riesgo es real y no teórico
+#:
+#: `.env.example` **no** se puede copiar tal cual a producción: `STRIPE_SECRET_KEY` y
+#: `SMTP_PASSWORD` sí tienen guardas y el arranque falla. El operador configura esas dos, ve el
+#: contenedor subir, y `SECRET_KEY` se queda con el valor público sin que nada lo señale. Y con
+#: esa clave se firma cualquier JWT, incluido uno con el `sub` de un superusuario.
+#: El nombre lleva `_DE_EJEMPLO` y no `SECRET_KEY` a proposito: `ruff` trata cualquier
+#: constante con `KEY` en el nombre y un literal como una possible hardcoded password, y en este
+#: caso **si lo es** —es la clave de ejemplo de `.env.example`—, pero la regla no lo puede saber y
+#: la exception que haria falta desactivaria la comprobacion para todo el fichero, que es peor.
+#: Por eso se renombra y se documenta: el aviso se resuelve en la linea que declara la constante.
+SECRET_KEY_DE_EJEMPLO: Final[str] = (
+    "cambiar_por_un_secreto_aleatorio_de_al_menos_32_caracteres"  # noqa: S105
+)
+
+
 class Settings(BaseSettings):
     """Valida y expone la configuración de infraestructura de la aplicación."""
 
@@ -73,6 +99,7 @@ class Settings(BaseSettings):
 
     git_encryption_key: SecretStr = Field(min_length=32, repr=False)
     git_webhook_max_body_bytes: int = Field(default=2_000_000, gt=0, le=10_000_000)
+    stripe_webhook_max_body_bytes: int = Field(default=262_144, gt=0, le=10_000_000)
     git_webhook_subscription_events: str = "pull_request,issue_comment"
     git_webhook_rate_limit: int = Field(default=120, ge=1, le=1000)
     git_webhook_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
@@ -230,6 +257,17 @@ class Settings(BaseSettings):
     invitation_expire_days: int = Field(gt=0)
     password_min_length: int = Field(ge=8)
     password_max_length: int = Field(ge=32)
+    #: Rondas de bcrypt.
+    #:
+    #: El `ge=4` de antes permitia un despliegue en produccion con cuatro rondas, que es un
+    #: factor de coste dos mil veces menor que el de doce. No es un parametro de rendimiento:
+    #: es la unica defensa que hay contra un ataque de fuerza bruta sobre las contrasenas
+    #: filtradas, y bajarla la desactiva sin que nada falle.
+    #:
+    #: El suelo se exige **fuera de desarrollo**, y no en el `Field` porque en desarrollo y en las
+    #: pruebas de integracion cuatro rondas hacen las pruebas usables. El coste se paga una vez
+    #: por inicio de sesion, que es un sitio malo para un atacante y un sitio bueno para el
+    #: usuario; bajarlo lo cambia por uno malo para los dos.
     bcrypt_rounds: int = Field(ge=4, le=16)
     auth_login_rate_limit: int = Field(ge=1, le=100)
     auth_login_rate_window_seconds: int = Field(ge=1, le=3600)
@@ -241,6 +279,16 @@ class Settings(BaseSettings):
     invitation_rate_window_seconds: int = Field(ge=1, le=3600)
     pentest_create_rate_limit: int = Field(default=5, ge=1, le=100)
     pentest_create_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    #: Encolado de escaneos de agente. Es más generoso que `pentest_create` porque un escaneo de
+    #: contenedor es de los que la gente encadena —veinte imágenes de un servicio— y porque el
+    #: coste lo acota el cobro de créditos, no el límite. Lo que el límite evita es el bucle.
+    scan_create_rate_limit: int = Field(default=20, ge=1, le=1000)
+    scan_create_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    #: Alta y baja de agentes. Muy bajo a proposito: emitir una credencial de red es una
+    #: operacion de administracion de riesgo alto, y no es una accion que se repita en un bucle
+    #: legitimo. Cinco por hora deja margen de sobra para rotar un agente.
+    agent_enrollment_rate_limit: int = Field(default=5, ge=1, le=100)
+    agent_enrollment_rate_window_seconds: int = Field(default=3600, ge=1, le=86400)
     celery_task_time_limit_seconds: int = Field(default=2400, gt=0, le=86400)
     celery_task_soft_time_limit_seconds: int = Field(default=2100, gt=0, le=86400)
     strix_max_output_bytes: int = Field(default=10_000_000, gt=0, le=50_000_000)
@@ -554,6 +602,49 @@ class Settings(BaseSettings):
             if command.strip()
         )
 
+    def _exigir_redis_no_publico(self) -> None:
+        """En producción, `REDIS_HOST` no puede ser una dirección de Internet.
+
+        ## Por qué un nombre se acepta sin más
+
+        Porque en producción el backend es un contenedor del mismo despliegue, y el alias del
+        servicio —`fenix-redis`— **es** la forma correcta de hablar con Redis: la red interna
+        de Docker ya lo aísla y no hay nada que auditar en un nombre que solo resuelve dentro de
+        esa red. Exigir una IP aquí rompía Dokploy, y el síntoma —Celery sin poder leer la
+        cola— no señalaba la causa.
+
+        ## Por qué una IP pública sí se rechaza
+
+        Porque es la propiedad que R6 protege. Un `REDIS_HOST` que sea una dirección pública
+        significa que el despliegue habla con un Redis de Internet, y da igual si ese Redis
+        existe: la credencial de la plataforma ya está en manos de quien lo administre. Es el
+        fallo que un alias de Docker no puede cometer y una IP sí.
+
+        ## Por qué se distinguen las categorías en vez de exigir una lista
+
+        Porque la lista sería distinta para cada despliegue y tendría que actualizarse con
+        cada uno. Lo único que es cierto en todos los casos es la categoría: `is_global` es
+        exactamente "sale a Internet" en la biblioteca estándar, y es la pregunta que R6
+        formula.
+        """
+
+        try:
+            direccion = ipaddress.ip_address(self.redis_host)
+        except ValueError:
+            # No es una IP: es un nombre. Solo puede ser un alias de la red interna, que es
+            # justo lo que se acepta. Un nombre público sería un DNS, y contra un DNS no hay
+            # nada que comprobar aquí sin resolverlo, que introduciría una dependencia de red
+            # en el arranque; se documenta en su lugar.
+            return
+
+        if direccion.is_global:
+            raise ValueError(
+                f"REDIS_HOST es una dirección pública ({self.redis_host}). R6 exige que los "
+                "datos de datos no se alcancen desde Internet. En producción usa el alias del "
+                "servicio en la red interna del despliegue, por ejemplo `fenix-redis`, o la IP "
+                "de Tailscale del VPS. En desarrollo, la IP de Tailscale."
+            )
+
     @model_validator(mode="after")
     def validate_runtime_and_endpoints(self) -> Self:
         """Impide combinaciones inseguras o endpoints con componentes divergentes."""
@@ -564,44 +655,56 @@ class Settings(BaseSettings):
             self.git_encryption_key.get_secret_value()
         ) == b"0123456789abcdef0123456789abcdef":
             raise ValueError("GIT_ENCRYPTION_KEY de ejemplo no se permite fuera de desarrollo")
+        if self.environment in {"staging", "production"} and (
+            self.secret_key.get_secret_value() == SECRET_KEY_DE_EJEMPLO
+        ):
+            raise ValueError("SECRET_KEY de ejemplo no se permite fuera de desarrollo")
+        # Mismo criterio que la clave de ejemplo y por la misma razón: una propiedad de
+        # seguridad que solo se puede desactivar con una línea de configuración no es una
+        # propiedad, es un default. El suelo de doce es el de `.env.example`; por debajo de
+        # diez, la diferencia entre 4 y 16 rondas es un factor de cuatro mil y no compensa ni
+        # un milisegundo de login.
+        if self.environment in {"staging", "production"} and self.bcrypt_rounds < 10:
+            raise ValueError(
+                f"BCRYPT_ROUNDS={self.bcrypt_rounds} es insuficiente fuera de desarrollo: "
+                "el minimo es 10 y el recomendado 12"
+            )
 
         if not self._database_url_matches_components():
             raise ValueError("DATABASE_URL no coincide con las variables DB_* configuradas")
 
-        # R6: en produccion, Redis se alcanza por la red Tailscale y por ningun otro camino.
+        # R6: los datos remotos no se alcanzan desde Internet.
         #
-        # ## Por que esta comprobacion va **antes** de la de coherencia del par
+        # ## Qué propiedad protege esto, que no es la que parece
         #
-        # Porque el orden de los mensajes decide lo que hace el operador. Si primero saltase
-        # `REDIS_URL no coincide con las variables REDIS_*`, la respuesta a ese mensaje sería
-        # arreglar `REDIS_URL` para que cuadre con `REDIS_HOST` —es decir, apuntar las dos
-        # variables al alias de Docker—, que es exactamente el error que ya se está intentando
-        # evitar. El mensaje de Tailscale va primero porque nombra el problema de fondo y dice
-        # cuál es la forma buena.
+        # R6 no dice "usa Tailscale". Dice que los datos de datos residen en el VPS de Dokploy
+        # y que **ningún puerto de datos se expone a Internet**. Son dos cosas distintas, y
+        # confundirlas es lo que produjo este bug:
         #
-        # ## Por que la comprobacion existe
+        # - En **desarrollo local** el backend corre en la máquina del programador, y para
+        #   alcanzar el VPS de Dokploy la única ruta es la IP de Tailscale. Ahí sí hace falta.
+        # - En **producción** el backend es un contenedor más del mismo despliegue, en la misma
+        #   red interna que PostgreSQL y Redis. La ruta correcta es el **alias del servicio**
+        #   (`fenix-redis`), y exigir la IP de Tailscale ahí es un error: el contenedor no
+        #   necesita salir a la red del mesh para hablar con un servicio que tiene al lado.
         #
-        # Porque `REDIS_HOST` admite un **alias de Docker** como `fenix-redis`, que es lo que el
-        # propio compose usa para su red interna. Ese alias solo resuelve desde dentro de la red
-        # de contenedores: puesto en produccion, o no resuelve, o resuelve contra el servicio
-        # Redis del propio despliegue. En los dos casos el síntoma es un error de conexión que
-        # no dice nada de la red equivocada.
+        # Una comprobación que exigía Tailscale en producción rompía el despliegue de Dokploy,
+        # y los errores de Celery que aparecían eran su consecuencia: el worker no lograba
+        # conectar con la cola.
         #
-        # El rango de Tailscale es `100.64.0.0/10`. Se comprueba **la direccion**, no la
-        # resolucion del nombre: lo que se quiere garantizar es que el tráfico no sale a
-        # internet, y eso lo garantiza la direccion.
+        # ## Por qué entonces la comprobación sigue teniendo valor
+        #
+        # Porque el alias de Docker es un **nombre**, no una dirección, y un nombre no se puede
+        # auditar. Lo que sí se puede —y es la propiedad que R6 protege— es que la dirección
+        # que se pone no sea una IP **pública**. Un despliegue con `REDIS_HOST=8.8.8.8` está
+        # habla con un Redis de Internet, y eso sí es exactamente lo que R6 prohíbe, tanto si
+        # el Redis existe como si no.
+        #
+        # Y por eso la regla es "no pública" y no "es Tailscale": una IP privada, la de
+        # loopback, la del mesh o un alias de la red interna pasan todas, y las cuatro son
+        # legítimas según dónde corra el proceso.
         if self.environment == "production":
-            try:
-                redis_ip = ipaddress.ip_address(self.redis_host)
-            except ValueError as exc:
-                raise ValueError(
-                    "REDIS_HOST debe ser la IP Tailscale del servidor Redis remoto "
-                    "(rango 100.64.0.0/10); no uses un alias Docker como fenix-redis"
-                ) from exc
-            if redis_ip not in ipaddress.ip_network("100.64.0.0/10"):
-                raise ValueError(
-                    "REDIS_HOST debe pertenecer al rango Tailscale 100.64.0.0/10"
-                )
+            self._exigir_redis_no_publico()
 
         if not self._redis_url_matches_components():
             raise ValueError("REDIS_URL no coincide con las variables REDIS_* configuradas")

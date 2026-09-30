@@ -63,19 +63,37 @@ export function ConnectRepositoryModal({
   const [isSavingToken, setIsSavingToken] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
   const [busqueda, setBusqueda] = useState('')
+  /**
+   * El total **del servidor**, y no el tamaño de la lista.
+   *
+   * ## Por qué hace falta
+   *
+   * Porque sin él la pantalla no puede distinguir tres cosas que el usuario necesita separar:
+   * «no hay más de estos» de «hay más pero no las has visto». Con 500 repositorios y una ventana
+   * de 100, la lista se ve llena y no hay nada en pantalla que diga que faltan 400. El número
+   * que las cuenta es el que decide si el buscador funciona.
+   */
+  const [totalInventario, setTotalInventario] = useState(0)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set())
   const [isImporting, setIsImporting] = useState(false)
 
   const loadInventory = useCallback(
-    (selectedProvider: GitProvider) => {
+    (selectedProvider: GitProvider, search: string) => {
       if (!token || !selectedOrganizationId) {
         return
       }
       setIsLoadingInventory(true)
       setNotice(null)
-      void getRemoteRepositories(token, selectedOrganizationId, selectedProvider)
+      void getRemoteRepositories(token, selectedOrganizationId, selectedProvider, {
+        search,
+      })
         .then((page) => {
           setRemoteRepositories(page.items)
+          setTotalInventario(page.total)
+          // La búsqueda cambia lo que hay en pantalla, y lo que se había marcado deja de estar a
+          // la vista. Sin esta línea, marcar dos repositorios, cambiar el buscador e importar
+          // importa cuatro de los que ya no se ven.
+          setSeleccionados(new Set())
         })
         .catch((error: unknown) => {
           setRemoteRepositories([])
@@ -94,6 +112,35 @@ export function ConnectRepositoryModal({
     [selectedOrganizationId, t, token],
   )
 
+  /**
+   * Recarga el inventario cuando cambia la búsqueda, con retardo.
+   *
+   * ## Por qué un retardo y no una petición por tecla
+   *
+   * ## Por qué 300 ms
+   *
+   * Porque la ruta lleva `repository_management_rate_limit`, que son 60 peticiones por minuto.
+   * Buscar `microservicios` son 13 teclas, y a 13 peticiones por búsqueda se llega al límite
+   * escribiendo dos palabras. El retardo no es para que se vea bonito: es para que la búsqueda
+   * sea una petición por palabra y no una por letra.
+   *
+   * ## Por qué se cancela la anterior
+   *
+   * Porque sin cancelación, dos búsquedas seguidas pueden llegar al servidor en orden
+   * inverso: la lenta de `sh` termina después de la rápida de `shy` y pisa el resultado con el
+   * más viejo. Con el `clearTimeout` la anterior no llega a salir, y el `isActive` del efecto se
+   * encarga del caso en el que ya había salido.
+   */
+  useEffect(() => {
+    if (!isOpen || !token || !selectedOrganizationId) {
+      return
+    }
+    const temporizador = window.setTimeout(() => {
+      loadInventory(provider, busqueda)
+    }, busqueda.trim() === '' ? 0 : 300)
+    return () => window.clearTimeout(temporizador)
+  }, [busqueda, isOpen, loadInventory, provider, selectedOrganizationId, token])
+
   useEffect(() => {
     if (!isOpen) {
       return
@@ -101,7 +148,16 @@ export function ConnectRepositoryModal({
 
     // La carga inicial se aplaza a la siguiente tarea para no escribir estado de
     // forma síncrona durante el montaje del diálogo.
-    const timer = window.setTimeout(() => loadInventory(provider), 0)
+    //
+    // Y carga el inventario **entero**, no lo que hubiera en el buscador. Es deliberado que
+    // `busqueda` no sea una dependencia: abrir el modal es empezar de cero, y arrastrar el texto
+    // de la última búsqueda dejaría al usuario en una lista filtrada que no recuerda haber
+    // pedido. Si se abriera con algo escrito, el botón «Recargar» —que sí usa `busqueda`— y
+    // esta carga discreparían, y la lista cambiaría sola después de abrirse.
+    const timer = window.setTimeout(() => {
+      setBusqueda('')
+      loadInventory(provider, '')
+    }, 0)
     return () => window.clearTimeout(timer)
   }, [isOpen, loadInventory, provider])
 
@@ -196,7 +252,7 @@ export function ConnectRepositoryModal({
       })
       // El paso 2 se recarga con la credencial nueva para que el listado real aparezca
       // sin que el usuario tenga que pedirlo: conectar es el gesto, no recargar después.
-      loadInventory(provider)
+      loadInventory(provider, busqueda)
     } catch {
       setNotice({ kind: 'error', text: t('modal.patFailed') })
     } finally {
@@ -222,7 +278,7 @@ export function ConnectRepositoryModal({
           ? { kind: 'success', text: t('modal.imported') }
           : { kind: 'warning', text: t('modal.webhookMissing') },
       )
-      loadInventory(provider)
+      loadInventory(provider, busqueda)
     } catch {
       setNotice({ kind: 'error', text: t('modal.importFailed') })
     } finally {
@@ -231,28 +287,26 @@ export function ConnectRepositoryModal({
   }
 
   /**
-   * Los repositorios que casan con el buscador.
+   * Lo que se ve es lo que el servidor ha devuelto, sin filtrar otra vez aquí.
    *
-   * El filtro es **local** y no una peticion: el inventario ya esta descargado entero y
-   * filtrarlo aqui da resultados al instante. Pedirlo al servidor en cada tecla seria una
-   * ida y vuelta por caracter, y con ellista de cientos de repositorios se notaria.
+   * ## Por qué se quita el filtro local
    *
-   * Se comparan nombre, ruta y rama, para que buscar `api` encuentre tambien
-   * `acme/api-gateway` aunque el usuario haya escrito otra cosa. La busqueda ignora mayusculas
-   * porque el nombre de un repositorio no es un dato con mayusculas que importen.
+   * ## Por qué el filtro del cliente estaba, y por qué ya no
+   *
+   * Porque estaba por una razón que era cierta cuando se escribió y dejó de serlo: el
+   * comentario de arriba decía «el inventario ya está descargado entero». No lo está —la API
+   * topa el `limit` a 100— y por eso buscar `shy` en un workspace de 500 enseñaba un resultado
+   * de los doce que hay, sin ninguna pista de que faltaban once.
+   *
+   * ## Por qué no se deja como filtro **extra** encima del del servidor
+   *
+   * Porque es una门将 un conjunto ya estrecho por un criterio distinto, y si los dos no
+   * coinciden exactamente aparece el peor caso: la lista se vacía sin motivo aparente y no hay
+   * forma de saber si no hay resultados o si los dos filtros se están contradiciendo. Con el
+   * filtro en un solo sitio, `total` y la lista cuentan lo mismo, que es lo que hace falta para
+   * que el número de arriba sirva de algo.
    */
-  const reposVisibles = useMemo(() => {
-    const consulta = busqueda.trim().toLowerCase()
-    if (consulta === '') {
-      return remoteRepositories
-    }
-    return remoteRepositories.filter((remote) =>
-      [remote.full_name, remote.name, remote.default_branch]
-        .join(' ')
-        .toLowerCase()
-        .includes(consulta),
-    )
-  }, [remoteRepositories, busqueda])
+  const reposVisibles = remoteRepositories
 
   /**
    * Los importables de lo que se ve ahora mismo.
@@ -566,7 +620,7 @@ export function ConnectRepositoryModal({
             <button
               className="secondary-button"
               type="button"
-              onClick={() => loadInventory(provider)}
+              onClick={() => loadInventory(provider, busqueda)}
               disabled={isLoadingInventory}
             >
               {isLoadingInventory ? (
@@ -618,6 +672,23 @@ export function ConnectRepositoryModal({
                   <span>{t('modal.selectAll')}</span>
                 </label>
               </div>
+
+              {/*
+                El recuento va **siempre**, no solo cuando hay búsqueda, y no es decoración.
+                Es lo que convierte «veo una lista llena» en «he visto 100 de 500». Sin él, con
+                el limit del servidor, la pantalla no dice en ningún sitio que queden 400
+                repositorios sin mirar: es exactamente el fallo que se reportó al buscar `shy`.
+              */}
+              {!isLoadingInventory && reposVisibles.length > 0 && (
+                <p className="remote-count" role="status">
+                  {busqueda.trim() === ''
+                    ? t('modal.countAll', { shown: reposVisibles.length, total: totalInventario })
+                    : t('modal.countFiltered', {
+                        shown: reposVisibles.length,
+                        total: totalInventario,
+                      })}
+                </p>
+              )}
 
               {reposVisibles.length === 0 ? (
                 <p className="modal-empty">{t('modal.searchNoResults')}</p>

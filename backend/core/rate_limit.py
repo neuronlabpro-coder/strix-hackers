@@ -345,3 +345,47 @@ async def enforce_invitation_rate_limit(
         settings.invitation_rate_limit,
         settings.invitation_rate_window_seconds,
     )
+
+
+async def enforce_scan_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita el encolado de escaneos de contenedor y de red por usuario y organización.
+
+    ## Por qué hace falta aquí y no lo hacía
+
+    Porque hasta ahora el módulo de agentes era **el único camino de escritura del producto que
+    no tenía límite de tasa**. `pentest-create`, `invitation`, `checkout-session` y `cve-query`
+    estaban todos cableados; encolar un escaneo de red, no. Y un escaneo de red consume 35
+    puertos sobre hasta 254 direcciones en la máquina del cliente, con 64 hilos: no es un
+    `INSERT` barato, es trabajo real, y sin límite es un `POST` en bucle.
+    """
+
+    await _apply_rate_limit(
+        client,
+        "agent-scan-create",
+        f"{tenant.user.id}:{tenant.organization.id}",
+        settings.scan_create_rate_limit,
+        settings.scan_create_rate_window_seconds,
+    )
+
+
+async def enforce_agent_enrollment_rate_limit(
+    tenant: TenantDependency,
+    client: RedisDependency,
+) -> None:
+    """Limita el alta y la baja de agentes por organización.
+
+    Es por organización y no por usuario porque el recurso es de la organización —el agente es
+    de la red del cliente, no de quien lo registra— y el daño de emitir credenciales de red sin
+    tope es del workspace entero, no de una cuenta.
+    """
+
+    await _apply_rate_limit(
+        client,
+        "agent-enrollment",
+        str(tenant.organization.id),
+        settings.agent_enrollment_rate_limit,
+        settings.agent_enrollment_rate_window_seconds,
+    )

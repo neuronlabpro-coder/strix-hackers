@@ -36,6 +36,14 @@ repos:
       - id: check-docstring-first
 
   # Security checks with bandit
+  # `bandit` mira el **contenido del codigo** Python: inyecciones, cripto debil, `assert` en
+  # produccion. No mira si un fichero **contiene** una credencial, que es otra cosa: no sabe que
+  # un `sk_live_...` es una llave de Stripe. Eso lo hace `gitleaks`, que entra por el otro lado.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
+
   - repo: https://github.com/PyCQA/bandit
     rev: 1.8.3
     hooks:

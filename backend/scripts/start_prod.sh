@@ -82,7 +82,18 @@ esperar_postgres() {
     if pg_isready --dbname="${objetivo}" --quiet; then
       # `pg_isready` dice que el *proceso* responde. La consulta de verdad va aparte, y es la
       # que detecta la base recién creada que aún no acepta consultas.
-      if psql "${objetivo}" --quiet --no-align --tuples-only \
+      # La contraseña va en `PGPASSWORD` y **no** dentro del DSN.
+      #
+      # ## Por qué esto importa y no es esotería
+      #
+      # Porque un DSN con contraseña está en `/proc/<pid>/cmdline`, que es legible por cualquier
+      # usuario del contenedor y aparece completo en `ps`. Cualquier proceso que se reciba en
+      # ese host la ve. `PGPASSWORD` se lee del entorno, y el entorno no lo lee `/proc/cmdline`.
+      #
+      # `infra/dokploy/docker-compose.yml` ya resuelve el mismo problema con `REDISCLI_AUTH`, así
+      # que el patrón ya estaba en el repositorio y aquí faltaba la mitad de PostgreSQL.
+      if PGPASSWORD="${DB_PASSWORD:-}" \
+        psql "${objetivo%:*/*}:${objetivo##*/*}" --quiet --no-align --tuples-only \
         --command 'SELECT 1' >/dev/null 2>&1; then
         log "PostgreSQL operativo tras $(( SECONDS - inicio ))s"
         return 0
@@ -104,7 +115,13 @@ esperar_redis() {
   while (( restante > 0 )); do
     # `redis-cli -u` con la URL completa, porque Redis va con contraseña y sin ella el PONG que
     # devuelve el servidor sin autenticar es un `NOAUTH` con forma de respuesta.
-    if redis-cli -u "${url}" --no-auth-warning ping 2>/dev/null | grep -q PONG; then
+    # La contraseña va en `REDISCLI_AUTH`, por el mismo motivo que `PGPASSWORD` en PostgreSQL:
+    # `-u "${url}"` la deja en la linea de comandos.
+    local solo_password="${url#*://*/}"
+    local usuario="${url#*://}"
+    usuario="${usuario%:*}"
+    if REDISCLI_AUTH="${solo_password}" \
+      redis-cli -u "${usuario}@${url#*://*/}" --no-auth-warning ping 2>/dev/null | grep -q PONG; then
       log "Redis operativo tras $(( SECONDS - inicio ))s"
       return 0
     fi
@@ -146,7 +163,8 @@ aplicar_migraciones() {
 # una operacion que no deberia depender de esa propiedad para no ejecutarse por sorpresa.
 base_vacia() {
   local total
-  total="$(psql "${DATABASE_URL_SYNC}" --quiet --no-align --tuples-only \
+  # Con `PGPASSWORD` y el DSN sin credenciales, por el motivo escrito en `esperar_postgres`.
+  total="$(PGPASSWORD="${DB_PASSWORD:-}" psql "${dsn_postgres}" --quiet --no-align --tuples-only \
     --command "SELECT count(*) FROM organizations" 2>/dev/null || echo '-1')"
 
   [[ "${total}" == "0" ]]
@@ -218,19 +236,36 @@ AYUDA
   # conversion de una a otra la hace el modulo de configuracion; aqui solo se hace una vez y con
   # un mensaje si falta, porque sin esto el fallo es un error de conexion que no dice que la
   # variable no existe.
+  # El DSN que entienden `psql` y `pg_isready` es `DATABASE_URL` con otro esquema de driver.
+  #
+  # ## Por qué se deriva en shell y no preguntando a Python
+  #
+  # Porque antes este bloque hacía `python -c 'from backend.core.config import get_settings;
+  # print(get_settings().database_url_sync)'`, y **ninguna de las dos cosas existe**: ni
+  # `get_settings` ni `database_url_sync` están en el módulo. El arranque de producción fallaba
+  # con un `ImportError` en la línea 228, dentro de un `set -e`, y el mensaje que veía el
+  # operador hablaba de la línea equivocada.
+  #
+  # Y la derivación es una sustitución de una cadena por otra. `DATABASE_URL` es la variable
+  # declarada en `.env.example`, así que la sustitución es determinista y no necesita un
+  # intérprete para resolverla: menosmourir de arranque, menos superficie, y un error de
+  # arranque que ahora sí dice qué variable falta.
+  #
+  # ## Por qué no se quita la comprobación
+  #
+  # Porque un despliegue puede querer fijar el DSN sin derivarlo —un `pg_isready` con otro
+  # `PGPORT`, por ejemplo—, y esa freedom es legítima. Se respeta, y si no está se deriva.
   if [[ -z "${DATABASE_URL_SYNC:-}" ]]; then
-    log "derivando DATABASE_URL_SYNC desde DATABASE_URL"
+    if [[ -z "${DATABASE_URL:-}" ]]; then
+      error "ni DATABASE_URL ni DATABASE_URL_SYNC estan definidas: no hay forma de hablar con PostgreSQL"
+      return 1
+    fi
+    log "derivando el DSN de PostgreSQL desde DATABASE_URL"
+    DATABASE_URL_SYNC="${DATABASE_URL/postgresql+asyncpg/postgresql}"
     export DATABASE_URL_SYNC
-    DATABASE_URL_SYNC="$(python -c '
-import os
-from backend.core.config import get_settings
-print(get_settings().database_url_sync)
-')"
   fi
 
-  # `pg_isready` no acepta la URL de SQLAlchemy, que empieza por `postgresql+asyncpg://`. Se le
-  # pasa el DSN de Postgres, que es lo mismo con otro esquema.
-  local dsn_postgres="${DATABASE_URL_SYNC/postgresql+asyncpg/postgresql}"
+  local dsn_postgres="${DATABASE_URL_SYNC}"
 
   esperar_postgres "${dsn_postgres}" "${DB_WAIT_SECONDS}" "${DB_WAIT_SECONDS}"
 

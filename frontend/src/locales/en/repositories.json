@@ -85,7 +85,9 @@
     "importingSelected": "Importing…",
     "bulkSuccess": "{{count}} repositories imported",
     "bulkPartial": "Imported {{ok}} of {{total}}. Failed: {{failed}}",
-    "bulkFailed": "None imported. Failed: {{failed}}"
+    "bulkFailed": "None imported. Failed: {{failed}}",
+    "countAll": "{{shown}} of {{total}} repositories. Showing {{shown}} because the list comes in batches: use the search box to reach the rest.",
+    "countFiltered": "{{shown}} of {{total}} repositories match your search."
   },
   "autofix": {
     "notFromReview": "This finding does not come from a pull request review, so the autofix cannot be opened automatically."

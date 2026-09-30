@@ -181,7 +181,7 @@ async def accept_invitation(
         .join(Organization, Organization.id == Invitation.organization_id)
         .join(User, User.email == Invitation.email)
         .where(
-            Invitation.token == token.strip(),
+            Invitation.token_hash == hash_email_verification_token(token.strip()),
             Invitation.accepted.is_(False),
             Invitation.expires_at > datetime.now(UTC),
             User.id == user_id,
@@ -284,15 +284,30 @@ async def create_invitation(
     session: AsyncSession,
     organization_id: uuid.UUID,
     payload: InvitationCreate,
-) -> Invitation:
-    """Crea una invitación no destructiva con expiración configurable."""
+) -> tuple[Invitation, str]:
+    """Crea una invitación no destructiva y devuelve **el token en claro**, una sola vez.
 
+    ## Por qué devuelve un par y no solo la invitación
+
+    Porque el token ya no está en la fila —lo que se guarda es su huella— y hay que enviarlo por
+    correo. Si en vez de eso se recompusiera, o se buscara en algún sitio, la única forma de
+    recuperarlo sería volver a generarlo, que es otra invitación y otro correo. Devolverlo junto
+    a la fila hace explícito que **este es el único momento** en que existe en claro, que es lo
+    mismo que ya hace `register_user_with_initial_organization` con el token de verificación.
+
+    ## Por qué se genera antes de la fila
+
+    Porque la huella se calcula del token, y el token no existe hasta que se genera. El orden es
+    forzado por la dependencia, no por conveniencia.
+    """
+
+    token = secrets.token_urlsafe(32)
     try:
         invitation = Invitation(
             organization_id=organization_id,
             email=normalize_email(str(payload.email)),
             role=payload.role,
-            token=secrets.token_urlsafe(32),
+            token_hash=hash_email_verification_token(token),
             expires_at=datetime.now(UTC) + timedelta(days=settings.invitation_expire_days),
         )
         session.add(invitation)
@@ -302,7 +317,7 @@ async def create_invitation(
         await session.rollback()
         raise
 
-    return invitation
+    return invitation, token
 
 
 async def rename_organization(
@@ -462,12 +477,31 @@ async def change_member_role(
     un `403` que no puede corregir, porque corregirlo requiere ser admin. Es un callejón
     sin salida del que solo se sale por consola de base de datos.
 
-    Se comprueba con un `COUNT` en la misma consulta, no leyendo la lista en Python: la
-    comprobación y la escritura tienen que ser consistentes entre sí, y leer la lista para
-    contar abre una ventana entre "he contado" y "he escrito" en la que otra petición
-    puede quitar al segundo admin. El `UPDATE` lleva además un `WHERE` con la condición
-    de que quede al menos un admin, de modo que si esa ventana se abre, el `UPDATE` no
-    afecta a nadie y el cambio falla en vez de dejar el workspace sin dueño.
+    Se comprueba **dentro del `UPDATE`**, no antes, y esta frase es la que antes no era cierta.
+
+    ## Por qué el `UPDATE` condicional es lo que hace la garantía
+
+    Porque contar admins en un `SELECT` y escribir después abre una ventana entre las dos cosas.
+    Con dos admins, dos `PATCH` concurrentes que degraden a dos miembros distintos leen los dos
+    `admins == 2`, los dos pasan el `if admins <= 1`, y el workspace se queda sin ningún `ADMIN`:
+    el callejón sin salida del que el propio docstring dice que solo se sale por consola de base
+    de datos.
+
+    Con la condición dentro del `WHERE`, PostgreSQL la evalúa contra la foto de las filas antes
+    de aplicar el `UPDATE`, en una sola sentencia atómica. El segundo `PATCH` ya no encuentra el
+    segundo admin como admin, la condición es falsa, y su `UPDATE` no afecta a nadie.
+
+    Y esto ya estaba resuelto treinta líneas más abajo, en `remove_member`, que hace exactamente
+    esto. Que una función lo haga y la otra no, en el mismo fichero, es lo que hace evidente que
+    era un descuido: el patrón no faltaba, faltaba aplicarlo.
+
+    ## Por qué un subselect sobre un **alias**
+
+    Porque el `UPDATE` es sobre `memberships` y el recuento también: sin alias, PostgreSQL no
+    puede decidir a qué tabla se refiere cada referencia. Con alias, el recuento ve los admins
+    tal como están **antes** del update, que es lo que hace falta para decidir si este cambio
+    deja alguno. Y no correlacionado a propósito: si lo fuera, contaría fila a fila y para la
+    fila que se degrada la condición sería trivialmente cierta.
     """
 
     if membership.organization_id != organization.id:
@@ -476,25 +510,48 @@ async def change_member_role(
     if membership.role == new_role:
         return membership
 
-    if new_role != RoleEnum.ADMIN and membership.role == RoleEnum.ADMIN:
-        admins = (
-            await session.execute(
-                select(func.count(Membership.id))
-                .join(Organization, Organization.id == Membership.organization_id)
-                .where(
-                    Membership.organization_id == organization.id,
-                    Membership.role == RoleEnum.ADMIN,
-                    Membership.is_active.is_(True),
-                )
+    previous_role = membership.role
+    if new_role != RoleEnum.ADMIN and previous_role is RoleEnum.ADMIN:
+        # La condición va dentro del `WHERE` del propio `UPDATE`, y por eso no hay ventana entre
+        # "comprobar" y "escribir". Es el mismo patrón y el mismo comentario que usa
+        # `remove_member`, copiados para que los dos sitios de la regla se lean igual.
+        admins_vivos = (
+            select(func.count(Alias.id))
+            .where(
+                Alias.organization_id == organization.id,
+                Alias.role == RoleEnum.ADMIN,
+                Alias.is_active.is_(True),
             )
-        ).scalar_one()
-        if admins <= 1:
+            .scalar_subquery()
+        )
+        membership_id = await session.scalar(
+            update(Membership)
+            .where(
+                Membership.id == membership.id,
+                Membership.organization_id == organization.id,
+                # `OR` con el rol: si la fila ya no es admin, el recuento ni se considera y el
+                # cambio sigue sin más. Degradar a un `MEMBER` no reduce el número de admins.
+                (Membership.role != RoleEnum.ADMIN) | (admins_vivos > 1),
+            )
+            .values(role=new_role)
+            .returning(Membership.id)
+        )
+        if membership_id is None:
+            # El `UPDATE` no afectó a nadie, y eso tiene una causa que el cliente necesita
+            # distinguir: existe y degradarlo dejaría al workspace sin admin.
+            #
+            # Y **no** hay `rollback` aquí, a propósito, por el mismo motivo que en
+            # `remove_member`: un `UPDATE` que no afecta a ninguna fila no deja nada pendiente,
+            # así que el `rollback` sería inútil — y además dañino, porque expira los objetos de
+            # la sesión y el camino del error vuelve a leer `membership.id`. Se puso uno primero
+            # y lo detectó una prueba con `MissingGreenlet`; el comentario de `remove_member`
+            # llevaba la explicación desde antes y no se aplicó.
             raise LastAdminRequiredError(
                 "El workspace necesita al menos un administrador activo"
-            )
+            ) from None
+    else:
+        membership.role = new_role
 
-    previous_role = membership.role
-    membership.role = new_role
     session.add(
         AuditLogEntry(
             organization_id=organization.id,
