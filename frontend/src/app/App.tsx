@@ -131,6 +131,26 @@ const AdminAgentsPage = lazy(() =>
 const LlmModelsPage = lazy(() =>
   import('../features/admin/LlmModelsPage').then((m) => ({ default: m.LlmModelsPage })),
 )
+/**
+ * La consola de precios viene diferida como las demas, y no importa nada de `billing`.
+ *
+ * ## Por que su propia funcion y no reutilizar `AdminSalesPage`
+ *
+ * ## Por que una pagina propia
+ *
+ * Porque es la unica seccion que **escribe** lo que cobra la plataforma. Compartir componente
+ * con la de ventas —que solo lee— habria que distinguir dentro del componente si el usuario
+ * tiene permiso de escritura, y un `if` que decide si el boton aparece es la forma mas
+ * facil de que un dia aparezca el boton equivocado.
+ */
+const AdminOperationsPage = lazy(() =>
+  import('../features/admin/AdminOperationsPage').then((m) => ({
+    default: m.AdminOperationsPage,
+  })),
+)
+const AdminPricingPage = lazy(() =>
+  import('../features/admin/AdminPricingPage').then((m) => ({ default: m.AdminPricingPage })),
+)
 const AdminTicketsPage = lazy(() =>
   import('../features/admin/AdminTicketsPage').then((m) => ({ default: m.AdminTicketsPage })),
 )
@@ -332,6 +352,22 @@ export default function App() {
             element={
               <Suspense fallback={<LazySection />}>
                 <LlmModelsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="operations"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminOperationsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="pricing"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminPricingPage />
               </Suspense>
             }
           />

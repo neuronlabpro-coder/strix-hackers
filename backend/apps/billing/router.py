@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEvent
+from backend.apps.billing.pricing import credits_per_usd
 from backend.apps.billing.schemas import (
     PRO_SUBSCRIPTION_PLAN,
     BillingSummaryResponse,
@@ -552,7 +553,7 @@ async def read_billing_summary(
     return BillingSummaryResponse(
         credit_balance=saldo,
         credit_balance_usd=credits_to_usd(saldo),
-        credits_per_usd=settings.credits_per_usd,
+        credits_per_usd=credits_per_usd(),
         spent_this_month=consumidos,
         purchased_this_month=comprados,
         spent_this_month_usd=credits_to_usd(consumidos),

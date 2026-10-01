@@ -51,6 +51,48 @@ export interface AsyncResource<T> {
  * el detalle del ticket viejo montado sobre el nuevo, y el usuario lee una conversación
  * que no es la que ha abierto.
  */
+/**
+ * Los tres estados de una petición, derivado de tres claves y **nada más**.
+ *
+ * ## Por qué es una función suelta y no está dentro del hook
+ *
+ * Porque es aritmética pura, y una aritmética pura se puede probar sin montar React. Este
+ * proyecto no tiene `@testing-library/react` ni entorno de DOM: sus pruebas son de lógica, y
+ * esta es la clase de cosa que se puede comprobar exactamente sin ellos.
+ *
+ * ## Por qué `isLoading` excluye el fallo de **esta** clave
+ *
+ * Porque sin esa exclusión `isLoading` y `loadFailed` son las dos ciertas cuando una petición
+ * falla: nunca llegó una respuesta, así que `claveDeLosDatos` sigue siendo `null`, y
+ * `claveQueFallo` ya es la clave pedida. Y como las pantallas pintan
+ * `isLoading ? cargando : loadFailed ? error : datos`, la primera rama se come el error y la
+ * pantalla queda en «Cargando…» **para siempre**.
+ *
+ * No es un caso raro: es exactamente lo que se ve cuando el backend no tiene la ruta, y es el
+ * fallo que un operador no puede diagnosticar desde la pantalla porque la pantalla le está
+ * diciendo que sigue cargando.
+ *
+ * ## Por qué se excluye solo la clave que falló
+ *
+ * Porque al entrar una petición **nueva**, `claveQueFallo !== clave` y `isLoading` vuelve a
+ * activarse. Un `||` con «no ha fallado nunca» dejaría la pantalla clavada en el error del
+ * filtro anterior mientras la petición nueva está en curso.
+ */
+export function estadoDeLaPeticion(
+  clave: RequestKey | null,
+  claveDeLosDatos: RequestKey | null,
+  claveQueFallo: RequestKey | null,
+): { cargando: boolean; fallo: boolean } {
+  if (clave === null) {
+    return { cargando: false, fallo: false }
+  }
+  const fallo = claveQueFallo === clave
+  return {
+    cargando: claveDeLosDatos !== clave && !fallo,
+    fallo,
+  }
+}
+
 export function useAsyncResource<T>(
   fetcher: (key: RequestKey) => Promise<T>,
   key: RequestKey | null,
@@ -88,17 +130,22 @@ export function useAsyncResource<T>(
     setTick((actual) => actual + 1)
   }, [])
 
+  const estado = useMemo(
+    () => estadoDeLaPeticion(key, keyDeLosDatos, keyQueFallo),
+    [key, keyDeLosDatos, keyQueFallo],
+  )
+
   return useMemo(
     () => ({
       data,
-      isLoading: key !== null && keyDeLosDatos !== key,
+      isLoading: estado.cargando,
       // El fallo es de **esta** peticion, no de la anterior. Con un booleano suelto, un
       // cambio de filtro dejaba el error de la vista previa visible hasta que la nueva
       // respuesta llegaba, y el usuario leia «no se pudo cargar» sobre una lista que si se
       // estaba cargando.
-      loadFailed: key !== null && keyQueFallo === key,
+      loadFailed: estado.fallo,
       reload,
     }),
-    [data, key, keyDeLosDatos, keyQueFallo, reload],
+    [data, estado, reload],
   )
 }

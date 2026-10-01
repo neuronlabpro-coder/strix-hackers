@@ -695,6 +695,18 @@ export interface RemoteRepositoryPage {
   limit: number
   offset: number
   provider: GitProvider
+  /**
+   * La búsqueda que el servidor aplicó de verdad.
+   *
+   * ## Por qué es `undefined` y no `string | null` aquí
+   *
+   * Porque un backend más antiguo que el campo no manda nada, que es justo el caso que este
+   * campo existe para detectar: si se declarara `string | null`, el `undefined` de una respuesta
+   * vieja y el `null` de «no hubo búsqueda» se confundirían, y la comprobación de que el
+   * servidor filtra no distinguiría «no filtró» de «me dio la espalda con el formato». Se
+   * declara como opcional a propósito, y la comparación de abajo no la da por buena nunca.
+   */
+  busqueda_aplicada?: string | null
 }
 
 export interface RepositoryConnectPayload {
@@ -1051,4 +1063,270 @@ export interface SupplyChainSyncResult {
   packages_discarded: number
   /** Manifiestos que se descargaron y no se pudieron parsear. No son fallos de la sincronización. */
   errors: string[]
+}
+
+// --------------------------------------------------------------------------- //
+// Precios de plataforma
+// --------------------------------------------------------------------------- //
+//
+// ## Por que los importes viajan como cadena y no como numero
+//
+// Porque el backend los declara `Decimal` con ocho decimales, y un numero JSON es un binario
+// en coma flotante donde `0.1` no es exactamente `0.1`. La paridad del credito es el caso
+// peor: es un cociente, y a `0.01234567` la coma flotante le ha perdido el ultimo digito
+// antes de llegar aqui. El panel los pinta; no los suma nunca en el cliente.
+//
+// ## Por que el descuento es una fraccion y no un porcentaje
+//
+// Porque el backend lo multiplica: el precio de un credito es `(1 - descuento) / paridad`. Un
+// porcentaje obligaria a dividir por cien en el cliente, que es donde se equivocarian las dos
+//implementaciones. `0.10` es el 10 %, y el `CHECK` de la base lo limita a `[0, 1]`.
+
+/** Un paquete de creditos comercializable. */
+export interface PlatformCreditPack {
+  id: string
+  credits: number
+  amount_usd: string
+  is_active: boolean
+  display_order: number
+}
+
+/** Un tramo de la escalera de descuento por volumen. */
+export interface PlatformVolumeTier {
+  id: string
+  spend_min_usd: string
+  /** Descuento como fraccion: `0.10` es el 10 %. */
+  discount: string
+  is_active: boolean
+  display_order: number
+}
+
+/** Los siete precios de la fila unica. */
+export interface PlatformPricing {
+  credits_per_usd: string
+  scan_credit_cost: string
+  quick_scan_credit_multiplier: string
+  low_credit_balance_threshold: string
+  custom_spend_minimum_usd: string
+  custom_spend_maximum_usd: string
+  pro_subscription_monthly_usd: string
+  updated_at: string | null
+}
+
+/** El catalogo completo, en una sola lectura. */
+export interface PlatformPricingDetail {
+  precios: PlatformPricing
+  packs: PlatformCreditPack[]
+  tiers: PlatformVolumeTier[]
+  credits_per_usd: string
+  minimo_creditos_comerciales: number
+  maximo_creditos_comerciales: number
+  /** `false` cuando los precios vienen del codigo y no de la base. */
+  desde_la_base: boolean
+}
+
+/**
+ * Campos a cambiar. Todos opcionales, porque `null` significa «no tocar» y el backend
+ * distingue el absences de un `false`, que sí es un cambio.
+ */
+export interface PlatformPricingUpdatePayload {
+  credits_per_usd?: string
+  scan_credit_cost?: string
+  quick_scan_credit_multiplier?: string
+  low_credit_balance_threshold?: string
+  custom_spend_minimum_usd?: string
+  custom_spend_maximum_usd?: string
+  pro_subscription_monthly_usd?: string
+  motivo: string
+}
+
+export interface PlatformCreditPackCreatePayload {
+  credits: number
+  amount_usd: string
+  is_active?: boolean
+  display_order?: number
+  motivo: string
+}
+
+/** `credits` no se edita: es la identidad del pack en la traza y en las ventas. */
+export interface PlatformCreditPackUpdatePayload {
+  amount_usd?: string
+  is_active?: boolean
+  display_order?: number
+  motivo: string
+}
+
+export interface PlatformVolumeTierCreatePayload {
+  spend_min_usd: string
+  discount: string
+  is_active?: boolean
+  display_order?: number
+  motivo: string
+}
+
+/** `spend_min_usd` no se edita: moverlo sin mover sus vecinos abre huecos en la escalera. */
+export interface PlatformVolumeTierUpdatePayload {
+  discount?: string
+  is_active?: boolean
+  display_order?: number
+  motivo: string
+}
+
+/** Un asiento del historico de precios. De solo lectura, por R4. */
+export interface PlatformPriceChange {
+  clave: string
+  valor_anterior: string | null
+  valor_nuevo: string | null
+  actor_user_id: string | null
+  motivo: string | null
+  changed_at: string
+}
+
+export interface PlatformPriceChangePage {
+  items: PlatformPriceChange[]
+  total: number
+  limit: number
+  offset: number
+}
+
+// --------------------------------------------------------------------------- //
+// Consola de operaciones
+// --------------------------------------------------------------------------- //
+
+/**
+ * Un escaneo, con el nombre de su organizacion.
+ *
+ * ## Por que la duracion es `string` y no `number`
+ *
+ * Porque viene de un `Decimal` del backend y la regla del proyecto es que los decimales viajan
+ * como cadena. Un `number` aqui haria que «0,1» y «0,10» se comparen igual en el cliente cuando
+ * el backend los distingue, que es exactamente el fallo que ya se corrigio en la paridad.
+ */
+export interface ScanOperacion {
+  id: string
+  organization_id: string
+  organizacion: string
+  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMED_OUT' | 'ABORTED'
+  scan_mode: string
+  target_type: string
+  target_identifier: string
+  container_id: string | null
+  cleanup_pending: boolean
+  error_message: string | null
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+  /** Minutos que lleva vivo si sigue en curso. Es lo que hace ordenable la lista. */
+  duracion_minutos: string
+}
+
+/**
+ * Por que se cancela un escaneo. Decide si se devuelve el dinero.
+ *
+ * ## Por que el enum tiene que coincidir con el del backend
+ *
+ * Porque los motivos `INFRASTRUCTURE_*` **devuelven la reserva** y los demas cobran. Si aqui se
+ * anvara el nombre de uno, la pantalla dejaria de avisar del dinero y el operador cancelaria sin
+ * saber lo que va a pasar en la cuenta del cliente. El test `i18n` no cubre esto, asi que el
+ * enganche es el propio compilador de TypeScript: si el backend anade un valor, este union deja
+ * de compilar en cuanto se use.
+ */
+export type AbortReason =
+  | 'CLIENT_CANCELLED'
+  | 'INFRASTRUCTURE_STUCK'
+  | 'INFRASTRUCTURE_FAILED'
+  | 'INFRASTRUCTURE_ORPHANED'
+  | 'DUPLICATE'
+  | 'POLICY_VIOLATION'
+
+export interface ScanOperacionPage {
+  items: ScanOperacion[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface CancelarScanResponse {
+  id: string
+  status: string
+  motivo: AbortReason
+  tarea_revocada: boolean
+  limpieza_pendiente: boolean
+  /**
+   * `null` significa «este motivo no devuelve». **No es `0`**: `0` seria «se cobro y no habia
+   * nada que devolver», que es otra cosa y no debe pintarse igual.
+   */
+  devuelto_creditos: string | null
+  nota: string
+}
+
+export interface LimpiarContenedorResponse {
+  id: string
+  contenedor: string
+  contenedor_ya_no_existia: boolean
+  limpieza_pendiente: boolean
+  nota: string
+}
+
+export interface ReviewOperacion {
+  id: string
+  organization_id: string
+  organizacion: string
+  status: 'QUEUED' | 'SCANNING' | 'PASSED' | 'FAILED' | 'ERROR'
+  pr_number: number
+  pr_title: string | null
+  source_branch: string | null
+  target_branch: string | null
+  issues_caught_critical: number
+  issues_caught_high: number
+  merge_blocked: boolean
+  run_id: string | null
+  created_at: string
+  finished_at: string | null
+}
+
+export interface ReviewOperacionPage {
+  items: ReviewOperacion[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface ContenedorOperacion {
+  run_id: string
+  organization_id: string
+  organizacion: string
+  container_id: string
+  nombre_esperado: string
+  status: string
+  cleanup_pending: boolean
+  started_at: string | null
+}
+
+export interface ContenedorPage {
+  items: ContenedorOperacion[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface JobOperacion {
+  id: string
+  organization_id: string
+  organizacion: string
+  kind: string
+  target: string
+  status: 'QUEUED' | 'CLAIMED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  agent_id: string | null
+  lease_expires_at: string | null
+  attempt_count: number
+  error_message: string | null
+  created_at: string
+}
+
+export interface JobOperacionPage {
+  items: JobOperacion[]
+  total: number
+  limit: number
+  offset: number
 }

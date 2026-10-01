@@ -149,8 +149,7 @@
       "analytics_read": "Ver analítica",
       "invoke": "Invocar"
     },
-    "selectDefaults": "Defaults ({{count}})",
-    "selectNone": "None"
+    "selectDefaults": "Defaults ({{count}})"
   },
   "webhooks": {
     "title": "Webhooks salientes",

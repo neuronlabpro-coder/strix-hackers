@@ -124,6 +124,23 @@ export function ScopeSelector({
           clic extra para lo que se hace en cuanto se llega. El numero va en el boton de
           Defaults porque es el dato que el usuario quiere antes de pulsarlo.
         */}
+        {/*
+          Solo **dos** acciones rápidas, y no tres.
+
+          ## Por qué no hay un «seleccionar ninguno» al lado
+
+          Porque el botón del medio ya es las dos cosas: pone todo cuando no está todo, y borra
+          cuando está todo (`chosen === total ? new Set() : todo`). Un tercer botón que hiciera
+          `new Set()` estaría junto a «Borrar selección» haciendo lo mismo, y en la captura se
+          veían los dos: «Borrar selección» y «None», que además era la única etiqueta en
+          inglés de una pantalla en español.
+
+          ## Por qué no se traduce «None» en vez de quitarlo
+
+          Porque traducir un botón que no hace falta deja un botón que no hace falta. El problema
+          no era el idioma, era que había dos caminos a la misma acción y solo uno estaba escrito
+          en el idioma del usuario.
+        */}
         <div className="scope-quick-actions">
           <button
             className="link-button"
@@ -140,14 +157,6 @@ export function ScopeSelector({
             onClick={setAll}
           >
             {t(chosen === total ? 'scopes.clearAll' : 'scopes.selectAll')}
-          </button>
-          <button
-            className="link-button"
-            type="button"
-            disabled={isDisabled || chosen === 0}
-            onClick={() => onChange(new Set())}
-          >
-            {t('scopes.selectNone')}
           </button>
         </div>
       </header>

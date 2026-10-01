@@ -387,7 +387,19 @@ class Settings(BaseSettings):
     # 1 crédito = 1,00 USD de precio al cliente (ya con markup aplicado).
     credits_per_usd: Decimal = Field(default=Decimal("1.00"), gt=0, le=1000)
     scan_credit_cost: Decimal = Field(default=Decimal("10"), gt=0, le=10000)
-    quick_scan_credit_multiplier: Decimal = Field(default=Decimal("0.5"), gt=0, le=1)
+    # El default es `0.3` y no `0.5`, y por la misma razón que `.env.example` lo fija en `0.3`:
+    # es el valor con el que se despliega y con el que la migración siembra la fila de precios.
+    #
+    # ## Por qué importa que coincidan
+    #
+    # ## Por qué el default tiene que coincidir con la fila
+    #
+    # Porque la fila de `platform_pricing` gana siempre, y el `default` solo se ve cuando la fila
+    # **no existe** —una base restaurada de antes de la migración, o una fila borrada. Con el
+    # default en `0.5` y la fila en `0.3`, esas dos bases cobraban el escaneo rápido a precios
+    # distintos sin que ninguna de las dos dijera nada. El respaldo que se documenta como
+    # respaldo tiene que decir lo mismo que la fila, o no es un respaldo: es un segundo precio.
+    quick_scan_credit_multiplier: Decimal = Field(default=Decimal("0.3"), gt=0, le=1)
     #: Umbral por debajo del cual se emite el aviso de saldo bajo. Cero lo desactiva.
     #:
     #: Es configuración y no una constante porque es política comercial por tenant, no

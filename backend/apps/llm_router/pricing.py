@@ -19,8 +19,6 @@ _USD_QUANTUM: Final[Decimal] = Decimal("0.000001")
 _PCT_QUANTUM: Final[Decimal] = Decimal("0.0001")
 _CREDIT_QUANTUM: Final[Decimal] = Decimal("0.0001")
 
-DEFAULT_CREDITS_PER_USD: Final[Decimal] = Decimal("1")
-
 
 class ChargeBreakdown(BaseModel):
     """Desglose auditable de una llamada a modelo de lenguaje.
@@ -59,7 +57,7 @@ def compute_charge(
     markup_pct: Decimal,
     prompt_tokens: int,
     completion_tokens: int,
-    credits_per_usd: Decimal = DEFAULT_CREDITS_PER_USD,
+    credits_per_usd: Decimal,
 ) -> ChargeBreakdown:
     """Calcula coste base, precio al cliente, beneficio y créditos consumidos.
 
@@ -67,6 +65,24 @@ def compute_charge(
     créditos, para que el redondeo no se acumule entre precio y beneficio. El
     beneficio se calcula sobre valores ya redondeados, de modo que
     `client_price_usd - base_cost_usd == net_profit_usd` siempre.
+
+    ## Por qué `credits_per_usd` no tiene valor por defecto
+
+    Porque tenía uno: `DEFAULT_CREDITS_PER_USD = Decimal("1")`. Con todos los llamadores
+    pasando el valor no se notaba, pero era una segunda declaración de la paridad escrita a
+    mano, igual que la que tenía el chat. Su daño era diferido y silencioso: el día que
+    alguien añadiera un camino de cobro nuevo y **olvidara** el argumento, la llamada no
+    fallaba —el valor por defecto la salvaba— y ese camino cobraba a 1:1 mientras el resto
+    cobraba al precio vigente. Un cobro que se calcula con el precio equivocado y sin error es
+    justo el fallo que este proyecto no puede permitirse en la facturación.
+
+    ## Por qué un módulo sin base de datos no puede tener el precio
+
+    Porque este módulo es puro a propósito: el desglose de un cobro tiene que poder
+    auditarse sin levantar el sistema, y un `Decimal` a la firma lo permite. Lo que no
+    permite es que el *precio* viva aquí, porque entonces volvería a estar escrito en el
+    código. La solución no es meter una consulta —eso rompe la pureza— sino obligar a que
+    quien llama diga cuál es el precio vigente.
     """
 
     if base_cost_input_m < 0 or base_cost_output_m < 0:

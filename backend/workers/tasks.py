@@ -18,7 +18,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from backend.apps.billing.models import LedgerReasonEnum
-from backend.apps.billing.pricing import scan_credit_cost
+from backend.apps.billing.pricing import credits_per_usd, scan_credit_cost
 from backend.apps.billing.service import apply_credit_delta
 from backend.apps.llm_router.models import LLMModelConfig, LLMUseCaseEnum
 from backend.apps.llm_router.routing import (
@@ -358,7 +358,7 @@ async def _charge_run_usage(
                 session=session,
                 organization_id=organization_id,
                 run_id=run_id,
-                credits_per_usd=settings.credits_per_usd,
+                credits_per_usd=credits_per_usd(),
                 reserved_credits=reserved_credits,
             )
     except Exception:

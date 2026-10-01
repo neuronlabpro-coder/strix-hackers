@@ -102,6 +102,24 @@ class RemoteRepositoryPage(BaseModel):
     offset: int
     provider: GitProviderEnum
 
+    #: La búsqueda que el servidor **aplicó de verdad**, ya recortada, o `None` si no hubo.
+    #:
+    #: ## Por qué el servidor devuelve la búsqueda aplicada y no el frontend la da por buena
+    #:
+    #: ## Por qué el eco
+    #:
+    #: Porque una búsqueda que no filta no da ningún error: la ruta contesta `200`, trae el
+    #: inventario entero y el panel enseña «100 de 100 repositorios coinciden con tu búsqueda».
+    #: Los nombres que salen no contienen lo que se escribió, y no hay nada en pantalla que lo
+    #: diga. Pasó de verdad, con un backend que no conocía el parámetro: un parámetro de consulta
+    #: que el servidor no declara se **ignora en silencio**, sin `422` y sin aviso.
+    #:
+    #: Con el eco, el frontend compara lo que pidió con lo que se aplicó y, si no coinciden, avisa
+    #: de que el servidor no está filtrando en vez de fingir que ha buscado. El fallo pasa de
+    #: «el buscador no funciona» —que no dice dónde está el problema— a «el servidor no está
+    #: aplicando el filtro», que sí.
+    busqueda_aplicada: str | None = None
+
 
 class RepositoryConnectRequest(BaseModel):
     """Solicitud de alta de un repositorio remoto previamente inventariado."""

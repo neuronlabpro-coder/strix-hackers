@@ -82,10 +82,35 @@ import type {
 export class ApiError extends Error {
   readonly status: number
 
-  constructor(status: number) {
+  /**
+   * El `detail` que devolvió el servidor, o `null` si no lo hubo.
+   *
+   * ## Por qué se guarda y por qué antes no
+   *
+   * ## Por qué el detalle
+   *
+   * Porque FastAPI contesta `{"detail": "..."}` con un mensaje que dice qué ha pasado —«Conecta
+   * primero una credencial de GITHUB para esta organización»— y ese mensaje era lo único que
+   * distinguía un `403` de un `500`. Sin él, un error solo lleva un número, y la pantalla
+   * terminaba con la misma frase para los dos.
+   *
+   * ## Por qué el mensaje de la excepción no sirve como texto
+   *
+   * ## Por qué el mensaje no es la clave de i18n
+   *
+   * Porque `super('api_request_failed')` es una **clave de traducción**, no un mensaje: es lo que
+   * se pasa a `t()` en la capa de presentación. Como `Error.message`, salía literalmente
+   * `api_request_failed` en cualquier sitio que imprimiera el error, y nadie lo Traducía porque
+   * `ApiError` no estaba pensado para mostrarse. Por eso el mensaje queda siendo la clave —para
+   * no romper a quien la use— y la información nueva va en `detalle`.
+   */
+  readonly detalle: string | null
+
+  constructor(status: number, detalle: string | null = null) {
     super('api_request_failed')
     this.name = 'ApiError'
     this.status = status
+    this.detalle = detalle
   }
 }
 
@@ -158,7 +183,33 @@ async function request<T>(
   })
 
   if (!response.ok) {
-    throw new ApiError(response.status)
+    // El cuerpo se lee **antes** de lanzar, no después: una `Response` solo se consume una vez, y
+    // leerlo tras el `throw` daría siempre «cuerpo ya usado». Y se lee aunque el estado no lo
+    // justifique, porque un `500` sin cuerpo es tan real como uno con él, y el mensaje vacío
+    // tiene que ser un caso previsto y no una excepción al construir el error.
+    let detalle: string | null = null
+    try {
+      const cuerpo: unknown = await response.clone().json()
+      if (cuerpo && typeof cuerpo === 'object' && 'detail' in cuerpo) {
+        const bruto = (cuerpo as { detail: unknown }).detail
+        // FastAPI devuelve `detail` como cadena en unos casos y como lista de objetos en otros,
+        // que es la forma de los `422` de validación. Los dos se aplanan a texto.
+        detalle = Array.isArray(bruto)
+          ? bruto
+              .map((parte) =>
+                parte && typeof parte === 'object' && 'msg' in parte
+                  ? String((parte as { msg: unknown }).msg)
+                  : String(parte),
+              )
+              .join(' ')
+          : typeof bruto === 'string'
+            ? bruto
+            : JSON.stringify(bruto)
+      }
+    } catch {
+      detalle = null
+    }
+    throw new ApiError(response.status, detalle)
   }
 
   if (response.status === 204 || response.headers.get('Content-Length') === '0') {
@@ -239,8 +290,30 @@ export function getOAuthAuthorizationUrl(
   )
 }
 
-/** La ventana que se pide al servidor. `limit` está topado a 100 por la API. */
-const VENTANA_INVENTARIO = 100
+/**
+ * Cuántos repositorios se piden en cada tanda.
+ *
+ * ## Por qué diez y no cien
+ *
+ * Porque la lista se elige con el buscador, no leyendo. Con cien, la ventana se llenaba entera y
+ * había que desplazarse dentro de una lista que se arrastraba entera para usar el buscador que
+ * estaba justo encima, que es la forma de usar un buscador: no usarlo. Con diez, lo que no
+ * coincide con la búsqueda se ve de un vistazo y se pasa a la palabra siguiente.
+ *
+ * ## Por qué no menos de diez
+ *
+ * Porque quien no busca —quien acaba de conectar la credencial y quiere ver si hay repos, o
+ * quien está mirando qué se ha importado ya— necesita más de tres filas para decidir, y con tres
+ * parece una lista de la que no se puede sacar una conclusión.
+ *
+ * ## Por qué el tope del servidor sigue siendo 100
+ *
+ * Porque el `le=100` de la ruta no es el tamaño de la ventana, es el techo de lo que se puede
+ * pedir en una llamada. Bajarlo a diez sería cambiar una protección por una costumbre, y el día
+ * que alguien quiera exportar el inventario entero se encontraría con un límite puesto para
+ * tapar un problema de carga.
+ */
+const VENTANA_INVENTARIO = 10
 
 export function getRemoteRepositories(
   token: string,

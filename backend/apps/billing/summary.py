@@ -50,13 +50,13 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.apps.billing.catalogo import catalogo_vigente
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum
+from backend.apps.billing.pricing import credits_per_usd
 from backend.apps.billing.schemas import (
-    CREDIT_PACKS,
     CUSTOM_CREDITS_MAXIMUM,
     CUSTOM_CREDITS_MINIMUM,
     PRO_SUBSCRIPTION_PLAN,
-    VOLUME_DISCOUNT_TIERS,
     CreditPackResponse,
     SubscriptionOfferResponse,
     VolumePricingResponse,
@@ -66,7 +66,6 @@ from backend.apps.billing.schemas import (
     subscription_price_usd,
 )
 from backend.apps.organizations.models import Organization
-from backend.core.config import settings
 
 
 def credits_to_usd(credits: Decimal | int) -> Decimal:
@@ -77,7 +76,7 @@ def credits_to_usd(credits: Decimal | int) -> Decimal:
     resultados distintos según el navegador del cliente.
     """
 
-    unitario = settings.credits_per_usd
+    unitario = credits_per_usd()
     return (Decimal(credits) * unitario).quantize(Decimal("0.01"))
 
 
@@ -142,7 +141,7 @@ def available_packs() -> list[CreditPackResponse]:
             amount_usd=amount,
             usd_per_credit=(amount / Decimal(credits)).quantize(Decimal("0.0001")),
         )
-        for credits, amount in sorted(CREDIT_PACKS.items())
+        for credits, amount in catalogo_vigente().packs
     ]
 
 
@@ -160,10 +159,11 @@ def volume_pricing() -> VolumePricingResponse:
     """
 
     tramos: list[VolumeTierResponse] = []
-    for indice, (minimo, descuento) in enumerate(VOLUME_DISCOUNT_TIERS):
+    catalogo = catalogo_vigente()
+    for indice, (minimo, descuento) in enumerate(catalogo.tramos):
         siguiente = (
-            VOLUME_DISCOUNT_TIERS[indice + 1][0]
-            if indice + 1 < len(VOLUME_DISCOUNT_TIERS)
+            catalogo.tramos[indice + 1][0]
+            if indice + 1 < len(catalogo.tramos)
             else None
         )
         # El máximo del tramo, en créditos, es lo que da el mínimo del siguiente spending
@@ -178,14 +178,14 @@ def volume_pricing() -> VolumePricingResponse:
                 minimum_credits=credits_for_spend(minimo),
                 maximum_credits=maximo,
                 discount=descuento,
-                usd_per_credit=(Decimal("1.00") - descuento),
+                usd_per_credit=catalogo.usd_por_credito_con_descuento(descuento),
             )
         )
     return VolumePricingResponse(
         tiers=tramos,
         minimum_credits=CUSTOM_CREDITS_MINIMUM,
         maximum_credits=CUSTOM_CREDITS_MAXIMUM,
-        list_usd_per_credit=Decimal("1.00"),
+        list_usd_per_credit=catalogo.usd_por_credito(),
     )
 
 

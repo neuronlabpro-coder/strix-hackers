@@ -35,15 +35,31 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.billing.models import LedgerReasonEnum
+from backend.apps.billing.pricing import credits_per_usd as paridad_vigente
 from backend.apps.billing.service import InsufficientCreditsError, apply_credit_delta
 from backend.apps.llm_router.models import LLMModelConfig, LLMUseCaseEnum
 from backend.apps.llm_router.pricing import ChargeBreakdown, compute_charge
 from backend.apps.llm_router.routing import LLMAllModelsInactiveError, resolve_model_chain
 
-#: Escala de los créditos. Se reexporta del modulo de atribucion en vez de repetirse aqui: dos
-#: constantes con el mismo nombre y distinto valor son la forma mas silenciosa de que un dia
-#: el chat cobre a un precio y los escaneos a otro.
-CREDITOS_POR_USD: Decimal = Decimal("1")
+#: La paridad **no** es una constante de este modulo.
+#:
+#: ## Por qué aquí no hay constante
+#:
+#: Porque era el cuarto sitio donde la paridad estaba escrita, y era el único que
+#: **miente**: el comentario de al lado decía que el valor se reexportaba del módulo de
+#: atribución para no repetirlo, y en la línea siguiente había un `Decimal("1")` escrito a
+#: mano. Nadie lo notó porque el `default` de `CREDITS_PER_USD` en la configuración también
+#: es `1.00`, así que los dos valores coincidían por casualidad.
+#:
+#: La casualidad es exactamente lo que hace peligroso un duplicado: el día que alguien
+#: subiera la paridad en la configuración para cobrar más créditos por dólar, este módulo
+#: seguiría pagando a 1:1, y el desajuste aparecería en la conciliación de fin de mes, en
+#: forma de miles de euros sin destinatario. Con `paridad_vigente()` no hay segundo valor
+#: que pueda quedar viejo: si la fila de la base cambia, el chat cambia con ella en la
+#: misma lectura.
+#:
+#: Y la paridad se lee en el **momento del cobro**, no al importar el módulo, que es lo que
+#: hace que una edición de precio desde el panel se aplique sin reiniciar el proceso.
 
 _CUATRO_DECIMALES: Decimal = Decimal("0.0001")
 
@@ -100,7 +116,7 @@ def _a_creditos(importe_usd: Decimal) -> Decimal:
     sistemáticamente una parte del cobro.
     """
 
-    return (importe_usd * CREDITOS_POR_USD).quantize(_CUATRO_DECIMALES, rounding=ROUND_HALF_UP)
+    return (importe_usd * paridad_vigente()).quantize(_CUATRO_DECIMALES, rounding=ROUND_HALF_UP)
 
 
 async def resolve_chat_model(session: AsyncSession) -> LLMModelConfig:
@@ -145,7 +161,7 @@ def calcular_coste_de_paso(
         markup_pct=modelo.markup_pct,
         prompt_tokens=tokens_in,
         completion_tokens=tokens_out,
-        credits_per_usd=CREDITOS_POR_USD,
+        credits_per_usd=paridad_vigente(),
     )
 
 

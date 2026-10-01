@@ -74,6 +74,27 @@ export function ConnectRepositoryModal({
    * que las cuenta es el que decide si el buscador funciona.
    */
   const [totalInventario, setTotalInventario] = useState(0)
+  /**
+   * `true` cuando se ha escrito una búsqueda y el servidor **no** la ha aplicado.
+   *
+   * ## Por qué hay que mirar esto y no fiarse de la respuesta
+   *
+   * ## Por qué existe este aviso
+   *
+   * Porque un parámetro de consulta que el servidor no declara se ignora sin decir nada: ni
+   * `422`, ni aviso, ni diferencia en el código de estado. Con un backend desactualizado, escribir
+   * `shytai` devuelve el inventario entero y el panel dice «100 de 100 repositorios coinciden con
+   * tu búsqueda». Los nombres que salen no la contienen, y no hay nada en la pantalla que lo
+   * diga: el buscador parece roto, cuando lo que está desactualizado es el servidor.
+   *
+   * ## Por qué no se arregla haciendo la búsqueda en el cliente
+   *
+   * ## Por qué no se disimula filtrando también en el cliente
+   *
+   * Porque si el cliente filtrara también, el aviso no se pondría nunca y el servidor
+   * desactualizado seguiría sirviendo inventarios enteros a quien|Programa la búsqueda solo en el cliente
+   */
+  const [filtroIgnorado, setFiltroIgnorado] = useState(false)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set())
   const [isImporting, setIsImporting] = useState(false)
 
@@ -90,6 +111,12 @@ export function ConnectRepositoryModal({
         .then((page) => {
           setRemoteRepositories(page.items)
           setTotalInventario(page.total)
+          // Se compara lo pedido con lo aplicado. Un backend viejo no trae el campo y
+          // `busqueda` vacía lo cuenta como «no filtró», que es la lectura conservadora: ante
+          // la duda, se avisa de más y no de menos.
+          setFiltroIgnorado(
+            search.trim() !== '' && (page.busqueda_aplicada ?? '') !== search.trim(),
+          )
           // La búsqueda cambia lo que hay en pantalla, y lo que se había marcado deja de estar a
           // la vista. Sin esta línea, marcar dos repositorios, cambiar el buscador e importar
           // importa cuatro de los que ya no se ven.
@@ -117,12 +144,24 @@ export function ConnectRepositoryModal({
    *
    * ## Por qué un retardo y no una petición por tecla
    *
-   * ## Por qué 300 ms
+   * ## Por qué 200 ms
    *
    * Porque la ruta lleva `repository_management_rate_limit`, que son 60 peticiones por minuto.
-   * Buscar `microservicios` son 13 teclas, y a 13 peticiones por búsqueda se llega al límite
-   * escribiendo dos palabras. El retardo no es para que se vea bonito: es para que la búsqueda
-   * sea una petición por palabra y no una por letra.
+   * Buscar `microservicios` son 13 teclas, y sin retardo eso son 13 peticiones y se llega al
+   * límite escribiendo dos palabras. El retardo no es para que se vea bonito: es para que haya
+   * una petición por palabra y no una por letra.
+   *
+   * ## Por qué no menos de 200
+   *
+   * ## Por qué 200 y no más
+   *
+   * Porque a partir de unos 200 ms la espera empieza a notarse y el buscador parece lento; por
+   * debajo, cada tecla lanza una petición que la siguiente cancela. La diferencia entre 200 y 300
+   * no se nota, y 200 es la cifra más corta que aguanta el límite de tasa con holgura: escribir
+   * doce letras seguidas da cuatro peticiones, no doce.
+   *
+   * Y **escribir nunca se bloquea**: el retardo retrasa la petición, no el tecleo. El campo
+   * responde mientras tanto y la lista se actualiza al terminar.
    *
    * ## Por qué se cancela la anterior
    *
@@ -300,7 +339,7 @@ export function ConnectRepositoryModal({
    *
    * ## Por qué no se deja como filtro **extra** encima del del servidor
    *
-   * Porque es una门将 un conjunto ya estrecho por un criterio distinto, y si los dos no
+   * Porque es meter un conjunto ya estrecho por un criterio distinto, y si los dos no
    * coinciden exactamente aparece el peor caso: la lista se vacía sin motivo aparente y no hay
    * forma de saber si no hay resultados o si los dos filtros se están contradiciendo. Con el
    * filtro en un solo sitio, `total` y la lista cuentan lo mismo, que es lo que hace falta para
@@ -672,6 +711,12 @@ export function ConnectRepositoryModal({
                   <span>{t('modal.selectAll')}</span>
                 </label>
               </div>
+
+              {filtroIgnorado && (
+                <p className="remote-count remote-count-warning" role="alert">
+                  {t('modal.searchNotApplied', { search: busqueda })}
+                </p>
+              )}
 
               {/*
                 El recuento va **siempre**, no solo cuando hay búsqueda, y no es decoración.

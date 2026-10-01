@@ -1,5 +1,8 @@
 """Aplicación FastAPI de control de Mind Guard Fenix Team."""
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import FastAPI, Request, Response
@@ -7,12 +10,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from backend.apps.admin.operations_router import router as operations_router
 from backend.apps.admin.router import router as admin_router
 from backend.apps.agents.router import router as agents_router
 from backend.apps.api_access.mcp_router import router as mcp_router
 from backend.apps.api_access.router import router as api_access_router
 from backend.apps.assets.router import router as assets_router
 from backend.apps.audit.router import router as audit_router
+from backend.apps.billing.admin_router import router as billing_admin_router
+from backend.apps.billing.catalogo import cargar_catalogo
+from backend.apps.billing.pricing import cargar_precios
 from backend.apps.billing.router import router as billing_router
 from backend.apps.chat.router import router as chat_router
 from backend.apps.cve_database.router import router as cve_router
@@ -31,6 +38,7 @@ from backend.apps.support.router import router as support_router
 from backend.apps.vulnerabilities.router import router as vulnerabilities_router
 from backend.apps.webhooks.router import router as webhooks_router
 from backend.core.config import settings
+from backend.core.database import AsyncSessionLocal
 
 #: Si la documentación interactiva y el esquema se sirven en este despliegue.
 #:
@@ -57,7 +65,71 @@ from backend.core.config import settings
 #: desactive la comprobación en producción creyendo que la tiene activa.
 _EXPONE_DOCUMENTACION: bool = settings.environment == "development"
 
+@asynccontextmanager
+async def _arrancar(_: FastAPI) -> AsyncIterator[None]:
+    """Carga los precios de plataforma antes de aceptar la primera peticion.
+
+    ## Por que los precios se cargan al arrancar y no en cada cobro
+
+    Porque leer un precio es una consulta, y el precio se lee en sitios sin sesion —el
+    worker de Celery, dos servicios que cobran desde un webhook— donde no hay forma de
+    cargarlo. La alternativa, pasar la sesion por esos caminos, obliga a cambiar la firma
+    de cuatro funciones y a enhebrarla por unos doce llamadores, y el resultado seria la
+    misma regla de precio repartida por medio dozen de ficheros: exactamente el defecto
+    que venia a arreglar. aqui hay un solo sitio donde se lee.
+
+    ## Por que un fallo aqui no detiene el arranque
+
+    Porque un precio ilegible no es un motivo para dejar de servir: es un motivo para
+    cobrar con los precios de arranque y decirlo. Lo contrario —abortar el arranque—
+    convertiria un fallo de la tabla de precios en una caida completa de la plataforma,
+    que es una respuesta disproportionada a un problema de la mitad de la facturacion.
+    Y el aviso queda en el log para que el operador lo vea en el despliegue y no en una
+    conciliacion de fin de mes.
+
+    ## Por que no hay ninguna salida por aqui
+
+    Porque la fila de precios no se borra ni se desactiva: se cambia de valores. Un
+    proceso que termina no tiene que soltar nada, y un apagado lento no tiene que esperar
+    a un volcado que no existe. La unica salida posible —que la fila desaparezca bajo los
+    pies del proceso— esta cubierta por el respaldo a configuracion de `precios_vigentes()`.
+    """
+    try:
+        async with AsyncSessionLocal() as sesion:
+            cargados = await cargar_precios(sesion)
+            cargados_catalogo = await cargar_catalogo(sesion)
+    except Exception:
+        logger.exception(
+            "No se pudieron cargar los precios de plataforma; se cobra con la configuracion"
+        )
+    else:
+        if cargados is None:
+            logger.warning(
+                "La tabla platform_pricing no tiene fila; "
+                "se cobra con los precios de la configuracion"
+            )
+        else:
+            logger.info(
+                "Precios de plataforma cargados: paridad=%s, escaneo=%s, quick=x%s",
+                cargados.credits_per_usd,
+                cargados.scan_credit_cost,
+                cargados.quick_scan_credit_multiplier,
+            )
+        if cargados_catalogo is None:
+            logger.warning(
+                "El catalogo comercial no esta en la base; se vende con el del codigo"
+            )
+        else:
+            logger.info(
+                "Catalogo comercial cargado: %d packs, %d tramos, pro=%s/mes",
+                len(cargados_catalogo.packs),
+                len(cargados_catalogo.tramos),
+                cargados_catalogo.suscripcion_mensual_usd,
+            )
+    yield
+
 app = FastAPI(
+    lifespan=_arrancar,
     title="Mind Guard Fenix Team API",
     docs_url="/docs" if _EXPONE_DOCUMENTACION else None,
     redoc_url="/redoc" if _EXPONE_DOCUMENTACION else None,
@@ -216,6 +288,13 @@ app.include_router(repositories_auth_router)
 app.include_router(repositories_router)
 app.include_router(dashboard_router)
 app.include_router(api_access_router)
+# Precios de plataforma, antes que el resto de administracion: `include_router` es el
+# orden de coincidencia, y `/api/v1/admin/pricing` tiene que encontrar esta ruta y no una
+# eventual `/api/v1/admin/{algo}` de mas abajo.
+# Consola de operaciones, junto a precios y antes que el resto de administracion: el
+# orden de `include_router` es el orden de coincidencia.
+app.include_router(operations_router)
+app.include_router(billing_admin_router)
 app.include_router(admin_router)
 app.include_router(support_admin_router)
 app.include_router(support_router)
@@ -238,3 +317,5 @@ app.include_router(mcp_router)
 app.include_router(chat_router)
 app.include_router(supply_chain_router)
 app.include_router(agents_router)
+
+logger = logging.getLogger(__name__)

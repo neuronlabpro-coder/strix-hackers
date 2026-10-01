@@ -87,7 +87,8 @@
     "bulkPartial": "Importados {{ok}} de {{total}}. Han fallado: {{failed}}",
     "bulkFailed": "No se ha importado ninguno. Han fallado: {{failed}}",
     "countAll": "{{shown}} de {{total}} repositorios. Se muestran {{shown}} porque la lista se trae por tandas: usa el buscador para ver el resto.",
-    "countFiltered": "{{shown}} de {{total}} repositorios coinciden con tu búsqueda."
+    "countFiltered": "{{shown}} de {{total}} repositorios coinciden con tu búsqueda.",
+    "searchNotApplied": "El servidor no está aplicando la búsqueda «{{search}}», así que esto es el inventario entero. Recarga el backend y vuelve a buscar."
   },
   "autofix": {
     "notFromReview": "Este hallazgo no procede de una revisión de Pull Request, así que el autofix no puede abrirse automáticamente."

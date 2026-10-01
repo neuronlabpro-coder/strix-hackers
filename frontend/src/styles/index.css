@@ -665,10 +665,31 @@ a {
   gap: 10px;
 }
 
+/*
+ * La fila del repositorio: casilla a la izquierda, título al lado, botón al extremo derecho.
+ *
+ * ## Por qué se quita el `space-between`
+ *
+ * Porque con tres hijos —casilla, texto y botón— `space-between` reparte el hueco **entre** ellos
+ * y deja el texto en el medio de la fila. El nombre del repositorio salía centrado, y un
+ * nombre de repositorio centrado se lee peor que alineado: hay que recorrer la línea para saber
+ * por dónde empieza, y comparar dos nombres para ver en qué se diferencian se vuelve imposible.
+ *
+ * ## Por qué `flex: 1` en el texto y no `space-between`
+ *
+ * Porque con `flex: 1 1 auto` el texto ocupa todo lo que sobra y el botón se va al extremo, y el
+ * nombre queda **inmediatamente después de la casilla**, que es de donde se lee una lista.
+ *
+ * Y `gap: 12px` en vez de `16px`: 16 era la separación para tres bloques equivalentes, y aquí el
+ * de la izquierda es una casilla de 16 px, no un bloque.
+ */
 .remote-item {
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+}
+
+.remote-copy {
+  flex: 1 1 auto;
 }
 
 /*
@@ -5365,4 +5386,12 @@ select option:checked {
   display: block;
   margin-top: 4px;
   font-size: 0.72rem;
+}
+
+/* El estado HTTP y el detalle del servidor, debajo de la frase accionable. */
+.admin-failure-status {
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
 }

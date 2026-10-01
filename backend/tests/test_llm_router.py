@@ -79,6 +79,7 @@ def test_compute_charge_applies_markup_over_base_cost() -> None:
         markup_pct=Decimal("150.00"),
         prompt_tokens=1_000_000,
         completion_tokens=0,
+        credits_per_usd=Decimal("1"),
     )
 
     assert charge.base_cost_usd == Decimal("3.000000")
@@ -94,6 +95,7 @@ def test_compute_charge_sums_input_and_output() -> None:
         markup_pct=Decimal("0.00"),
         prompt_tokens=1_000_000,
         completion_tokens=1_000_000,
+        credits_per_usd=Decimal("1"),
     )
 
     assert charge.base_cost_usd == Decimal("18.000000")
@@ -113,6 +115,10 @@ def test_price_minus_cost_always_equals_profit() -> None:
                 markup_pct=Decimal(margin),
                 prompt_tokens=tokens,
                 completion_tokens=tokens,
+                # La paridad se dice siempre. Estas dos pruebas comprueban la relación entre
+                # precio, coste y beneficio, que no depende de ella, pero se declara igual para
+                # que el valor que se usa a propósito y no el que salía por defecto sea visible.
+                credits_per_usd=Decimal("1"),
             )
             assert charge.client_price_usd - charge.base_cost_usd == charge.net_profit_usd, (
                 margin,
@@ -127,6 +133,7 @@ def test_zero_tokens_costs_nothing_and_reports_no_profit_percentage() -> None:
         markup_pct=Decimal("150.00"),
         prompt_tokens=0,
         completion_tokens=0,
+        credits_per_usd=Decimal("1"),
     )
 
     assert charge.base_cost_usd == Decimal("0E-6")
@@ -159,16 +166,37 @@ def test_compute_charge_rejects_invalid_inputs() -> None:
         {"base_cost_output_m": Decimal("-1")},
         {"credits_per_usd": Decimal("0")},
     ):
-        base = {
+        base: dict[str, object] = {
             "base_cost_input_m": Decimal("3.00"),
             "base_cost_output_m": Decimal("15.00"),
             "markup_pct": Decimal("150.00"),
             "prompt_tokens": 10,
             "completion_tokens": 10,
+            "credits_per_usd": Decimal("1"),
         }
         base.update(kwargs)
         with pytest.raises(ValueError):
             compute_charge(**base)  # pyright: ignore[reportArgumentType]
+
+
+def test_compute_charge_no_tiene_paridad_por_defecto() -> None:
+    """Omitir la paridad es un error de quien llama, no un cobro a 1:1.
+
+    Este es el motivo por el que el parámetro dejó de tener valor por defecto. Con un
+    `DEFAULT_CREDITS_PER_USD = Decimal("1")`, un camino de cobro nuevo que **olvidara** el
+    argumento se cobraría a una paridad fija y sin avisar, mientras el resto del sistema cobra
+    al precio vigente. Al quitar el valor por defecto, ese mismo olvido revienta aquí, en la
+    prueba, en vez de aparecer en una conciliación de fin de mes.
+    """
+
+    with pytest.raises(TypeError, match="credits_per_usd"):
+        compute_charge(  # pyright: ignore[reportCallIssue]
+            base_cost_input_m=Decimal("3.00"),
+            base_cost_output_m=Decimal("15.00"),
+            markup_pct=Decimal("150.00"),
+            prompt_tokens=10,
+            completion_tokens=10,
+        )
 
 
 # --------------------------------------------------------------------------- #

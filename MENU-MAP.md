@@ -330,3 +330,58 @@ buscador masivo.
 - [ ] **10.4 · Soporte Integrado (Help & Support Widget)**
   - [ ] Widget flotante en esquina inferior derecha
   - [ ] Opciones: `Report an issue` (Envío de bugs con captura), `Request a feature` y Chat con soporte
+
+## 11. Consola de Administración de Plataforma (`/admin`)
+
+> **Añadido en esta entrega.** Las pantallas de esta consola —tenants, usuarios, ventas,
+> auditoría, modelos LLM, tickets y agentes de todas las organizaciones— ya existían en el
+> panel y **no** estaban recogidas aquí. Se documentan todas ahora, porque este fichero es la
+> autoridad de qué pantallas existen y una pantalla que no aparece aquí no existe para el
+> siguiente que lea el mapa. El bloque nuevo propiamente dicho es el punto 11.5.
+
+- [ ] **11.1 Resumen global** (`/admin`) — KPIs de toda la plataforma: organizaciones, usuarios,
+      escaneos, hallazgos, ingresos y estado de los servicios.
+- [ ] **11.2 Organizaciones** (`/admin/tenants`) — alta, baja lógica, cambio de plan, members y
+      revocación de invitaciones.
+- [ ] **11.3 Usuarios** (`/admin/users`) — listado global con búsqueda, filtro por rol y por
+      organización, y gestión de su estado.
+- [ ] **11.4 Ventas e ingresos** (`/admin/sales`) — créditos comprados, saldo por organización
+      y exportación.
+- [ ] **11.5 Precios de plataforma** (`/admin/pricing`) — **pantalla nueva de esta entrega**.
+      Única pantalla desde la que se modifica lo que cuesta el producto.
+      - Los siete precios escalares y comerciales en una sola edición: paridad del crédito, coste
+        de un escaneo `DEEP`, multiplicador del escaneo `QUICK`, umbral de saldo bajo, mínimo y
+        tope del pack a medida y precio mensual del plan Pro.
+      - Packs de créditos: alta, edición de importe, orden y activación. **La cantidad de créditos
+        de un pack no se edita**: es su identidad en la traza y en el historial de ventas, así que
+        para cambiarla se desactiva el pack viejo y se crea el nuevo.
+      - Escalera de descuento por volumen: alta, edición del descuento, orden y activación. **El
+        umbral de un tramo tampoco se edita**, por el mismo motivo y porque moverlo sin mover sus
+        vecinos puede dejar dos tramos solapados o un hueco entre ellos.
+      - **Ningún borrado.** Un pack o un tramo se desactiva con `is_active`; la fila se queda, deja
+        de ofrecerse y su histórico sigue siendo legible. Es la misma decisión que R4 impone al
+        ledger y a las evidencias: lo que certifica un cobro no se borra desde la interfaz.
+      - Histórico de cambios de precio, de solo lectura, con el valor anterior, el nuevo, el autor
+        y el motivo. El motivo es **obligatorio**: es lo que distingue una corrección de un error
+        de una subida de precio deliberada, y son dos cosas que escriben la misma clave.
+- [ ] **11.6 Auditoría** (`/admin/audit`) — visor append-only de los eventos de todas las
+      organizaciones, con filtro por acción y por tenant.
+- [ ] **11.7 Modelos LLM** (`/admin/llm`) — alta, margen, prioridad y estado de cada modelo, con
+      sus métricas de consumo.
+- [ ] **11.8 Tickets y soporte** (`/admin/tickets`) — cola de soporte de todos los tenants.
+
+### Por qué la consola de precios va aparte y no dentro de «Ventas»
+
+Porque no es una vista de ventas: es la **única** escritura que cambia lo que la plataforma cobra,
+y una de las pocas que no pertenece a ninguna organización. Su superficie de riesgo no tiene nada
+que ver con la de la sección 11.4, que es de solo lectura. Mezclarlas haría que un operador que
+entró a mirar ingresos estuviera a un clic de cambiar la tarifa.
+
+### Por qué el precio de un escaneo queda congelado aunque se edite
+
+Editar un precio no cambia lo ya cobrado. El precio de un escaneo se fija en el asiento del ledger
+en el momento en que se encola, y el ajuste contra el consumo real ocurre en el worker. Si el
+precio se releyera en el worker, cambiar la tarifa entre el encolado y la ejecución haría que la
+reserva y el ajuste usaran precios distintos, y el ledger recibiría una corrección que no
+corresponde a ninguna compra. Enseñar el precio aplicado en el histórico es lo que permite
+explicar meses después por qué ese cobro fue el que fue.

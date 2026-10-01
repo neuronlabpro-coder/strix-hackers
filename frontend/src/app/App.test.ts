@@ -137,11 +137,24 @@ describe('la consola de SuperAdmin cuelga fuera del shell de cliente', () => {
     expect(sangriaAdmin).toBe(sangriaComodín)
   })
 
-  it('las seis pantallas de la consola cuelgan por debajo de /admin', () => {
+  it('todas las pantallas de la consola cuelgan por debajo de /admin', () => {
     // Son rutas **relativas**: cuelgan de un `Route` sin `path` que hay dentro de `/admin`, y por
     // eso no se buscan como `/admin/tenants`. Lo que importa para este test es la profundidad:
     // si una de ellas dejara de colgar de la consola, su sangria bajaria a la de sus hermanas.
-    for (const pantalla of ['tenants', 'users', 'sales', 'audit', 'llm', 'tickets']) {
+    // `pricing` y `agents` tambien van aqui. La prueba enumera las pantallas a mano, y
+    // // una pantalla que se anada al router y se olvide en esta lista pasa los gates sin
+    // // comprobar nada: el fallo sale de la pantalla, no del porton.
+    for (const pantalla of [
+      'tenants',
+      'operations',
+      'users',
+      'sales',
+      'audit',
+      'pricing',
+      'agents',
+      'llm',
+      'tickets',
+    ]) {
       const sangria = sangriaDeRuta(pantalla)
       expect(sangria, `falta la pantalla "${pantalla}" de la consola`).not.toBeNull()
       expect(

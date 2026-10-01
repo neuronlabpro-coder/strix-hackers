@@ -30,7 +30,29 @@ import type {
   PlanTierAdmin,
   TenantLifecycle,
 } from '../types/api'
+import type {
+  AbortReason,
+  CancelarScanResponse,
+  ContenedorPage,
+  JobOperacionPage,
+  LimpiarContenedorResponse,
+  ReviewOperacionPage,
+  ScanOperacionPage,
+} from '../types/api' 
 import type { BillingSummary, CheckoutSession, CreditLedgerEntry } from '../types/billing'
+import type {
+  PlatformCreditPack,
+  PlatformCreditPackCreatePayload,
+  PlatformCreditPackUpdatePayload,
+  PlatformPriceChangePage,
+  PlatformPricing,
+  PlatformPricingDetail,
+  PlatformPricingUpdatePayload,
+  PlatformVolumeTier,
+  PlatformVolumeTierCreatePayload,
+  PlatformVolumeTierUpdatePayload,
+} from '../types/api'
+
 import { ApiError } from './api'
 
 async function adminRequest<T>(path: string, init: RequestInit, token: string): Promise<T> {
@@ -379,5 +401,228 @@ export function createSubscriptionCheckout(
     },
     token,
     organizationId,
+  )
+}
+
+// --------------------------------------------------------------------------- //
+// Precios de plataforma
+// --------------------------------------------------------------------------- //
+//
+// ## Por que van en este fichero y no en `lib/api.ts`
+//
+// Porque `lib/api.ts` manda `X-Organization-Id` en cada peticion, y un precio de plataforma
+// **no pertenece a ninguna organizacion**: pertenece a la plataforma. Mandar el identificador
+// de un tenant a una ruta que no lo usa es la forma de que alguien lo lea despues como un
+// filtro implicito y anada un dia el precio por organizacion sin darse cuenta. Aqui la
+// ausencia del identificador es la propia documentacion de que la ruta cruza tenants.
+//
+// Y ahi vive `getLLMModels` sin embargo, que si cruza tenants. Es deuda, no patron.
+
+export function getPlatformPricing(token: string): Promise<PlatformPricingDetail> {
+  return adminRequest('/api/v1/admin/pricing', {}, token)
+}
+
+export function updatePlatformPricing(
+  token: string,
+  payload: PlatformPricingUpdatePayload,
+): Promise<PlatformPricing> {
+  return adminRequest(
+    '/api/v1/admin/pricing',
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+export function createPlatformCreditPack(
+  token: string,
+  payload: PlatformCreditPackCreatePayload,
+): Promise<PlatformCreditPack> {
+  return adminRequest(
+    '/api/v1/admin/pricing/packs',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+export function updatePlatformCreditPack(
+  token: string,
+  packId: string,
+  payload: PlatformCreditPackUpdatePayload,
+): Promise<PlatformCreditPack> {
+  return adminRequest(
+    `/api/v1/admin/pricing/packs/${encodeURIComponent(packId)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+export function createPlatformVolumeTier(
+  token: string,
+  payload: PlatformVolumeTierCreatePayload,
+): Promise<PlatformVolumeTier> {
+  return adminRequest(
+    '/api/v1/admin/pricing/tiers',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+export function updatePlatformVolumeTier(
+  token: string,
+  tierId: string,
+  payload: PlatformVolumeTierUpdatePayload,
+): Promise<PlatformVolumeTier> {
+  return adminRequest(
+    `/api/v1/admin/pricing/tiers/${encodeURIComponent(tierId)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  )
+}
+
+/** Filtros del historico de precios. */
+export interface PlatformPriceChangeFilters {
+  clave?: string | null
+  limit?: number
+  offset?: number
+}
+
+/**
+ * El historico de precios, del mas reciente al mas antiguo.
+ *
+ * ## Por que filtra por clave y no por fecha
+ *
+ * Porque la pregunta que se hace es «quien movio este precio», no «que paso tal dia». La clave
+ * identifica el precio —un escalar, o el identificador de un pack o de un tramo— y el filtro va
+ * ahi. Filtrar por rango de fechas sobre una tabla append-only obliga a paginar desde el origen,
+ * que es justo lo que hace lento un historico que solo crece.
+ */
+export function getPlatformPriceChanges(
+  token: string,
+  filters: PlatformPriceChangeFilters = {},
+): Promise<PlatformPriceChangePage> {
+  return adminRequest(
+    `/api/v1/admin/pricing/changes${query({
+      limit: 50,
+      offset: 0,
+      clave: filters.clave,
+    })}`,
+    {},
+    token,
+  )
+}
+
+
+// --------------------------------------------------------------------------- //
+// Consola de operaciones
+// --------------------------------------------------------------------------- //
+//
+// ## Por que van en este fichero y no en `lib/api.ts`
+//
+// Porque son rutas de alcance plataforma: no aceptan `X-Organization-Id` y su respuesta trae ya
+// el nombre de la organizacion de cada fila. Si se mandara un identificador de tenant, un dia
+// alguien lo leeria como un filtro y las listas dejarian de mostrarlos todos, que es justo lo que
+// esta consola tiene que hacer.
+
+export interface OperationsFilters {
+  status?: string | null
+  organizationId?: string | null
+  soloColgados?: boolean
+  limit?: number
+  offset?: number
+}
+
+export function getAdminScans(
+  token: string,
+  filters: OperationsFilters = {},
+): Promise<ScanOperacionPage> {
+  return adminRequest(
+    `/api/v1/admin/operations/scans${query({
+      limit: 50,
+      offset: 0,
+      estado: filters.status,
+      organization_id: filters.organizationId,
+      solo_colgados: filters.soloColgados,
+    })}`,
+    {},
+    token,
+  )
+}
+
+/**
+ * Cancela un escaneo y devuelve el dinero si el motivo obliga.
+ *
+ * ## Por que el motivo va en el cuerpo y no se deduce
+ *
+ * Porque un proceso colgado y una cancelacion del cliente se ven **exactamente igual**: los dos
+ * estan en `RUNNING`. Si el servidor lo dedujera del tiempo transcurrido, un cliente que
+ * cancela a los cinco minutos y un proceso que lleva cuarenta colgado acabarian con el mismo
+ * trato, y uno de los dos esta mal.
+ */
+export function cancelAdminScan(
+  token: string,
+  runId: string,
+  motivo: AbortReason,
+  nota: string,
+): Promise<CancelarScanResponse> {
+  return adminRequest(
+    `/api/v1/admin/operations/scans/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST', body: JSON.stringify({ motivo, nota }) },
+    token,
+  )
+}
+
+/**
+ * Limpia el contenedor, la red y el directorio de un run terminado.
+ *
+ * ## Por que es una ruta y no `cancelar`
+ *
+ * Porque limpiar un contenedor **no** es cancelar el trabajo. Un run `FAILED` con
+ * `cleanup_pending` ya termino —con sus hallazgos y su evidencia emitidos— y lo unico que sigue
+ * vivo son los recursos. Cancelar un run terminado da `409`, correctamente.
+ */
+export function cleanupAdminScanContainer(
+  token: string,
+  runId: string,
+): Promise<LimpiarContenedorResponse> {
+  return adminRequest(
+    `/api/v1/admin/operations/scans/${encodeURIComponent(runId)}/cleanup`,
+    { method: 'POST', body: JSON.stringify({}) },
+    token,
+  )
+}
+
+export function getAdminContainers(token: string): Promise<ContenedorPage> {
+  return adminRequest('/api/v1/admin/operations/containers', {}, token)
+}
+
+export function getAdminReviews(
+  token: string,
+  filters: OperationsFilters = {},
+): Promise<ReviewOperacionPage> {
+  return adminRequest(
+    `/api/v1/admin/operations/reviews${query({
+      limit: 50,
+      offset: 0,
+      estado: filters.status,
+      organization_id: filters.organizationId,
+    })}`,
+    {},
+    token,
+  )
+}
+
+export function getAdminJobs(
+  token: string,
+  filters: OperationsFilters = {},
+): Promise<JobOperacionPage> {
+  return adminRequest(
+    `/api/v1/admin/operations/jobs${query({
+      limit: 50,
+      offset: 0,
+      estado: filters.status,
+      organization_id: filters.organizationId,
+    })}`,
+    {},
+    token,
   )
 }

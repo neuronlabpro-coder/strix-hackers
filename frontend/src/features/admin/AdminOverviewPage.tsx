@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { ApiError } from '../../lib/api'
 import { getAdminOverview } from '../../lib/adminApi'
 import { formatCount, formatCredits, formatDateTime, formatUsd } from '../../lib/format'
 import type { AdminMetric } from '../../types/api'
@@ -15,6 +16,22 @@ interface OverviewSnapshot {
   checkedAt: string | null
   generatedAt: string | null
   failed: boolean
+  /**
+   * Por qué falló: el estado HTTP y el mensaje del servidor, o `null` si nada falló.
+   *
+   * ## Por qué se guarda en vez de solo un `failed: true`
+   *
+   * ## Por qué hace falta
+   *
+   * Porque un `catch` que se come el error convierte «no puedo cargar la consola» en un
+   * misterio: no hay forma de saber si es un `403` por no ser superusuario, un `500` del backend,
+   * o un backend que no está levantado. Los tres se pintaban igual, y el botón de «Reintentar»
+   * es lo único que se podía hacer: pulsar y rezar.
+   *
+   * Con el estado y el `detail` del servidor, la pantalla dice qué ha pasado y qué hacer. Es la
+   * diferencia entre un aviso y una puerta cerrada sin pomo.
+   */
+  fallo: { status: number; detalle: string | null } | null
 }
 
 /**
@@ -34,6 +51,39 @@ interface OverviewSnapshot {
  * empezar. Marcándolo a mano, un efecto que se limpia antes de resolver deja la vista
  * colgada en «cargando» para siempre, y no hay forma de que la pantalla vuelva.
  */
+/**
+ * Qué le decimos a quien mira, según por qué falló.
+ *
+ * ## Por qué hay cuatro textos y no uno
+ *
+ * Porque «no se pudo cargar» no dice qué hacer, y las cuatro causas necesitan acciones
+ * distintas: una sesión caducada se arregla iniciando sesión, un `403` se arregla con una cuenta
+ * de superusuario, un `5xx` mirando el log del backend, y un `0` —que es la señal de que ni
+ * siquiera hubo respuesta— arrancando el backend.
+ *
+ * ## Por qué el `detail` del servidor se enseña tal cual
+ *
+ * ## Por qué el `detail` va tal cual debajo
+ *
+ * Porque es el mensaje que FastAPI escribió para este caso concreto, y traducirlo o recortarlo
+ * es perder lo único que distingue un fallo de otro. Se enseña en monoespaciado, debajo de la
+ * frase que sí es accionable, para que la frase se lea y el detalle se copie.
+ *
+ * @param fallo El motivo guardado, o `null` si no se sabe.
+ * @param t El traductor, para no tener que importarlo aquí.
+ */
+function descripcionDelFallo(
+  fallo: { status: number; detalle: string | null } | null,
+  t: (clave: string, valores?: Record<string, unknown>) => string,
+): string {
+  if (!fallo) return t('overview.failureUnknown')
+  if (fallo.status === 0) return t('overview.failureNetwork')
+  if (fallo.status === 401) return t('overview.failureSession')
+  if (fallo.status === 403) return t('overview.failureForbidden')
+  if (fallo.status >= 500) return t('overview.failureServer')
+  return t('overview.failureOther', { status: fallo.status })
+}
+
 export function AdminOverviewPage() {
   const { t } = useTranslation('admin')
   const { token, user } = useAuth()
@@ -61,22 +111,35 @@ export function AdminOverviewPage() {
           checkedAt: overview.infrastructure.checked_at,
           generatedAt: overview.generated_at,
           failed: false,
+          fallo: null,
         })
       })
-      .catch(() => {
-        if (isActive) {
-          // El fallo no vacía las métricas ya cargadas. Un resumen que se borra al
-          // perder la conexión informa de "no hay datos", que es una conclusión falsa
-          // sobre la plataforma.
-          setSnapshot((current) => ({
-            key: requestKey,
-            metrics: current?.metrics ?? [],
-            status: current?.status ?? null,
-            checkedAt: current?.checkedAt ?? null,
-            generatedAt: current?.generatedAt ?? null,
-            failed: true,
-          }))
+      .catch((fallo: unknown) => {
+        if (!isActive) {
+          return
         }
+        // El fallo no vacía las métricas ya cargadas. Un resumen que se borra al perder la
+        // conexión informa de "no hay datos", que es una conclusión falsa sobre la plataforma.
+        //
+        // Y el motivo **se guarda**. Antes este `catch` no tenía parámetro: el error se perdía
+        // entero, y la pantalla pintaba la misma frase para un `403` que para un `500` o para un
+        // backend que no está levantado. Sin el motivo, el único recurso era reintentar.
+        const motivo: { status: number; detalle: string | null } =
+          fallo instanceof ApiError
+            ? { status: fallo.status, detalle: fallo.detalle }
+            : {
+                status: 0,
+                detalle: fallo instanceof Error ? fallo.message : null,
+              }
+        setSnapshot((current) => ({
+          key: requestKey,
+          metrics: current?.metrics ?? [],
+          status: current?.status ?? null,
+          checkedAt: current?.checkedAt ?? null,
+          generatedAt: current?.generatedAt ?? null,
+          failed: true,
+          fallo: motivo,
+        }))
       })
     return () => {
       isActive = false
@@ -100,6 +163,16 @@ export function AdminOverviewPage() {
             <ShieldAlert size={20} />
           </span>
           <h2>{t('states.error')}</h2>
+          {/* Y ahora el motivo, que antes se perdía. Un `403` y un `500` no se arreglan
+              pulsando «Reintentar»: uno es que la sesión no vale y el otro es que el servidor
+              ha fallado. Pintados por igual, el operador pulsa y no pasa nada. */}
+          <p className="section-hint">{descripcionDelFallo(snapshot?.fallo ?? null, t)}</p>
+          {snapshot?.fallo?.status ? (
+            <p className="mono admin-failure-status">
+              {t('overview.failureStatus', { status: snapshot.fallo.status })}
+              {snapshot.fallo.detalle ? ` · ${snapshot.fallo.detalle}` : ''}
+            </p>
+          ) : null}
           <button className="secondary-button" type="button" onClick={refresh}>
             <span>{t('states.retry')}</span>
           </button>

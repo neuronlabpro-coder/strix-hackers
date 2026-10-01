@@ -296,6 +296,7 @@ async def list_remote_repositories(
         limit=limit,
         offset=offset,
         provider=provider,
+        busqueda_aplicada=(search or "").strip() or None,
     )
 
 

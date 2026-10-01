@@ -10,21 +10,30 @@
   "sections": {
     "consoleLabel": "Consola de plataforma",
     "overview": "Resumen global",
+    "operations": "Operaciones",
     "tenants": "Organizaciones / Tenants",
     "users": "Usuarios",
     "sales": "Ventas e ingresos",
     "audit": "Auditoría global",
     "agents": "Agentes de escaneo",
+    "pricing": "Precios de plataforma",
     "llm": "Modelos LLM",
     "backToApp": "Volver a la App",
     "tickets": "Tickets y soporte"
   },
   "overview": {
-    "title": "Resumen global",
     "description": "Ingresos, volumen de créditos, escaneos y adopción de la plataforma.",
+    "empty": "El backend no devolvió métricas",
+    "failureForbidden": "Esta cuenta no puede entrar en la consola. Necesita ser superusuario de la plataforma.",
+    "failureNetwork": "El backend no respondió. Comprueba que está arrancado y que el panel sabe dónde está.",
+    "failureOther": "La petición devolvió un error inesperado.",
+    "failureServer": "El backend falló al preparar el resumen. Mira su registro: el detalle está debajo.",
+    "failureSession": "Tu sesión ha caducado. Vuelve a iniciar sesión para seguir en la consola.",
+    "failureStatus": "HTTP {{status}}",
+    "failureUnknown": "No se sabe por qué falló. Pulsa Reintentar; si sigue igual, mira el registro del backend.",
     "generatedAt": "Calculado",
     "refresh": "Actualizar",
-    "empty": "El backend no devolvió métricas"
+    "title": "Resumen global"
   },
   "metrics": {
     "mrr": "Ingresos del mes",
@@ -321,6 +330,209 @@
     "revokeConfirm": "Dar de baja",
     "status": {
       "REVOKED": "Dado de baja"
+    }
+  },
+  "pricing": {
+    "title": "Precios de plataforma",
+    "description": "Lo unico que decide lo que cobra Mind Guard. Cada cambio pide un motivo y queda escrito en un historico que no se puede editar.",
+    "states": {
+      "loading": "Cargando precios...",
+      "error": "No se pudieron cargar los precios.",
+      "retry": "Reintentar",
+      "motiveRequired": "Escribe un motivo antes de guardar."
+    },
+    "badges": {
+      "fromDatabase": "Precios en base de datos",
+      "fromCode": "Precios de arranque del codigo: la tabla esta vacia o no se pudo leer",
+      "live": "Este proceso ya cobra con el valor nuevo"
+    },
+    "scalars": {
+      "title": "Precios base",
+      "help": "Los siete se guardan en una sola operacion. Un escaneo ya encolado conserva el precio que tenia cuando se encolo.",
+      "columns": {
+        "field": "Precio",
+        "value": "Valor",
+        "unit": "Unidad"
+      },
+      "fields": {
+        "creditsPerUsd": "Paridad del credito",
+        "scanCost": "Escaneo completo",
+        "quickMultiplier": "Multiplicador del escaneo rapido",
+        "lowThreshold": "Aviso de saldo bajo",
+        "minSpend": "Gasto minimo del pack a medida",
+        "maxSpend": "Tope del pack a medida",
+        "proPrice": "Plan Pro al mes"
+      },
+      "units": {
+        "creditsPerUsd": "creditos por dolar",
+        "scanCost": "creditos",
+        "quickMultiplier": "fraccion del escaneo completo",
+        "lowThreshold": "creditos; 0 desactiva el aviso",
+        "minSpend": "dolares",
+        "maxSpend": "dolares",
+        "proPrice": "dolares al mes"
+      }
+    },
+    "motive": {
+      "label": "Motivo del cambio",
+      "placeholder": "Por ejemplo: revision trimestral de margen",
+      "help": "Obligatorio. Es lo que distingue una correccion de un error de una subida de precio deliberada."
+    },
+    "actions": {
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "revert": "Descartar cambios",
+      "add": "Anadir",
+      "activate": "Activar",
+      "deactivate": "Desactivar",
+      "savedPrices": "Precios actualizados",
+      "savedPack": "Pack actualizado",
+      "createdPack": "Pack creado",
+      "savedTier": "Tramo actualizado",
+      "createdTier": "Tramo creado",
+      "error": "No se pudo guardar el cambio.",
+      "invalid": "El valor no es valido."
+    },
+    "packs": {
+      "title": "Packs de creditos",
+      "help": "Un pack desactivado deja de ofrecerse y su historico sigue intacto. La cantidad de creditos no se edita: es la identidad del pack en las ventas, asi que para cambiarla se desactiva este y se crea el nuevo.",
+      "empty": "No hay packs dados de alta.",
+      "columns": {
+        "credits": "Creditos",
+        "amount": "Importe",
+        "order": "Orden",
+        "state": "Estado",
+        "actions": ""
+      },
+      "new": {
+        "credits": "Creditos",
+        "amount": "Importe en dolares",
+        "order": "Orden"
+      },
+      "active": "Activo",
+      "inactive": "Desactivado"
+    },
+    "tiers": {
+      "title": "Escalera de descuento por volumen",
+      "help": "El descuento es una fraccion: 0.10 es un 10 %. El umbral no se edita, porque moverlo sin mover sus vecinos puede dejar dos tramos solapados o un hueco entre ellos.",
+      "empty": "No hay tramos dados de alta.",
+      "columns": {
+        "spend": "Desde (dolares)",
+        "discount": "Descuento",
+        "order": "Orden",
+        "state": "Estado",
+        "actions": ""
+      },
+      "new": {
+        "spend": "Desde (dolares)",
+        "discount": "Descuento (0.10 = 10 %)",
+        "order": "Orden"
+      },
+      "active": "Activo",
+      "inactive": "Desactivado"
+    },
+    "history": {
+      "title": "Historico de cambios",
+      "help": "Solo lectura, igual que el ledger y las evidencias: lo que rigio un cobro no se corrige desde la interfaz.",
+      "columns": {
+        "price": "Precio",
+        "before": "Antes",
+        "after": "Despues",
+        "actor": "Autor",
+        "motive": "Motivo",
+        "date": "Fecha"
+      },
+      "empty": "Todavia no se ha cambiado ningun precio.",
+      "total_one": "{{count}} cambio",
+      "total_other": "{{count}} cambios",
+      "system": "Sistema",
+      "noValue": "sin valor",
+      "seeded": "sembrado"
+    }
+  },
+  "operations": {
+    "title": "Operaciones de plataforma",
+    "description": "Todo lo que se ejecuta, de todas las organizaciones. Aqui se paran los trabajos colgados, se limpian los contenedores que se quedaron vivos y se devuelve el dinero cuando el fallo es nuestro.",
+    "tabsLabel": "Secciones de operaciones",
+    "tabs": {
+      "scans": "Escaneos",
+      "containers": "Contenedores",
+      "reviews": "Revisiones de PR",
+      "jobs": "Sondas"
+    },
+    "filters": {
+      "soloColgados": "Solo los que llevan parados o pendientes de limpiar"
+    },
+    "columns": {
+      "status": "Estado",
+      "organization": "Organización",
+      "target": "Objetivo",
+      "minutes": "Duración",
+      "container": "Contenedor",
+      "actions": "Acciones",
+      "pr": "Pull request",
+      "findings": "Críticos / altos",
+      "date": "Fecha",
+      "kind": "Tipo"
+    },
+    "units": {
+      "minutes": "min"
+    },
+    "states": {
+      "loading": "Cargando operaciones...",
+      "error": "No se pudieron cargar las operaciones.",
+      "retry": "Reintentar",
+      "empty": "No hay nada en esta sección.",
+      "notaRequired": "Escribe una nota antes de confirmar la cancelación.",
+      "noContainer": "sin contenedor",
+      "cleanupPending": "limpieza pendiente",
+      "status": {
+        "QUEUED": "En cola",
+        "RUNNING": "En curso",
+        "COMPLETED": "Terminado",
+        "FAILED": "Fallido",
+        "TIMED_OUT": "Agotado el tiempo",
+        "ABORTED": "Cancelado"
+      },
+      "reviewStatus": {
+        "QUEUED": "En cola",
+        "SCANNING": "Analizando",
+        "PASSED": "Superada",
+        "FAILED": "Con hallazgos",
+        "ERROR": "Error"
+      },
+      "jobStatus": {
+        "QUEUED": "En cola",
+        "CLAIMED": "Reclamado",
+        "RUNNING": "En curso",
+        "COMPLETED": "Terminado",
+        "FAILED": "Fallido"
+      },
+      "total_one": "{{count}} elemento",
+      "total_other": "{{count}} elementos"
+    },
+    "motive": {
+      "label": "Por qué se cancela",
+      "noteLabel": "Nota para el registro",
+      "help": "El motivo decide si se devuelve el dinero. Los fallos de infraestructura devuelven la reserva; una cancelación del cliente no, porque el trabajo estaba en marcha."
+    },
+    "reasons": {
+      "INFRASTRUCTURE_STUCK": "Proceso parado",
+      "INFRASTRUCTURE_FAILED": "Fallo del motor de ejecución",
+      "INFRASTRUCTURE_ORPHANED": "Proceso huérfano",
+      "CLIENT_CANCELLED": "El cliente lo canceló",
+      "DUPLICATE": "Lanzado por duplicado",
+      "POLICY_VIOLATION": "Incumple las políticas",
+      "refunds": "devuelve el dinero",
+      "charges": "se cobra"
+    },
+    "actions": {
+      "cancel": "Cancelar",
+      "cleanup": "Limpiar contenedor",
+      "confirmCancel": "Confirmar cancelación",
+      "cancelledRefund": "Cancelado. Se han devuelto {{credits}} créditos.",
+      "cancelledNoRefund": "Cancelado. El trabajo estaba en marcha, así que no se devuelve nada.",
+      "error": "No se pudo completar la operación."
     }
   }
 }

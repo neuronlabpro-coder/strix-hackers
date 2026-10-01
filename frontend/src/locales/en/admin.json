@@ -10,21 +10,30 @@
   "sections": {
     "consoleLabel": "Platform console",
     "overview": "Global overview",
+    "operations": "Operations",
     "tenants": "Organizations / Tenants",
     "users": "Users",
     "sales": "Sales and revenue",
     "audit": "Global audit",
     "agents": "Scanning agents",
+    "pricing": "Platform pricing",
     "llm": "LLM models",
     "backToApp": "Back to the App",
     "tickets": "Tickets & support"
   },
   "overview": {
-    "title": "Global overview",
     "description": "Revenue, credit volume, scans and platform adoption.",
+    "empty": "The backend returned no metrics",
+    "failureForbidden": "This account cannot enter the console. It needs to be a platform superuser.",
+    "failureNetwork": "The backend did not answer. Check that it is running and that the panel knows where it is.",
+    "failureOther": "The request returned an unexpected error.",
+    "failureServer": "The backend failed while building the summary. Check its log: the detail is below.",
+    "failureSession": "Your session expired. Sign in again to stay in the console.",
+    "failureStatus": "HTTP {{status}}",
+    "failureUnknown": "It is not known why it failed. Press Retry; if it keeps happening, check the backend log.",
     "generatedAt": "Computed",
     "refresh": "Refresh",
-    "empty": "The backend returned no metrics"
+    "title": "Global overview"
   },
   "metrics": {
     "mrr": "Revenue this month",
@@ -321,6 +330,209 @@
     "revokeConfirm": "Revoke",
     "status": {
       "REVOKED": "Revoked"
+    }
+  },
+  "pricing": {
+    "title": "Platform pricing",
+    "description": "The only thing that decides what Mind Guard charges. Every change asks for a reason and is written to a history that cannot be edited.",
+    "states": {
+      "loading": "Loading prices...",
+      "error": "The prices could not be loaded.",
+      "retry": "Try again",
+      "motiveRequired": "Write a reason before saving."
+    },
+    "badges": {
+      "fromDatabase": "Prices in the database",
+      "fromCode": "Bootstrap prices from code: the table is empty or could not be read",
+      "live": "This process already charges the new value"
+    },
+    "scalars": {
+      "title": "Base prices",
+      "help": "All seven are saved in one operation. A scan already queued keeps the price it had when it was queued.",
+      "columns": {
+        "field": "Price",
+        "value": "Value",
+        "unit": "Unit"
+      },
+      "fields": {
+        "creditsPerUsd": "Credit parity",
+        "scanCost": "Full scan",
+        "quickMultiplier": "Quick scan multiplier",
+        "lowThreshold": "Low balance warning",
+        "minSpend": "Custom pack minimum spend",
+        "maxSpend": "Custom pack maximum spend",
+        "proPrice": "Pro plan per month"
+      },
+      "units": {
+        "creditsPerUsd": "credits per dollar",
+        "scanCost": "credits",
+        "quickMultiplier": "fraction of the full scan",
+        "lowThreshold": "credits; 0 disables the warning",
+        "minSpend": "dollars",
+        "maxSpend": "dollars",
+        "proPrice": "dollars per month"
+      }
+    },
+    "motive": {
+      "label": "Reason for the change",
+      "placeholder": "For example: quarterly margin review",
+      "help": "Required. It is what tells a mistake correction apart from a deliberate price rise."
+    },
+    "actions": {
+      "save": "Save",
+      "saving": "Saving...",
+      "revert": "Discard changes",
+      "add": "Add",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "savedPrices": "Prices updated",
+      "savedPack": "Pack updated",
+      "createdPack": "Pack created",
+      "savedTier": "Tier updated",
+      "createdTier": "Tier created",
+      "error": "The change could not be saved.",
+      "invalid": "The value is not valid."
+    },
+    "packs": {
+      "title": "Credit packs",
+      "help": "A deactivated pack stops being offered and its history stays intact. The credit amount is not editable: it is the pack's identity in the sales records, so to change it deactivate this one and create the new one.",
+      "empty": "No packs have been set up.",
+      "columns": {
+        "credits": "Credits",
+        "amount": "Amount",
+        "order": "Order",
+        "state": "State",
+        "actions": ""
+      },
+      "new": {
+        "credits": "Credits",
+        "amount": "Amount in dollars",
+        "order": "Order"
+      },
+      "active": "Active",
+      "inactive": "Deactivated"
+    },
+    "tiers": {
+      "title": "Volume discount ladder",
+      "help": "The discount is a fraction: 0.10 is 10 %. The threshold is not editable, because moving it without moving its neighbours can leave two tiers overlapping or a gap between them.",
+      "empty": "No tiers have been set up.",
+      "columns": {
+        "spend": "From (dollars)",
+        "discount": "Discount",
+        "order": "Order",
+        "state": "State",
+        "actions": ""
+      },
+      "new": {
+        "spend": "From (dollars)",
+        "discount": "Discount (0.10 = 10 %)",
+        "order": "Order"
+      },
+      "active": "Active",
+      "inactive": "Deactivated"
+    },
+    "history": {
+      "title": "Change history",
+      "help": "Read only, like the ledger and the evidence: what governed a charge is not corrected from the interface.",
+      "columns": {
+        "price": "Price",
+        "before": "Before",
+        "after": "After",
+        "actor": "Author",
+        "motive": "Reason",
+        "date": "Date"
+      },
+      "empty": "No price has been changed yet.",
+      "total_one": "{{count}} change",
+      "total_other": "{{count}} changes",
+      "system": "System",
+      "noValue": "no value",
+      "seeded": "seeded"
+    }
+  },
+  "operations": {
+    "title": "Platform operations",
+    "description": "Everything that runs, across all organizations. Here stuck jobs are stopped, containers left behind are cleaned up, and the money is returned when the failure is ours.",
+    "tabsLabel": "Operations sections",
+    "tabs": {
+      "scans": "Scans",
+      "containers": "Containers",
+      "reviews": "PR reviews",
+      "jobs": "Probes"
+    },
+    "filters": {
+      "soloColgados": "Only the ones stuck or pending cleanup"
+    },
+    "columns": {
+      "status": "Status",
+      "organization": "Organization",
+      "target": "Target",
+      "minutes": "Duration",
+      "container": "Container",
+      "actions": "Actions",
+      "pr": "Pull request",
+      "findings": "Critical / high",
+      "date": "Date",
+      "kind": "Kind"
+    },
+    "units": {
+      "minutes": "min"
+    },
+    "states": {
+      "loading": "Loading operations...",
+      "error": "The operations could not be loaded.",
+      "retry": "Try again",
+      "empty": "There is nothing in this section.",
+      "notaRequired": "Write a note before confirming the cancellation.",
+      "noContainer": "no container",
+      "cleanupPending": "cleanup pending",
+      "status": {
+        "QUEUED": "Queued",
+        "RUNNING": "Running",
+        "COMPLETED": "Completed",
+        "FAILED": "Failed",
+        "TIMED_OUT": "Timed out",
+        "ABORTED": "Cancelled"
+      },
+      "reviewStatus": {
+        "QUEUED": "Queued",
+        "SCANNING": "Scanning",
+        "PASSED": "Passed",
+        "FAILED": "With findings",
+        "ERROR": "Error"
+      },
+      "jobStatus": {
+        "QUEUED": "Queued",
+        "CLAIMED": "Claimed",
+        "RUNNING": "Running",
+        "COMPLETED": "Completed",
+        "FAILED": "Failed"
+      },
+      "total_one": "{{count}} item",
+      "total_other": "{{count}} items"
+    },
+    "motive": {
+      "label": "Why it is being cancelled",
+      "noteLabel": "Note for the record",
+      "help": "The reason decides whether the money is returned. Infrastructure failures return the reservation; a client cancellation does not, because the job was running."
+    },
+    "reasons": {
+      "INFRASTRUCTURE_STUCK": "Stuck process",
+      "INFRASTRUCTURE_FAILED": "Execution engine failure",
+      "INFRASTRUCTURE_ORPHANED": "Orphaned process",
+      "CLIENT_CANCELLED": "The client cancelled it",
+      "DUPLICATE": "Launched twice by mistake",
+      "POLICY_VIOLATION": "It breaks the policies",
+      "refunds": "returns the money",
+      "charges": "is charged"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "cleanup": "Clean up container",
+      "confirmCancel": "Confirm cancellation",
+      "cancelledRefund": "Cancelled. {{credits}} credits have been returned.",
+      "cancelledNoRefund": "Cancelled. The job was running, so nothing is returned.",
+      "error": "The operation could not be completed."
     }
   }
 }

@@ -44,16 +44,22 @@ from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEv
 from backend.apps.billing.service import apply_credit_delta
 from backend.apps.organizations.models import Membership, Organization, PlanTierEnum, User
 from backend.apps.pentests.models import PentestRun
-from backend.core.config import settings
 
-#: Créditos por dólar del resumen global.
+#: La paridad del resumen global **tampoco** es una constante de este módulo.
 #:
-#: Se lee de `settings.credits_per_usd` y no se escribe como constante propia. La primera
-#: versión de este módulo declaraba `Decimal("1")` aquí, y el panel de facturación declaraba
-#: la suya: dos sitios con la misma regla y ninguna fuente de verdad. Cuando cambiara la
-#: paridad, el resumen global y el saldo del cliente dirían cosas distintas sin que nada
-#: fallara. Ahora ambos leen la configuración.
-CREDITS_PER_USD = settings.credits_per_usd
+#: ## Por qué se quitó la constante que había aquí
+#:
+#: Porque se leía al importar el módulo, que es el peor momento posible para un precio:
+#: un proceso que arranca y tarde una hora en procesar un trabajo mantiene el valor viejo
+#: en memoria. Con el precio ya en la base, eso no es un detalle: una fila editada desde
+#: el panel no se vería en el resumen global hasta el siguiente reinicio, y el operador
+#: vería el cambio confirmado en la tabla y sin efecto en la pantalla que lo muestra.
+#:
+#: Y la lectura por función es lo que hace que el mismo número salga del resumen global y
+#: del saldo del cliente sin que nadie tenga que acordarse de sincronizar dos constantes.
+#:
+#: La primera versión de este módulo declaraba `Decimal("1")` aquí, y el chat declaraba la
+#: suya: dos sitios con la misma regla y ninguna fuente de verdad.
 
 
 class LastSuperuserError(RuntimeError):

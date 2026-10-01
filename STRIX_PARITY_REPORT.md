@@ -11,8 +11,8 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **925** funciones (38 con `@parametrize`, que generan mas de un caso cada una)
-- Pruebas de frontend: **78**
+- Pruebas de backend: **960** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de frontend: **101**
 
 ## Superficie funcional
 
@@ -133,13 +133,30 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 
 ### por revisar: ninguna
 
-### identidad tecnica (171)
+### identidad tecnica (188)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
+| identidad tecnica | `backend/apps/admin/operations_router.py:39` | (`fenix-strix-{run_id}`) y su referencia vive en `pentest_runs.container_id`. La secció... | identificador: strix |
+| identidad tecnica | `backend/apps/admin/operations_router.py:519` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:531` | nombre = StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:549` | StrixSandboxManager.kill_container( | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:570` | StrixSandboxManager.remove_network_for_run(str(run.id), client=cliente) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:571` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:610` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:635` | container_id=run.container_id or StrixSandboxManager.container_name_for_run( | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/admin/operations_router.py:638` | nombre_esperado=StrixSandboxManager.container_name_for_run(str(run.id)), | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/agents/models.py:5` | El sandbox de Strix vive en un bridge aislado cuyo cerco de salida permite DNS, HTTPS y | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/admin_router.py:40` | Porque leer el precio de la base en cada cobro no es una opción: el worker de Strix cob... | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/catalogo.py:4` | cuesta un escaneo—, que se leen en sitios sin sesión: el worker de Strix, dos servicios... | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:3` | Vive aquí y no en el router de pentests porque el worker de Strix también lo | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/pricing.py:17` | Porque el precio se lee en sitios donde **no hay sesión**: el worker de Strix ajusta | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/pricing.py:201` | Porque hay cuatro llamadores —el servicio de pentests, el worker de Strix, el | identificador: Strix |
 | identidad tecnica | `backend/apps/cve_database/models.py:6` | el impacto real de un `cve_id` que Strix reporte. | identificador: Strix |
+| identidad tecnica | `backend/apps/pentests/abort.py:65` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:143` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:146` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:147` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/router.py:38` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/router.py:51` | StrixSandboxManager.kill_container(container_reference) | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/router.py:307` | container_reference = run.container_id or StrixSandboxManager.container_name_for_run( | identificador: StrixSandboxManager |
@@ -180,25 +197,8 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/core/config.py:319` | strix_worker_concurrency: int = Field(default=1, gt=0, le=32) | identificador: strix_worker_concurrency |
 | identidad tecnica | `backend/core/config.py:320` | strix_hard_timeout_seconds: int = Field(default=1800, gt=0, le=86400) | identificador: strix_hard_timeout_seconds |
 | identidad tecnica | `backend/core/config.py:321` | strix_soft_timeout_seconds: int = Field(default=1500, gt=0, le=86400) | identificador: strix_soft_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:322` | strix_watchdog_interval_seconds: int = Field(default=300, gt=0, le=86400) | identificador: strix_watchdog_interval_seconds |
-| identidad tecnica | `backend/core/config.py:323` | strix_watchdog_stale_after_seconds: int = Field(default=1860, gt=0, le=172800) | identificador: strix_watchdog_stale_after_seconds |
-| identidad tecnica | `backend/core/config.py:324` | default_strix_llm: str = Field(min_length=1) | identificador: default_strix_llm |
-| identidad tecnica | `backend/core/config.py:516` | @field_validator("strix_network_pool") | identificador: strix_network_pool |
-| identidad tecnica | `backend/core/config.py:518` | def validate_strix_network_pool(cls, value: str) -> str: | identificador: validate_strix_network_pool |
-| identidad tecnica | `backend/core/config.py:554` | f"STRIX_NETWORK_POOL={value!r} no es un CIDR IPv4 valido. Debe tener la forma " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:560` | f"STRIX_NETWORK_POOL={value!r} tiene que ser IPv4: las reglas de salida del " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:565` | f"STRIX_NETWORK_POOL={value!r} tiene un prefijo de /{red.prefixlen}, demasiado " | identificador: STRIX_NETWORK_POOL |
-| identidad tecnica | `backend/core/config.py:758` | if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_soft_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:759` | raise ValueError("El timeout suave de Strix debe ser menor que el duro") | identificador: Strix |
-| identidad tecnica | `backend/core/config.py:760` | if self.strix_hard_timeout_seconds >= self.celery_task_soft_time_limit_seconds: | identificador: strix_hard_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:761` | raise ValueError("Strix hard timeout debe ser menor que el timeout suave de Celery") | identificador: Strix |
-| identidad tecnica | `backend/core/config.py:762` | if self.strix_watchdog_stale_after_seconds <= self.strix_hard_timeout_seconds: | identificador: strix_hard_timeout_seconds, strix_watchdog_stale_after_seconds |
-| identidad tecnica | `backend/core/config.py:763` | raise ValueError("El watchdog debe esperar más que el timeout duro de Strix") | identificador: Strix |
-| identidad tecnica | `backend/workers/celery_app.py:31` | worker_concurrency=settings.strix_worker_concurrency, | identificador: strix_worker_concurrency |
-| identidad tecnica | `backend/workers/celery_app.py:40` | "schedule": timedelta(seconds=settings.strix_watchdog_interval_seconds), | identificador: strix_watchdog_interval_seconds |
-| identidad tecnica | `backend/workers/tasks.py:45` | from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output | identificador: extract_strix_scan_id, parse_strix_output, strix_parser |
 
-_Y 111 mas._
+_Y 128 mas._
 
 ### comentario (28)
 

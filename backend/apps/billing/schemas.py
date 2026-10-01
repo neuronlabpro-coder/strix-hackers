@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from backend.apps.billing.catalogo import catalogo_vigente
+from backend.apps.billing.pricing import credits_per_usd
 from backend.apps.organizations.models import PlanTierEnum
 
 # Paquetes de créditos comercializables. R1 prohíbe precios en el código, así que
@@ -88,13 +90,7 @@ def discount_for_spend(spend: Decimal) -> Decimal:
     compra: $250,99 y $251,01 se resuelven igual y sin casos especiales.
     """
 
-    applicable = VOLUME_DISCOUNT_TIERS[0][1]
-    for minimo, descuento in VOLUME_DISCOUNT_TIERS:
-        if spend >= minimo:
-            applicable = descuento
-        else:
-            break
-    return applicable
+    return catalogo_vigente().descuento_para(spend)
 
 
 def _credits_for_spend(spend: Decimal) -> int:
@@ -106,7 +102,11 @@ def _credits_for_spend(spend: Decimal) -> int:
     """
 
     descuento = discount_for_spend(spend)
-    unidades = spend / (Decimal("1.00") - descuento)
+    # `spend / (1 - descuento)` es lo mismo que esto con la paridad en 1,00, y es lo unico
+    # que es cuando la paridad deja de ser 1: un dolar son `paridad` creditos, asi que un
+    # gasto compra `spend * paridad` creditos antes del descuento. Sin este factor, con
+    # paridad 2,50 el slider entregaria dos veces y media menos de lo que el cliente paga.
+    unidades = spend * credits_per_usd() / (Decimal("1.00") - descuento)
     return int(unidades.to_integral_value(rounding="ROUND_FLOOR"))
 
 
@@ -135,7 +135,7 @@ def credits_for_spend(spend: Decimal) -> int:
     que saber para deshabilitar su botón antes de que el usuario llegue al checkout.
     """
 
-    if spend < CUSTOM_SPEND_MINIMUM_USD:
+    if spend < catalogo_vigente().gasto_minimo_usd:
         return 0
     return _credits_for_spend(spend)
 
@@ -190,15 +190,16 @@ def price_for_credits(credits: int) -> Decimal:
     crédito costaría dos cosas según por dónde se mirara.
     """
 
+    catalogo = catalogo_vigente()
     mejor: Decimal | None = None
-    for indice, (minimo, descuento) in enumerate(VOLUME_DISCOUNT_TIERS):
-        unidad = Decimal("1.00") - descuento
+    for indice, (minimo, descuento) in enumerate(catalogo.tramos):
+        unidad = catalogo.usd_por_credito_con_descuento(descuento)
         candidato = max(minimo, Decimal(credits) * unidad)
         # La cota superior del tramo es el umbral del siguiente. El último tramo no tiene
-        # cota: por encima de $10.000 no hay otro tramo, y ese camino lo corta la
-        # validación del esquema.
-        if indice + 1 < len(VOLUME_DISCOUNT_TIERS):
-            siguiente_minimo = VOLUME_DISCOUNT_TIERS[indice + 1][0]
+        # cota: por encima del tope del catalogo no hay otro tramo, y ese camino lo corta la
+        # validacion del esquema.
+        if indice + 1 < len(catalogo.tramos):
+            siguiente_minimo = catalogo.tramos[indice + 1][0]
             if candidato >= siguiente_minimo:
                 continue
         if mejor is None or candidato < mejor:
@@ -208,7 +209,7 @@ def price_for_credits(credits: int) -> Decimal:
         # encima del tope del catálogo, y ese camino lo corta el esquema, no esta función.
         # Se devuelve un número en vez de fallar para que un valor inesperado no convierta
         # una compra legítima en un error interno.
-        return Decimal(credits)
+        return (Decimal(credits) / credits_per_usd()).quantize(Decimal("0.01"))
     return mejor.quantize(Decimal("0.01"))
 
 
@@ -221,7 +222,7 @@ def subscription_price_usd() -> Decimal:
     de que nadie se acuerde de no duplicarlo.
     """
 
-    return PRO_SUBSCRIPTION_MONTHLY_USD
+    return catalogo_vigente().suscripcion_mensual_usd
 
 
 #: Mínimo de créditos, **derivado** del mínimo de gasto y no escrito al lado.
