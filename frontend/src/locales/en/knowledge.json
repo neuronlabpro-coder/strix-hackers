@@ -107,5 +107,37 @@
     "missingTitle": "`title` is missing from the frontmatter.",
     "missingDescription": "`description` is missing from the frontmatter. It is what gets injected when the document is cited without its body.",
     "emptyBody": "The document body is empty."
+  },
+  "catalog": {
+    "searchPlaceholder": "Search the catalog",
+    "severityLabel": "Severity",
+    "categoryLabel": "Vulnerability family",
+    "allCategories": "All",
+    "clearFilters": "Clear filters",
+    "refresh": "Refresh",
+    "loading": "Loading the catalog...",
+    "loadFailed": "The catalog could not be loaded.",
+    "retry": "Try again",
+    "empty": "The catalog is empty.",
+    "emptyFiltered": "No note matches the filters.",
+    "count": "{{shown}} of {{total}} notes",
+    "severities": {
+      "CRITICAL": "Critical",
+      "HIGH": "High",
+      "MEDIUM": "Medium",
+      "LOW": "Low"
+    },
+    "categories": {
+      "INJECTION": "Injection",
+      "XSS": "XSS",
+      "AUTH": "Authentication",
+      "CRYPTOGRAPHY": "Cryptography",
+      "SECRET_EXPOSURE": "Secret exposure",
+      "DESERIALIZATION": "Deserialization",
+      "SSRF": "SSRF",
+      "PATH_TRAVERSAL": "Path traversal",
+      "LOGIC": "Business logic",
+      "DEPENDENCY": "Dependencies"
+    }
   }
 }

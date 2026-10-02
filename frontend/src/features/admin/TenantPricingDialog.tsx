@@ -1,3 +1,19 @@
+/**
+ * SUPERADO por `AdminTenantPricingPage`. Este fichero no lo importa nadie.
+ *
+ * ## Por qué sigue aquí
+ *
+ * Porque no se borra nada sin permiso del responsable. Cuando se autorice, este fichero se puede
+ * eliminar entero: su lógica de cadena ya vive en `pricingChain.ts`, con sus pruebas, y la pantalla
+ * que lo usaba es ahora una ruta.
+ *
+ * ## Por qué estaba superseded
+ *
+ * El sistema de diseño reserva el modal para flujos de dos pasos con decisión irreversible, y aquí
+ * no había ninguna de las dos cosas. Además no cabía: la caja se estiraba al ancho de su
+ * contenido, el texto se cortaba con el scroll horizontal de dentro y la tabla quedaba fuera de
+ * pantalla.
+ */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BadgeDollarSign, X } from 'lucide-react'
@@ -226,7 +242,8 @@ export function TenantPricingDialog({ organization, onClose }: TenantPricingDial
                 <p className="cell-muted">
                   {t('tenants.pricing.chain.summary', {
                     vigente: resumen.vigente,
-                    future: resumen.futuro,
+                    programado: resumen.programado,
+                    sustituido: resumen.sustituido,
                     total: resumen.total,
                   })}
                 </p>
@@ -345,8 +362,9 @@ function FilaPactado({ pactado, formatearFecha, etiquetas }: FilaPactadoProps) {
   const estado = estadoDePactado(pactado)
   const claveEstado: Record<EstadoPactado, string> = {
     vigente: 'tenants.pricing.states.live',
-    futuro: 'tenants.pricing.states.future',
+    programado: 'tenants.pricing.states.future',
     caducado: 'tenants.pricing.states.expired',
+    sustituido: 'tenants.pricing.states.superseded',
   }
 
   return (

@@ -1,0 +1,932 @@
+/* ------------------------------------------------------------------------ *
+ * La consola de plataforma: sus primitivas.
+ *
+ * ## Qué es este fichero y por qué se importa el último
+ *
+ * Es la capa que **es dueño** del vocabulario visual de la consola de SuperAdmin. Se importa
+ * después de las otras siete hojas a propósito, y no por casualidad: cuatro clases compartidas
+ * (`.filter-bar`, `.triage-toolbar`, `.search-field`, `.table-caption`) están declaradas en dos
+ * hojas con valores distintos, y como tienen la misma especificidad **gana la última en importar**.
+ * Resultado: las correcciones escritas en `index.css` —con su comentario explicando el porqué—
+ * llevaban meses sin aplicarse, y los filtros salían con `align-items: center` en vez de `start`,
+ * que es exactamente la desalineación de etiquetas y desplegables que se veía en pantalla.
+ *
+ * Arreglar eso en la raíz obligaría a tocar ocho hojas y a convencer a cuatro módulos que no
+ * comparten contexto. Aquí se resuelve por capas, que es el patrón correcto: cada hoja es dueña de
+ * lo suyo, y esta es la dueña de la consola. Lo que esta capa sobreescribe está enumerated y
+ * justificado en cada bloque; lo que no aparece aquí, no lo sobreescribe.
+ *
+ * ## La regla que ordena el resto del fichero
+ *
+ * **Una tarjeta es un recurso, no el contenedor por defecto.** Los bloques de contenido van a pelo
+ * con un encabezado de sección, y solo llevan superficie cuando de verdad son una unidad: una tabla
+ * o un formulario. Por eso existe `.console-block` y no se abusa de `.panel`.
+ * ------------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------------ *
+ * 1. Encabezado de página
+ *
+ * ## Por qué hay que declarar el `h1` otra vez
+ *
+ * Porque `index.css` solo escala el `h1` cuando está dentro de `.page-header`, y hay tres páginas
+ * que lo ponen en `header.section-header`: Operaciones, Precios y Tickets. Esas tres se veían con
+ * el título del tamaño por defecto del navegador, es decir más pequeño que el texto de al lado.
+ * Aquí se declara para cualquier `h1` de la consola, que es la regla más simple y la que no
+ * depende de en qué envoltorio cayó cada uno.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .page-header h1,
+.admin-shell .section-header h1,
+.admin-shell .settings-section-heading h1 {
+  margin: 6px 0 0;
+  color: var(--color-primary);
+  font-family: var(--font-sans);
+  font-size: 2.2rem;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * El subtítulo de una página va siempre en `.page-description`, no en el `p` del encabezado de la
+ * sección. La diferencia no es de clase por purismo: `.page-description` tiene `max-width: 620px`
+ * y el cuerpo, y el otro no. Sin esto las esas tres páginas miden la descripción a lo ancho
+ * de la ventana y la línea se vuelve ilegible.
+ */
+.admin-shell .settings-section-heading > p {
+  max-width: 62ch;
+  color: var(--color-caption);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 1.b El enlace de vuelta, dentro de una página
+ *
+ * ## Por qué no vale reusar `.admin-back-link`
+ *
+ * Porque ese está diseñado para el pie de la barra lateral, donde vive en una columna estrecha y
+ * compite con "Cerrar sesión": allí es una caja con borde de acento y ancho completo, y tiene que
+ * serlo, porque son dos acciones de la misma clase y el acento dice "esta es la que te devuelve".
+ *
+ * ## Por qué en una página esa misma caja es un error
+ *
+ * ## Por qué no
+ *
+ * ## Por qué en la página
+ *
+ * ## Por qué
+ *
+ * ## Por qué sin caja
+ *
+ * ## Por qué sin caja
+ *
+ * ## Por qué sin caja
+ *
+ * ## Por qué
+ */
+.console-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: start;
+  padding: 4px 8px 4px 6px;
+  margin-bottom: -4px;
+  color: var(--color-secondary);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.console-backlink:hover {
+  color: var(--color-primary);
+}
+
+/* El pie del menú se queda con su caja: allí compite con cerrar sesión. */
+.admin-shell .sidebar-footer .admin-back-link {
+  display: inline-flex;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 2. Ritmo vertical
+ *
+ * ## Por qué `.stack-lg` no es un gap y sí un nombre
+ *
+ * Porque el nombre dice lo que hace y el valor es un detalle. `.stack-lg` es el separador vertical
+ * de los bloques de una página de consola: 24 px. El nombre sobrevive a que el valor cambie;
+ * `.gap-24` no sobrevive a que la rejilla cambie.
+ *
+ * Y estaba ausente: los contenedores raíz de Precios y Operaciones no tenían separación ninguna,
+ * así que la cabecera, el aviso y las cuatro tablas salían pegadas.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .stack-lg {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.admin-shell .stack-md {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* El subtítulo de un bloque: lo que el comentario de `index.css` llamaba `.page-description`. */
+.admin-shell .section-description {
+  max-width: 74ch;
+  margin: 0;
+  color: var(--color-caption);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+/* Una tira de botones. Sin gap los dos botones se tocan, que es lo que pasaba en Precios. */
+.admin-shell .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Un grupo de campos con su título, dentro de un bloque. */
+.admin-shell .field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-shell .field-group > h3 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* La pista de un campo. `index.css` ya tenía `.field-hint`; esta es el mismo papel con el nombre
+ * que usan las páginas de consola, y por eso se declara aquí en vez de cambiar las cuatro páginas
+ * que usaban la otra. */
+.admin-shell .field-help {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+/* Rejilla de formularios: dos columnas que colapsan a una. */
+.admin-shell .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 16px;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 3. La barra de filtros
+ *
+ * ## Por qué `align-items: start` y no `center`
+ *
+ * Porque los campos de un filtro no tienen la misma altura. Uno con pista de dos líneas y otro sin
+ * pista: centrados, la etiqueta del segundo queda a media altura de la del primero y el grupo se ve
+ * torcido. Alineados por arriba, las etiquetas comparten línea y cada campo ocupa lo que necesita.
+ *
+ * ## Por qué sin fondo ni borde
+ *
+ * Porque la barra de filtro no es una tarjeta: es una fila de control sobre el contenido. Con borde
+ * inferior parece el borde de un panel y con relleno empuja el contenido hacia abajo sin motivo.
+ * La separación la hace el hueco, no una línea.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+/*
+ * El campo de filtro, que no es lo mismo que `.field`.
+ *
+ * `.field` es una rejilla sin `min-width`, y dentro de un contenedor flexible eso hace que la
+ * anchura dependa del contenido, que a su vez depende del ancho: los dos desplegables salían de
+ * anchuras distintas. `.filter-field` fija `min-width` y declara la dirección, así que los tres
+ * controles del grupo miden lo mismo y se alinean.
+ */
+.admin-shell .filter-bar > .field,
+.admin-shell .filter-bar > .filter-field {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+/*
+ * El buscador tiene tope, también en la barra de filtros común.
+ *
+ * ## Por qué hace falta
+ *
+ * Porque `flex-grow: 1` lo estira hasta absorber el espacio libre de la fila. Con un solo campo de
+ * búsqueda se quedaba en el 90 % del ancho: mil píxeles para escribir tres letras, y la casilla
+ * de "solo superusuarios" quedaba pegada al borde derecho sin relación visual con la búsqueda a la
+ * que pertenece.
+ *
+ * ## Por qué 460 y no un porcentaje
+ *
+ * ## Por qué una cifra y no un porcentaje
+ *
+ * Porque en porcentaje el campo se ensancha con la ventana, y en una pantalla mediana es justo cuando
+ * empuja la casilla fuera de la vista. Con un tope en píxeles el buscador cede siempre.
+ */
+.admin-shell .filter-bar > .field:first-child {
+  max-width: 460px;
+}
+
+/* El desplegable de filtro, más estrecho que el buscador: se busca con texto y se filtra con dos
+ * opciones, y darle 190 px a un desplegable de dos opciones es espacio tirado. */
+.admin-shell .filter-bar > .field:has(select) {
+  flex: 0 1 190px;
+  min-width: 160px;
+}
+
+/*
+ * La casilla de un filtro, cuando va suelta y no dentro de una barra de filtros.
+ *
+ * ## Por qué hay que declarar esto aparte
+ *
+ * ## Por qué `.field` gana a `.checkbox-field` sin esto
+ *
+ * Porque `index.css` declara `.checkbox-field` antes que `.field`, y con la misma especificidad
+ * gana el segundo: un `<label className="field checkbox-field">` acaba siendo `display: grid`. Una
+ * casilla de selección en rejilla pone el input en una fila y el texto en otra, dentro de una caja
+ * que se estira a todo el ancho de la página. Es lo que se veía en Operaciones: una franja
+ * vacía con un cuadro diminuto arriba y el texto debajo.
+ *
+ * ## Por qué la caja es de una sola línea
+ *
+ * ## Por qué no se estira
+ *
+ * ## Por qué `inline-flex` y no `inline-grid`
+ *
+ * Porque una casilla con su texto es una línea, no una rejilla. Con `inline-flex` el input y el
+ * texto se centran en la misma altura, que es lo que se espera de una casilla; con grid hay que
+ * calcular el `align-items` para conseguir lo mismo y basta con olvidarse una vez.
+ */
+.admin-shell label.checkbox-field,
+.admin-shell .checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  gap: 8px;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 10px;
+  color: var(--color-caption);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.admin-shell .checkbox-field:hover:not(:disabled) {
+  border-color: var(--color-border-hover);
+}
+
+.admin-shell .checkbox-field:has(input:checked) {
+  color: var(--color-primary);
+  border-color: var(--color-accent);
+}
+
+.admin-shell .checkbox-field input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+/*
+ * La barra de triaje de tickets, que es una barra de filtro con otro nombre.
+ *
+ * ## Por qué hace falta aquí y no estaba en `support.css`
+ *
+ * Porque `support.css` la declara en grid de tres columnas con `align-items: end`, y eso es lo que
+ * se ve mal en la pantalla de tickets: el buscador, que lleva etiqueta, campo y una pista de dos
+ * líneas, se hunde y su etiqueta queda unos veinte píxeles por debajo de las de los dos
+ * desplegables, que solo tienen etiqueta y campo. Tres etiquetas que deberían compartir línea de
+ * base, y solo dos la comparten.
+ *
+ * Y las reglas que lo arreglaban estaban escritas en `index.css` —con `flex` y `align-items: start`
+ * — y eran inertes, porque un contenedor grid ignora las propiedades flex de sus hijos.
+ *
+ * ## Por qué el buscador no se estira
+ *
+ * ## Por qué dos fracciones y no dos columnas iguales
+ *
+ * Porque los dos desplegables filtran por un conjunto corto de valores y el buscador acepta texto
+ * libre. Darlos el mismo ancho spendiaría espacio en dos listas de tres opciones y encogería lo
+ * único que se escribe.
+ */
+.admin-shell .triage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 12px;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.admin-shell .triage-toolbar > .field {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
+/*
+ * El buscador tiene tope de ancho.
+ *
+ * ## Por qué
+ *
+ * ## Por qué hace falta un tope
+ *
+ * Porque `flex-grow: 1` lo hace absorber todo el espacio libre de la fila: con dos desplegables al
+ * lado, el buscador se quedaba en el 70 % del ancho y el último desplegable quedaba pegado al borde
+ * derecho, con el texto cortado. Un campo de búsqueda de 900 píxeles no es un campo de
+ * búsqueda, es un vacío.
+ *
+ * ## Por qué 460 y no "lo que sobre"
+ *
+ * ## Por qué una cifra y no un porcentaje
+ *
+ * Porque el porcentaje depende del ancho de la ventana, y en una pantalla estrecha el buscador se
+ * comería el desplegable justo cuando más falta. Con un tope en píxeles, los dos desplegables
+ * conservan siempre su sitio y el buscador cede.
+ */
+.admin-shell .triage-toolbar > .field:first-child {
+  flex: 1 1 260px;
+  max-width: 460px;
+}
+
+.admin-shell .triage-toolbar > .field:has(select) {
+  flex: 0 1 190px;
+  min-width: 160px;
+}
+
+.admin-shell .triage-toolbar input,
+.admin-shell .triage-toolbar select {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 4. Las pestañas
+ *
+ * ## Por qué se redeclaran aquí y no se corrige el JSX
+ *
+ * ## Por qué no se cambia el JSX a `.tab-bar` / `.tab-button`
+ *
+ * Porque son dos vocabularios para lo mismo y las dos páginas que usan uno son distintas. Aquí se
+ * da estilo a `.tabs` / `.tab`, que es el nombre que usa la consola, y además se hace que
+ * `.tab-bar` / `.tab-button` hereden lo mismo, para que la página de cliente y la de consola
+ * compartan el componente sin que la próxima vez salga otra vez.
+ *
+ * Y lo que fallaba era grave: `.tabs` no existia en ninguna hoja, así que el contenedor caía a
+ * bloque, las cuatro pestañas se pintaban como botones pelados pegados ("EscaneosContenedoresRevisiones
+ * de PR") y el estado activo era invisible porque `.tab-active` tampoco existia.
+ *
+ * ## Por qué el indicador va en `border-bottom` y no en un fondo
+ *
+ * Porque el fondo resalta la pestaña activa por área, y el borde por posición: la posición es lo que
+ * comunica "estás aquí", porque el ojo sigue la línea de la base. Es además lo que ya hacia
+ * `.tab-button-active` en el panel de cliente, así que no se inventa nada.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .tabs,
+.admin-shell .tab-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  margin: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-shell .tab,
+.admin-shell .tab-button {
+  position: relative;
+  padding: 9px 14px;
+  color: var(--color-secondary);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.admin-shell .tab:hover:not(:disabled),
+.admin-shell .tab-button:hover:not(:disabled) {
+  color: var(--color-primary);
+}
+
+.admin-shell .tab-active,
+.admin-shell .tab-button-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-accent);
+}
+
+.admin-shell .tab:disabled,
+.admin-shell .tab-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 5. El bloque de contenido: a pelo, no en tarjeta
+ *
+ * ## Por qué esto es el cambio de fondo
+ *
+ * Precios tenía cuatro `<article class="panel">` y **dentro** de cada uno un `.table-wrapper`, que
+ * también lleva fondo de superficie y borde de 1 px. El resultado eran dos bordes concéntricos con
+ * el mismo color de fondo, cuatro veces, más un tercer nivel de anidación dentro. La página
+ * parecía una pila de cajas en lugar de cuatro secciones de un documento.
+ *
+ * La solución no es cambiar el color de un borde: es dejar de anidar. `.console-block` es un
+ * bloque de contenido con encabezado y sin superficie, y dentro de él la tabla sí lleva la suya,
+ * porque una tabla es una superficie de verdad.
+ * ------------------------------------------------------------------------ */
+
+.console-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.console-block > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.console-block > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* El título de bloque, que en `index.css` no tenía regla dentro de `.panel` y salía con el tamaño
+ * por defecto del navegador, más grande que el texto que encabezaba. */
+.console-block > header h2,
+.console-shell .panel > h2 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 1.1rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 6. La fila de ajuste: la firma de la referencia
+ *
+ * ## Qué es
+ *
+ * Una fila con el nombre y la explicación a la izquierda y el control a la derecha, separada de su
+ * vecina por un filete. Es la disposición que hace que una pantalla de ajustes se lea de un vistazo
+ * en vez de recorrerse: el ojo va a la columna de nombres, no al control.
+ *
+ * ## Por qué no una etiqueta encima del campo
+ *
+ * Porque con la etiqueta encima, cada par nombre+control ocupa tres líneas y la columna de nombres
+ * queda desalineada respecto al valor. Con la etiqueta al lado, todas las etiquetas comparten línea
+ * de base y el valor de cada fila cae exactamente a la altura de su nombre.
+ *
+ * ## Por qué el control tiene ancho fijo
+ *
+ * Porque si el control se estira, los campos de distinta naturaleza (un número corto y un selector
+ * largo) producen filas con formas distintas y la columna de valores deja de leerse como columna.
+ * Un ancho fijo y común es lo que hace que los valores formen columna.
+ * ------------------------------------------------------------------------ */
+
+.console-settings {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.console-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 320px);
+  gap: 16px 24px;
+  align-items: center;
+  padding: 13px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.console-setting-row:first-child {
+  border-top: 0;
+}
+
+.console-setting-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.console-setting-copy > strong {
+  color: var(--color-primary);
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.console-setting-copy > span {
+  max-width: 60ch;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.console-setting-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.console-setting-control > .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.console-setting-control input,
+.console-setting-control select {
+  width: 100%;
+}
+
+/* En pantallas estrechas la fila se apila: el control pasa debajo y a ancho completo, que es mejor
+   que un campo de 120 px en el que no se lee nada. */
+@media (max-width: 52rem) {
+  .console-setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .console-setting-control {
+    justify-content: stretch;
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ * 7. Los avisos
+ *
+ * ## Por qué un aviso y no un borde de color
+ *
+ * Porque el aviso tiene que decir qué pasa y qué hacer, y eso es texto. Un filete de color en el
+ * borde_left sería el sistema prohibiendo explícitamente; un aviso con fondo tenue, icono, texto y
+ * acción es el patrón correcto y comunica lo mismo sin inventar un acento.
+ * ------------------------------------------------------------------------ */
+
+.console-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  color: var(--color-caption);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.console-notice > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.console-notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.console-notice-body strong {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.console-notice-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 7.b El esqueleto de carga
+ *
+ * ## Por qué un esqueleto y no un texto
+ *
+ * ## Por qué no un "Cargando..." en el medio de la pantalla
+ *
+ * Porque "Cargando..." en el centro de la tabla hace saltar el layout al llegar los datos: el texto
+ * ocupa tres líneas, la tabla ocupa treinta, y el operador ve saltar el contenido debajo de él.
+ * Un esqueleto con la forma de la tabla deja el espacio ocupado desde el primer momento.
+ *
+ * ## Por qué el error real que se corrige aquí
+ *
+ * Porque cuatro páginas —Tenants, Usuarios, Ventas y Auditoría— tenían el mismo hueco en el
+ * `if`: el fallo se comprobaba, luego "si no hay filas, no hay nada", y durante la carga no hay
+ * filas todavía, así que se pintaba el mensaje de vacío **en cada pulsación de tecla** del filtro.
+ * El mensaje de "no hay nada" aparecía y desaparecía mientras se escribía. El esqueleto es la
+ * rama que faltaba.
+ *
+ * ## Por qué el brillo está en `opacity` y no en `background-position`
+ *
+ * ## Por qué la animación respeta `prefers-reduced-motion`
+ *
+ * Porque animar la posición de un fondo es una propiedad de layout, y el sistema de diseño las
+ * prohibe. La opacidad es de compositor. Y cuando el sistema pide menos movimiento, el esqueleto se
+ * queda quieto: informa igual y no entretiene.
+ */
+.console-skeleton {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.console-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.console-skeleton-row:first-child {
+  border-top: 0;
+}
+
+.console-skeleton-bar {
+  height: 9px;
+  background: var(--color-surface-elevated);
+  border-radius: 3px;
+  animation: console-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes console-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-skeleton-bar {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* Un esqueleto para listas con los mismos tres huecos, sin caja alrededor. */
+.console-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.console-skeleton-line {
+  height: 9px;
+  background: var(--color-surface-elevated);
+  border-radius: 3px;
+  animation: console-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-skeleton-line {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ * 8. La fila de acción
+ *
+ * ## Por qué importa
+ *
+ * La consola tiene cuatro botones por fila de cliente y ninguna caja: salían como enlaces
+ * subrayados, y las reglas que lo arreglaban estaban escritas en `index.css` pero **muertas**, por
+ * un comentario CSS sin abrir. Tres de los cuatro, sin caja y con icono, se leían como texto con
+ * adorno.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .console-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.admin-shell .console-row-actions .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  color: var(--color-secondary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.76rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.admin-shell .console-row-actions .link-button:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: var(--color-border-hover);
+}
+
+.admin-shell .console-row-actions .link-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 9. Insignias de estado que faltaban
+ *
+ * ## Por qué no se inventan colores
+ *
+ * `badge-success` y `badge-warning` se usan en Agentes, Operaciones y el panel de agentes. Lo que
+ * no había era estilo, así que salían como texto pelado. Se resuelven con la rampa que `DESIGN.md`
+ * ya admite para severidad y con el acento del sistema para lo que está bien, no con un verde y un
+ * ámbar nuevos.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .badge-success {
+  color: var(--color-accent-bright);
+  background: color-mix(in oklab, var(--color-accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--color-accent) 38%, transparent);
+}
+
+.admin-shell .badge-warning {
+  color: var(--color-high);
+  background: color-mix(in oklab, var(--color-high) 12%, transparent);
+  border-color: color-mix(in oklab, var(--color-high) 34%, transparent);
+}
+
+/* ------------------------------------------------------------------------ *
+ * 10. Rejilla de métricas y su etiqueta
+ *
+ * ## Por qué cuatro y no dos
+ *
+ * `AdminAgentsPage` pone dos tarjetas en `.metric-grid`, que es de cuatro columnas: quedaban dos
+ * huecos vacíos a la derecha y la rejilla parecía rota. Y `.metric-label` venía de
+ * `knowledge.css` en sans, mientras el resto de la consola usaba el eyebrow en mono. Aquí se
+ * declara para que las cuatro cosas que rellenan la rejilla se vean igual.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .metric-grid-four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-shell .metric-label {
+  margin: 0;
+  color: var(--color-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 11. El diálogo
+ *
+ * ## Por qué hay que declararlo aquí
+ *
+ * ## Por qué el modal se aprieta en vez de rediseñarse
+ *
+ * Porque el problema que se veía no es el diseño del modal: es que **no tenía ancho máximo ni alto
+ * máximo**, así que se estiraba hasta el ancho de su contenido y el texto se cortaba con el scroll
+ * horizontal de dentro. Un `max-width` y un `max-height` con scroll vertical en el cuerpo son dos
+ * líneas y arreglan la pantalla entera.
+ *
+ * Y además el modal recibe el tratamiento de foco que le faltaba a la mitad de los diálogos de la
+ * consola: el de los usuarios, el de los tickets y el de acciones no se cerraban con `Escape`
+ * porque el manejador estaba en un `div` sin `tabindex` y el foco nunca estaba dentro. Eso se
+ * arregla empujando el foco al abrir y devolviéndolo al cerrar, que es lo que hace el diálogo de
+ * modelos LLM, el único que lo tenía bien.
+ * ------------------------------------------------------------------------ */
+
+.admin-shell .modal {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(86vh, 900px);
+  overflow: hidden;
+}
+
+.admin-shell .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+/* El cuerpo de un diálogo sin clase propia también scrollea, que es lo que faltaba. */
+.admin-shell .modal > section:not(.modal-header):not(.modal-footer) {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------------------ *
+ * 12. La cadena de precios pactados
+ *
+ * ## Por qué sin franja de color
+ *
+ * Porque el código anterior pintaba un `border-left` de 3 px en color de estado, y el sistema de
+ * diseño lo prohíbe de forma explícita: una franja lateral es un acento decorativo y aquí el
+ * estado ya se comunica con la insignia de texto y con el fondo. El estado se ve sin la franja.
+ * ------------------------------------------------------------------------ */
+
+.pricing-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pricing-chain-item {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(8rem, 1fr) minmax(9rem, auto) minmax(0, 2fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+/* El vigente se distingue por fondo y por la insignia, no por un filete. */
+.pricing-chain-item[data-estado='vigente'] {
+  background: var(--color-surface-elevated);
+  border-color: var(--color-border-hover);
+}
+
+.pricing-chain-value {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pricing-chain-motive {
+  min-width: 0;
+  color: var(--color-caption);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 60rem) {
+  .pricing-chain-item {
+    grid-template-columns: max-content max-content minmax(0, 1fr);
+  }
+
+  .pricing-chain-motive {
+    grid-column: 1 / -1;
+  }
+}

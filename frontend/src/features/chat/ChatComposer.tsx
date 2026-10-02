@@ -164,7 +164,7 @@ export function ChatComposer({
           onClick={enviar}
           disabled={!puedeEnviar}
         >
-          <Send size={15} aria-hidden="true" />
+          <Send size={16} aria-hidden="true" />
           {t('composer.send')}
         </button>
       </div>
@@ -179,7 +179,7 @@ export function ChatComposer({
             alternarPanel('credenciales')
           }}
         >
-          <KeyRound size={14} aria-hidden="true" />
+          <KeyRound size={16} aria-hidden="true" />
           {t('scope.credentials')}
         </button>
 
@@ -190,7 +190,7 @@ export function ChatComposer({
           aria-expanded={panel === 'dominios'}
           onClick={() => alternarPanel('dominios')}
         >
-          <Globe size={14} aria-hidden="true" />
+          <Globe size={16} aria-hidden="true" />
           {t('scope.domains')}
           {dominios.length > 0 && <span className="chat-scope-badge">{dominios.length}</span>}
         </button>
@@ -202,7 +202,7 @@ export function ChatComposer({
           aria-expanded={panel === 'repositorios'}
           onClick={() => alternarPanel('repositorios')}
         >
-          <Code2 size={14} aria-hidden="true" />
+          <Code2 size={16} aria-hidden="true" />
           {t('scope.repositories')}
           {repositorios.length > 0 && (
             <span className="chat-scope-badge">{repositorios.length}</span>

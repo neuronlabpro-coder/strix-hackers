@@ -107,5 +107,37 @@
     "missingTitle": "Falta `title` en el frontmatter.",
     "missingDescription": "Falta `description` en el frontmatter. Es lo que se inyecta cuando el documento se cita sin su cuerpo entero.",
     "emptyBody": "El cuerpo del documento está vacío."
+  },
+  "catalog": {
+    "searchPlaceholder": "Buscar en el catalogo",
+    "severityLabel": "Severidad",
+    "categoryLabel": "Familia de fallo",
+    "allCategories": "Todas",
+    "clearFilters": "Quitar filtros",
+    "refresh": "Actualizar",
+    "loading": "Cargando el catalogo...",
+    "loadFailed": "No se pudo cargar el catalogo.",
+    "retry": "Reintentar",
+    "empty": "El catalogo esta vacio.",
+    "emptyFiltered": "Ningun apunte coincide con los filtros.",
+    "count": "{{shown}} de {{total}} apuntes",
+    "severities": {
+      "CRITICAL": "Crítica",
+      "HIGH": "Alta",
+      "MEDIUM": "Media",
+      "LOW": "Baja"
+    },
+    "categories": {
+      "INJECTION": "Inyección",
+      "XSS": "XSS",
+      "AUTH": "Autenticación",
+      "CRYPTOGRAPHY": "Criptografía",
+      "SECRET_EXPOSURE": "Exposición de secretos",
+      "DESERIALIZATION": "Deserialización",
+      "SSRF": "SSRF",
+      "PATH_TRAVERSAL": "Path Traversal",
+      "LOGIC": "Lógica de negocio",
+      "DEPENDENCY": "Dependencias"
+    }
   }
 }

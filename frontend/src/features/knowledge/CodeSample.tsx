@@ -44,7 +44,7 @@ export function CodeSample({ title, code, tone, copyLabel, copiedLabel }: CodeSa
           onClick={() => void handleCopy()}
           aria-label={`${copied ? copiedLabel : copyLabel}: ${title}`}
         >
-          {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+          {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
           <span>{copied ? copiedLabel : copyLabel}</span>
         </button>
       </div>

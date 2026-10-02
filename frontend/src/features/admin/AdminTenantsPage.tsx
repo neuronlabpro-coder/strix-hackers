@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { BadgeDollarSign, Coins, Power, RefreshCw, Tags } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 
 import {
   deactivateAdminOrganization,
@@ -13,7 +14,6 @@ import type { AdminOrganization, PlanTierAdmin, TenantLifecycle } from '../../ty
 import { useAuth } from '../auth/useAuth'
 import { useToast } from '../shared/toast-context'
 import { TenantActionDialog, TenantLifecycleBadge, type TenantAction } from './TenantActionDialog'
-import { TenantPricingDialog } from './TenantPricingDialog'
 import { PaginationBar } from './PaginationBar'
 import { useAdminPage } from './useAdminPage'
 
@@ -41,6 +41,8 @@ const PAGE_SIZE = 25
  */
 export function AdminTenantsPage() {
   const { t } = useTranslation('admin')
+  /** Para mandar a la ficha de precios pactados, que es una pagina propia. */
+  const navigate = useNavigate()
   const { token, user } = useAuth()
   const { notify } = useToast()
 
@@ -173,7 +175,7 @@ export function AdminTenantsPage() {
 
       <div className="filter-bar">
         <label className="field">
-          <span className="">{t('tenants.filters.search')}</span>
+          <span className="field-label">{t('tenants.filters.search')}</span>
           <input
             className="text-input"
             value={search}
@@ -182,7 +184,7 @@ export function AdminTenantsPage() {
           />
         </label>
         <label className="field">
-          <span className="">{t('tenants.filters.plan')}</span>
+          <span className="field-label">{t('tenants.filters.plan')}</span>
           <select
             className="select-input"
             value={planFilter}
@@ -197,7 +199,7 @@ export function AdminTenantsPage() {
           </select>
         </label>
         <label className="field">
-          <span className="">{t('tenants.filters.lifecycle')}</span>
+          <span className="field-label">{t('tenants.filters.lifecycle')}</span>
           <select
             className="select-input"
             value={lifecycleFilter}
@@ -232,6 +234,17 @@ export function AdminTenantsPage() {
           <button className="secondary-button" type="button" onClick={page.refresh}>
             <span>{t('states.retry')}</span>
           </button>
+        </div>
+      ) : page.isLoading && page.items.length === 0 ? (
+        <div className="console-skeleton" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, indice) => (
+            <div className="console-skeleton-row" key={indice}>
+              <div className="console-skeleton-bar" style={{ flex: '2 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '1 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '3 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '1 1 0' }} />
+            </div>
+          ))}
         </div>
       ) : page.items.length === 0 ? (
         <div className="empty-card">
@@ -299,7 +312,7 @@ export function AdminTenantsPage() {
                           disabled={isPending}
                           onClick={() => setAction({ kind: 'plan', tenant })}
                         >
-                          <Tags size={15} aria-hidden="true" />
+                          <Tags size={16} aria-hidden="true" />
                           <span>{t('tenants.actions.plan')}</span>
                         </button>
                         <button
@@ -313,7 +326,7 @@ export function AdminTenantsPage() {
                           }
                           onClick={() => setAction({ kind: 'grant', tenant })}
                         >
-                          <Coins size={15} aria-hidden="true" />
+                          <Coins size={16} aria-hidden="true" />
                           <span>{t('tenants.actions.grant')}</span>
                         </button>
                         <button
@@ -325,9 +338,13 @@ export function AdminTenantsPage() {
                               ? t('tenants.lifecycle.deleted')
                               : undefined
                           }
-                          onClick={() => setAction({ kind: 'pricing', tenant })}
+                          onClick={() => {
+                            // Navega, no abre un dialogo. La ficha de precios es una pagina: ver
+                            // el porque en `AdminTenantPricingPage`.
+                            navigate(`/admin/organizations/${tenant.id}/pricing`)
+                          }}
                         >
-                          <BadgeDollarSign size={15} aria-hidden="true" />
+                          <BadgeDollarSign size={16} aria-hidden="true" />
                           <span>{t('tenants.actions.pricing')}</span>
                         </button>
                         <button
@@ -341,7 +358,7 @@ export function AdminTenantsPage() {
                           }
                           onClick={() => setAction({ kind: 'deactivate', tenant })}
                         >
-                          <Power size={15} aria-hidden="true" />
+                          <Power size={16} aria-hidden="true" />
                           <span>{t('tenants.actions.deactivate')}</span>
                         </button>
                       </div>
@@ -356,21 +373,14 @@ export function AdminTenantsPage() {
 
       <PaginationBar page={page} />
 
-      {action?.kind === 'pricing' ? (
-        <TenantPricingDialog
-          organization={action.tenant}
-          onClose={() => setAction(null)}
-        />
-      ) : (
-        <TenantActionDialog
+      <TenantActionDialog
           action={action}
           onClose={() => setAction(null)}
         onPlanChange={onPlanChange}
         onGrant={onGrant}
         onDeactivate={onDeactivate}
-          balanceFormatter={(value) => formatCredits(value)}
-        />
-      )}
+        balanceFormatter={(value) => formatCredits(value)}
+      />
     </section>
   )
 }

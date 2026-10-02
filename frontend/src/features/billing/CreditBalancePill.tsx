@@ -60,7 +60,7 @@ export function CreditBalancePill() {
         con un número nuevo y sin forma de comprar nada.
       */}
       <Link className="credit-pill-topup" to="/billing">
-        <Plus size={15} aria-hidden="true" />
+        <Plus size={16} aria-hidden="true" />
         <span>{t('topbar.topUp')}</span>
       </Link>
     </div>

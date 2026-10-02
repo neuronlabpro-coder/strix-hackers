@@ -232,10 +232,10 @@ export function NewTicketDialog({
               {messageTooShort ? <p className="field-error">{t('form.messageHint')}</p> : null}
             </div>
 
+            {/* Cancelar a la izquierda y confirmar a la derecha: es el orden del resto de
+                modales del panel, y `.settings-form-actions` es una fila sin `row-reverse`,
+                así que basta con el orden del DOM. Antes era al revés. */}
             <div className="settings-form-actions">
-              <button className="primary-button" type="submit" disabled={!canSubmit}>
-                <span>{working ? t('form.working') : t('form.submit')}</span>
-              </button>
               <button
                 className="secondary-button"
                 type="button"
@@ -243,6 +243,9 @@ export function NewTicketDialog({
                 disabled={working}
               >
                 <span>{t('form.cancel')}</span>
+              </button>
+              <button className="primary-button" type="submit" disabled={!canSubmit}>
+                <span>{working ? t('form.working') : t('form.submit')}</span>
               </button>
             </div>
           </form>

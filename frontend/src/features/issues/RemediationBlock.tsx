@@ -87,7 +87,7 @@ export function RemediationBlock({
 
       {SeOculta ? null : (
         <>
-          <div className="filter-bar">
+          <div className="page-actions">
             <button
               className="primary-button"
               type="button"

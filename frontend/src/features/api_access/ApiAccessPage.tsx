@@ -68,9 +68,9 @@ export function ApiAccessPage() {
             onClick={refresh}
           >
             {isLoading ? (
-              <LoaderCircle size={18} className="spin" aria-hidden="true" />
+              <LoaderCircle size={17} className="spin" aria-hidden="true" />
             ) : (
-              <RefreshCw size={18} aria-hidden="true" />
+              <RefreshCw size={17} aria-hidden="true" />
             )}
           </button>
           <button
@@ -185,7 +185,9 @@ function TokensTab({
   if (isLoading) {
     return (
       <div className="empty-card">
-        <LoaderCircle size={22} className="spin" aria-hidden="true" />
+        <span className="empty-card-mark" aria-hidden="true">
+          <LoaderCircle size={20} className="spin" />
+        </span>
         <p>{t('tokens.loading')}</p>
       </div>
     )
@@ -209,7 +211,9 @@ function TokensTab({
 
       {tokens.length === 0 ? (
         <div className="empty-card">
-          <KeyRound size={22} aria-hidden="true" />
+          <span className="empty-card-mark" aria-hidden="true">
+          <KeyRound size={20} />
+        </span>
           <h2>{t('tokens.empty')}</h2>
           <p>{t('tokens.emptyHint')}</p>
         </div>
@@ -271,7 +275,7 @@ function TokenRow({ token, onRevoke }: { token: ApiToken; onRevoke: (t: ApiToken
             type="button"
             onClick={() => onRevoke(token)}
           >
-            <Trash2 size={14} aria-hidden="true" />
+            <Trash2 size={16} aria-hidden="true" />
             <span>{t('actions.revoke')}</span>
           </button>
         )}

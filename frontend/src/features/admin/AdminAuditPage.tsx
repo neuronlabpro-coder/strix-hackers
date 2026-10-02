@@ -88,7 +88,7 @@ export function AdminAuditPage() {
 
       <div className="filter-bar">
         <label className="field">
-          <span className="">{t('tenants.filters.search')}</span>
+          <span className="field-label">{t('tenants.filters.search')}</span>
           <input
             className="text-input"
             value={search}
@@ -97,7 +97,7 @@ export function AdminAuditPage() {
           />
         </label>
         <label className="field">
-          <span className="">{t('audit.columns.action')}</span>
+          <span className="field-label">{t('audit.columns.action')}</span>
           <input
             className="text-input mono"
             value={action}
@@ -125,6 +125,17 @@ export function AdminAuditPage() {
           <button className="secondary-button" type="button" onClick={page.refresh}>
             <span>{t('states.retry')}</span>
           </button>
+        </div>
+      ) : page.isLoading && page.items.length === 0 ? (
+        <div className="console-skeleton" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, indice) => (
+            <div className="console-skeleton-row" key={indice}>
+              <div className="console-skeleton-bar" style={{ flex: '2 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '1 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '3 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '1 1 0' }} />
+            </div>
+          ))}
         </div>
       ) : page.items.length === 0 ? (
         <div className="empty-card">

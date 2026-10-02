@@ -1,0 +1,11 @@
+/* ------------------------------------------------------------------------- *
+ * SIN USO. Hoja vacía y fuera del grafo de estilos.
+ *
+ * No hay aquí ninguna regla y ningún módulo la importa: `main.tsx` carga el
+ * tema con `./styles/index.css` y el resto de hojas de `styles/`. Es un resto
+ * de la plantilla de Vite que quedó sin usar.
+ *
+ * Se conserva sin borrar, pero **no la importes**: si `App.tsx` llegara a
+ * importarla, el tema tendría una segunda puerta de entrada y podría cargarse
+ * dos veces. Si necesitas una regla global, va en `styles/index.css`.
+ * ------------------------------------------------------------------------- */

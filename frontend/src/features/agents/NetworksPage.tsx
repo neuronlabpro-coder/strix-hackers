@@ -311,7 +311,9 @@ export function NetworksPage() {
 
         {failed ? (
           <div className="empty-card">
-            <Globe size={22} aria-hidden="true" />
+            <span className="empty-card-mark" aria-hidden="true">
+              <Globe size={20} />
+            </span>
             <h3>{t('networks.errors.loadFailed')}</h3>
             <button type="button" className="secondary-button" onClick={refrescar}>
               {t('networks.refresh')}
@@ -319,7 +321,9 @@ export function NetworksPage() {
           </div>
         ) : filtrados.length === 0 && !loading ? (
           <div className="empty-card">
-            <Network size={22} aria-hidden="true" />
+            <span className="empty-card-mark" aria-hidden="true">
+              <Network size={20} />
+            </span>
             <h2>{hayFiltros ? t('networks.empty.filtered') : t('networks.empty.title')}</h2>
             <p>{hayFiltros ? t('networks.empty.filteredBody') : t('networks.empty.body')}</p>
           </div>

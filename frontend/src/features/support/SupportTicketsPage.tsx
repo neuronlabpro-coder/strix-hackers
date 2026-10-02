@@ -95,7 +95,7 @@ export function SupportTicketsPage() {
 
       <div className="settings-form-actions">
         <button className="primary-button" type="button" onClick={() => setDialogOpen(true)}>
-          <Plus size={15} aria-hidden="true" />
+          <Plus size={16} aria-hidden="true" />
           <span>{t('newTicket')}</span>
         </button>
       </div>

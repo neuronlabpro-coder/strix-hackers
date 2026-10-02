@@ -277,7 +277,7 @@ function CustomPackCard({
         </>
       )}
       <label className="form-field">
-        <span className="">{t('packs.customLabel')}</span>
+        <span className="field-label">{t('packs.customLabel')}</span>
         <input
           className="text-input"
           value={raw}

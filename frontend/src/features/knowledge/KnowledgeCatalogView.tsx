@@ -101,13 +101,13 @@ export function KnowledgeCatalogView() {
         )}
 
         <button className="secondary-button" type="button" onClick={refresh}>
-          <RefreshCw size={15} aria-hidden="true" />
+          <RefreshCw size={16} aria-hidden="true" />
           {t('catalog.refresh')}
         </button>
       </div>
 
       {loadFailed && (
-        <div className="empty-state">
+        <div className="empty-card">
           <p>{t('catalog.loadFailed')}</p>
           <button className="secondary-button" type="button" onClick={refresh}>
             {t('catalog.retry')}
@@ -118,7 +118,7 @@ export function KnowledgeCatalogView() {
       {isLoading && !loadFailed && <p className="table-caption">{t('catalog.loading')}</p>}
 
       {!isLoading && !loadFailed && page && page.items.length === 0 && (
-        <div className="empty-state">
+        <div className="empty-card">
           <p>{hasFilters ? t('catalog.emptyFiltered') : t('catalog.empty')}</p>
         </div>
       )}

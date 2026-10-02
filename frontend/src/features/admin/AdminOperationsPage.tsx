@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Consola de operaciones: escaneos, revisiones, contenedores y sondas de toda la plataforma.
  *
  * ## Por qué esta pantalla existe
@@ -26,7 +26,7 @@
  *
  * Porque son dos problemas distintos. Cancelar es para un run en marcha. Limpiar es para un run
  * **ya terminado** cuyo contenedor, red o directorio siguen vivos: cancelar uno terminado da
- * `409`, correctamente. Meterlos en el mismo botón haría que el operador上年 clic y recibiera un
+ * `409`, correctamente. Meterlos en el mismo botón haría que el operador pulsara y recibiera un
  * error sin entender por qué.
  *
  * ## Por qué no hay botón de borrar en ninguna de las cuatro tablas
@@ -39,17 +39,24 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   AbortReason,
+  ContenedorOperacion,
+  ContenedorPage,
+  JobOperacion,
   JobOperacionPage,
+  ReviewOperacion,
   ReviewOperacionPage,
+  ScanOperacion,
   ScanOperacionPage,
 } from '../../types/api'
 import {
   cancelAdminScan,
   cleanupAdminScanContainer,
+  getAdminContainers,
   getAdminJobs,
   getAdminReviews,
   getAdminScans,
 } from '../../lib/adminApi'
+import { formatDate } from '../../lib/format'
 import { useAuth } from '../auth/useAuth'
 import { useToast } from '../shared/toast-context'
 import { useAsyncResource } from '../shared/useAsyncResource'
@@ -106,7 +113,11 @@ export function AdminOperationsPage() {
    * fuera los campos que no existen en las tres, que es exactamente lo que impide pintar
    * `pr_number` en la tabla de escaneos por un descuido.
    */
-  type PaginaOperaciones = ScanOperacionPage | ReviewOperacionPage | JobOperacionPage
+  type PaginaOperaciones =
+    | ScanOperacionPage
+    | ContenedorPage
+    | ReviewOperacionPage
+    | JobOperacionPage
 
   const cargar = useCallback(
     (k: string): Promise<PaginaOperaciones> => {
@@ -114,6 +125,7 @@ export function AdminOperationsPage() {
       const auth = partes[0] ?? ''
       const seccionDeClave = partes[1] ?? 'scans'
       const soloColgados = partes[2] === '1'
+      if (seccionDeClave === 'containers') return getAdminContainers(auth)
       if (seccionDeClave === 'reviews') return getAdminReviews(auth)
       if (seccionDeClave === 'jobs') return getAdminJobs(auth)
       return getAdminScans(auth, { soloColgados })
@@ -190,14 +202,30 @@ export function AdminOperationsPage() {
     )
   }
 
-  const enCurso = datos.data !== null && 'items' in datos.data ? datos.data.items : []
+  // El nombre `enCurso` viene de cuando esta pantalla solo tenía escaneos, y ya no es cierto:
+  // cada pestaña trae su propia colección y aquí solo se lee la que devolvió el fetcher. Se
+  // renombra a `filas` porque una variable que dice `enCurso` y contiene revisiones de pull
+  // request es el tipo de nombre que hace que alguien lea el código dando por hecho algo falso.
+  // ## Por qué el `as` es necesario y no es una puerta trasera
+  //
+  // Porque `PaginaOperaciones` es una unión y TypeScript no puede estrecha sola cuál de sus
+  // cuatro miembros es, ya que los cuatro comparten `items`, `total`, `limit` y `offset`. El
+  // narrowing real lo hace `seccion`, que es lo que elige la rama del fetcher: cada pestaña pide
+  // su endpoint y solo puede devolver su página. El `as` solo le dice al compilador lo que ya es
+  // cierto.
+  //
+  // Y no se puede dejar en `readonly unknown[]`, que es lo que tenía antes: con `unknown` el
+  // compilador no puede comprobar que la tabla de escaneos no pinte `pr_number`, que es
+  // exactamente el fallo que la unión de tipos existe para cazar. Se sustituye por un `as`
+  // justificado para que los cuatro `items` vuelvan a estar comprobados de verdad.
+  const filas = datos.data !== null && 'items' in datos.data ? datos.data.items : []
   const total = datos.data !== null && 'total' in datos.data ? datos.data.total : 0
 
   return (
     <section className="stack-lg">
       <header className="section-header">
         <div>
-          <p className="eyebrow">{t('nav.console')}</p>
+          <p className="eyebrow">{t('eyebrow')}</p>
           <h1>{t('operations.title')}</h1>
           <p className="section-description">{t('operations.description')}</p>
         </div>
@@ -235,7 +263,7 @@ export function AdminOperationsPage() {
 
       {seccion === 'scans' ? (
         <TablaScans
-          items={enCurso}
+          items={filas as readonly ScanOperacion[]}
           pendientes={pendientes}
           motivo={motivo}
           nota={nota}
@@ -247,11 +275,15 @@ export function AdminOperationsPage() {
           alLimpiar={limpiar}
         />
       ) : seccion === 'containers' ? (
-        <TablaVacia titulo={t('operations.states.empty')} />
+        <TablaContenedores
+          items={filas as readonly ContenedorOperacion[]}
+          pendientes={pendientes}
+          alLimpiar={limpiar}
+        />
       ) : seccion === 'reviews' ? (
-        <TablaReviews items={enCurso} />
+        <TablaReviews items={filas as readonly ReviewOperacion[]} />
       ) : (
-        <TablaJobs items={enCurso} />
+        <TablaJobs items={filas as readonly JobOperacion[]} />
       )}
     </section>
   )
@@ -263,17 +295,6 @@ function TablaVacia({ titulo }: { titulo: string }) {
       <p>{titulo}</p>
     </div>
   )
-}
-
-type FilaScan = Record<string, unknown> & {
-  id: string
-  status: string
-  organizacion: string
-  target_identifier: string
-  container_id: string | null
-  cleanup_pending: boolean
-  error_message: string | null
-  duracion_minutos: string
 }
 
 function TablaScans({
@@ -288,7 +309,7 @@ function TablaScans({
   alCancelar,
   alLimpiar,
 }: {
-  items: readonly unknown[]
+  items: readonly ScanOperacion[]
   pendientes: ReadonlySet<string>
   motivo: AbortReason
   nota: string
@@ -320,7 +341,7 @@ function TablaScans({
           </tr>
         </thead>
         <tbody>
-          {(items as readonly FilaScan[]).map((fila) => {
+          {items.map((fila) => {
             const enMarcha = fila.status === 'QUEUED' || fila.status === 'RUNNING'
             const abierto = motivoDe === fila.id
             return (
@@ -336,7 +357,7 @@ function TablaScans({
                   {fila.duracion_minutos}
                   <span className="cell-muted"> {t('operations.units.minutes')}</span>
                 </td>
-                <td className="mono">
+                <td className="mono cell-inline">
                   {fila.container_id ?? t('operations.states.noContainer')}
                   {fila.cleanup_pending ? (
                     <span className="badge badge-warning">
@@ -344,7 +365,7 @@ function TablaScans({
                     </span>
                   ) : null}
                 </td>
-                <td>
+                <td className="cell-acciones">
                   <div className="button-row">
                     {enMarcha ? (
                       <button
@@ -446,7 +467,106 @@ const DEVUELVEN: ReadonlySet<AbortReason> = new Set<AbortReason>([
   'INFRASTRUCTURE_ORPHANED',
 ])
 
-function TablaReviews({ items }: { items: readonly unknown[] }) {
+/**
+ * Los contenedores vivos o con limpieza pendiente.
+ *
+ * ## Por qué esta tabla se escribió ahora y no estaba
+ *
+ * Porque la pestaña «Contenedores» era un hueco: el `fetcher` no tenía rama para ella, así que
+ * caía en la de escaneos, y el JSX pintaba un estado vacío fijo. El efecto en pantalla era una
+ * pestaña que decía «5 elementos» arriba y «No hay nada en esta sección» debajo, sobre la misma
+ * lista, y un operador que buscaba un contenedor con limpieza pendiente no lo encontraba en
+ * ninguna parte.
+ *
+ * El botón de limpiar se reutiliza tal cual, y con el mismo `run_id` que usa la tabla de
+ * escaneos: la limpieza se pide por run, no por contenedor, así que el nombre del contenedor es
+ * informative y la acción es la misma.
+ *
+ * Y `nombre_esperado` se pinta al lado del real porque son la pareja que delata un fallo: si
+ * difieren, el `container_id` guardado ya no corresponde al run y hay que Limpiar.
+ */
+function TablaContenedores({
+  items,
+  pendientes,
+  alLimpiar,
+}: {
+  items: readonly ContenedorOperacion[]
+  pendientes: ReadonlySet<string>
+  alLimpiar: (runId: string) => Promise<void>
+}) {
+  const { t } = useTranslation('admin')
+  if (items.length === 0) {
+    return <TablaVacia titulo={t('operations.states.empty')} />
+  }
+  return (
+    <div className="table-wrapper">
+      <table className="data-table console-table">
+        <caption className="visually-hidden">{t('operations.tabs.containers')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('operations.columns.status')}</th>
+            <th scope="col">{t('operations.columns.organization')}</th>
+            <th scope="col">{t('operations.columns.container')}</th>
+            <th scope="col">{t('operations.columns.expectedContainer')}</th>
+            <th scope="col">
+              <span className="visually-hidden">{t('operations.columns.actions')}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((fila) => {
+            const desalineado = fila.container_id !== fila.nombre_esperado
+            return (
+              <tr key={fila.run_id}>
+                <td>
+                  <span className="badge mono" title={fila.status}>
+                    {t(`operations.states.status.${fila.status}`, {
+                      defaultValue: fila.status,
+                    })}
+                  </span>
+                </td>
+                <td>{fila.organizacion}</td>
+                <td className="mono cell-inline">
+                  {fila.container_id}
+                  {fila.cleanup_pending ? (
+                    <span className="badge badge-warning">
+                      {t('operations.states.cleanupPending')}
+                    </span>
+                  ) : null}
+                  {desalineado ? (
+                    /* `.badge-error`, no `.badge-high`: esa clase no existe en ninguna hoja y el
+                       verificador de clases la señala. El tono es el mismo `--color-high` que usa
+                       el resto de estados de error del panel. */
+                    <span className="badge badge-error">
+                      {t('operations.states.nameMismatch')}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="mono cell-muted">{fila.nombre_esperado}</td>
+                <td className="cell-acciones">
+                  <div className="button-row">
+                    {fila.cleanup_pending ? (
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={pendientes.has(`clean:${fila.run_id}`)}
+                        onClick={() => void alLimpiar(fila.run_id)}
+                      >
+                        <span>{t('operations.actions.cleanup')}</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TablaReviews({ items }: { items: readonly ReviewOperacion[] }) {
   const { t } = useTranslation('admin')
   if (items.length === 0) {
     return <TablaVacia titulo={t('operations.states.empty')} />
@@ -465,24 +585,24 @@ function TablaReviews({ items }: { items: readonly unknown[] }) {
           </tr>
         </thead>
         <tbody>
-          {(items as readonly Record<string, never>[]).map((fila) => (
-            <tr key={String(fila.id)}>
+          {items.map((fila) => (
+            <tr key={fila.id}>
               <td>
-                <span className="badge mono" title={String(fila.status)}>
-                  {t(`operations.states.reviewStatus.${String(fila.status)}`, {
-                    defaultValue: String(fila.status),
+                <span className="badge mono" title={fila.status}>
+                  {t(`operations.states.reviewStatus.${fila.status}`, {
+                    defaultValue: fila.status,
                   })}
                 </span>
               </td>
-              <td>{String(fila.organizacion)}</td>
+              <td>{fila.organizacion}</td>
               <td>
-                <span className="mono">#{String(fila.pr_number)}</span>{' '}
-                {String(fila.pr_title ?? '')}
+                <span className="mono">#{fila.pr_number}</span>{' '}
+                {fila.pr_title ?? ''}
               </td>
               <td className="mono">
-                {String(fila.issues_caught_critical)} / {String(fila.issues_caught_high)}
+                {fila.issues_caught_critical} / {fila.issues_caught_high}
               </td>
-              <td className="mono timestamp">{String(fila.created_at)}</td>
+              <td className="mono timestamp">{formatDate(fila.created_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -491,7 +611,7 @@ function TablaReviews({ items }: { items: readonly unknown[] }) {
   )
 }
 
-function TablaJobs({ items }: { items: readonly unknown[] }) {
+function TablaJobs({ items }: { items: readonly JobOperacion[] }) {
   const { t } = useTranslation('admin')
   if (items.length === 0) {
     return <TablaVacia titulo={t('operations.states.empty')} />
@@ -510,19 +630,19 @@ function TablaJobs({ items }: { items: readonly unknown[] }) {
           </tr>
         </thead>
         <tbody>
-          {(items as readonly Record<string, never>[]).map((fila) => (
-            <tr key={String(fila.id)}>
+          {items.map((fila) => (
+            <tr key={fila.id}>
               <td>
-                <span className="badge mono" title={String(fila.status)}>
-                  {t(`operations.states.jobStatus.${String(fila.status)}`, {
-                    defaultValue: String(fila.status),
+                <span className="badge mono" title={fila.status}>
+                  {t(`operations.states.jobStatus.${fila.status}`, {
+                    defaultValue: fila.status,
                   })}
                 </span>
               </td>
-              <td>{String(fila.organizacion)}</td>
-              <td>{String(fila.kind)}</td>
-              <td className="mono">{String(fila.target)}</td>
-              <td className="mono timestamp">{String(fila.created_at)}</td>
+              <td>{fila.organizacion}</td>
+              <td>{fila.kind}</td>
+              <td className="mono">{fila.target}</td>
+              <td className="mono timestamp">{formatDate(fila.created_at)}</td>
             </tr>
           ))}
         </tbody>

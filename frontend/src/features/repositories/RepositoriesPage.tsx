@@ -71,7 +71,7 @@ export function RepositoriesPage() {
             type="button"
             onClick={() => setIsModalOpen(true)}
           >
-            <Plus size={17} aria-hidden="true" />
+            <Plus size={16} aria-hidden="true" />
             <span>{t('addRepository')}</span>
           </button>
         </div>
@@ -138,7 +138,7 @@ export function RepositoriesPage() {
           <h2>{query ? t('states.noResults') : t('states.empty')}</h2>
           <p>{t('states.emptyDescription')}</p>
           <button className="primary-button" type="button" onClick={() => setIsModalOpen(true)}>
-            <Plus size={17} aria-hidden="true" />
+            <Plus size={16} aria-hidden="true" />
             <span>{t('addRepository')}</span>
           </button>
         </div>

@@ -63,7 +63,7 @@ export function IssuesPage() {
               aria-pressed={viewMode === 'table'}
               onClick={() => setViewMode('table')}
             >
-              <Rows3 size={15} aria-hidden="true" />
+              <Rows3 size={16} aria-hidden="true" />
               <span>{t('viewMode.table')}</span>
             </button>
             <button
@@ -72,7 +72,7 @@ export function IssuesPage() {
               aria-pressed={viewMode === 'board'}
               onClick={() => setViewMode('board')}
             >
-              <LayoutGrid size={15} aria-hidden="true" />
+              <LayoutGrid size={16} aria-hidden="true" />
               <span>{t('viewMode.board')}</span>
             </button>
           </div>

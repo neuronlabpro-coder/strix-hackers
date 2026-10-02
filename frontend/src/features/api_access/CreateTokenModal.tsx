@@ -162,7 +162,7 @@ export function CreateTokenModal({
             */}
             <select
               id="token-expiry"
-              className="filter-field"
+              className="select-input"
               value={expiresInDays}
               onChange={(event) => setExpiresInDays(Number(event.target.value))}
             >
@@ -195,7 +195,7 @@ export function CreateTokenModal({
         </div>
 
         <footer className="modal-footer">
-          <p className="modal-caption">{t('create.submitHint')}</p>
+          <p className="modal-caption modal-footer-note">{t('create.submitHint')}</p>
           <button className="secondary-button" type="button" onClick={onClose}>
             {t('common:cancel')}
           </button>

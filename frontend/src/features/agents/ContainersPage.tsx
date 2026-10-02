@@ -325,7 +325,9 @@ export function ContainersPage() {
 
         {failed ? (
           <div className="empty-card">
-            <Package size={22} aria-hidden="true" />
+            <span className="empty-card-mark" aria-hidden="true">
+              <Package size={20} />
+            </span>
             <h3>{t('containers.errors.loadFailed')}</h3>
             <button type="button" className="secondary-button" onClick={refrescar}>
               {t('containers.refresh')}
@@ -333,7 +335,9 @@ export function ContainersPage() {
           </div>
         ) : filtrados.length === 0 && !loading ? (
           <div className="empty-card">
-            <Package size={22} aria-hidden="true" />
+            <span className="empty-card-mark" aria-hidden="true">
+              <Package size={20} />
+            </span>
             <h2>{hayFiltros ? t('containers.empty.filtered') : t('containers.empty.title')}</h2>
             <p>{hayFiltros ? t('containers.empty.filteredBody') : t('containers.empty.body')}</p>
           </div>

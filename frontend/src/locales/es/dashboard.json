@@ -6,7 +6,7 @@
   "kpis": {
     "securityScore": "Security score",
     "openIssues": "Open issues",
-    "totalIssues": "Issues found",
+    "totalIssues": "Incidencias encontradas",
     "fixRate": "Fix rate",
     "prsReviewed": "PRs reviewed",
     "prsReviewedHint": "en los últimos 30 días",

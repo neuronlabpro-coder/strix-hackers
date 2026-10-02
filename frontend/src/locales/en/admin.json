@@ -162,7 +162,8 @@
         "retry": "Retry",
         "live": "In force",
         "future": "Scheduled",
-        "expired": "Expired"
+        "expired": "Expired",
+        "superseded": "Superseded"
       },
       "columns": {
         "operation": "Price",
@@ -187,7 +188,8 @@
         "motive": "Reason",
         "motiveHelp": "Required. Quote reference, customer name, whatever it takes to know where the number came from.",
         "from": "Starts applying",
-        "fromHelp": "Empty means right now. Set a future date to agree a rise that starts at the renewal."
+        "fromHelp": "Empty means right now. Set a future date to agree a rise that starts at the renewal.",
+        "valueHelp": "Same format as the platform price: credits, fraction, or credits per dollar."
       },
       "operations": {
         "SCAN_CREDIT_COST": "Full scan",
@@ -201,6 +203,16 @@
         "created": "Price agreed",
         "replaced": "Price agreed: the previous one stops applying",
         "error": "The price could not be agreed."
+      },
+      "eyebrow": "Platform operation",
+      "description": "What was agreed with this customer, on top of the platform price. Nothing is deleted: each new agreement replaces the previous one and both stay with their reason and their author.",
+      "back": "Back to organizations",
+      "footnote": "The charged price is frozen in the ledger when the scan is enqueued. Changing a price does not alter what was already charged.",
+      "rows": {
+        "scanCost": "Cost in credits of a full scan.",
+        "quickMultiplier": "Fraction of a full scan that a quick scan costs.",
+        "creditsPerUsd": "How many credits one dollar buys.",
+        "negotiated": "Agreed"
       }
     }
   },
@@ -391,7 +403,9 @@
       "loading": "Loading prices...",
       "error": "The prices could not be loaded.",
       "retry": "Try again",
-      "motiveRequired": "Write a reason before saving."
+      "motiveRequired": "Write a reason before saving.",
+      "failedTitle": "The prices could not be loaded",
+      "failedBody": "The server did not respond. No price was changed."
     },
     "badges": {
       "fromDatabase": "Prices in the database",
@@ -499,7 +513,10 @@
       "total_other": "{{count}} changes",
       "system": "System",
       "noValue": "no value",
-      "seeded": "seeded"
+      "seeded": "seeded",
+      "failedTitle": "The history could not be loaded",
+      "failedBody": "The prices on this screen are loaded; what could not be asked for is who changed them and when.",
+      "loading": "Loading the change history..."
     }
   },
   "operations": {
@@ -521,6 +538,7 @@
       "target": "Target",
       "minutes": "Duration",
       "container": "Container",
+      "expectedContainer": "Expected container",
       "actions": "Actions",
       "pr": "Pull request",
       "findings": "Critical / high",
@@ -538,6 +556,7 @@
       "notaRequired": "Write a note before confirming the cancellation.",
       "noContainer": "no container",
       "cleanupPending": "cleanup pending",
+      "nameMismatch": "name mismatch",
       "status": {
         "QUEUED": "Queued",
         "RUNNING": "Running",

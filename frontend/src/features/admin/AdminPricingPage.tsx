@@ -37,6 +37,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
+import { AlertTriangle, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type {
   PlatformCreditPack,
@@ -119,13 +120,39 @@ export function AdminPricingPage() {
    * de que el contador cambió: la clave es el único contrato con él. Y por eso no se recarga el
    * histórico en cada tecla de un `<input>` —la tecla no cambia la clave—, sino solo después de
    * guardar, que es cuando hay algo nuevo que enseñar.
+   *
+   * ## Por qué la clave es el contador y no el token
+   *
+   * Porque antes era `"<token>:<contador>"`, y el fetcher hacía `getPlatformPriceChanges(k)`: es
+   * decir, mandaba **la clave entera** como `Authorization: Bearer`. El servidor recibía
+   * `Bearer eyJ...:3` en vez de `Bearer eyJ...`, respondía 401, y el bloque del histórico se
+   * quedaba sin cargar para siempre.
+   *
+   * ## Por qué no se arregla partiendo la cadena por los dos puntos
+   *
+   * ## Por qué no se recorta la clave dentro del fetcher
+   *
+   * Porque partir una cadena para recuperar un token es pedir que se rompa el día que el token
+   * lleve dos puntos dentro. El token no se deduce de la clave: el token viene del contexto de
+   * sesión, y la clave es solo lo que hace que el hook vuelva a pedir. Son dos cosas distintas y
+   * no tienen que caber en el mismo sitio.
    */
   const [tickHistorial, setTickHistorial] = useState(0)
   const recargarHistorial = useCallback(() => setTickHistorial((n) => n + 1), [])
-  const claveHistorial = clave === null ? null : `${clave}:${tickHistorial}`
 
-  const cargarHistorial = useCallback((k: string) => getPlatformPriceChanges(k), [])
-  const historial = useAsyncResource(cargarHistorial, claveHistorial)
+  const cargarHistorial = useCallback(
+    async (_clave: string) => {
+      if (clave === null) {
+        throw new Error('sin token')
+      }
+      return getPlatformPriceChanges(clave)
+    },
+    [clave],
+  )
+  const historial = useAsyncResource(
+    cargarHistorial,
+    clave === null ? null : `${tickHistorial}`,
+  )
 
   /** Los borradores de los siete precios: el texto crudo de cada `<input>`. */
   const [borrador, setBorrador] = useState<Record<string, string>>({})
@@ -257,7 +284,7 @@ export function AdminPricingPage() {
     <section className="stack-lg">
       <header className="section-header">
         <div>
-          <p className="eyebrow">{t('nav.console')}</p>
+          <p className="eyebrow">{t('eyebrow')}</p>
           <h1>{t('pricing.title')}</h1>
           <p className="section-description">{t('pricing.description')}</p>
         </div>
@@ -266,68 +293,89 @@ export function AdminPricingPage() {
         </span>
       </header>
 
+      {/* Un aviso con icono y acción, no una línea de texto entre la cabecera y la primera
+          tabla. La diferencia es de jerarquía: un aviso es un bloque con forma, y una línea suelta
+          se lee como parte de la página. */}
       {detalle.loadFailed && (
-        <p className="inline-notice inline-notice-warning" role="alert">
-          {t('pricing.states.error')}
-        </p>
+        <div className="console-notice" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <div className="console-notice-body">
+            <strong>{t('pricing.states.failedTitle')}</strong>
+            <span>{t('pricing.states.failedBody')}</span>
+          </div>
+        </div>
       )}
 
       {/* ------------------------------------------------------------ precios base */}
-      <article className="panel">
-        <h2>{t('pricing.scalars.title')}</h2>
-        <p className="section-description">{t('pricing.scalars.help')}</p>
-        <div className="table-wrapper">
-          <table className="data-table console-table">
-            <caption className="visually-hidden">{t('pricing.scalars.title')}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t('pricing.scalars.columns.field')}</th>
-                <th scope="col">{t('pricing.scalars.columns.value')}</th>
-                <th scope="col">{t('pricing.scalars.columns.unit')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {PRECIOS.map((precio) => {
-                const idCampo = `precio-${precio.campo}`
-                return (
-                  <tr key={precio.campo}>
-                    <th scope="row">
-                      <label htmlFor={idCampo}>{t(`pricing.scalars.fields.${precio.etiqueta}`)}</label>
-                    </th>
-                    <td>
-                      <input
-                        id={idCampo}
-                        type="number"
-                        step={precio.paso}
-                        inputMode="decimal"
-                        className="mono"
-                        disabled={guardando}
-                        value={valor(precio.campo, precios[precio.campo])}
-                        onChange={(e) =>
-                          setBorrador((actual) => ({ ...actual, [precio.campo]: e.target.value }))
-                        }
-                      />
-                    </td>
-                    <td className="cell-muted">{t(`pricing.scalars.units.${precio.unidad}`)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/*
+        Filas de ajuste, no una tabla.
 
-        <div className="field">
-          <label htmlFor="motivo-precios">{t('pricing.motive.label')}</label>
-          <input
-            id="motivo-precios"
-            type="text"
-            maxLength={255}
-            placeholder={t('pricing.motive.placeholder')}
-            disabled={guardando}
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-          <p className="field-help">{t('pricing.motive.help')}</p>
+        ## Por qué
+
+        ## Por qué no una tabla de tres columnas
+
+        Porque una tabla obliga a que el nombre, el valor y la unidad compitan por el ancho, y el
+        nombre de un precio necesita su unidad a la vista ("créditos por dólar" es el mismo campo que
+        "fracción del escaneo completo"). Con la unidad en columna, el nombre se come el ancho o
+        se parte en dos líneas.
+
+        ## Por qué no se pierde el orden de lectura
+
+        ## Por qué el orden no cambia
+
+        Porque una tabla ordena por columnas y aquí el orden lo da el bloque: nombre a la izquierda,
+        control a la derecha, unidad debajo del nombre. Las dos cosas que se comparan —el nombre y
+        su valor— quedan en la misma línea, que es la única forma de que se lean como pares.
+      */}
+      <section className="console-block" aria-labelledby="pricing-block">
+        <header>
+          <div>
+            <h2 id="pricing-block">{t('pricing.scalars.title')}</h2>
+            <p className="section-description">{t('pricing.scalars.help')}</p>
+          </div>
+        </header>
+        <div className="console-settings">
+          {PRECIOS.map((precio) => {
+            const idCampo = `precio-${precio.campo}`
+            return (
+              <div className="console-setting-row" key={precio.campo}>
+                <div className="console-setting-copy">
+                  <label htmlFor={idCampo}>{t(`pricing.scalars.fields.${precio.etiqueta}`)}</label>
+                  <span>{t(`pricing.scalars.units.${precio.unidad}`)}</span>
+                </div>
+                <div className="console-setting-control">
+                  <input className="text-input mono"
+                    id={idCampo}
+                    type="number"
+                    step={precio.paso}
+                    inputMode="decimal"
+                    disabled={guardando}
+                    value={valor(precio.campo, precios[precio.campo])}
+                    onChange={(e) =>
+                      setBorrador((actual) => ({ ...actual, [precio.campo]: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+            )
+          })}
+          <div className="console-setting-row">
+            <div className="console-setting-copy">
+              <label htmlFor="motivo-precios">{t('pricing.motive.label')}</label>
+              <span>{t('pricing.motive.help')}</span>
+            </div>
+            <div className="console-setting-control">
+              <input className="text-input"
+                id="motivo-precios"
+                type="text"
+                maxLength={255}
+                placeholder={t('pricing.motive.placeholder')}
+                disabled={guardando}
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
 
         {cambios.length > 0 ? (
@@ -353,10 +401,10 @@ export function AdminPricingPage() {
             </button>
           </div>
         ) : null}
-      </article>
+      </section>
 
       {/* ------------------------------------------------------------ packs */}
-      <article className="panel">
+      <section className="console-block" aria-labelledby="pricing-block">
         <h2>{t('pricing.packs.title')}</h2>
         <p className="section-description">{t('pricing.packs.help')}</p>
         {detalle.data !== null && detalle.data.packs.length === 0 ? (
@@ -424,10 +472,10 @@ export function AdminPricingPage() {
             })
           }
         />
-      </article>
+      </section>
 
       {/* ------------------------------------------------------------ escalera */}
-      <article className="panel">
+      <section className="console-block" aria-labelledby="pricing-block">
         <h2>{t('pricing.tiers.title')}</h2>
         <p className="section-description">{t('pricing.tiers.help')}</p>
         {detalle.data !== null && detalle.data.tiers.length === 0 ? (
@@ -493,14 +541,49 @@ export function AdminPricingPage() {
             })
           }
         />
-      </article>
+      </section>
 
       {/* ------------------------------------------------------------ histórico */}
-      <article className="panel">
-        <h2>{t('pricing.history.title')}</h2>
-        <p className="section-description">{t('pricing.history.help')}</p>
-        {historial.data === null ? (
-          <p className="cell-muted">{t('pricing.states.loading')}</p>
+      {/*
+        Sin clase `panel`, y con comprobación del fallo.
+
+        ## Por qué el fallo se comprueba aquí
+
+        Porque el guard de página solo mira `detalle`, y este bloque lee `historial`. Con
+        `historial.data === null` se pintaba `pricing.states.loading`, que es la misma clave que
+        el cargador de página: el texto "Cargando precios…" aparecía **abajo del todo**, sin caja,
+        debajo de tres tablas, y se quedaba ahí para siempre si la consulta fallaba, porque
+        `historial.loadFailed` no se leía en ningún sitio del fichero.
+
+        Y va sin tarjeta por lo mismo que los otros tres bloques: cuatro tarjetas con borde
+        conteniendo a su vez una tabla con borde son cuatro pares de bordes concéntricos.
+      */}
+      <section className="console-block" aria-labelledby="pricing-history-title">
+        <header>
+          <div>
+            <h2 id="pricing-history-title">{t('pricing.history.title')}</h2>
+            <p className="section-description">{t('pricing.history.help')}</p>
+          </div>
+        </header>
+        {historial.loadFailed && historial.data === null ? (
+          <div className="console-notice" role="alert">
+            <Info size={16} aria-hidden="true" />
+            <div className="console-notice-body">
+              <strong>{t('pricing.history.failedTitle')}</strong>
+              <span>{t('pricing.history.failedBody')}</span>
+            </div>
+            <div className="console-notice-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={historial.reload}
+              >
+                <span>{t('pricing.states.retry')}</span>
+              </button>
+            </div>
+          </div>
+        ) : historial.data === null ? (
+          <p className="cell-muted">{t('pricing.history.loading')}</p>
         ) : historial.data.items.length === 0 ? (
           <p className="cell-muted">{t('pricing.history.empty')}</p>
         ) : (
@@ -530,7 +613,7 @@ export function AdminPricingPage() {
             </div>
           </>
         )}
-      </article>
+      </section>
     </section>
   )
 }
@@ -631,7 +714,7 @@ function NuevoPack({
       <div className="form-grid">
         <div className="field">
           <label htmlFor="pack-nuevo-credits">{t('pricing.packs.new.credits')}</label>
-          <input
+          <input className="text-input"
             id="pack-nuevo-credits"
             type="number"
             min="1"
@@ -643,13 +726,12 @@ function NuevoPack({
         </div>
         <div className="field">
           <label htmlFor="pack-nuevo-importe">{t('pricing.packs.new.amount')}</label>
-          <input
+          <input className="text-input mono"
             id="pack-nuevo-importe"
             type="number"
             min="0"
             step="0.01"
             inputMode="decimal"
-            className="mono"
             disabled={pendiente}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -657,7 +739,7 @@ function NuevoPack({
         </div>
         <div className="field">
           <label htmlFor="pack-nuevo-motivo">{t('pricing.motive.label')}</label>
-          <input
+          <input className="text-input"
             id="pack-nuevo-motivo"
             type="text"
             maxLength={255}
@@ -728,13 +810,12 @@ function NuevoTramo({
       <div className="form-grid">
         <div className="field">
           <label htmlFor="tramo-nuevo-gasto">{t('pricing.tiers.new.spend')}</label>
-          <input
+          <input className="text-input mono"
             id="tramo-nuevo-gasto"
             type="number"
             min="0"
             step="0.01"
             inputMode="decimal"
-            className="mono"
             disabled={pendiente}
             value={spend}
             onChange={(e) => setSpend(e.target.value)}
@@ -742,14 +823,13 @@ function NuevoTramo({
         </div>
         <div className="field">
           <label htmlFor="tramo-nuevo-descuento">{t('pricing.tiers.new.discount')}</label>
-          <input
+          <input className="text-input mono"
             id="tramo-nuevo-descuento"
             type="number"
             min="0"
             max="1"
             step="0.01"
             inputMode="decimal"
-            className="mono"
             disabled={pendiente}
             value={discount}
             onChange={(e) => setDiscount(e.target.value)}
@@ -757,7 +837,7 @@ function NuevoTramo({
         </div>
         <div className="field">
           <label htmlFor="tramo-nuevo-motivo">{t('pricing.motive.label')}</label>
-          <input
+          <input className="text-input"
             id="tramo-nuevo-motivo"
             type="text"
             maxLength={255}

@@ -39,7 +39,7 @@ export function LlmModelsPage() {
             <span>{tCommon('actions.refresh')}</span>
           </button>
           <button className="primary-button" type="button" onClick={() => setIsFormOpen(true)}>
-            <Plus size={17} aria-hidden="true" />
+            <Plus size={16} aria-hidden="true" />
             <span>{t('form.title')}</span>
           </button>
         </div>

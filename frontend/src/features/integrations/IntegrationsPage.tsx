@@ -174,7 +174,7 @@ export function IntegrationsPage() {
                       ? t('actions.configure')
                       : t('actions.connect')}
                   </span>
-                  <ArrowUpRight size={15} aria-hidden="true" />
+                  <ArrowUpRight size={16} aria-hidden="true" />
                 </button>
               </article>
             ))}
@@ -307,7 +307,7 @@ export function IntegrationsPage() {
             type="button"
             onClick={() => navigate('/api-access')}
           >
-            <MessageSquare size={15} aria-hidden="true" />
+            <MessageSquare size={16} aria-hidden="true" />
             <span>{t('actions.addMcpServer')}</span>
           </button>
         </div>

@@ -72,7 +72,9 @@ export function WebhooksTab() {
   if (loadFailed) {
     return (
       <div className="empty-card" role="alert">
-        <Webhook size={24} aria-hidden="true" />
+        <span className="empty-card-mark" aria-hidden="true">
+          <Webhook size={20} />
+        </span>
         <h2>{t('webhooks.loadFailed')}</h2>
         <p>{t('webhooks.loadFailedHint')}</p>
         <button className="secondary-button" type="button" onClick={refresh}>
@@ -85,7 +87,9 @@ export function WebhooksTab() {
   if (isLoading) {
     return (
       <div className="empty-card">
-        <LoaderCircle size={22} className="spin" aria-hidden="true" />
+        <span className="empty-card-mark" aria-hidden="true">
+          <LoaderCircle size={20} className="spin" />
+        </span>
         <p>{t('webhooks.loading')}</p>
       </div>
     )
@@ -112,7 +116,9 @@ export function WebhooksTab() {
 
       {endpoints.length === 0 ? (
         <div className="empty-card">
-          <Webhook size={24} aria-hidden="true" />
+          <span className="empty-card-mark" aria-hidden="true">
+          <Webhook size={20} />
+        </span>
           <h2>{t('webhooks.empty')}</h2>
           <p>{t('webhooks.emptyHint')}</p>
         </div>
@@ -268,18 +274,18 @@ function WebhookRow({
             title={t('webhooks.pingHint')}
           >
             {isPinging ? (
-              <LoaderCircle size={14} className="spin" aria-hidden="true" />
+              <LoaderCircle size={16} className="spin" aria-hidden="true" />
             ) : (
-              <Radio size={14} aria-hidden="true" />
+              <Radio size={16} aria-hidden="true" />
             )}
             <span>{t('webhooks.ping')}</span>
           </button>
           <button className="link-button" type="button" onClick={onHistory}>
-            <Plug size={14} aria-hidden="true" />
+            <Plug size={16} aria-hidden="true" />
             <span>{t('webhooks.history')}</span>
           </button>
           <button className="link-button" type="button" onClick={onDelete}>
-            <Trash2 size={14} aria-hidden="true" />
+            <Trash2 size={16} aria-hidden="true" />
             <span>{t('actions.revoke')}</span>
           </button>
         </div>
@@ -735,7 +741,9 @@ function DeliveryHistoryModal({
         <div className="modal-section">
           {isLoading ? (
             <div className="empty-card">
-              <LoaderCircle size={20} className="spin" aria-hidden="true" />
+              <span className="empty-card-mark" aria-hidden="true">
+                <LoaderCircle size={20} className="spin" />
+              </span>
               <p>{t('webhooks.historyLoading')}</p>
             </div>
           ) : failed ? (
@@ -747,7 +755,9 @@ function DeliveryHistoryModal({
             </div>
           ) : deliveries.length === 0 ? (
             <div className="empty-card">
-              <Webhook size={20} aria-hidden="true" />
+              <span className="empty-card-mark" aria-hidden="true">
+                <Webhook size={20} />
+              </span>
               <p>{t('webhooks.historyEmpty')}</p>
             </div>
           ) : (

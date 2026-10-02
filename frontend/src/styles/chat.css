@@ -118,10 +118,25 @@
   scrollbar-gutter: stable;
 }
 
+/*
+ * 6 px y no 2 entre el botón de abrir y el de borrar.
+ *
+ * ## Por qué
+ *
+ * ## Por qué
+ *
+ * ## Por qué
+ *
+ * ## Por qué
+ *
+ * A dos píxeles los dos controles se leen como uno solo con un borde en medio, y el de borrar parece
+ * una pestaña del de abrir. El hover de uno de los dos ya los separa; el hueco permanente los separa
+ * sin depender del ratón, que es cuando están en reposo y hay que distinguirlos.
+ */
 .chat-conversation {
   display: flex;
   align-items: stretch;
-  gap: 2px;
+  gap: 6px;
   border-radius: 7px;
   transition: background-color 120ms ease;
 }

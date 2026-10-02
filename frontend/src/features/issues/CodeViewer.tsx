@@ -35,7 +35,7 @@ export function CodeViewer({ title, caption, code, copyLabel, copiedLabel }: Cod
           {caption ? <p className="chart-empty">{caption}</p> : null}
         </div>
         <button className="secondary-button" type="button" onClick={() => void handleCopy()}>
-          {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+          {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
           <span>{copied ? copiedLabel : copyLabel}</span>
         </button>
       </div>

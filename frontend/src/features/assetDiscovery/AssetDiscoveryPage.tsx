@@ -265,7 +265,9 @@ export function AssetDiscoveryPage() {
         </div>
       ) : items.length === 0 ? (
         <div className="empty-card">
-          <Radar size={24} aria-hidden="true" />
+          <span className="empty-card-mark" aria-hidden="true">
+            <Radar size={20} />
+          </span>
           <h2>
             {!hayDominiosVerificados && !dominios.isLoading
               ? t('states.emptyWithoutDomains')

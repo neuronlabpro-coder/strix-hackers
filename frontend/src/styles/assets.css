@@ -596,7 +596,9 @@
 /* El boton se estira para que toda la tarjeta sea pulsable en la misma medida. Sin esto, el
  * boton ocupa solo su texto y el objetivo tactil se reduce a unos doce pixeles de alto, por
  * debajo del minimo comodo en movil. */
+/* El botón de una tarjeta de integración mide lo mismo activo que desconectado. */
 .integration-card > button {
+  min-height: 38px;
   width: 100%;
   margin-top: 2px;
 }

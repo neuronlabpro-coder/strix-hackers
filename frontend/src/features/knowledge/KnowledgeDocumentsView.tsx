@@ -110,13 +110,13 @@ export function KnowledgeDocumentsView({ onSaved }: KnowledgeDocumentsViewProps)
           type="button"
           onClick={() => setIsEditorOpen(true)}
         >
-          <Plus size={15} aria-hidden="true" />
+          <Plus size={16} aria-hidden="true" />
           {t('documents.add')}
         </button>
       </div>
 
       {docs.loadFailed && (
-        <div className="empty-state">
+        <div className="empty-card">
           <p>{t('documents.loadFailed')}</p>
           <button className="secondary-button" type="button" onClick={docs.retry}>
             {t('documents.retry')}
@@ -129,8 +129,10 @@ export function KnowledgeDocumentsView({ onSaved }: KnowledgeDocumentsViewProps)
       )}
 
       {!docs.loadFailed && !docs.isLoading && docs.documents.length === 0 && (
-        <div className="empty-state">
-          <FileText size={26} aria-hidden="true" />
+        <div className="empty-card">
+          <span className="empty-card-mark" aria-hidden="true">
+            <FileText size={20} />
+          </span>
           <h3>
             {docs.filterType === null
               ? t('documents.emptyTitle')
@@ -161,7 +163,7 @@ export function KnowledgeDocumentsView({ onSaved }: KnowledgeDocumentsViewProps)
                     onClick={() => setPendingDelete(documento)}
                     aria-label={t('documents.deleteAria', { title: documento.title })}
                   >
-                    <Trash2 size={15} aria-hidden="true" />
+                    <Trash2 size={17} aria-hidden="true" />
                   </button>
                 </header>
                 <h3 className="doc-card-title">{documento.title}</h3>

@@ -153,7 +153,9 @@ export function AdminAgentsPage() {
 
         {page.loadFailed ? (
           <div className="empty-card">
-            <Cpu size={22} aria-hidden="true" />
+            <span className="empty-card-mark" aria-hidden="true">
+              <Cpu size={20} />
+            </span>
             <h3>{t('agents.loadFailed')}</h3>
             <button type="button" className="secondary-button" onClick={page.refresh}>
               {t('agents.refresh')}
@@ -161,7 +163,9 @@ export function AdminAgentsPage() {
           </div>
         ) : visibles.length === 0 && !page.isLoading ? (
           <div className="empty-card">
-            <Cpu size={22} aria-hidden="true" />
+            <span className="empty-card-mark" aria-hidden="true">
+              <Cpu size={20} />
+            </span>
             <h3>{t('agents.emptyTitle')}</h3>
             <p>{t('agents.emptyBody')}</p>
           </div>
@@ -202,7 +206,7 @@ export function AdminAgentsPage() {
                             disabled={busyId === agente.id}
                             onClick={() => setPending(agente)}
                           >
-                            <ShieldOff size={14} aria-hidden="true" />
+                            <ShieldOff size={16} aria-hidden="true" />
                             <span>{t('agents.revoke')}</span>
                           </button>
                         )}

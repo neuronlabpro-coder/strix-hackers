@@ -148,7 +148,7 @@ export function OkfEditorModal({ onClose, onSave, isSaving, saveFailed }: OkfEdi
             {t('okfEditor.title')}
           </h2>
           <button className="icon-button" type="button" onClick={onClose} aria-label={t('okfEditor.close')}>
-            <X size={16} aria-hidden="true" />
+            <X size={17} aria-hidden="true" />
           </button>
         </header>
 
@@ -193,7 +193,7 @@ export function OkfEditorModal({ onClose, onSave, isSaving, saveFailed }: OkfEdi
           <div className="okf-form-pane">
             <div className="okf-form-row">
               <label className="field">
-                <span>{t('okfEditor.fieldTitle')}</span>
+                <span className="field-label">{t('okfEditor.fieldTitle')}</span>
                 <input
                   className="okf-input"
                   value={titulo}
@@ -284,7 +284,7 @@ export function OkfEditorModal({ onClose, onSave, isSaving, saveFailed }: OkfEdi
             onClick={() => void guardar()}
             disabled={!esValido || isSaving}
           >
-            <Save size={15} aria-hidden="true" />
+            <Save size={16} aria-hidden="true" />
             {isSaving ? t('okfEditor.saving') : t('okfEditor.save')}
           </button>
         </footer>

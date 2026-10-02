@@ -301,7 +301,7 @@ export function SupplyChainPage() {
               disabled={isSyncing}
               onClick={() => void sincronizar()}
             >
-              <RefreshCw size={15} aria-hidden="true" />
+              <RefreshCw size={16} aria-hidden="true" />
               {isSyncing ? t('sync.syncing') : t('sync.button')}
             </button>
           )}
@@ -341,7 +341,7 @@ export function SupplyChainPage() {
         )}
 
         {listFailed && (
-          <div className="empty-state">
+          <div className="empty-card">
             <p>{t('loadFailed')}</p>
             <button
               className="secondary-button"
@@ -356,8 +356,13 @@ export function SupplyChainPage() {
         {!listFailed && isLoading && <p className="table-caption">{t('loading')}</p>}
 
         {!listFailed && !isLoading && items.length === 0 && (
-          <div className="empty-state">
-            <Package size={26} aria-hidden="true" />
+          <div className="empty-card">
+            {/* El marco `empty-card-mark` es el que ya usan Repositorios y el panel de
+                error del admin: un icono suelto de 26 px flotando sobre el fondo de la
+                tarjeta se leía como texto grande, no como una marca. */}
+            <span className="empty-card-mark" aria-hidden="true">
+              <Package size={20} />
+            </span>
             <h3>{hayFiltros ? t('empty.filteredTitle') : t('empty.title')}</h3>
             <p>{hayFiltros ? t('empty.filteredBody') : t('empty.body')}</p>
             {hayFiltros && (

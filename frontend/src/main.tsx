@@ -13,6 +13,10 @@ import './styles/assets.css'
 import './styles/chat.css'
 import './styles/supplyChain.css'
 import './styles/knowledge.css'
+// El último a propósito: es la capa que es dueña del vocabulario visual de la consola
+// de plataforma, y sobreescribe cuatro clases compartidas que otras hojas redeclaran con
+// valores distintos. El porqué está al principio del fichero.
+import './styles/console.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

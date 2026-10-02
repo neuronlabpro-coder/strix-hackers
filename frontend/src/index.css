@@ -1,1 +1,13 @@
+/* ------------------------------------------------------------------------- *
+ * SIN USO. Este fichero está fuera del grafo de estilos.
+ *
+ * `main.tsx` importa directamente `./styles/index.css` y las demás hojas de
+ * `styles/`; este `@import` no lo ejecuta nadie. Se conserva sin borrar, pero
+ * **no lo añadas a la cadena**: como este fichero importa a su vez
+ * `styles/index.css`, importarlo cargaría el tema dos veces y las reglas
+ * repetidas empezarían a pelearse por el orden de cascada según qué hoja se
+ * inyectara después.
+ *
+ * Para cambiar el tema se edita `styles/index.css`, que es la única puerta.
+ * ------------------------------------------------------------------------- */
 @import './styles/index.css';

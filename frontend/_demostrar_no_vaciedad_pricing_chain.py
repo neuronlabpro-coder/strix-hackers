@@ -46,6 +46,21 @@ DEFECTOS: list[tuple[str, str, str]] = [
         "Date.parse(a.valido_desde) - Date.parse(b.valido_desde)",
     ),
     (
+        "un pactado sustituido vuelve a salir como programado",
+        "      estados.set(pactado.id, esElQueManda ? 'vigente' : 'sustituido')",
+        "      estados.set(pactado.id, esElQueManda ? 'vigente' : 'programado')  //nsustituido",
+    ),
+    (
+        "el vigente del servidor se ignora y gana el mas reciente por fecha",
+        "    const marcado = candidatos.find((p) => p.vigente)",
+        "    const marcado = undefined  //nvigente",
+    ),
+    (
+        "las operaciones se mezclan y una se come a la otra",
+        "    const candidatos = ordenados.filter((p) => claveDe(p) === clave)",
+        "    const candidatos = ordenados  //nclave",
+    ),
+    (
         "el resumen cuenta los pactados en dos casillas a la vez",
         "    resumen[estadoDePactado(pactado)] += 1",
         "    resumen[estadoDePactado(pactado)] += 1\n"
@@ -54,9 +69,9 @@ DEFECTOS: list[tuple[str, str, str]] = [
         "    }",
     ),
     (
-        "el total del resumen no cuadra con la lista",
-        "  const resumen: ResumenCadena = { vigente: 0, futuro: 0, caducado: 0, total: pactados.length }",
-        "  const resumen: ResumenCadena = { vigente: 0, futuro: 0, caducado: 0, total: 0 }",
+                "el total del resumen no cuadra con la lista",
+        "    total: pactados.length,",
+        "    total: 0,  //ntotal",
     ),
     (
         "la ordenación muta la lista que recibe",
@@ -109,6 +124,7 @@ def main() -> int:
     print("=" * 74)
 
     vacios: list[str] = []
+    rotos: list[str] = []
     try:
         for nombre, viejo, nuevo in DEFECTOS:
             if viejo not in original:
@@ -121,6 +137,13 @@ def main() -> int:
             with io.open(MODULO, "w", encoding="utf-8", newline="") as f:
                 f.write(original)
 
+            # Una mutación que rompe la compilación hace que vitest no recoja ningún test, y eso
+            # es un código de salida distinto de cero. Contarlo como "detectado" sería mentira:
+            # el defecto no lo cazó ninguna prueba, lo cazó el parser.
+            if "no tests" in salida:
+                print("  [ROTO] %s -> la mutación no compila; no la ha cazado ninguna prueba" % nombre)
+                rotos.append(nombre)
+                continue
             if codigo == 0:
                 vacios.append(nombre)
                 print("  [VACIO] %s -> el test PASA con el defecto puesto" % nombre)
@@ -146,6 +169,9 @@ def main() -> int:
     resumen = [ln for ln in salida.splitlines() if "Tests" in ln]
     print("  con el codigo restaurado: %s" % (resumen[-1].strip() if resumen else "todo pasa"))
 
+    if rotos:
+        print("  %d mutación(es) no compilaban, que no es una detección: %s"
+              % (len(rotos), "; ".join(rotos)))
     if vacios:
         print("  %d prueba(s) VACIAS: %s" % (len(vacios), "; ".join(vacios)))
         return 1

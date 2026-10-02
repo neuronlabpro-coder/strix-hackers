@@ -59,7 +59,9 @@
   "actions": {
     "activate": "Activar",
     "deactivate": "Desactivar",
-    "save": "Guardar margen"
+    "save": "Guardar margen",
+    "costInputAria": "Coste base de entrada de {{modelId}}, en dólares por millón de tokens",
+    "costOutputAria": "Coste base de salida de {{modelId}}, en dólares por millón de tokens"
   },
   "states": {
     "loading": "Cargando catálogo",

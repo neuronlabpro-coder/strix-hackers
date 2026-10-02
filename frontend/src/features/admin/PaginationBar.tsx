@@ -42,7 +42,7 @@ export function PaginationBar<T>({ page }: { page: AdminPageState<T> }) {
           disabled={page.page === 0 || page.isLoading}
           onClick={() => page.setPage(page.page - 1)}
         >
-          <ChevronLeft size={15} aria-hidden="true" />
+          <ChevronLeft size={16} aria-hidden="true" />
           <span>{t('pagination.previous')}</span>
         </button>
         <button
@@ -52,7 +52,7 @@ export function PaginationBar<T>({ page }: { page: AdminPageState<T> }) {
           onClick={() => page.setPage(page.page + 1)}
         >
           <span>{t('pagination.next')}</span>
-          <ChevronRight size={15} aria-hidden="true" />
+          <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
     </nav>

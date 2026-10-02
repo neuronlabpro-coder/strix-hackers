@@ -365,9 +365,9 @@ function Bloque({
           onClick={() => void onCopiar(clave, texto)}
         >
           {pegado ? (
-            <Check size={14} aria-hidden="true" />
+            <Check size={16} aria-hidden="true" />
           ) : (
-            <Copy size={14} aria-hidden="true" />
+            <Copy size={16} aria-hidden="true" />
           )}
           <span>{pegado ? t('agent.copied') : t('agent.copy')}</span>
         </button>

@@ -158,7 +158,7 @@ export function TenantActionDialog({
 
         {kind === 'plan' ? (
           <label className="field">
-            <span className="">{t(`${prefix}.label`)}</span>
+            <span className="field-label">{t(`${prefix}.label`)}</span>
             <select
               className="select-input"
               value={selectedPlan}
@@ -182,7 +182,7 @@ export function TenantActionDialog({
             }}
           >
             <label className="field">
-              <span className="">{t(`${prefix}.amountLabel`)}</span>
+              <span className="field-label">{t(`${prefix}.amountLabel`)}</span>
               <input
                 className="text-input"
                 value={amount}
@@ -194,7 +194,7 @@ export function TenantActionDialog({
               <span className="form-hint">{t(`${prefix}.amountHint`)}</span>
             </label>
             <label className="field">
-              <span className="">{t(`${prefix}.noteLabel`)}</span>
+              <span className="field-label">{t(`${prefix}.noteLabel`)}</span>
               <input
                 className="text-input"
                 value={note}

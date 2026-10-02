@@ -59,7 +59,9 @@
   "actions": {
     "activate": "Activate",
     "deactivate": "Deactivate",
-    "save": "Save margin"
+    "save": "Save margin",
+    "costInputAria": "Base input cost of {{modelId}}, in dollars per million tokens",
+    "costOutputAria": "Base output cost of {{modelId}}, in dollars per million tokens"
   },
   "states": {
     "loading": "Loading catalog",

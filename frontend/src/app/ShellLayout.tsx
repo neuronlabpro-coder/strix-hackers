@@ -94,7 +94,7 @@ export function ShellLayout() {
             <CreditBalancePill />
             <span className="topbar-workspace">{t('workspaceReady')}</span>
             <button className="primary-button" type="button" onClick={() => navigate('/pentests')}>
-              <Plus size={17} aria-hidden="true" />
+              <Plus size={16} aria-hidden="true" />
               <span>{t('newPentest')}</span>
             </button>
           </div>

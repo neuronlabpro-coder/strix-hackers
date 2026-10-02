@@ -116,6 +116,11 @@ const AdminOverviewPage = lazy(() =>
 const AdminTenantsPage = lazy(() =>
   import('../features/admin/AdminTenantsPage').then((m) => ({ default: m.AdminTenantsPage })),
 )
+const AdminTenantPricingPage = lazy(() =>
+  import('../features/admin/AdminTenantPricingPage').then((m) => ({
+    default: m.AdminTenantPricingPage,
+  })),
+)
 const AdminUsersPage = lazy(() =>
   import('../features/admin/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })),
 )
@@ -312,6 +317,17 @@ export default function App() {
             element={
               <Suspense fallback={<LazySection />}>
                 <AdminTenantsPage />
+              </Suspense>
+            }
+          />
+          {/* La ficha de precios pactados es una pagina propia, no un dialogo: el contenido
+              (tres precios con su comparacion, la cadena de acuerdos y un formulario) no cabe
+              en una caja flotante sin convertirla en una pagina con pasos extra. */}
+          <Route
+            path="organizations/:organizationId/pricing"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <AdminTenantPricingPage />
               </Suspense>
             }
           />

@@ -109,7 +109,7 @@ export function PrReviewsPage() {
                         {t(`row.${status}`)}
                       </span>
                     </td>
-                    <td className="mono">
+                    <td className="mono cell-inline">
                       {review.issues_caught_critical > 0 ? (
                         <span className="badge badge-status-critical">
                           {/* La clave va en mayúsculas porque así está en `prReviews.json`

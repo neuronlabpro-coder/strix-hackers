@@ -12,7 +12,7 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
 - Pruebas de backend: **990** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
-- Pruebas de frontend: **113**
+- Pruebas de frontend: **119**
 
 ## Superficie funcional
 

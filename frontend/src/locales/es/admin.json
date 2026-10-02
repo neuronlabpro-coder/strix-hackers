@@ -162,7 +162,8 @@
         "retry": "Reintentar",
         "live": "Vigente",
         "future": "Programado",
-        "expired": "Caducado"
+        "expired": "Caducado",
+        "superseded": "Sustituido"
       },
       "columns": {
         "operation": "Precio",
@@ -187,7 +188,8 @@
         "motive": "Motivo",
         "motiveHelp": "Obligatorio. Referencia de la cotizacion, nombre del cliente, lo que haga falta para saber de donde salio el numero.",
         "from": "Empieza a regir",
-        "fromHelp": "Vacio significa ahora mismo. Pon una fecha futura para pactar una subida que empieza en la renovacion."
+        "fromHelp": "Vacio significa ahora mismo. Pon una fecha futura para pactar una subida que empieza en la renovacion.",
+        "valueHelp": "Mismo formato que el precio de plataforma: creditos, fraccion o creditos por dolar."
       },
       "operations": {
         "SCAN_CREDIT_COST": "Escaneo completo",
@@ -201,6 +203,16 @@
         "created": "Precio pactado",
         "replaced": "Precio pactado: el anterior deja de aplicarse",
         "error": "No se pudo pactar el precio."
+      },
+      "eyebrow": "Operacion de plataforma",
+      "description": "Lo que quedo acordado con este cliente, por encima del precio de plataforma. No se borra nada: cada pactado nuevo sustituye al anterior y los dos se quedan con su motivo y su autor.",
+      "back": "Volver a organizaciones",
+      "footnote": "El precio cobrado queda congelado en el libro mayor cuando se encola el escaneo. Cambiar un precio no altera lo que ya se cobro.",
+      "rows": {
+        "scanCost": "Costo en creditos de un escaneo completo.",
+        "quickMultiplier": "Fraccion de un escaneo completo que cuesta un escaneo rapido.",
+        "creditsPerUsd": "Cuantos creditos compra un dolar.",
+        "negotiated": "Pactado"
       }
     }
   },
@@ -391,7 +403,9 @@
       "loading": "Cargando precios...",
       "error": "No se pudieron cargar los precios.",
       "retry": "Reintentar",
-      "motiveRequired": "Escribe un motivo antes de guardar."
+      "motiveRequired": "Escribe un motivo antes de guardar.",
+      "failedTitle": "No se pudieron cargar los precios",
+      "failedBody": "El servidor no respondio. No se cambio ningun precio."
     },
     "badges": {
       "fromDatabase": "Precios en base de datos",
@@ -499,7 +513,10 @@
       "total_other": "{{count}} cambios",
       "system": "Sistema",
       "noValue": "sin valor",
-      "seeded": "sembrado"
+      "seeded": "sembrado",
+      "failedTitle": "No se pudo cargar el historico",
+      "failedBody": "Los precios de esta pantalla si estan cargados; lo que no se pudo pedir es quien los cambio y cuando.",
+      "loading": "Cargando el historico de cambios..."
     }
   },
   "operations": {
@@ -521,6 +538,7 @@
       "target": "Objetivo",
       "minutes": "Duración",
       "container": "Contenedor",
+      "expectedContainer": "Contenedor esperado",
       "actions": "Acciones",
       "pr": "Pull request",
       "findings": "Críticos / altos",
@@ -538,6 +556,7 @@
       "notaRequired": "Escribe una nota antes de confirmar la cancelación.",
       "noContainer": "sin contenedor",
       "cleanupPending": "limpieza pendiente",
+      "nameMismatch": "nombre no coincide",
       "status": {
         "QUEUED": "En cola",
         "RUNNING": "En curso",

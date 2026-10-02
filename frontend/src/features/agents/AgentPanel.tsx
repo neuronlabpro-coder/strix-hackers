@@ -156,7 +156,9 @@ export function AgentPanel({ resumen, onRegistered, onRevoked }: Props) {
 
       {agents.length === 0 && !loading ? (
         <div className="empty-card">
-          <Cpu size={22} aria-hidden="true" />
+          <span className="empty-card-mark" aria-hidden="true">
+          <Cpu size={20} />
+        </span>
           <h3>{t('agent.emptyTitle')}</h3>
           <p>{t('agent.emptyBody')}</p>
           <button
@@ -223,7 +225,7 @@ export function AgentPanel({ resumen, onRegistered, onRevoked }: Props) {
                           ).then(onRevoked)
                         }}
                       >
-                        <ShieldOff size={14} aria-hidden="true" />
+                        <ShieldOff size={16} aria-hidden="true" />
                         <span>{t('agent.revoke')}</span>
                       </button>
                     )}

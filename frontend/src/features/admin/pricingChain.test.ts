@@ -19,7 +19,12 @@ import type {
  * uno **caducado**. Los dos tienen `valido_hasta === null`, así que cualquier lógica que use esa
  * columna para distinguirlos está equivocada, y hay dos formas naturales de equivocarse.
  */
-import { estadoDePactado, ordenarCadena, resumenDeLaCadena } from './pricingChain'
+import {
+  estadoDePactado,
+  estadosDeLaCadena,
+  ordenarCadena,
+  resumenDeLaCadena,
+} from './pricingChain'
 
 function pactado(over: Partial<OrganizationPriceOverride> = {}): OrganizationPriceOverride {
   return {
@@ -49,14 +54,14 @@ describe('estadoDePactado', () => {
     expect(estadoDePactado(caducado)).toBe('caducado')
   })
 
-  it('un pactado sin fecha de fin y no vigente es futuro, no caducado', () => {
+  it('un pactado sin fecha de fin y no vigente es programado, no caducado', () => {
     /**
      * El caso que separa las dos columnas. Un pactado programado tiene `valido_hasta === null`
      * igual que uno vigente, así que la única forma de distinguirlos es `vigente`. Si esta
      * aserción se invirtiera, un pactado que empieza dentro de un mes se pintaría como caducado y
      * el comercial creería que ya no hay precio pactado cuando en realidad el viejo sigue cobrándose.
      */
-    expect(estadoDePactado(pactado({ vigente: false, valido_hasta: null }))).toBe('futuro')
+    expect(estadoDePactado(pactado({ vigente: false, valido_hasta: null }))).toBe('programado')
   })
 
   it('un pactado con fecha de fin y vigente sigue siendo vigente', () => {
@@ -125,11 +130,11 @@ describe('resumenDeLaCadena', () => {
       pactado({ id: 'd' }),
     ]
 
-    expect(resumenDeLaCadena(cadena)).toEqual({ vigente: 1, futuro: 2, caducado: 1, total: 4 })
+    expect(resumenDeLaCadena(cadena)).toEqual({ vigente: 1, programado: 2, caducado: 1, sustituido: 0, total: 4 })
   })
 
   it('una cadena sin pactados da todos los contadores a cero', () => {
-    expect(resumenDeLaCadena([])).toEqual({ vigente: 0, futuro: 0, caducado: 0, total: 0 })
+    expect(resumenDeLaCadena([])).toEqual({ vigente: 0, programado: 0, caducado: 0, sustituido: 0, total: 0 })
   })
 
   it('no cuenta un pactado en dos estados a la vez', () => {
@@ -137,7 +142,9 @@ describe('resumenDeLaCadena', () => {
 
     const resumen = resumenDeLaCadena(cadena)
 
-    expect(resumen.vigente + resumen.futuro + resumen.caducado).toBe(resumen.total)
+    expect(
+      resumen.vigente + resumen.programado + resumen.caducado + resumen.sustituido,
+    ).toBe(resumen.total)
   })
 })
 
@@ -163,5 +170,116 @@ describe('lo que la ficha muestra de un cliente sin pactar', () => {
 
     expect(detalle.precios.scan_credit_cost).toBe(detalle.precios_de_plataforma.scan_credit_cost)
     expect(resumenDeLaCadena(detalle.overrides).total).toBe(0)
+  })
+})
+
+
+describe('estadosDeLaCadena', () => {
+  /**
+   * La cadena real de la demo: uno vigente y cuatro ya sustituidos, con uno programado por delante.
+   *
+   * ## Por qué este caso y no un ejemplo inventado
+   *
+   * ## Por qué es el caso que salió en la captura
+   *
+   * Porque es el que se ve en la ficha del cliente de la demo, y durante el rediseño se vio en
+   * pantalla que los cuatro sustituidos salían como "Programado". Un caso inventado lo demuestra
+   * igual, pero este es el que falló de verdad, así que es el que se fija.
+   */
+  it('un pactado ya empezado al que se le puso otro se dice sustituido, no programado', () => {
+    const ahora = Date.now()
+    const dia = 24 * 60 * 60 * 1000
+    const vigente = pactado({ id: 'v', vigente: true, valido_desde: new Date(ahora - dia).toISOString() })
+    const sustituidos = ['a', 'b', 'c'].map((id, i) =>
+      pactado({ id, valido_desde: new Date(ahora - (i + 2) * dia).toISOString() }),
+    )
+
+    const estados = estadosDeLaCadena([vigente, ...sustituidos])
+
+    expect(estados.get(vigente.id)).toBe('vigente')
+    for (const fila of sustituidos) {
+      expect(estados.get(fila.id)).toBe('sustituido')
+    }
+  })
+
+  it('un pactado que aun no empieza no esta sustituido: esta esperando su turno', () => {
+    const dia = 24 * 60 * 60 * 1000
+    const vigente = pactado({ id: 'v', vigente: true, valido_desde: new Date(Date.now() - dia).toISOString() })
+    const futuro = pactado({ id: 'f', valido_desde: new Date(Date.now() + 30 * dia).toISOString() })
+
+    const estados = estadosDeLaCadena([vigente, futuro])
+
+    expect(estados.get(futuro.id)).toBe('programado')
+  })
+
+  it('sin vigente del servidor, el mas reciente que ya empezo manda y el otro se marca sustituido', () => {
+    /**
+     * La cadena sin ningún vigente marcado es un estado que el servidor puede devolver —la caché se
+     * refresca por evento, y hay una ventana— y ahí hay que deducir quién manda con la misma regla
+     * del negocio. Dejarla toda en "programado" diría que hay dos subidas futuras.
+     */
+    const dia = 24 * 60 * 60 * 1000
+    const viejo = pactado({ id: 'a', valido_desde: new Date(Date.now() - 10 * dia).toISOString() })
+    const nuevo = pactado({ id: 'b', valido_desde: new Date(Date.now() - dia).toISOString() })
+
+    const estados = estadosDeLaCadena([viejo, nuevo])
+
+    expect(estados.get(nuevo.id)).toBe('vigente')
+    expect(estados.get(viejo.id)).toBe('sustituido')
+  })
+
+  it('el vigente del servidor manda aunque haya uno mas reciente ya empezado', () => {
+    /**
+     * El caso que faltaba, y el que hace que el servidor sea la autoridad.
+     *
+     * ## Por qué tiene que ganar la marca del servidor y no la fecha
+     *
+     * Porque el servidor sabe cosas que el cliente no: la fila se insertó, pero su caché se
+     * refresca por evento, así que durante una ventana puede devolver la cadena con la marca
+     * puesta en el pactado de ayer y el de hoy sin marcar. Si la pantalla deshiciera eso —因为 la
+     * fecha dice que el de hoy es más nuevo— estaría **corrigiendo al servidor con una regla
+     * incompleta**, y lo que se vería es un precio vigente que el cobro no está aplicando.
+     *
+     * ## Por qué este caso es el que distingue las dos implementaciones
+     *
+     * ## Por qué aquí sí se nota
+     *
+     * Porque si el de más reciente ya empezó y no está marcado, la regla de la fecha elegiría al
+     * de hoy. Con la marca del servidor, se queda el de ayer como vigente y el de hoy pasa a
+     * sustituido. Son respuestas opuestas a partir de la misma entrada.
+     */
+    const dia = 24 * 60 * 60 * 1000
+    const ayer = pactado({ id: 'ayer', vigente: true, valido_desde: new Date(Date.now() - 2 * dia).toISOString() })
+    const hoy = pactado({ id: 'hoy', valido_desde: new Date(Date.now() - dia).toISOString() })
+
+    const estados = estadosDeLaCadena([hoy, ayer])
+
+    expect(estados.get(ayer.id)).toBe('vigente')
+    expect(estados.get(hoy.id)).toBe('sustituido')
+  })
+
+  it('una operacion no se come a la otra al marcar los sustituidos', () => {
+    const dia = 24 * 60 * 60 * 1000
+    const escaneoA = pactado({ id: 'a', valido_desde: new Date(Date.now() - 3 * dia).toISOString() })
+    const escaneoB = pactado({ id: 'b', valido_desde: new Date(Date.now() - dia).toISOString() })
+    // El pack viejo es **más antiguo** que el nuevo: con la misma fecha quién gana sería
+    // arbitrario y el test no probaría nada.
+    const pack = pactado({ id: 'p', valido_desde: new Date(Date.now() - 4 * dia).toISOString() })
+    pack.operacion = 'CREDIT_PACK_AMOUNT'
+    pack.alcance = '250'
+    const packNuevo = pactado({ id: 'q', valido_desde: new Date(Date.now() - dia).toISOString() })
+    packNuevo.operacion = 'CREDIT_PACK_AMOUNT'
+    packNuevo.alcance = '250'
+
+    const estados = estadosDeLaCadena([escaneoA, escaneoB, pack, packNuevo])
+
+    expect(estados.get(escaneoB.id)).toBe('vigente')
+    expect(estados.get(escaneoA.id)).toBe('sustituido')
+    expect(estados.get(pack.id)).toBe('sustituido')
+    expect(estados.get(packNuevo.id)).toBe('vigente')
+  })
+
+  it('cadena vacia: mapa vacio', () => {
+    expect(estadosDeLaCadena([]).size).toBe(0)
   })
 })

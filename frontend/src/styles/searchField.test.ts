@@ -32,9 +32,169 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const RAIZ = fileURLToPath(new URL('..', import.meta.url))
-const RUTA_CSS = join(RAIZ, 'styles', 'index.css')
+const DIR_CSS = join(RAIZ, 'styles')
 
-const cssBruto = readFileSync(RUTA_CSS, 'utf8').replace(/\r\n/g, '\n')
+/**
+ * Se concatenan **todas** las hojas, en el orden en que las importa `main.tsx`.
+ *
+ * ## Por qué esto estaba mal y ahora no
+ *
+ * ## Por qué leer solo una hoja daba verde con el tema roto
+ *
+ * ## Por qué
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ *
+ * ## Por qu00e9
+ */
+const ORDEN_HOJAS = [
+  'index.css',
+  'settings.css',
+  'billing.css',
+  'support.css',
+  'assets.css',
+  'chat.css',
+  'supplyChain.css',
+  'knowledge.css',
+  'console.css',
+] as const
+
+const cssBruto = ORDEN_HOJAS.map((nombre) => {
+  const ruta = join(DIR_CSS, nombre)
+  return readFileSync(ruta, 'utf8').replace(/\r\n/g, '\n')
+}).join('\n')
 
 /** Los comentarios se vacían dejando las saltos de línea, para no desfasar los números. */
 function quitarComentarios(texto: string): string {

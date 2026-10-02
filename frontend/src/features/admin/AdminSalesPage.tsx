@@ -170,6 +170,17 @@ export function AdminSalesPage() {
             <span>{t('states.retry')}</span>
           </button>
         </div>
+      ) : page.isLoading && page.items.length === 0 ? (
+        <div className="console-skeleton" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, indice) => (
+            <div className="console-skeleton-row" key={indice}>
+              <div className="console-skeleton-bar" style={{ flex: '2 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '1 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '3 1 0' }} />
+              <div className="console-skeleton-bar" style={{ flex: '1 1 0' }} />
+            </div>
+          ))}
+        </div>
       ) : page.items.length === 0 ? (
         <div className="empty-card">
           <p>{t('sales.empty')}</p>

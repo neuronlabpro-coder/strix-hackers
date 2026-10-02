@@ -197,7 +197,8 @@ export function SettingsMembersPage() {
                         de ida y vuelta para descubrirlo.
                       */}
                       <select
-                        value={member.role}
+                        className="select-input"
+                    value={member.role}
                         disabled={!esAdmin || busy || isSelf}
                         onChange={(event) =>
                           void onRoleChange(member, event.target.value as WorkspaceRole)
