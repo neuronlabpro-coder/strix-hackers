@@ -5395,3 +5395,81 @@ select option:checked {
   font-size: 0.78rem;
   overflow-wrap: anywhere;
 }
+
+/* ------------------------------------------------------------------------ *
+ * Cadena de precios pactados
+ *
+ * Una fila por pactado, en una rejilla de cinco columnas: estado, valor,
+ * operacion, desde y motivo. El motivo ocupa lo que sobra porque es lo unico
+ * de la fila que no cabe en un ancho fijo, y es justo lo que un comercial
+ * necesita para reconocer el acuerdo dentro de un año.
+ *
+ * ## Por qué es una lista y no otra tabla
+ *
+ * Porque las filas no comparten encabezado: el estado va como distintivo, no como
+ * columna, y así se lee de un vistazo que una está vigente y otra no. Una tabla con una
+ * columna de texto para el estado obliga a leerlo entero en cada fila.
+ *
+ * ## Por qué la rejilla cede con `auto`
+ *
+ * Porque el motivo es texto libre de hasta 255 caracteres. Fijar columnas en
+ * valores lo hace desbordar en un motivo largo; `auto` deja que el motivo se
+ * encoja y el motivo baje de línea. El ancho mínimo está puesto para que en una
+ * pantalla estrecha la fila se parta en dos en lugar de dejar un scroll
+ * horizontal que esconde justo el motivo.
+ * ------------------------------------------------------------------------ */
+.pricing-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pricing-chain-item {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(8rem, 1fr) minmax(9rem, auto) minmax(0, 2fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+/* El canto se pinta del color del estado, para que se distinga de un vistazo
+   sin leer el distintivo. Es la misma paleta de `badge-on` / `badge-warning`, no
+   colores nuevos. */
+.pricing-chain-item[data-estado='vigente'] {
+  border-left-color: var(--color-accent);
+}
+
+.pricing-chain-item[data-estado='otro'] {
+  border-left-color: var(--color-border-hover);
+}
+
+.pricing-chain-value {
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.pricing-chain-motive {
+  color: var(--color-caption);
+  /* El motivo se puede partir: cortarlo a una línea con puntos suspensivos
+     haría que el comercial tenga que pasar el ratón para leer por qué se pactó. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 60rem) {
+  .pricing-chain-item {
+    grid-template-columns: max-content max-content 1fr;
+  }
+
+  .pricing-chain-motive {
+    grid-column: 1 / -1;
+  }
+}

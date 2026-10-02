@@ -1324,6 +1324,59 @@ export interface JobOperacion {
   created_at: string
 }
 
+/**
+ * Un precio pactado con una organización concreta.
+ *
+ * ## Por qué `vigente` viene del servidor y no se deduce en el panel
+ *
+ * Porque la regla de cuál pactado manda depende del reloj, y el panel tendría que
+ * reimplementarla para acertar. Marcándolo en la respuesta, la pantalla solo pinta. Y son
+ * **tres** estados, no dos: vigente, futuro y caducado. Un `bool` de «caducado» no alcanza,
+ * porque un pactado aún vigente y uno que empieza dentro de un mes se parecerían en la
+ * lista y el comercial los leería igual.
+ */
+export interface OrganizationPriceOverride {
+  id: string
+  organization_id: string
+  operacion: string
+  /** Solo lo usa `CREDIT_PACK_AMOUNT`, y es la cantidad de créditos del pack. */
+  alcance: string | null
+  valor: string
+  motivo: string
+  valido_desde: string
+  valido_hasta: string | null
+  created_by: string | null
+  created_at: string
+  vigente: boolean
+}
+
+/** Lo que devuelve el `POST` al pactar: el pactado nuevo y a quién deja de sustituir. */
+export interface PactadoPrecio extends OrganizationPriceOverride {
+  sustituye_id: string | null
+  valor_sustituido: string | null
+  motivo_sustituido: string | null
+}
+
+export interface OrganizationPricingDetail {
+  organization_id: string
+  /** Lo que rigen a esta organización, con lo pactado encima de la plataforma. */
+  precios: PlatformPricing
+  /** El precio de plataforma sin pactar nada, para poder comparar. */
+  precios_de_plataforma: PlatformPricing
+  overrides: OrganizationPriceOverride[]
+}
+
+/** El cuerpo de un pactado. La organización va en la ruta, nunca aquí. */
+export interface OrganizationPriceOverrideWrite {
+  operacion: string
+  alcance?: string | null
+  valor: string
+  motivo: string
+  /** Vacío significa «y ya», que es lo que se quiere casi siempre. */
+  valido_desde?: string | null
+  valido_hasta?: string | null
+}
+
 export interface JobOperacionPage {
   items: JobOperacion[]
   total: number

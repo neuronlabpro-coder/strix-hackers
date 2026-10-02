@@ -762,6 +762,48 @@ async def reconcile_orphaned_runs(
                     ),
                 ),
                 PentestRun.cleanup_pending.is_(True),
+                # La tercera rama, y la que cierra el hueco más grave que ha tenido este
+                # watchdog: **cualquier run con un contenedor registrado entra**, sin importar
+                # su estado.
+                #
+                # Las dos primeras ramas eran «RUNNING obsoleto» y «limpieza pendiente». El camino
+                # del timeout —`mark_run_timed_out`, `tasks.py:146`— marca `TIMED_OUT` y
+                # `finished_at`, y **no toca `cleanup_pending`**. Así que un run que expiró
+                # quedó fuera de las dos: el watchdog no lo veía nunca.
+                #
+                # ## Por qué el resultado no era un proceso colgado y nada más
+                #
+                # ## Por qué era peor que un proceso colgado
+                #
+                # Porque el `finally: self.cleanup()` del sandbox es la **única** red que mata
+                # el contenedor, borra su red y purga `/tmp/fenix_workspaces/<run_id>`. Y hay un
+                # camino en el que ese `finally` no se ejecuta: el límite de Celery lanza
+                # `TimeLimitExceeded` en el hilo principal, no en el hilo del sandbox, así que el
+                # `finally` no se dispara. El contenedor de Strix se queda vivo con el código
+                # fuente del cliente montado en solo lectura, la red bridge sin recoger y el
+                # workspace sin purgar — el código fuente de un cliente, retenido de forma
+                # indefinida, que es exactamente lo que R5 prohíbe.
+                #
+                # ## Por qué esta rama lo cierra sin depender de la memoria
+                #
+                # ## Por qué no depende de que cada camino de error se acuerde
+                #
+                # Porque `container_id IS NOT NULL` es un hecho sobre el **estado del mundo**,
+                # no sobre cómo acabó el escaneo. El contenedor existe o no existe, y mientras
+                # exista hay que_matarlo. Hacerlo depender de que cada rama de error recuerde
+                # escribir una bandera es confiar la seguridad del sistema a la memoria de quien
+                # escriba el siguiente `except`.
+                #
+                # Y no puede tocar el contenedor de otro: `kill_container` exige que la etiqueta
+                # `fenix.run_id` coincida con el run esperado (`sandbox.py:430-435`), y el
+                # nombre aquí se deriva del UUID del propio run.
+                and_(
+                    PentestRun.container_id.is_not(None),
+                    or_(
+                        PentestRun.status == ScanStatusEnum.RUNNING,
+                        PentestRun.cleanup_pending.is_(True),
+                    ),
+                ),
             )
         )
         .with_for_update()

@@ -104,7 +104,11 @@ class ChatStepCharge:
     #: Créditos efectivamente descontados, redondeados a la escala del saldo.
     credits: Decimal
     #: Asiento del ledger, para poder cotejarlo contra el mensaje.
-    ledger_entry_id: uuid.UUID
+    #:
+    #: `None` **solo** cuando el paso no ha costado nada —un modelo de coste cero— porque el
+    #: ledger no admite asientos de nada. No es un «no lo sé»: es «no hubo movimiento», y es el
+    #: unico caso en el que el identificador falta.
+    ledger_entry_id: uuid.UUID | None
 
 
 def _a_creditos(importe_usd: Decimal) -> Decimal:
@@ -204,9 +208,34 @@ async def liquidar_paso_de_chat(
     creditos = _a_creditos(desglose.client_price_usd)
 
     if creditos == Decimal("0.0000"):
-        raise ValueError(
-            "Un paso con coste cero no se liquida: un asiento de ceroCredits viola la "
-            "invariante del ledger, que solo admite movimientos distintos de cero."
+        # Un modelo sin coste —uno local, o uno de cortesía— produce un precio de cero. Y el
+        # ledger **no admite** asientos de cero: es una invariante suya, y es correcta, porque
+        # un movimiento de nada infla el número de asientos y ensucia el historial sin coste.
+        #
+        # La primera versión de esto **lanzaba** un `ValueError`, y el efecto fue que el chat
+        # entero dejaba de responder: la cadena `ALL` empezaba por un modelo de coste cero, la
+        # resolución lo elegía, el precio salía a cero y la función moría con un 500. Un cliente
+        # que solo escribía «hola» veía una pantalla muerta, y el motivo —un modelo sin coste—
+        # no aparecía por ningún lado.
+        #
+        # ## Por qué no cobrar es lo correcto y no un atajo
+        #
+        # ## Por qué no se cobra y por qué no es un atajo
+        #
+        # Porque el modelo **no cuesta nada**, no porque el cobro haya fallado. Cobrar un centésima
+        # de crédito por usar un modelo gratuito sería inventar un ingreso, y un ingreso inventado
+        # es peor que ninguno: dentro de tres meses nadie sabrá si esa cifra es una tarifa o un
+        # redondeo. No se escribe asiento porque no hay movimiento que escribir, y el desglose se
+        # devuelve a cero para que el panel pueda pintar «este paso no ha costado nada».
+        return ChatStepCharge(
+            model_id=model.model_id,
+            prompt_tokens=tokens_in,
+            completion_tokens=tokens_out,
+            client_price_usd=desglose.client_price_usd,
+            base_cost_usd=desglose.base_cost_usd,
+            net_profit_usd=desglose.net_profit_usd,
+            credits=Decimal("0.0000"),
+            ledger_entry_id=None,
         )
 
     asiento = await apply_credit_delta(

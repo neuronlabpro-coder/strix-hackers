@@ -40,12 +40,14 @@ que permite desplegar la base y el código por separado.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 
 from sqlalchemy import select
 
 from backend.apps.billing.models import PlatformPricing
+from backend.apps.billing.organization_prices import precios_de
 from backend.apps.pentests.models import ScanModeEnum
 from backend.core.config import settings
 from backend.core.database import AsyncSession
@@ -190,11 +192,25 @@ async def cargar_precios(session: AsyncSession) -> PlatformPrices | None:
     return _vigentes
 
 
-def scan_credit_cost(scan_mode: ScanModeEnum) -> Decimal:
+def scan_credit_cost(
+    scan_mode: ScanModeEnum,
+    organization_id: uuid.UUID | None = None,
+) -> Decimal:
     """Coste en créditos de un escaneo según su modo.
 
     Un escaneo `QUICK` se cobra proporcionalmente porque consume una fracción de los
     tokens de uno `DEEP`, y la proporción también es un precio editable.
+
+    ## Por qué `organization_id` es opcional y no obligatorio
+
+    Porque hay llamadores que **no** tienen organización: un cálculo de diagnóstico, un
+    Porque hay llamadores que **no** tienen organización: un cálculo, un informe, una prueba.
+    un rodeo, y `None` significa exactamente lo que dice: «nadie ha pactado nada con nadie».
+
+    ## Por qué el valor por defecto no rompe a nadie
+
+    Porque es el precio de plataforma, que es lo que se cobraba antes de que existiera la
+    negociación: un llamador que no se actualice sigue cobrando lo correcto.
 
     ## Por qué el nombre no cambia al mover el precio a la base
 
@@ -210,14 +226,14 @@ def scan_credit_cost(scan_mode: ScanModeEnum) -> Decimal:
     mantiene sin estado justamente para que ese error no se pueda escribir.
     """
 
-    precios = precios_vigentes()
+    precios = precios_de(organization_id)
     base = precios.scan_credit_cost
     if scan_mode == ScanModeEnum.QUICK:
         return (base * precios.quick_scan_credit_multiplier).quantize(_CREDIT_QUANTUM)
     return base.quantize(_CREDIT_QUANTUM)
 
 
-def credits_per_usd() -> Decimal:
+def credits_per_usd(organization_id: uuid.UUID | None = None) -> Decimal:
     """La paridad vigente: cuántos créditos vale un dólar.
 
     ## Por qué esta función existe y no un atributo de `settings`
@@ -228,4 +244,4 @@ def credits_per_usd() -> Decimal:
     dijera la variable. Una función con un solo cuerpo no puede tener dos fuentes.
     """
 
-    return precios_vigentes().credits_per_usd
+    return precios_de(organization_id).credits_per_usd

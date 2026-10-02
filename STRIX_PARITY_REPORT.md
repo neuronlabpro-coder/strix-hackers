@@ -11,8 +11,8 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **960** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
-- Pruebas de frontend: **101**
+- Pruebas de backend: **990** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de frontend: **113**
 
 ## Superficie funcional
 
@@ -133,7 +133,7 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 
 ### por revisar: ninguna
 
-### identidad tecnica (188)
+### identidad tecnica (189)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
@@ -149,9 +149,10 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/agents/models.py:5` | El sandbox de Strix vive en un bridge aislado cuyo cerco de salida permite DNS, HTTPS y | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/admin_router.py:40` | Porque leer el precio de la base en cada cobro no es una opción: el worker de Strix cob... | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/catalogo.py:4` | cuesta un escaneo—, que se leen en sitios sin sesión: el worker de Strix, dos servicios... | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/organization_prices.py:31` | Porque el precio se lee en sitios **sin sesión**: el worker de Strix cobra desde una ta... | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:3` | Vive aquí y no en el router de pentests porque el worker de Strix también lo | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:17` | Porque el precio se lee en sitios donde **no hay sesión**: el worker de Strix ajusta | identificador: Strix |
-| identidad tecnica | `backend/apps/billing/pricing.py:201` | Porque hay cuatro llamadores —el servicio de pentests, el worker de Strix, el | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/pricing.py:217` | Porque hay cuatro llamadores —el servicio de pentests, el worker de Strix, el | identificador: Strix |
 | identidad tecnica | `backend/apps/cve_database/models.py:6` | el impacto real de un `cve_id` que Strix reporte. | identificador: Strix |
 | identidad tecnica | `backend/apps/pentests/abort.py:65` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/abort.py:143` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
@@ -196,17 +197,17 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/core/config.py:318` | strix_pids_limit: int = Field(default=256, gt=0, le=100_000) | identificador: strix_pids_limit |
 | identidad tecnica | `backend/core/config.py:319` | strix_worker_concurrency: int = Field(default=1, gt=0, le=32) | identificador: strix_worker_concurrency |
 | identidad tecnica | `backend/core/config.py:320` | strix_hard_timeout_seconds: int = Field(default=1800, gt=0, le=86400) | identificador: strix_hard_timeout_seconds |
-| identidad tecnica | `backend/core/config.py:321` | strix_soft_timeout_seconds: int = Field(default=1500, gt=0, le=86400) | identificador: strix_soft_timeout_seconds |
 
-_Y 128 mas._
+_Y 129 mas._
 
-### comentario (28)
+### comentario (29)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
 | comentario | `backend/apps/pentests/models.py:26` | """Modos de ejecución soportados por Strix.""" | explicacion interna |
 | comentario | `backend/workers/tasks.py:1` | """Tareas Celery de ejecución e ingesta de Strix.""" | explicacion interna |
-| comentario | `backend/workers/tasks.py:959` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
+| comentario | `backend/workers/tasks.py:782` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
+| comentario | `backend/workers/tasks.py:1001` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
 | comentario | `backend/workers/__init__.py:1` | """Workers y utilidades de ejecución de Strix.""" | explicacion interna |
 | comentario | `backend/workers/parser/normalizer.py:18` | """Convierte severidades de Strix a valores persistidos canónicos.""" | explicacion interna |
 | comentario | `backend/workers/parser/strix_parser.py:1` | """Parser estricto de los reportes JSON generados por Strix.""" | explicacion interna |

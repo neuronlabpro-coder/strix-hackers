@@ -115,8 +115,11 @@
     "actions": {
       "plan": "Cambiar plan",
       "grant": "Inyectar créditos",
-      "deactivate": "Dar de baja"
+      "deactivate": "Dar de baja",
+      "pricing": "Precios pactados"
     },
+    "members_one": "{{count}} miembro",
+    "members_other": "{{count}} miembros",
     "planModal": {
       "title": "Cambiar plan de {{name}}",
       "caption": "Bajar de plan no toca el saldo. El workspace conserva sus créditos y dejará de poder gastarlos cuando llegue a su límite.",
@@ -149,8 +152,57 @@
       "creditsGranted": "Créditos acreditados",
       "deactivated": "Workspace dado de baja"
     },
-    "members_one": "{{count}} miembro",
-    "members_other": "{{count}} miembros"
+    "pricing": {
+      "title": "Precios pactados",
+      "motiveRequired": "Escribe un motivo antes de pactar.",
+      "valueRequired": "Escribe el valor del precio.",
+      "states": {
+        "loading": "Cargando los precios de esta organización...",
+        "error": "No se pudieron cargar los precios pactados.",
+        "retry": "Reintentar",
+        "live": "Vigente",
+        "future": "Programado",
+        "expired": "Caducado"
+      },
+      "columns": {
+        "operation": "Precio",
+        "paid": "Lo que paga",
+        "platform": "Precio de plataforma"
+      },
+      "current": {
+        "title": "Lo que se cobra hoy",
+        "help": "El pactado va encima del precio de plataforma. Sin pactado, las dos columnas coinciden."
+      },
+      "chain": {
+        "title": "Histórico de pactados",
+        "help": "No se borra nada: cada pactado nuevo sustituye al anterior y los dos se quedan con su motivo y su autor. El vigente lo marca el servidor, no esta pantalla.",
+        "empty": "Esta organizacion no tiene ningun precio pactado: paga el precio de plataforma.",
+        "summary": "{{vigente}} vigente, {{future}} programado, {{total}} en total"
+      },
+      "form": {
+        "title": "Pactar un precio",
+        "help": "Sustituye al vigente si lo hay. Es un acuerdo, asi que queda escrito con tu nombre y no se puede editar despues.",
+        "operation": "Precio a pactar",
+        "value": "Valor",
+        "motive": "Motivo",
+        "motiveHelp": "Obligatorio. Referencia de la cotizacion, nombre del cliente, lo que haga falta para saber de donde salio el numero.",
+        "from": "Empieza a regir",
+        "fromHelp": "Vacio significa ahora mismo. Pon una fecha futura para pactar una subida que empieza en la renovacion."
+      },
+      "operations": {
+        "SCAN_CREDIT_COST": "Escaneo completo",
+        "QUICK_SCAN_MULTIPLIER": "Multiplicador del escaneo rapido",
+        "CREDITS_PER_USD": "Paridad del credito"
+      },
+      "actions": {
+        "close": "Cerrar",
+        "pact": "Pactar precio",
+        "saving": "Pactando...",
+        "created": "Precio pactado",
+        "replaced": "Precio pactado: el anterior deja de aplicarse",
+        "error": "No se pudo pactar el precio."
+      }
+    }
   },
   "users": {
     "title": "Usuarios",

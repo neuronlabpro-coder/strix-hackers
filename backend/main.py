@@ -19,6 +19,9 @@ from backend.apps.assets.router import router as assets_router
 from backend.apps.audit.router import router as audit_router
 from backend.apps.billing.admin_router import router as billing_admin_router
 from backend.apps.billing.catalogo import cargar_catalogo
+from backend.apps.billing.organization_prices_router import (
+    router as organization_prices_router,
+)
 from backend.apps.billing.pricing import cargar_precios
 from backend.apps.billing.router import router as billing_router
 from backend.apps.chat.router import router as chat_router
@@ -294,6 +297,7 @@ app.include_router(api_access_router)
 # Consola de operaciones, junto a precios y antes que el resto de administracion: el
 # orden de `include_router` es el orden de coincidencia.
 app.include_router(operations_router)
+app.include_router(organization_prices_router)
 app.include_router(billing_admin_router)
 app.include_router(admin_router)
 app.include_router(support_admin_router)

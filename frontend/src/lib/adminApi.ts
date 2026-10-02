@@ -52,6 +52,11 @@ import type {
   PlatformVolumeTierCreatePayload,
   PlatformVolumeTierUpdatePayload,
 } from '../types/api'
+import type {
+  OrganizationPriceOverrideWrite,
+  OrganizationPricingDetail,
+  PactadoPrecio,
+} from '../types/api'
 
 import { ApiError } from './api'
 
@@ -402,7 +407,7 @@ export function createSubscriptionCheckout(
     token,
     organizationId,
   )
-}
+}
 
 // --------------------------------------------------------------------------- //
 // Precios de plataforma
@@ -509,7 +514,7 @@ export function getPlatformPriceChanges(
     {},
     token,
   )
-}
+}
 
 
 // --------------------------------------------------------------------------- //
@@ -623,6 +628,39 @@ export function getAdminJobs(
       organization_id: filters.organizationId,
     })}`,
     {},
+    token,
+  )
+}
+
+/**
+ * Los precios que rigen a una organización, con lo pactado encima de la plataforma.
+ *
+ * ## Por qué esto no lleva cabecera de organización
+ *
+ * Porque va por `adminRequest`, que no manda `X-Organization-Id`, y porque el `organization_id` va
+ * en la ruta y es el que se busca. Si además mandara un tenant, habría dos fuentes de verdad
+ * para saber de quién es la ficha, y la que acertara mal sería la del cuerpo.
+ */
+export function getOrganizationPricing(
+  token: string,
+  organizationId: string,
+): Promise<OrganizationPricingDetail> {
+  return adminRequest(
+    `/api/v1/admin/organizations/${encodeURIComponent(organizationId)}/price-overrides`,
+    {},
+    token,
+  )
+}
+
+/** Pacta un precio. Sustituye al vigente si lo hay, sin borrar nada. */
+export function createOrganizationPriceOverride(
+  token: string,
+  organizationId: string,
+  payload: OrganizationPriceOverrideWrite,
+): Promise<PactadoPrecio> {
+  return adminRequest(
+    `/api/v1/admin/organizations/${encodeURIComponent(organizationId)}/price-overrides`,
+    { method: 'POST', body: JSON.stringify(payload) },
     token,
   )
 }

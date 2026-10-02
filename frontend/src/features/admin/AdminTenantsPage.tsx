@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Coins, Power, RefreshCw, Tags } from 'lucide-react'
+import { BadgeDollarSign, Coins, Power, RefreshCw, Tags } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -13,6 +13,7 @@ import type { AdminOrganization, PlanTierAdmin, TenantLifecycle } from '../../ty
 import { useAuth } from '../auth/useAuth'
 import { useToast } from '../shared/toast-context'
 import { TenantActionDialog, TenantLifecycleBadge, type TenantAction } from './TenantActionDialog'
+import { TenantPricingDialog } from './TenantPricingDialog'
 import { PaginationBar } from './PaginationBar'
 import { useAdminPage } from './useAdminPage'
 
@@ -316,6 +317,20 @@ export function AdminTenantsPage() {
                           <span>{t('tenants.actions.grant')}</span>
                         </button>
                         <button
+                          className="link-button"
+                          type="button"
+                          disabled={isPending || tenant.deleted_at !== null}
+                          title={
+                            tenant.deleted_at !== null
+                              ? t('tenants.lifecycle.deleted')
+                              : undefined
+                          }
+                          onClick={() => setAction({ kind: 'pricing', tenant })}
+                        >
+                          <BadgeDollarSign size={15} aria-hidden="true" />
+                          <span>{t('tenants.actions.pricing')}</span>
+                        </button>
+                        <button
                           className="ghost-button ghost-button-danger"
                           type="button"
                           disabled={isPending || tenant.deleted_at !== null}
@@ -341,14 +356,21 @@ export function AdminTenantsPage() {
 
       <PaginationBar page={page} />
 
-      <TenantActionDialog
-        action={action}
-        onClose={() => setAction(null)}
+      {action?.kind === 'pricing' ? (
+        <TenantPricingDialog
+          organization={action.tenant}
+          onClose={() => setAction(null)}
+        />
+      ) : (
+        <TenantActionDialog
+          action={action}
+          onClose={() => setAction(null)}
         onPlanChange={onPlanChange}
         onGrant={onGrant}
         onDeactivate={onDeactivate}
-        balanceFormatter={(value) => formatCredits(value)}
-      />
+          balanceFormatter={(value) => formatCredits(value)}
+        />
+      )}
     </section>
   )
 }

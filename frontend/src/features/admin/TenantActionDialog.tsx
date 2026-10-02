@@ -30,7 +30,13 @@ import type { AdminOrganization, PlanTierAdmin, TenantLifecycle } from '../../ty
 
 const PLAN_TIERS: readonly PlanTierAdmin[] = ['FREE', 'PRO', 'ENTERPRISE']
 
-export type TenantActionKind = 'plan' | 'grant' | 'deactivate'
+/**
+ * `pricing` **no** se pinta en este diálogo: va en su propio componente, porque necesita
+ * leer y escribir una cadena de pactados, y meterlo aquí convertiría un diálogo de tres
+ * casos en uno que carga una segunda pantalla. El tipo lo declara igualmente para que el
+ * estado de la página sea el mismo en los cuatro casos.
+ */
+export type TenantActionKind = 'plan' | 'grant' | 'deactivate' | 'pricing'
 
 export interface TenantAction {
   kind: TenantActionKind

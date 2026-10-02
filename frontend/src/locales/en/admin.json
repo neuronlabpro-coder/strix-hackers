@@ -115,8 +115,11 @@
     "actions": {
       "plan": "Change plan",
       "grant": "Grant credits",
-      "deactivate": "Deactivate"
+      "deactivate": "Deactivate",
+      "pricing": "Negotiated prices"
     },
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
     "planModal": {
       "title": "Change plan of {{name}}",
       "caption": "Downgrading does not touch the balance. The workspace keeps its credits and will stop being able to spend them once it hits the plan limit.",
@@ -149,8 +152,57 @@
       "creditsGranted": "Credits granted",
       "deactivated": "Workspace deleted"
     },
-    "members_one": "{{count}} member",
-    "members_other": "{{count}} members"
+    "pricing": {
+      "title": "Negotiated prices",
+      "motiveRequired": "Write a reason before agreeing a price.",
+      "valueRequired": "Write the price value.",
+      "states": {
+        "loading": "Loading this organization's prices...",
+        "error": "The negotiated prices could not be loaded.",
+        "retry": "Retry",
+        "live": "In force",
+        "future": "Scheduled",
+        "expired": "Expired"
+      },
+      "columns": {
+        "operation": "Price",
+        "paid": "What they pay",
+        "platform": "Platform price"
+      },
+      "current": {
+        "title": "What is charged today",
+        "help": "The negotiated price sits on top of the platform price. With nothing agreed, both columns match."
+      },
+      "chain": {
+        "title": "History of agreed prices",
+        "help": "Nothing is deleted: each new agreement replaces the previous one and both stay with their reason and their author. Which one is in force is marked by the server, not by this screen.",
+        "empty": "This organization has no agreed price: it pays the platform price.",
+        "summary": "{{vigente}} in force, {{future}} scheduled, {{total}} in total"
+      },
+      "form": {
+        "title": "Agree a price",
+        "help": "It replaces the one in force, if there is one. This is a commitment, so it is written with your name and cannot be edited afterwards.",
+        "operation": "Price to agree",
+        "value": "Value",
+        "motive": "Reason",
+        "motiveHelp": "Required. Quote reference, customer name, whatever it takes to know where the number came from.",
+        "from": "Starts applying",
+        "fromHelp": "Empty means right now. Set a future date to agree a rise that starts at the renewal."
+      },
+      "operations": {
+        "SCAN_CREDIT_COST": "Full scan",
+        "QUICK_SCAN_MULTIPLIER": "Quick scan multiplier",
+        "CREDITS_PER_USD": "Credit parity"
+      },
+      "actions": {
+        "close": "Close",
+        "pact": "Agree price",
+        "saving": "Agreeing...",
+        "created": "Price agreed",
+        "replaced": "Price agreed: the previous one stops applying",
+        "error": "The price could not be agreed."
+      }
+    }
   },
   "users": {
     "title": "Users",

@@ -440,7 +440,7 @@ class OrganizationPriceOverride(Base):
 
     ## Por qué existe esto y no un «precio Enterprise»
 
-    Porque el precio fijo por plan no sirve: dos clientes con el mismo plan tienenzimienta
+    Porque el precio fijo por plan no sirve: dos clientes con el mismo plan tienen
     máquinas distintas, y a la que tiene mil le cuestan mil escaneos. Un plan no describe el
     consumo. Este modelo dice lo que se pactó **para esa organización y esa operación**.
 
@@ -462,12 +462,29 @@ class OrganizationPriceOverride(Base):
     es exactamente donde un forgot dejaría a un cliente pagando el precio viejo, o a la
     plataforma cobrando el nuevo a quien ya se había renewing.
 
-    ## Por qué el índice único es parcial
+    ## Por qué el precio vigente lo decide el **orden** y no el cierre
 
-    Porque hay como mucho **un** override sin fecha de fin por operación y organización: el
-    vigente. Los override con `valido_hasta` pueden ser cuantos se quiera, que es el histórico.
-    Un `UNIQUE` normal prohibits los dos casos a la vez; un índice único parcial protege
-    justamente el que importa: que no haya dos precios vigentes para lo mismo.
+    Este es el punto que obliga a redactar el resto de la tabla, y conviene dejarlo escrito
+    porque la primera versión de este modelo lo hizo al revés y quedó inservible.
+
+    La tabla es append-only con un disparador `BEFORE UPDATE OR DELETE`, así que **`valido_hasta`
+    no se puede poner nunca**: se escribe en el `INSERT` o no se escribe. De ahí salía una
+    contradicción con el índice único parcial, que exigía como mucho un override abierto
+    por operación y organización: como el abierto no se puede cerrar, **el primer pactado de
+    un cliente quedaba congelado para siempre**. El comercial pactaba 3 créditos y el sistema
+    cobraba 3 créditos hasta el fin de los tiempos, sin ninguna ruta para cambiarlo.
+
+    La corrección es que **sustituir no es cerrar, es escribir uno más nuevo**: el vigente es,
+    de todos los que ni han caducado ni empiezan en el futuro, el de `valido_desde` más
+    reciente. Nunca hay que escribir sobre el anterior, y por eso la tabla puede seguir siendo
+    append-only sin que un acuerdo quede atrapado.
+
+    Y de paso, el índice único **no protegía nada**: `alcance` es nullable y en Postgres los
+    `NULL` no colisionan entre sí en un índice único, de modo que dos pactados abiertos de
+    `SCAN_CREDIT_COST` para la misma organización —los que no llevan `alcance`, que son
+    justamente los más usados— cabían los dos, y el último escrito ganaba en el
+    diccionario de la caché. La protección real la dan el disparador y la resolución por
+    orden.
     """
 
     __tablename__ = "organization_price_overrides"
@@ -489,19 +506,23 @@ class OrganizationPriceOverride(Base):
             "operacion",
             "valido_desde",
         ),
-        # El **unico** override sin fecha de fin por operacion y organizacion: el vigente.
+        # Los overrides **abiertos**, que son los que se cargan para cobrar. El `WHERE` es lo
+        # que lo hace parcial de verdad: la carga global de la caché solo quiere las filas sin
+        # fecha de fin, y este índice las aísla sin tener que leer las cerradas.
         #
-        # Es un indice parcial y no una restriccion UNIQUE normal porque ambas cosas protege a
-        # la vez: un `UNIQUE (organization_id, operacion, alcance)` impediria tener dos
-        # overrides *historicos* de la misma operacion, que es justamente el historico de
-        # subidas de precio de un cliente. El `WHERE valido_hasta IS NULL` deja pasar todos
-        # los cerrados y prohibe solo que haya dos abiertos.
+        # Y `valido_desde` va en orden inverso porque la consulta que resuelve el vigente pide
+        # el más reciente primero: así el indice entrega el ganador sin ordenación.
+        #
+        # ## Por qué `DESC` y no `ASC`
+        #
+        # Por lo mismo que `LIMIT 1`: la lectura que importa es `ORDER BY valido_desde DESC
+        # LIMIT 1`, y un índice ascendente tendría que recorrerlo entero y tirar casi todo
+        # para devolver una fila.
         Index(
-            "uq_org_price_override_vigente",
+            "ix_org_price_override_abiertos",
             "organization_id",
             "operacion",
-            "alcance",
-            unique=True,
+            text("valido_desde DESC"),
             postgresql_where=text("valido_hasta IS NULL"),
         ),
     )

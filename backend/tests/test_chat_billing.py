@@ -120,12 +120,38 @@ async def test_el_margen_se_aplica_al_coste_del_proveedor() -> None:
     assert desglose.client_price_usd == Decimal("0.008")
 
 
-async def test_sin_tokens_no_cuesta_nada_pero_no_se_liquida() -> None:
-    """Un paso de coste cero se calcula a cero y **no** se puede asentar.
+async def test_sin_tokens_no_cuesta_nada_y_no_se_liquida() -> None:
+    """Un paso de coste cero se calcula a cero, **no** se asienta y **no** revienta.
 
-    El ledger solo admite movimientos distintos de cero, y con razon: un asiento de ceroCredits
-    es ruido que luego hay que filtrar en cada consulta de gasto. La funcion lo dice con un
-    `ValueError` explicito en vez de dejar que reviente el invariante del ledger.
+    ## Qué cambió y por qué esta prueba estaba fijando el defecto
+
+    Esta prueba pedía que un paso de coste cero lanzara `ValueError`. Lo pedía porque el ledger
+    solo admite movimientos distintos de cero, y eso es cierto. Lo que **no** era cierto es que el
+    error tuviera que propagarse.
+
+    Y no: propagarse mataba el chat entero. La cadena `ALL` de modelos empieza por
+    `stealth/space-bunny-alpha`, un modelo **de coste cero deliberado** —lo puso una migración a
+    petición del Owner para poder hacer pruebas sin gastar—, así que cualquier mensaje, aunque
+    fuese un «hola», elegía ese modelo, salía a cero y la función moría con un `500`. El usuario
+    veía una pantalla muerta, y el motivo —un modelo configurado sin coste— no aparecía por ningún
+    lado.
+
+    ## Por qué no cobrar no es «saltarse el cobro»
+
+    ## Por qué no cobrar es lo correcto
+
+    Porque el modelo **no cuesta nada**, no porque el cobro haya fallado. Cobrar una fracción de
+    crédito por usar un modelo gratuito sería inventar un ingreso, y un ingreso inventado es peor
+    que ninguno: dentro de tres meses nadie sabría si esa cifra es una tarifa o un redondeo.
+
+    ## Por qué el invariante del ledger sigue intacto
+
+    Porque no se asienta nada. Un movimiento de cero infla el número de asientos y obliga a
+    filtrarlos en cada consulta de gasto. La invariante se respeta **no escribiendo el asiento**,
+    que es la única forma de respetarla en este caso.
+
+    Y `ledger_entry_id` sale `None` para que quien lo reciba distinga «no hubo movimiento» de «no
+    lo sé», que son cosas distintas.
     """
 
     desglose = calcular_coste_de_paso(_modelo(), tokens_in=0, tokens_out=0)
@@ -134,18 +160,21 @@ async def test_sin_tokens_no_cuesta_nada_pero_no_se_liquida() -> None:
     session = AsyncSessionLocal()
     try:
         organization = await _tenant(session, Decimal("100"))
-        with pytest.raises(ValueError, match="coste cero"):
-            await liquidar_paso_de_chat(
-                session,
-                organization_id=organization.id,
-                reference_id="chat:vacio",
-                model=_modelo(),
-                tokens_in=0,
-                tokens_out=0,
-            )
+        cargo = await liquidar_paso_de_chat(
+            session,
+            organization_id=organization.id,
+            reference_id="chat:vacio",
+            model=_modelo(),
+            tokens_in=0,
+            tokens_out=0,
+        )
+        assert cargo.credits == Decimal("0.0000"), "un paso de coste cero no se cobra"
+        assert cargo.ledger_entry_id is None, (
+            "un paso de coste cero no debe dejar asiento: el ledger solo admite "
+            "movimientos distintos de cero"
+        )
     finally:
         await session.close()
-
 
 async def test_se_rechazan_tokens_negativos() -> None:
     """Un contador de tokens negativo es un bug de quien llama, no un saldo a favor.

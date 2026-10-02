@@ -364,6 +364,20 @@ buscador masivo.
       - Histórico de cambios de precio, de solo lectura, con el valor anterior, el nuevo, el autor
         y el motivo. El motivo es **obligatorio**: es lo que distingue una corrección de un error
         de una subida de precio deliberada, y son dos cosas que escriben la misma clave.
+    - **11.5.b Precios pactados por organización** — **pantalla nueva de esta entrega**, y cuelga
+      de la ficha del cliente (`/admin/tenants`), no de la de precios.
+      - Por qué en la ficha del cliente: un precio pactado es un acto comercial **sobre alguien**, y
+        se lee junto al nombre de quien lo firmó. En la página de precios hay una sola fila y una
+        sola verdad; un acuerdo tiene fecha, motivo y autor, y necesita el contexto de al lado.
+      - Lo que se ve: los tres precios de cobro, el pactado y el de plataforma **en la misma
+        pantalla** para poder compararlos, y la cadena completa de pactados con su estado.
+      - Tres estados, no dos: **vigente**, **programado** y **caducado**. Se distinguen porque un
+        acuerdo programado —una subida pactada para la renovación— no tiene fecha de fin, y se
+        parecería a uno vigente. La marca la pone el servidor, nunca la pantalla.
+      - Pactar sustituye, no cierra. **No hay botón de borrar**: un acuerdo se sustituye por otro
+        y los dos se quedan con su motivo y su autor. La baja de un pactado es su sustitución.
+      - Se puede pactar con **fecha de inicio futura**, para dejar la subida preparada sin que se
+        aplique antes de tiempo.
 - [ ] **11.6 Auditoría** (`/admin/audit`) — visor append-only de los eventos de todas las
       organizaciones, con filtro por acción y por tenant.
 - [ ] **11.7 Modelos LLM** (`/admin/llm`) — alta, margen, prioridad y estado de cada modelo, con
