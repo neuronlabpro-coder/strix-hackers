@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -36,21 +36,48 @@ export function AdminSalesPage() {
   const { t } = useTranslation('admin')
   const { token, user } = useAuth()
 
+  /**
+   * Los tres filtros del historial, en un solo estado.
+   *
+   * Las fechas son cadenas `AAAA-MM-DD` y no `Date`: es lo que da el `<input type="date">` y lo
+   * que viaja en la query. Convertirlas a `Date` en el cliente obligaría a decidir una zona
+   * horaria para un filtro por día natural, y esa decisión no está en ningún sitio del
+   * proyecto. El backend corta el rango en UTC y ya se ha explicado por qué allí.
+   */
+  const [search, setSearch] = useState('')
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo, setCreatedTo] = useState('')
+
+  const hayFiltros = Boolean(search.trim() !== '' || createdFrom !== '' || createdTo !== '')
+
+  function limpiarFiltros(): void {
+    setSearch('')
+    setCreatedFrom('')
+    setCreatedTo('')
+  }
+
   const load = useCallback(
     (limit: number, offset: number) =>
       // El hook recibe `disabled` y no pide nada sin sesión; esta guarda solo evita pasar
       // un token inexistente y devuelve una página vacía en vez de lanzar la petición.
       token === null
         ? Promise.resolve({ items: [], total: 0, total_credits: '0', total_amount_cents: 0 })
-        : getAdminSales(token, { limit, offset }),
-    [token],
+        : getAdminSales(token, {
+            query: search.trim() === '' ? null : search.trim(),
+            createdFrom: createdFrom === '' ? null : createdFrom,
+            createdTo: createdTo === '' ? null : createdTo,
+            limit,
+            offset,
+          }),
+    [createdFrom, createdTo, search, token],
   )
 
   const page = useAdminPage<AdminSale, { total_credits: string; total_amount_cents: number }>(
     load,
     {
       pageSize: 25,
-      filterKey: token ?? '',
+      // `filterKey` es lo que devuelve la vista a la primera página al cambiar un filtro.
+      filterKey: `${token}:${search}:${createdFrom}:${createdTo}`,
       disabled: !token || user?.is_superuser !== true,
     },
   )
@@ -163,6 +190,63 @@ export function AdminSalesPage() {
         ))}
       </div>
 
+      <div className="filter-bar">
+        <label className="field">
+          <span className="field-label">{t('sales.filters.search')}</span>
+          <input
+            className="text-input"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t('sales.filters.searchPlaceholder')}
+          />
+        </label>
+        {/*
+          El rango va sobre la fecha de **alta** del evento, que es la única que muestra la
+          tabla. La explicación va en el `title` de las dos etiquetas, que es donde cabe sin
+          romper la alineación de la barra.
+        */}
+        <label className="field">
+          <span className="field-label" title={t('sales.filters.dateHint')}>
+            {t('sales.filters.dateFrom')}
+          </span>
+          <input
+            className="text-input"
+            type="date"
+            value={createdFrom}
+            onChange={(event) => setCreatedFrom(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field-label" title={t('sales.filters.dateHint')}>
+            {t('sales.filters.dateTo')}
+          </span>
+          <input
+            className="text-input"
+            type="date"
+            value={createdTo}
+            onChange={(event) => setCreatedTo(event.target.value)}
+          />
+        </label>
+        {hayFiltros ? (
+          <button className="secondary-button" type="button" onClick={limpiarFiltros}>
+            <span>{t('sales.filters.clear')}</span>
+          </button>
+        ) : null}
+      </div>
+
+      {/*
+        Las tres ramas de estado se dejan **exactamente** como están en las otras pantallas de la
+        consola, y el `&& page.items.length === 0` del esqueleto parece una guarda contra la
+        carrera de `useAsyncResource`. Aquí es redundante, y no por casualidad: `useAdminPage`
+        devuelve `items: []` mientras no hay respuesta de la clave actual
+        (`items = isCurrent ? snapshot.items : []`), así que `isLoading` ya implica
+        `items.length === 0`. La carrera de la que sí hay que vigilar es la de
+        `useAsyncResource`, que **conserva** el `data` anterior; esa no pasa por aquí.
+
+        Se deja la forma larga en las cinco pantallas en lugar de acortarla en una para que el
+        esqueleto se lea igual en las seis, que es justo lo que `useAdminPage` existe para
+        evitar.
+      */}
       {page.loadFailed && page.items.length === 0 ? (
         <div className="empty-card">
           <h2>{t('states.error')}</h2>

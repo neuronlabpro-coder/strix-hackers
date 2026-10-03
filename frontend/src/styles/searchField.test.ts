@@ -413,6 +413,20 @@ describe('cada pagina que usa el buscador tiene el contexto que el CSS dimension
     { fichero: 'agents/ContainersPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
     { fichero: 'agents/NetworksPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
     { fichero: 'admin/AdminAgentsPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    // PR Reviews tambien lleva etiqueta visible y esta en `.filter-bar`, asi que la dimensiona
+    // la misma regla que Pentests e Issues. Se declara para que la lista siga siendo completa.
+    { fichero: 'prReviews/PrReviewsPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    // Dominios y tickets del cliente, igual que las anteriores: etiqueta visible y
+    // `.filter-bar`, asi que la misma regla las dimensiona. Se declaran para que la lista
+    // siga siendo la lista completa de quien usa el buscador.
+    { fichero: 'domains/DomainsPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    { fichero: 'support/SupportTicketsPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    // Documentos de Knowledge y descubrimiento de activos: los dos anaden buscador con etiqueta
+    // visible dentro de `.filter-bar`, asi que la misma regla que Pentests e Issues los
+    // dimensiona y **no necesitan ninguna regla nueva**. Se declaran para que la lista siga
+    // siendo la lista completa de quien usa el buscador, que es lo que este test comprueba.
+    { fichero: 'knowledge/KnowledgeDocumentsView.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
+    { fichero: 'assetDiscovery/AssetDiscoveryPage.tsx', contenedor: 'filter-bar', conEtiquetaVisible: true },
   ]
 
   function ficherosConBuscador(): string[] {

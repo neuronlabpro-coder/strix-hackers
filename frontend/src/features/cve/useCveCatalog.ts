@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { getCVEYears, getTrendingKEV, searchCVE } from '../../lib/api'
 import type { CVESearchParams, CVESeverity, CVEPage } from '../../types/api'
@@ -28,6 +28,9 @@ export interface CveState {
   loadFailed: boolean
   filters: CveFilters
   setFilters: (filters: CveFilters) => void
+  /** Página actual, en índice de fila. Lo envía el backend en `offset`. */
+  offset: number
+  setOffset: (offset: number) => void
   clearFilters: () => void
   hasFilters: boolean
   refresh: () => void
@@ -46,6 +49,14 @@ export function useCveCatalog(): CveState {
   const { token, selectedOrganizationId } = useAuth()
   const [filters, setFiltersState] = useState<CveFilters>(EMPTY_FILTERS)
   const [reloadToken, setReloadToken] = useState(0)
+  // ## Por qué `offset` es estado propio y no un campo de `filters`
+  //
+  // Porque un filtro y una página no son la misma cosa: cambiar de filtro tiene que volver a la
+  // primera página —si no, se pide la página 7 de un conjunto que ahora cabe en una y sale una
+  // tabla vacía— y eso no se puede decir con un `setFilters` normal. Vivir aparte lo hace explícito
+  // y evita el fallo de "he filtrado y no hay resultados" cuando lo que ha pasado es que estaba en
+  // la página 7.
+  const [offset, setOffset] = useState(0)
   const [result, setResult] = useState<{
     key: string
     page: CVEPage
@@ -60,7 +71,7 @@ export function useCveCatalog(): CveState {
     failed: false,
   })
 
-  const requestKey = JSON.stringify([token, selectedOrganizationId, filters, reloadToken])
+  const requestKey = JSON.stringify([token, selectedOrganizationId, filters, offset, reloadToken])
   const isCurrent = result.key === requestKey
 
   useEffect(() => {
@@ -71,7 +82,7 @@ export function useCveCatalog(): CveState {
 
     const params: CVESearchParams = {
       limit: PAGE_SIZE,
-      offset: 0,
+      offset,
       ...(filters.query ? { query: filters.query } : {}),
       ...(filters.severity ? { severity: filters.severity } : {}),
       ...(filters.isKevOnly ? { is_kev_only: true } : {}),
@@ -107,7 +118,19 @@ export function useCveCatalog(): CveState {
     return () => {
       isActive = false
     }
-  }, [filters, reloadToken, requestKey, selectedOrganizationId, token])
+  }, [filters, offset, reloadToken, requestKey, selectedOrganizationId, token])
+
+  // Volver a la primera página cuando cambia cualquier filtro. Va en un efecto y no dentro de
+  // `setFilters` porque quien llama al setter no debería tener que saber que existe una página:
+  // si el reset viviera en el setter, cada pantalla que filtrara tendría que acordarse de él.
+  const primerFiltro = JSON.stringify(filters)
+  const anteriorFiltro = useRef(primerFiltro)
+  useEffect(() => {
+    if (anteriorFiltro.current !== primerFiltro) {
+      anteriorFiltro.current = primerFiltro
+      setOffset(0)
+    }
+  }, [primerFiltro])
 
   return {
     page: isCurrent ? result.page : null,
@@ -117,6 +140,8 @@ export function useCveCatalog(): CveState {
     loadFailed: isCurrent && result.failed,
     filters,
     setFilters: setFiltersState,
+    offset,
+    setOffset,
     clearFilters: () => setFiltersState(EMPTY_FILTERS),
     hasFilters: Boolean(filters.query || filters.severity || filters.isKevOnly || filters.year),
     refresh: () => setReloadToken((current) => current + 1),

@@ -11,7 +11,13 @@
     "type": "Asset type",
     "allTypes": "All types",
     "domain": "Domain",
-    "allDomains": "All domains"
+    "allDomains": "All domains",
+    "search": "Search",
+    "searchPlaceholder": "Host, service or domain...",
+    "dateFrom": "Created from",
+    "dateTo": "Created to",
+    "dateHint": "Filters by the asset creation date, not by the last checked date shown in the table. The range includes the final day in full.",
+    "clear": "Clear filters"
   },
   "actions": {
     "refresh": "Refresh"
@@ -45,6 +51,8 @@
     "retry": "Try again",
     "emptyTitle": "No assets yet",
     "emptyDescription": "Run discovery on a verified domain to start building your attack surface inventory.",
+    "emptyFilteredTitle": "No asset matches the filters",
+    "emptyFilteredDescription": "Try another type, another domain, another date range or a shorter search.",
     "count": "{{count}} asset in total",
     "count_other": "{{count}} assets in total",
     "emptyWithoutDomains": "No verified domain yet",

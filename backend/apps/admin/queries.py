@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import ColumnElement, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
@@ -44,6 +44,7 @@ from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEv
 from backend.apps.billing.service import apply_credit_delta
 from backend.apps.organizations.models import Membership, Organization, PlanTierEnum, User
 from backend.apps.pentests.models import PentestRun
+from backend.core.filtros_texto import coincide, rango_creado
 
 #: La paridad del resumen global **tampoco** es una constante de este módulo.
 #:
@@ -444,14 +445,21 @@ async def list_users(
     alternativa es un `JOIN` que devuelve una fila por usuario y organización, que es
     exactamente la forma de convertir "listar 25 usuarios" en "leer 800 filas y agrupar" y
     de repetir la fila del usuario por cada workspace suyo.
+
+    ## Por qué el término va escapado y antes no lo iba
+
+    Porque `%` y `_` son comodines de `LIKE` y sin escapar `?search=%` devuelve **todos** los
+    usuarios de la plataforma. No es un fallo visible: la pantalla responde, devuelve filas y el
+    operador ve una lista enorme que él no ha pedido y da por buena. Es exactamente el modo de
+    fallo que `core.filtros_texto.escape_like` evita, y el `_` importa de verdad aquí porque un
+    nombre de persona o un alias de correo llevan `_` con frecuencia.
     """
 
     base = select(User)
     if only_superusers:
         base = base.where(User.is_superuser.is_(True))
-    if search:
-        patron = f"%{search}%"
-        base = base.where(User.email.ilike(patron) | User.full_name.ilike(patron))
+    if termino := (search or "").strip():
+        base = base.where(coincide([User.email, User.full_name], termino))
 
     total = int(
         (
@@ -591,6 +599,9 @@ async def list_sales(
     session: AsyncSession,
     *,
     organization_id: uuid.UUID | None = None,
+    search: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: int = 25,
     offset: int = 0,
 ) -> AdminSalePage:
@@ -608,6 +619,19 @@ async def list_sales(
     importes conocidos, así que un mes con importes ausentes da un total **menor** que el
     real, y por eso el panel rotula la cifra como "de los importes registrados" en vez de
     presentarla como la facturación del periodo.
+
+    ## Por qué el rango de fechas va sobre `created_at`
+
+    Porque es la única columna de fecha de la tabla y no puede ser `NULL`. Además es la
+    columna por la que se ordena el listado, así que el rango recorta filas y la paginación
+    las cuenta sobre la misma fecha y los bordes de página caen donde el operador espera.
+
+    ## Por qué el total de la página se sigue calculando después de los filtros
+
+    Porque `total` es el número de filas **que casan con el filtro**, no el número de
+    eventos que hubo. Es lo que necesita la barra de paginación para saber cuántas páginas
+    hay, y cambiar su significado según la página sería hacer que el mismo campo dijera dos
+    cosas distintas.
     """
 
     filtro = (
@@ -615,11 +639,33 @@ async def list_sales(
         if organization_id is not None
         else StripeEvent.organization_id.is_not(None)
     )
+    # El nombre de la organización se busca en la tabla unida, no en `stripe_events`: ahí no
+    # está. Por eso la condición va sobre el `select` y no sobre el conteo de una sola tabla.
+    condiciones_extra: list[ColumnElement[bool]] = []
+    if termino := (search or "").strip():
+        condiciones_extra.append(
+            coincide(
+                [StripeEvent.event_id, StripeEvent.event_type, Organization.name],
+                termino,
+            )
+        )
+    condiciones_extra.extend(rango_creado(StripeEvent.created_at, created_from, created_to))
+
+    # El `outerjoin` va también en el recuento, y por el mismo motivo que en `list_assets` de
+    # assets: el texto busca en `Organization.name`, que no está en `stripe_events`. Sin el
+    # `JOIN` la condición se resuelve contra una tabla ausente y el `total` sale multiplicado por
+    # el número de organizaciones de la base, que es un número que no es el de ventas.
     total = int(
         (
             await session.execute(
-                select(func.count()).select_from(
-                    select(StripeEvent.id).where(filtro).subquery()
+                select(func.count())
+                .select_from(
+                    select(StripeEvent.id)
+                    .outerjoin(
+                        Organization, Organization.id == StripeEvent.organization_id
+                    )
+                    .where(filtro, *condiciones_extra)
+                    .subquery()
                 )
             )
         ).scalar_one()
@@ -628,7 +674,7 @@ async def list_sales(
         await session.execute(
             select(StripeEvent, Organization.name)
             .outerjoin(Organization, Organization.id == StripeEvent.organization_id)
-            .where(filtro)
+            .where(filtro, *condiciones_extra)
             .order_by(StripeEvent.created_at.desc(), StripeEvent.id)
             .limit(limit)
             .offset(offset)
@@ -681,6 +727,8 @@ async def list_audit(
     organization_id: uuid.UUID | None = None,
     action: AuditActionEnum | None = None,
     search: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> AdminAuditPage:
@@ -697,6 +745,13 @@ async def list_audit(
     produce un `422` que enumera las acciones válidas. Devolver un `200` con cero
     resultados también sería incorrecto: haría creer que no hubo ninguna entrada con esa
     acción, que es distinto de "esa acción no existe".
+
+    ## Por qué el término va escapado
+
+    Por el mismo motivo que en `list_users`: sin escapar, `?search=%` devuelve el rastro
+    entero, y un rastro forense que se puede pedir entero con un carácter es un rastro que
+    además se puede usar para hacer ruido. Aquí las tres columnas que se comparan incluyen
+    nombres de organización y correos, que llevan `_` con frecuencia.
 
     ## Por qué solo admite `GET`
 
@@ -717,13 +772,12 @@ async def list_audit(
         base = base.where(AuditLogEntry.organization_id == organization_id)
     if action is not None:
         base = base.where(AuditLogEntry.action == action)
-    if search:
-        patron = f"%{search}%"
+    if termino := (search or "").strip():
         base = base.where(
-            AuditLogEntry.entity_type.ilike(patron)
-            | Organization.name.ilike(patron)
-            | User.email.ilike(patron)
+            coincide([AuditLogEntry.entity_type, Organization.name, User.email], termino)
         )
+    for condicion in rango_creado(AuditLogEntry.created_at, created_from, created_to):
+        base = base.where(condicion)
 
     total = int(
         (

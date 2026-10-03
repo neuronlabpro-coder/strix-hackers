@@ -10,7 +10,12 @@
   },
   "filters": {
     "status": "Scan status",
-    "allStatuses": "All statuses"
+    "allStatuses": "All statuses",
+    "search": "Search",
+    "searchPlaceholder": "Repository, PR, author or branch...",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "dateHint": "Filters by the date the review was registered, not by the finish date shown in the table. The range includes the final day in full."
   },
   "table": {
     "repository": "Repository",
@@ -40,14 +45,21 @@
     "HIGH": "High"
   },
   "actions": {
-    "retry": "Refresh"
+    "retry": "Refresh",
+    "clearFilters": "Clear filters"
   },
   "states": {
     "loading": "Loading the review history",
     "empty": "No pull requests reviewed yet",
     "emptyDescription": "Connect a repository and enable PR reviews to start collecting results here.",
-    "noResults": "No pull request matches the status",
+    "noResults": "No pull request matches the filters",
+    "noResultsDescription": "Try another status, another date or a shorter search.",
     "error": "The review history could not be loaded",
     "retry": "Retry"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "summary": "{{from}}–{{to}} of {{total}}"
   }
 }

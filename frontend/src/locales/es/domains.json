@@ -8,11 +8,21 @@
     "refresh": "Actualizar",
     "verifyNow": "Verificar ahora",
     "verifying": "Verificando…",
-    "delete": "Eliminar dominio"
+    "delete": "Eliminar dominio",
+    "clearFilters": "Limpiar filtros"
+  },
+  "filters": {
+    "search": "Buscar",
+    "searchPlaceholder": "Nombre de dominio...",
+    "status": "Estado de verificación",
+    "allStatuses": "Todos los estados",
+    "dateFrom": "Alta desde",
+    "dateTo": "Alta hasta",
+    "dateHint": "Filtra por la fecha de alta del dominio, no por la de verificación que muestra la tabla. El rango incluye el día final entero."
   },
   "status": {
-    "verified": "Verificado",
-    "pending": "Pendiente"
+    "VERIFIED": "Verificado",
+    "PENDING": "Pendiente"
   },
   "table": {
     "domain": "Dominio",
@@ -26,7 +36,14 @@
     "error": "No se pudieron cargar los dominios.",
     "retry": "Reintentar",
     "emptyTitle": "Todavía no hay dominios",
-    "emptyDescription": "Añade un dominio y publica el registro TXT que te mostraremos. Sin verificación no se puede descubrir la superficie de ataque."
+    "emptyDescription": "Añade un dominio y publica el registro TXT que te mostraremos. Sin verificación no se puede descubrir la superficie de ataque.",
+    "noResultsTitle": "Ningún dominio coincide con los filtros",
+    "noResultsDescription": "Prueba con otro estado, otra fecha o un nombre más corto."
+  },
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
   },
   "verify": {
     "MATCH": "Dominio verificado. Ya puedes lanzar el descubrimiento de activos.",

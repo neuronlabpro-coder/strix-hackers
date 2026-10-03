@@ -15,7 +15,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { DomainConflictError, createDomain } from './assetsApi'
+import { DomainConflictError, createDomain, listDomains } from './assetsApi'
 
 const TOKEN = 'token-de-prueba'
 const ORGANIZACION = '00000000-0000-0000-0000-000000000001'
@@ -31,6 +31,18 @@ function responderCon(cuerpo: unknown, status = 409): void {
       }),
     ),
   )
+}
+
+/**
+ * La query string con la que se ha llamado a `fetch` en la última petición.
+ *
+ * La base es inventada porque `API_BASE_URL` es una ruta relativa en el entorno de pruebas:
+ * `new URL` necesita un origen absoluto, y lo que importa son el `pathname` y el `search`.
+ */
+function urlDeLaPeticion(): URL {
+  const llamadas = vi.mocked(fetch).mock.calls
+  const ultima = llamadas[llamadas.length - 1]
+  return new URL(String(ultima?.[0]), 'http://localhost')
 }
 
 afterEach(() => {
@@ -126,5 +138,64 @@ describe('alta de dominio', () => {
     // Un `403` no es un conflicto de dominio: es una falta de permiso, y el panel tiene
     // que poder distinguirlo para no ofrecer "abre tu dominio" a quien no lo tiene.
     expect(error).not.toBeInstanceOf(DomainConflictError)
+  })
+})
+
+/**
+ * Los filtros del listado de dominios.
+ *
+ * ## Por qué esto necesita prueba y el `fetch` del resto del cliente no
+ *
+ * Porque el nombre del parámetro es la decisión. Un `search` que viaje como `query` —o al
+ * revés— no da error: la ruta lo ignora porque es un parámetro que no conoce, el servidor
+ * devuelve la lista entera y la pantalla parece funcionar con el filtro puesto. Es un fallo
+ * que no se ve en ningún sitio, y por eso se afirma sobre la URL que se ha pedido.
+ */
+describe('listado de dominios', () => {
+  it('manda los cuatro filtros y la pagina en la query', async () => {
+    responderCon({ items: [], total: 0, limit: 25, offset: 50 }, 200)
+
+    await listDomains(TOKEN, ORGANIZACION, {
+      search: 'acme',
+      status: 'PENDING',
+      created_from: '2026-03-10',
+      created_to: '2026-03-12',
+      limit: 25,
+      offset: 50,
+    })
+
+    const url = urlDeLaPeticion()
+    expect(url.pathname).toBe('/api/v1/assets/domains')
+    expect(url.searchParams.get('search')).toBe('acme')
+    expect(url.searchParams.get('status')).toBe('PENDING')
+    expect(url.searchParams.get('created_from')).toBe('2026-03-10')
+    expect(url.searchParams.get('created_to')).toBe('2026-03-12')
+    expect(url.searchParams.get('limit')).toBe('25')
+    expect(url.searchParams.get('offset')).toBe('50')
+  })
+
+  it('no manda los filtros que estan vacios', async () => {
+    responderCon({ items: [], total: 0, limit: 25, offset: 0 }, 200)
+
+    await listDomains(TOKEN, ORGANIZACION, {
+      search: '',
+      status: undefined,
+      created_from: '',
+      limit: 25,
+    })
+
+    const url = urlDeLaPeticion()
+    // Una cadena vacia en la query la lee el backend como un filtro puesto que no coincide
+    // con nada: `?search=` es distinto de no mandar `search`.
+    expect(url.search).toBe('?limit=25')
+  })
+
+  it('sin filtros no pone query string en absoluto', async () => {
+    responderCon({ items: [], total: 0, limit: 25, offset: 0 }, 200)
+
+    await listDomains(TOKEN, ORGANIZACION)
+
+    const url = urlDeLaPeticion()
+    expect(url.search).toBe('')
   })
 })

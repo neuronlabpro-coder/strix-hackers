@@ -19,7 +19,14 @@
     "distributionTitle": "Distribución por severidad",
     "distributionCaption": "Hallazgos activos por severidad",
     "distributionEmpty": "Todavía no hay hallazgos activos",
-    "gaugeValue": "{{score}}/100"
+    "gaugeValue": "{{score}}/100",
+    "severityLegend": "Hallazgos abiertos",
+    "severityAria": "{{total}} hallazgos abiertos por severidad",
+    "trendEyebrow": "Evolución",
+    "trendTitle": "Hallazgos detectados por día",
+    "trendAxis": "Día",
+    "trendEmpty": "No se han detectado hallazgos en el periodo",
+    "trendAria": "{{total}} hallazgos detectados en los últimos 30 días, por severidad"
   },
   "repositoriesWidget": {
     "title": "Repositorios conectados",

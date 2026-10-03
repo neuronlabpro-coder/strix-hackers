@@ -23,6 +23,7 @@ import type {
   SupportSummary,
   TicketCreatePayload,
   TicketDetail,
+  TicketFilters,
   TicketMessage,
   TicketPage,
   TicketReplyPayload,
@@ -107,13 +108,28 @@ export function getSupportSummary(
   )
 }
 
+/**
+ * Los tickets del workspace, con filtros y paginación.
+ *
+ * Antes solo aceptaba un `status` suelto y sin `limit`, así que la vista se quedaba con las
+ * primeras veinticinco filas del workspace y las demás no existían para nadie: no había forma de
+ * llegar a ellas. Los filtros viajan en la query y **no** se aplican en el cliente, por la razón
+ * de siempre: sin `total` no hay forma de saber si lo que no sale de la respuesta existe.
+ */
 export function getMyTickets(
   token: string,
   organizationId: string,
-  status?: string,
+  filters: TicketFilters = {},
 ): Promise<TicketPage> {
   return tenantRequest<TicketPage>(
-    `/api/v1/support/tickets${query({ status })}`,
+    `/api/v1/support/tickets${query({
+      status: filters.status,
+      query: filters.query,
+      created_from: filters.created_from,
+      created_to: filters.created_to,
+      limit: filters.limit,
+      offset: filters.offset,
+    })}`,
     { method: 'GET' },
     token,
     organizationId,

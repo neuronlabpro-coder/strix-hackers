@@ -127,9 +127,12 @@
 - [x] **4.0 · Vista global de revisiones**
   - [x] KPIs de cabecera: `PRs auditados`, `PRs limpios`, `PRs con hallazgos bloqueantes` y `Hallazgos` (críticos + altos sumados)
   - [x] Filtro por estado del escaneo: `Passed`, `Failed`, `Scanning`, `Queued`, `Error`
+  - [x] Buscador por texto (repositorio, título, autor, rama o número exacto de pull request) y rango de fechas de alta, con el día final incluido
+  - [x] Botón `Limpiar filtros`, visible solo cuando hay algún filtro puesto
+  - [x] Paginación con `total` del servidor, bajo la tabla
   - [x] Tabla: `Repositorio`, `Pull request` (número y título), `Autor`, `Estado`, `Hallazgos` y `Fecha`
   - [x] Badge de estado de merge: `Aprobado`, `Bloqueado`, `Pendiente`, `Error`
-  - [x] Endpoint global `GET /api/v1/pr-reviews/` con aislamiento por tenant y filtro opcional por repositorio
+  - [x] Endpoint global `GET /api/v1/pr-reviews/` con aislamiento por tenant y filtros opcionales por repositorio, texto y rango de fechas de alta
   - [x] Indicadores agregados en `GET /api/v1/pr-reviews/metrics`, resueltos en una sola consulta
   - [x] Estado vacío con explicación de cómo habilitar las revisiones desde un repositorio
 - [ ] **4.1 · Pestaña Issues Caught (Vulnerabilidades frenadas en CI)**

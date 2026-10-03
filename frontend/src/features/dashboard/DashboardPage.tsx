@@ -1,11 +1,46 @@
+/**
+ * `/dashboard`: la postura del workspace de un vistazo.
+ *
+ * ## Por qué hay cuatro cifras **y** tres gráficos, y no unas en vez de otras
+ *
+ * Porque responden a preguntas distintas y ninguna se deduce de la otra. Un `24` de hallazgos
+ * abiertos no dice si los tres críticos son de hoy o de hace seis meses; un `72%` de fix rate
+ * no dice cuál es la severidad que se está ignorando. La cifra grande es un dato puntual y el
+ * gráfico una distribución: se complementan, y quitar cualquiera de los dos deja media
+ * pregunta sin respuesta.
+ *
+ * ## Por qué las cuatro cifras se quedan
+ *
+ * Porque son el ancla. Un gráfico sin un número al lado obliga a estimar el área para
+ * contestarse «¿tengo mucho o poco?», y en riesgo eso no se estima: se lee. El error más caro
+ * de un panel de seguridad es que alguien infiera su postura en lugar de leerla.
+ *
+ * ## Por qué la distribución por severidad son barras y no una torta
+ *
+ * Ver `distributionOption`. Con cinco porciones, un sector compara áreas —que el ojo no sabe
+ * leer— y su área es un porcentaje de una circunferencia, no una longitud. Una barra con el
+ * número escrito al lado compara longitudes **y** dice la cifra exacta, y su etiqueta de eje
+ * es el nombre de la severidad, que es lo que hace que el color no tenga que ir en solitario.
+ */
+
 import { Suspense, lazy, useMemo, useState } from 'react'
 import { ArrowRight, CodeXml } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 import type { ChartOption } from '../../charts/EChart'
-import { readChartPalette, type ChartPalette, type SeverityColorKey } from '../../charts/palette'
-import type { DashboardRepository, VulnerabilitySeverity } from '../../types/api'
+import {
+  SEVERITY_KEYS,
+  readChartPalette,
+  type ChartPalette,
+  type SeverityColorKey,
+} from '../../charts/palette'
+import { formatearEntero, opcionBarrasReparto, opcionLineaApilada, puntosDeSeveridad } from '../../charts/opciones'
+import type {
+  DashboardRepository,
+  FindingsTrendPoint,
+  VulnerabilitySeverity,
+} from '../../types/api'
 import { useAuth } from '../auth/useAuth'
 import { ConnectedRepositoryToggle } from '../repositories/RepositoryReviewToggle'
 import { OnboardingChecklist } from './OnboardingChecklist'
@@ -16,14 +51,37 @@ const EChart = lazy(() =>
   import('../../charts/EChart').then((module) => ({ default: module.EChart })),
 )
 
-const SEVERITY_COLORS: Record<VulnerabilitySeverity, SeverityColorKey> = {
-  CRITICAL: 'critical',
-  HIGH: 'high',
-  MEDIUM: 'medium',
-  LOW: 'low',
-  INFO: 'info',
+/**
+ * La clave del token de cada severidad, en el orden de `SEVERITY_KEYS`.
+ *
+ * ## Por qué es `Record<SeverityColorKey, string>` y no `Record<string, SeverityColorKey>`
+ *
+ * Porque el dominio son cinco valores cerrados y el tipo lo dice: si mañana el servidor
+ * devuelve `BLOCKER`, el acceso a `SEVERITY_OF_KEY['BLOCKER']` deja de compilar y se descubre
+ * mirando este fichero, no leyendo un `undefined` en una captura. La decisión de qué clave del
+ * modelo corresponde a qué token tiene que estar escrita en un solo sitio —si dos pantallas la
+ * escriben distinto, el rojo de un gráfico puede ser el alto del de al lado— y por eso vive
+ * aquí: el módulo de esquemas recibe los puntos ya coloreados, y quien los colorea es quien
+ * sabe cómo se llaman las cosas en el modelo.
+ */
+const SEVERITY_OF_KEY: Record<SeverityColorKey, VulnerabilitySeverity> = {
+  critical: 'CRITICAL',
+  high: 'HIGH',
+  medium: 'MEDIUM',
+  low: 'LOW',
+  info: 'INFO',
 }
 
+/**
+ * El medidor de salud: un arco de 240 grados con el índice dentro.
+ *
+ * ## Por qué el fondo del arco usa `--color-surface-elevated` y no `--color-surface`
+ *
+ * Porque `surface` es **la tarjeta donde vive el gráfico**: un anillo del mismo color que el
+ * fondo se ve como una barra vacía que se ha quedado a medias, no como el resto del medidor. Un
+ * paso por encima —`surface-elevated`— se lee como «pista» y es el mismo paso que usan los
+ * inputs, de modo que el objeto habla el mismo idioma que el resto del panel.
+ */
 function gaugeOption(score: number, scoreLabel: string, palette: ChartPalette): ChartOption {
   return {
     backgroundColor: 'transparent',
@@ -43,7 +101,7 @@ function gaugeOption(score: number, scoreLabel: string, palette: ChartPalette): 
           itemStyle: { color: palette.accent },
         },
         axisLine: {
-          lineStyle: { width: 14, color: [[1, palette.surface]] },
+          lineStyle: { width: 14, color: [[1, palette.surfaceElevated]] },
         },
         pointer: { show: false },
         axisTick: { show: false },
@@ -63,50 +121,19 @@ function gaugeOption(score: number, scoreLabel: string, palette: ChartPalette): 
   }
 }
 
-function distributionOption(
-  distribution: { severity: VulnerabilitySeverity; total: number }[],
-  palette: ChartPalette,
-): ChartOption {
-  return {
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: palette.surface,
-      borderColor: palette.secondary,
-      textStyle: { color: palette.primary, fontFamily: 'JetBrains Mono, monospace' },
-    },
-    legend: {
-      bottom: 0,
-      icon: 'square',
-      textStyle: { color: palette.secondary, fontSize: 11 },
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['58%', '86%'],
-        center: ['50%', '44%'],
-        avoidLabelOverlap: true,
-        itemStyle: { borderColor: palette.surface, borderWidth: 2 },
-        label: { show: false },
-        data: distribution
-          .filter((item) => item.total > 0)
-          .map((item) => ({
-            name: item.severity,
-            value: item.total,
-            itemStyle: { color: palette[SEVERITY_COLORS[item.severity]] },
-          })),
-      },
-    ],
-  }
-}
-
 function formatPercent(value: number, locale: string): string {
   return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }).format(value)
+}
+
+/** El eje de días de la serie, en `MM-DD`: el año no aporta en una ventana de un mes. */
+function etiquetaDia(dia: string): string {
+  return dia.slice(5)
 }
 
 export function DashboardPage() {
   const { t, i18n } = useTranslation('dashboard')
   const { t: tCommon } = useTranslation('common')
+  const { t: tIssues } = useTranslation('issues')
   const { t: tRepositories } = useTranslation('repositories')
   const { organizations, selectedOrganizationId } = useAuth()
   const { summary, isLoading, loadFailed, refresh } = useDashboardSummary()
@@ -118,21 +145,98 @@ export function DashboardPage() {
   )
   const workspaceName = selectedOrganization?.name ?? tCommon('noWorkspace')
 
-  const gauge = useMemo(() => {
-    const palette = readChartPalette()
-    return gaugeOption(
-      summary?.security_score ?? 0,
-      t('charts.gaugeValue', { score: summary?.security_score ?? 0 }),
-      palette,
-    )
-  }, [summary?.security_score, t])
+  const palette = useMemo(() => readChartPalette(), [])
 
-  const distribution = useMemo(
-    () => distributionOption(summary?.severity_distribution ?? [], readChartPalette()),
-    [summary?.severity_distribution],
+  const gauge = useMemo(
+    () =>
+      gaugeOption(
+        summary?.security_score ?? 0,
+        t('charts.gaugeValue', { score: summary?.security_score ?? 0 }),
+        palette,
+      ),
+    [summary?.security_score, t, palette],
   )
 
-  const hasFindings = (summary?.severity_distribution ?? []).some((item) => item.total > 0)
+  /*
+ * El `?? []` va **dentro** del `useMemo`, no en una constante intermedia.
+ *
+ * Porque una constante `SIN_HALLAZGOS` evaluada en el cuerpo del componente crearía un array
+ * nuevo en cada render mientras el resumen aún no ha llegado, y el `useMemo` de abajo dependería
+ * de él: se invalidaría en cada render y la memoización no memoizaría nada. Es el mismo motivo
+ * por el que `NetworksPage` declara `SIN_TRABAJOS` como constante de **módulo** —una sola
+ * vez— y no como literal. Aquí no hace falta constante porque el `??` está dentro del callback,
+ * que solo corre cuando las dependencias han cambiado de verdad.
+ */
+const openFindings = summary?.severity_distribution
+
+  const puntosSeveridad = useMemo(
+    () =>
+      puntosDeSeveridad(
+        (openFindings ?? []).map((item) => ({
+          severity: item.severity,
+          total: item.total,
+        })),
+        palette,
+        (severity) => tIssues(`severityCounts.${severity}`),
+      ),
+    [openFindings, palette, tIssues],
+  )
+
+  const totalOpen = useMemo(
+    () => puntosSeveridad.reduce((suma, punto) => suma + punto.total, 0),
+    [puntosSeveridad],
+  )
+
+  const opcionSeveridad = useMemo(
+    () =>
+      opcionBarrasReparto(puntosSeveridad, palette, {
+        serie: t('charts.severityLegend'),
+        total: t('charts.severityAria', { total: formatearEntero(totalOpen, locale) }),
+        vacio: t('charts.distributionEmpty'),
+      }) as ChartOption,
+    [puntosSeveridad, palette, t, totalOpen, locale],
+  )
+
+  /**
+   * La serie temporal se arma aquí y no en el esquema.
+   *
+   * El esquema recibe puntos y series ya listas porque decidir **qué** series se dibujan
+   * (las cinco, aunque valgan cero) es una decisión de datos, y la de **cómo** se pintan es
+   * una decisión de esquema. Meter la translation y el `Record` dentro de `opciones.ts`
+   * obligaría a ese módulo a saber de i18next, que es lo que hace que un módulo de gráficos
+   * deje de poder probarse sin montar un provider de traducción.
+   */
+  const serie = useMemo(() => {
+    const trend: FindingsTrendPoint[] = summary?.findings_trend ?? []
+    const puntos = trend.map((punto) => ({ dia: etiquetaDia(punto.dia), total: punto.total }))
+    const series = SEVERITY_KEYS.map((clave) => ({
+      clave,
+      nombre: tIssues(`severityCounts.${SEVERITY_OF_KEY[clave]}`),
+      valores: trend.map((punto) => punto.por_severidad[SEVERITY_OF_KEY[clave]] ?? 0),
+    }))
+    return { puntos, series, trend }
+  }, [summary?.findings_trend, tIssues])
+
+  const opcionSerie = useMemo(
+    () =>
+      opcionLineaApilada(serie.puntos, serie.series, palette, {
+        total: t('charts.trendAria', {
+          total: formatearEntero(
+            serie.trend.reduce((suma, punto) => suma + punto.total, 0),
+            locale,
+          ),
+        }),
+        eje: t('charts.trendAxis'),
+      }) as ChartOption,
+    [serie, palette, t, locale],
+  )
+
+  const totalSerie = useMemo(
+    () => serie.trend.reduce((suma, punto) => suma + punto.total, 0),
+    [serie],
+  )
+
+  const hasFindings = totalOpen > 0
 
   return (
     <section className="page-section" aria-labelledby="dashboard-title">
@@ -190,7 +294,9 @@ export function DashboardPage() {
             <article className="metric-card">
               <p className="eyebrow">{t('kpis.fixRate')}</p>
               <strong className="metric-value mono">{formatPercent(summary.fix_rate, locale)}</strong>
-              <span className="metric-caption">{t('kpis.monitoredRepositories')}: {summary.repositories_monitored}</span>
+              <span className="metric-caption">
+                {t('kpis.monitoredRepositories')}: {summary.repositories_monitored}
+              </span>
             </article>
             <article className="metric-card">
               <p className="eyebrow">{t('kpis.prsReviewed')}</p>
@@ -216,6 +322,7 @@ export function DashboardPage() {
                 {t('charts.healthCaption')}: {t('charts.gaugeValue', { score: summary.security_score })}
               </p>
             </section>
+
             <section className="content-card" aria-labelledby="distribution-title">
               <p className="eyebrow">{t('charts.distributionTitle')}</p>
               <h2 id="distribution-title">{t('charts.distributionCaption')}</h2>
@@ -223,23 +330,58 @@ export function DashboardPage() {
                 <>
                   <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
                     <EChart
-                      option={distribution}
+                      option={opcionSeveridad}
                       height={220}
-                      ariaLabel={t('charts.distributionCaption')}
+                      ariaLabel={t('charts.severityAria', {
+                        total: formatearEntero(totalOpen, locale),
+                      })}
                     />
                   </Suspense>
                   <ul className="visually-hidden">
-                    {summary.severity_distribution
-                      .filter((item) => item.total > 0)
-                      .map((item) => (
-                        <li key={item.severity}>
-                          {item.severity}: {item.total}
+                    {puntosSeveridad
+                      .filter((punto) => punto.total > 0)
+                      .map((punto) => (
+                        <li key={punto.clave}>
+                          {punto.etiqueta}: {formatearEntero(punto.total, locale)}
                         </li>
                       ))}
                   </ul>
                 </>
               ) : (
                 <p className="chart-empty">{t('charts.distributionEmpty')}</p>
+              )}
+            </section>
+
+            <section className="content-card" aria-labelledby="trend-title">
+              <p className="eyebrow">{t('charts.trendEyebrow')}</p>
+              <h2 id="trend-title">{t('charts.trendTitle')}</h2>
+              {totalSerie > 0 ? (
+                <>
+                  <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+                    <EChart
+                      option={opcionSerie}
+                      height={220}
+                      ariaLabel={t('charts.trendAria', {
+                        total: formatearEntero(totalSerie, locale),
+                      })}
+                    />
+                  </Suspense>
+                  <ul className="visually-hidden">
+                    {serie.series
+                      .filter((linea) => linea.valores.some((valor) => valor > 0))
+                      .map((linea) => (
+                        <li key={linea.clave}>
+                          {linea.nombre}:{' '}
+                          {formatearEntero(
+                            linea.valores.reduce((suma, valor) => suma + valor, 0),
+                            locale,
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="chart-empty">{t('charts.trendEmpty')}</p>
               )}
             </section>
           </div>

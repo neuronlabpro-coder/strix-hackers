@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -153,10 +154,42 @@ class DomainItem(BaseModel):
 
 
 class DomainListResponse(BaseModel):
-    """Dominios del workspace activo."""
+    """Página de dominios del workspace activo.
+
+    ## Por qué `limit` y `offset` viajan en la respuesta
+
+    Porque los tres van en el mismo sitio que en el resto de endpoints paginados del proyecto,
+    y porque son los que la barra de paginación del panel necesita para no calcularlos por su
+    cuenta: si el cliente los supusiera, un día que el servidor cambiara el tope por defecto la
+    barra prometería páginas que no existen.
+    """
 
     items: list[DomainItem]
     total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)
+
+
+class DomainVerificationFilter(StrEnum):
+    """El estado de verificación por el que se puede filtrar el listado.
+
+    ## Por qué es un enum y no un `bool`
+
+    Porque `?verified=false` se lee como «no verificado» y `?verified=false` **también** puede
+    leerse como «no me importa el filtro», y en una tabla la primera lectura es la que hace la
+    gente. Un enum con dos valores que se escriben enteros —`VERIFIED` y `PENDING`— deja claro
+    que lo que no se manda es «sin filtro» y lo que se manda es siempre una de las dos
+    respuestas. Además el servidor valida: un valor inventado es un `422` y no una lista
+    silenciosamente vacía.
+
+    ## Por qué no vive en la tabla
+
+    Porque no es una columna: `verified_domains` guarda `is_verified` como `bool`. Es un filtro
+    de lectura, y por eso está en los esquemas y no en los modelos.
+    """
+
+    VERIFIED = "VERIFIED"
+    PENDING = "PENDING"
 
 
 class DomainConflictResponse(BaseModel):
@@ -272,6 +305,7 @@ __all__ = [
     "DomainCreate",
     "DomainItem",
     "DomainListResponse",
+    "DomainVerificationFilter",
     "DomainVerificationMethodEnum",
     "VerifyDomainResponse",
     "normalize_domain",

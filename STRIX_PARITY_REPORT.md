@@ -11,8 +11,8 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **990** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
-- Pruebas de frontend: **119**
+- Pruebas de backend: **1049** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de frontend: **180**
 
 ## Superficie funcional
 
@@ -158,11 +158,11 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/pentests/abort.py:143` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/abort.py:146` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/abort.py:147` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:38` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:51` | StrixSandboxManager.kill_container(container_reference) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:307` | container_reference = run.container_id or StrixSandboxManager.container_name_for_run( | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:312` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:313` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/router.py:40` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/router.py:73` | StrixSandboxManager.kill_container(container_reference) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/router.py:388` | container_reference = run.container_id or StrixSandboxManager.container_name_for_run( | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/router.py:393` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/router.py:394` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/repositories/autofix.py:60` | if len(patch.encode("utf-8")) > settings.strix_max_autofix_chars: | identificador: strix_max_autofix_chars |
 | identidad tecnica | `backend/apps/repositories/pipeline.py:52` | from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output | identificador: extract_strix_scan_id, parse_strix_output, strix_parser |
 | identidad tecnica | `backend/apps/repositories/pipeline.py:53` | from backend.workers.runner.sandbox import SandboxRunResult, StrixSandboxManager | identificador: StrixSandboxManager |

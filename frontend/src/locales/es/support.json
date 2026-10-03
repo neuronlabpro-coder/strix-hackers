@@ -87,10 +87,32 @@
     "title": "Todavía no has abierto ningún ticket",
     "description": "Si algo falla, o si tienes una duda sobre un hallazgo, abre un ticket y lo atenderá una persona del equipo."
   },
+  "filters": {
+    "search": "Buscar",
+    "searchPlaceholder": "Número, asunto o remitente...",
+    "status": "Estado",
+    "allStatuses": "Todos los estados",
+    "dateFrom": "Alta desde",
+    "dateTo": "Alta hasta",
+    "dateHint": "Filtra por la fecha de alta del ticket, no por la de última actividad que muestra la tabla. El rango incluye el día final entero."
+  },
+  "states": {
+    "loading": "Cargando tickets…",
+    "error": "No se pudieron cargar tus tickets.",
+    "noResultsTitle": "Ningún ticket coincide con los filtros",
+    "noResultsDescription": "Prueba con otro estado, otra fecha o una búsqueda más corta."
+  },
+  "actions": {
+    "clearFilters": "Limpiar filtros"
+  },
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
+  },
   "messages": {
     "openTicketSuccess": "Ticket {{number}} abierto. Te responderemos por aquí.",
     "openTicketError": "No se pudo abrir el ticket.",
-    "loadError": "No se pudieron cargar tus tickets.",
     "detailError": "No se pudo cargar el ticket.",
     "replyError": "No se pudo enviar la respuesta.",
     "forbidden": "Tu sesión ya no es válida. Vuelve a iniciar sesión."

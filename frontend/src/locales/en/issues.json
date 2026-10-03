@@ -45,6 +45,17 @@
     "caption": "Columns by remediation status",
     "empty": "No findings in this status"
   },
+  "charts": {
+    "empty": "Nothing to split with the current filter",
+    "severityEyebrow": "Distribution",
+    "severityTitle": "Findings by severity",
+    "severityLegend": "Findings",
+    "severityAria": "{{total}} findings by severity, with the current filter",
+    "statusEyebrow": "Triage",
+    "statusTitle": "Findings by remediation status",
+    "statusLegend": "Findings",
+    "statusAria": "{{total}} findings by remediation status, with the current filter"
+  },
   "pagination": {
     "label": "Pagination",
     "summary": "{{from}}-{{to}} of {{total}}",

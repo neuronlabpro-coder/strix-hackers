@@ -45,6 +45,17 @@
     "caption": "Columnas por estado de remediación",
     "empty": "Sin hallazgos en este estado"
   },
+  "charts": {
+    "empty": "Nada que repartir con el filtro actual",
+    "severityEyebrow": "Reparto",
+    "severityTitle": "Hallazgos por severidad",
+    "severityLegend": "Hallazgos",
+    "severityAria": "{{total}} hallazgos por severidad, con el filtro actual",
+    "statusEyebrow": "Triaje",
+    "statusTitle": "Hallazgos por estado de remediación",
+    "statusLegend": "Hallazgos",
+    "statusAria": "{{total}} hallazgos por estado de remediación, con el filtro actual"
+  },
   "pagination": {
     "label": "Paginación",
     "summary": "{{from}}-{{to}} de {{total}}",

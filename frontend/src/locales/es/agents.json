@@ -94,12 +94,17 @@
       "trendEyebrow": "Actividad",
       "trendTitle": "Escaneos por día",
       "trendAria": "{{total}} escaneos en los últimos quince días.",
+      "trendOk": "Terminados",
+      "trendKo": "Fallidos",
+      "trendEmpty": "Todavía no hay escaneos en el periodo",
       "statusEyebrow": "Estado",
       "statusTitle": "Cómo terminan",
       "statusAria": "{{done}} escaneos terminados.",
+      "statusEmpty": "Todavía no hay escaneos que clasificar",
       "ecosystemEyebrow": "Inventario",
       "ecosystemTitle": "Paquetes por ecosistema",
-      "ecosystemAria": "{{total}} paquetes repartidos por gestor de paquetes."
+      "ecosystemAria": "{{total}} paquetes repartidos por gestor de paquetes.",
+      "ecosystemEmpty": "Todavía no hay paquetes inventariados"
     },
     "filters": {
       "search": "Buscar imagen",
@@ -176,12 +181,17 @@
       "portsEyebrow": "Exposición",
       "portsTitle": "Puertos abiertos",
       "portsAria": "{{total}} puertos abiertos, agrupados por número.",
+      "portsEmpty": "Todavía no hay puertos abiertos que mostrar",
       "statusEyebrow": "Estado",
       "statusTitle": "Cómo terminan",
       "statusAria": "{{done}} escaneos terminados.",
+      "statusEmpty": "Todavía no hay escaneos que clasificar",
       "trendEyebrow": "Actividad",
       "trendTitle": "Escaneos por día",
-      "trendAria": "{{total}} escaneos en los últimos quince días."
+      "trendAria": "{{total}} escaneos en los últimos quince días.",
+      "trendOk": "Terminados",
+      "trendKo": "Fallidos",
+      "trendEmpty": "Todavía no hay escaneos en el periodo"
     },
     "filters": {
       "search": "Buscar",

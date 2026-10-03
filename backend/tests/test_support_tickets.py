@@ -29,9 +29,10 @@ mire el estado.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1043,3 +1044,388 @@ async def test_categorias_y_prioridades_validas(integration_session: AsyncSessio
                 headers=cabeceras,
             )
             assert respuesta.status_code == 201, f"{prioridad.value}: {respuesta.text}"
+
+
+# --------------------------------------------------------------------------- #
+# Filtros de la vista de cliente: texto, estado y rango de alta
+# --------------------------------------------------------------------------- #
+#
+# ## Por qué estas pruebas miden **todas** las filas y no solo `items[0]`
+#
+# Porque un filtro mal escrito no falla de forma visible: devuelve la tabla entera, o se
+# lleva por delante filas que no tocan. Un `assert` sobre la primera fila las dejaría pasar.
+
+
+async def _abrir_ticket_como_otro_miembro(
+    session: AsyncSession,
+    cabeceras: dict[str, str],
+    organization: Organization,
+    *,
+    subject: str,
+) -> dict[str, object]:
+    """Abre un ticket con **otro** usuario del mismo workspace.
+
+    Hace falta para probar la búsqueda por autor: si todos los tickets de la prueba los abre la
+    misma persona —que es lo que pasa por defecto—, su correo coincide en todos y buscarlo no
+    distingue nada de no filtrar.
+    """
+
+    suffix = uuid.uuid4().hex
+    otro = User(
+        email=f"colega-{suffix}@example.com",
+        hashed_password=hash_password("NoSeUsa"),
+        full_name="Colega del workspace",
+        email_verified=True,
+    )
+    session.add(otro)
+    await session.flush()
+    session.add(
+        Membership(
+            organization_id=organization.id, user_id=otro.id, role=RoleEnum.MEMBER
+        )
+    )
+    await session.commit()
+    return await _abrir_ticket(session, _headers(otro, organization), subject=subject)
+
+
+async def _abrir_con_fecha(
+    session: AsyncSession,
+    cabeceras: dict[str, str],
+    *,
+    subject: str,
+    created_at: datetime | None = None,
+) -> dict[str, object]:
+    """Abre un ticket y le fija la fecha de alta si se le pasa.
+
+    `created_at` se puede escribir a mano porque la columna solo declara `server_default`: el
+    valor explícito se acepta, y es lo único que permite medir el rango sin depender del reloj.
+    """
+
+    cuerpo = await _abrir_ticket(session, cabeceras, subject=subject)
+    if created_at is not None:
+        ticket = await session.get(SupportTicket, cuerpo["id"])
+        assert ticket is not None
+        ticket.created_at = created_at
+        ticket.updated_at = created_at
+        await session.commit()
+    return cuerpo
+
+
+async def _listar(cabeceras: dict[str, str], parametros: str) -> Response:
+    """La **respuesta**, no el cuerpo ya parseado.
+
+    Se devuelve el `Response` y el cuerpo se lee con `.json()` en cada aserción por la misma
+    razón que en `test_pr_reviews_api.py`: `json()` devuelve `Any`, y con un `dict[str, object]`
+    el tipado estricto se queja de cada `cuerpo["items"][0]` —que es ruido en una prueba— mientras
+    que con `Any` el fallo real, que es una clave que no existe, sale en el `KeyError`.
+    """
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as cliente:
+        respuesta = await cliente.get(
+            f"/api/v1/support/tickets{parametros}", headers=cabeceras
+        )
+    assert respuesta.status_code == 200, respuesta.text
+    return respuesta
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_tickets_encuentra_por_asunto_numero_y_autor(
+    integration_session: AsyncSession,
+) -> None:
+    """Las tres cosas con las que se recuerda un ticket, y no una sola.
+
+    Con una sola columna, dos de cada tres búsquedas darían página vacía y el buscador
+    parecería roto. El número se busca **como se ve en pantalla**, con la almohadilla, que es
+    lo natural: la columna guarda `TK-1005` y la pinta como `#TK-1005`.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    por_asunto = await _abrir_ticket(
+        integration_session,
+        cabeceras,
+        subject="El escaneo se queda parado en fase de analisis",
+    )
+    por_numero = await _abrir_ticket(
+        integration_session,
+        cabeceras,
+        subject="Asunto que no tiene nada que ver con la busqueda",
+    )
+    por_autor = await _abrir_ticket_como_otro_miembro(
+        integration_session,
+        cabeceras,
+        org,
+        subject="Otro asunto que tampoco aparece en la busqueda",
+    )
+    correo_autor = str(por_autor["created_by_email"])
+
+    encontrado_asunto = (await _listar(cabeceras, "?query=fase de analisis")).json()
+    encontrado_numero = (
+        await _listar(cabeceras, f"?query=%23{por_numero['ticket_number']}")
+    ).json()
+    encontrado_autor = (await _listar(cabeceras, f"?query={correo_autor}")).json()
+    sin_coincidencia = (await _listar(cabeceras, "?query=esta-frase-no-existe")).json()
+
+    assert encontrado_asunto["total"] == 1
+    assert encontrado_asunto["items"][0]["id"] == por_asunto["id"]
+    assert encontrado_numero["total"] == 1
+    assert encontrado_numero["items"][0]["id"] == por_numero["id"]
+    # El correo del colega solo aparece en **su** ticket, así que un filtro que no buscara por
+    # autor devolvería los tres y la prueba lo vería.
+    assert encontrado_autor["total"] == 1
+    assert encontrado_autor["items"][0]["id"] == por_autor["id"]
+    assert sin_coincidencia["total"] == 0
+    assert sin_coincidencia["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_tickets_trata_los_comodines_como_literales(
+    integration_session: AsyncSession,
+) -> None:
+    """`%` y `_` se buscan literales.
+
+    Sin escapar, `?query=%` devuelve **la tabla entera**: el comodín va en los dos extremos, así
+    que el patrón `%\\%%` casa con cualquier valor. Es el peor tipo de fallo de un filtro, porque
+    la pantalla «funciona» —sale una tabla, solo que entera— y no hay nada que reportar.
+    """
+
+    _user, _org, cabeceras = await _tenant(integration_session)
+    await _abrir_ticket(
+        integration_session, cabeceras, subject="Descuento del 100%off en el plan anual"
+    )
+    await _abrir_ticket(
+        integration_session, cabeceras, subject="Descuento del 1000off en el plan anual"
+    )
+    await _abrir_ticket(
+        integration_session, cabeceras, subject="Ticket con web_app en el asunto"
+    )
+    await _abrir_ticket(
+        integration_session, cabeceras, subject="Ticket con webXapp en el asunto"
+    )
+
+    con_porcentaje = (await _listar(cabeceras, "?query=100%25off")).json()
+    con_guion_bajo = (await _listar(cabeceras, "?query=web_app")).json()
+    solo_porcentaje = (await _listar(cabeceras, "?query=%25")).json()
+
+    # Solo el que lleva el símbolo literal. El otro tiene `1000off`, que `%` también casaría.
+    assert con_porcentaje["total"] == 1
+    assert "100%off" in con_porcentaje["items"][0]["subject"]
+    assert con_guion_bajo["total"] == 1
+    assert "web_app" in con_guion_bajo["items"][0]["subject"]
+    # `%` a secas devuelve **una** fila —la que de verdad lleva el símbolo en el asunto— y no
+    # las cuatro. Sin escapar serían las cuatro, que es exactamente el fallo que se comprueba.
+    assert solo_porcentaje["total"] == 1
+    assert "100%off" in solo_porcentaje["items"][0]["subject"]
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_tickets_no_devuelve_la_tabla_por_un_termino_vacio(
+    integration_session: AsyncSession,
+) -> None:
+    """Un término vacío es un filtro vacío, no «casa con todo».
+
+    La diferencia entre las dos cosas es la diferencia entre una lista vacía y una pantalla
+    llena de tickets que el usuario no ha pedido. Y el botón de limpiar compara contra este
+    mismo criterio: si el filtro vacío se aplicara, el botón no aparecería nunca.
+    """
+
+    _user, _org, cabeceras = await _tenant(integration_session)
+    await _abrir_ticket(integration_session, cabeceras, subject="Un ticket de verdad")
+
+    solo_espacios = (await _listar(cabeceras, "?query=%20%20%20")).json()
+    solo_almohadilla = (await _listar(cabeceras, "?query=%23")).json()
+
+    assert solo_espacios["total"] == 1
+    assert solo_espacios["items"][0]["subject"] == "Un ticket de verdad"
+    assert solo_almohadilla["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_tickets_no_busca_por_el_nombre_del_tenant(
+    integration_session: AsyncSession,
+) -> None:
+    """En la vista de cliente el nombre del workspace no es una columna donde buscar.
+
+    Es siempre el mismo, así que incluirlo convertiría cualquier término que saliera en él —y el
+    nombre de una empresa suele ser una palabra suelta— en «devuélveme todos». En la consola sí
+    se busca, y esa mitad también se comprueba: si el filtro no se distinguiera, la consola
+    habría perdido la búsqueda por tenant y el fallo sería igual de silencioso.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session, is_superuser=True)
+    await _abrir_ticket(integration_session, cabeceras, subject="Un ticket de verdad")
+    # El nombre del workspace se pone a una palabra reconocible para poder buscarlo.
+    org.name = "Zetaunico"
+    await integration_session.commit()
+
+    por_nombre_del_cliente = (await _listar(cabeceras, "?query=zetaunico")).json()
+
+    assert por_nombre_del_cliente["total"] == 0
+    assert por_nombre_del_cliente["items"] == []
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as cliente:
+        por_nombre_de_consola = await cliente.get(
+            "/api/v1/admin/tickets?search=zetaunico",
+            headers={"Authorization": cabeceras["Authorization"]},
+        )
+
+    assert por_nombre_de_consola.status_code == 200, por_nombre_de_consola.text
+    assert por_nombre_de_consola.json()["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_el_rango_de_tickets_usa_la_fecha_de_alta_y_el_ultimo_dia_entra_entero(
+    integration_session: AsyncSession,
+) -> None:
+    """Los cuatro bordes del rango, con el día final **completo**.
+
+    Se comprueban los cuatro: la medianoche previa se queda fuera, la inicial entra, el último
+    segundo del día final entra y la medianoche siguiente se queda fuera. Con un `<=` sobre la
+    medianoche del `created_to` dejaría pasar solo el último.
+
+    Y va sobre `created_at`, no sobre `updated_at` —que es lo que ordena la tabla y se mueve con
+    cada mensaje—, porque un rango sobre una columna que cambia daría un resultado distinto a
+    los diez minutos.
+    """
+
+    _user, _org, cabeceras = await _tenant(integration_session)
+    ayer = await _abrir_con_fecha(
+        integration_session,
+        cabeceras,
+        subject="Ticket del dia anterior",
+        created_at=datetime(2026, 3, 9, 23, 59, tzinfo=UTC),
+    )
+    primer_dia = await _abrir_con_fecha(
+        integration_session,
+        cabeceras,
+        subject="Ticket del primer dia del rango",
+        created_at=datetime(2026, 3, 10, 0, 0, tzinfo=UTC),
+    )
+    ultimo_dia = await _abrir_con_fecha(
+        integration_session,
+        cabeceras,
+        subject="Ticket del ultimo dia del rango",
+        created_at=datetime(2026, 3, 12, 23, 59, 59, tzinfo=UTC),
+    )
+    dia_siguiente = await _abrir_con_fecha(
+        integration_session,
+        cabeceras,
+        subject="Ticket del dia siguiente",
+        created_at=datetime(2026, 3, 13, 0, 0, tzinfo=UTC),
+    )
+
+    rango = (await _listar(cabeceras, "?created_from=2026-03-10&created_to=2026-03-12")).json()
+    solo_desde = (await _listar(cabeceras, "?created_from=2026-03-12")).json()
+    invertido = (await _listar(cabeceras, "?created_from=2026-03-12&created_to=2026-03-10")).json()
+
+    assert rango["total"] == 2
+    assert {item["id"] for item in rango["items"]} == {primer_dia["id"], ultimo_dia["id"]}
+    assert solo_desde["total"] == 2
+    # Un rango invertido no es un `422`: las dos condiciones son incompatibles por
+    # construcción, así que la lista vacía ya es la respuesta que corresponde.
+    assert invertido["total"] == 0
+    assert invertido["items"] == []
+    # Los dos extremos, explícitamente, para que un recorte de un día no pase por bueno.
+    assert ayer["id"] not in {item["id"] for item in rango["items"]}
+    assert dia_siguiente["id"] not in {item["id"] for item in rango["items"]}
+
+
+@pytest.mark.asyncio
+async def test_los_filtros_de_tickets_se_quedan_dentro_del_tenant(
+    integration_session: AsyncSession,
+) -> None:
+    """R3 también con los filtros nuevos: el buscador no amplía la vista.
+
+    Un buscador es la forma más fácil de meter en la consulta una condición que el llamador
+    elige, así que la prueba mira lo que **no** devuelve tanto como lo que sí.
+    """
+
+    _u1, _org1, cab1 = await _tenant(integration_session)
+    _u2, _org2, cab2 = await _tenant(integration_session)
+    await _abrir_ticket(integration_session, cab1, subject="Titulo del tenant alfa")
+    await _abrir_ticket(integration_session, cab2, subject="Titulo del tenant beta")
+
+    ajeno = (await _listar(cab1, "?query=beta")).json()
+    propio = (await _listar(cab1, "?query=alfa")).json()
+
+    assert ajeno["total"] == 0
+    assert ajeno["items"] == []
+    assert propio["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_los_filtros_de_tickets_cuentan_antes_de_paginar(
+    integration_session: AsyncSession,
+) -> None:
+    """`total` cuenta lo que coincide con los filtros, no lo que hay en el workspace.
+
+    Es lo que hace honesta la barra de paginación: si `total` saliera sin filtrar, el resumen
+    «1-25 de 300» prometería páginas que al pulsarlas saldrían vacías.
+    """
+
+    _user, _org, cabeceras = await _tenant(integration_session)
+    for indice in range(3):
+        await _abrir_ticket(
+            integration_session, cabeceras, subject=f"Ticket que coincide {indice}"
+        )
+    await _abrir_ticket(
+        integration_session, cabeceras, subject="Ticket ajeno a la busqueda de esta prueba"
+    )
+
+    primera = (await _listar(cabeceras, "?query=coincide&limit=2&offset=0")).json()
+    segunda = (await _listar(cabeceras, "?query=coincide&limit=2&offset=2")).json()
+
+    assert primera["total"] == 3
+    assert len(primera["items"]) == 2
+    assert primera["limit"] == 2
+    assert primera["offset"] == 0
+    assert segunda["offset"] == 2
+    assert len(segunda["items"]) == 1
+    assert all(
+        "coincide" in item["subject"]
+        for item in list(primera["items"]) + list(segunda["items"])
+    )
+
+
+@pytest.mark.asyncio
+async def test_el_filtro_por_estado_de_ticket_recorta_dentro_del_mismo_texto(
+    integration_session: AsyncSession,
+) -> None:
+    """El estado **recorta** entre tickets que el buscador devuelve a los dos.
+
+    Es donde un filtro que se ignorara pasaría más desapercibido: si `status` no se aplicara,
+    las dos consultas devolverían la misma lista y la pantalla no avisaría de nada. Por eso los
+    tres tickets coinciden en el texto y en el rango, y lo único que cambia es el estado.
+    """
+
+    _user, _org, cabeceras = await _tenant(integration_session, is_superuser=True)
+    for indice in range(2):
+        await _abrir_ticket(
+            integration_session,
+            cabeceras,
+            subject=f"Fallo de replicacion numero {indice}",
+        )
+    resuelto = await _abrir_ticket(
+        integration_session, cabeceras, subject="Fallo de replicacion ya resuelto"
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as cliente:
+        cambio = await cliente.patch(
+            f"/api/v1/admin/tickets/{resuelto['id']}",
+            json={"status": "RESOLVED"},
+            headers={"Authorization": cabeceras["Authorization"]},
+        )
+    assert cambio.status_code == 200, cambio.text
+
+    sin_filtro = (await _listar(cabeceras, "?query=replicacion")).json()
+    abiertos = (await _listar(cabeceras, "?query=replicacion&status=OPEN")).json()
+    resueltos = (await _listar(cabeceras, "?query=replicacion&status=RESOLVED")).json()
+
+    assert sin_filtro["total"] == 3
+    assert abiertos["total"] == 2
+    assert resueltos["total"] == 1
+    assert resueltos["items"][0]["id"] == resuelto["id"]

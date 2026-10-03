@@ -87,10 +87,32 @@
     "title": "You have not opened a ticket yet",
     "description": "If something fails, or you have a question about a finding, open a ticket and someone from the team will handle it."
   },
+  "filters": {
+    "search": "Search",
+    "searchPlaceholder": "Number, subject or sender...",
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "dateFrom": "Opened from",
+    "dateTo": "Opened to",
+    "dateHint": "Filters by the date the ticket was opened, not by the last activity date shown in the table. The range includes the last day in full."
+  },
+  "states": {
+    "loading": "Loading tickets…",
+    "error": "Your tickets could not be loaded.",
+    "noResultsTitle": "No ticket matches the filters",
+    "noResultsDescription": "Try another status, another date, or a shorter search."
+  },
+  "actions": {
+    "clearFilters": "Clear filters"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "summary": "{{from}}–{{to}} of {{total}}"
+  },
   "messages": {
     "openTicketSuccess": "Ticket {{number}} opened. We will reply here.",
     "openTicketError": "The ticket could not be opened.",
-    "loadError": "Your tickets could not be loaded.",
     "detailError": "The ticket could not be loaded.",
     "replyError": "The reply could not be sent.",
     "forbidden": "Your session is no longer valid. Please sign in again."

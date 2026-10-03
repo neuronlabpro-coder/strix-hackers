@@ -47,7 +47,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,8 +132,13 @@ async def _dominio(
     nombre: str,
     *,
     verificado: bool = False,
+    created_at: datetime | None = None,
 ) -> VerifiedDomain:
-    """Crea un dominio directamente en la base, saltándose la API y el DNS."""
+    """Crea un dominio directamente en la base, saltándose la API y el DNS.
+
+    `created_at` se puede fijar a mano porque la columna solo declara `server_default`: es lo
+    único que permite medir el rango de fechas sin depender del reloj.
+    """
 
     dominio = VerifiedDomain(
         organization_id=organization_id,
@@ -141,6 +146,7 @@ async def _dominio(
         verification_token=uuid.uuid4().hex,
         is_verified=verificado,
         verified_at=datetime.now(UTC) if verificado else None,
+        **({} if created_at is None else {"created_at": created_at}),
     )
     session.add(dominio)
     await session.commit()
@@ -866,6 +872,210 @@ async def test_borrar_un_dominio_pendiente_se_lleva_sus_activos(
 
 
 # --------------------------------------------------------------------------- #
+# Filtros del inventario: texto y rango de fechas
+# --------------------------------------------------------------------------- #
+
+
+async def _activo(
+    session: AsyncSession,
+    dominio: VerifiedDomain,
+    organization_id: uuid.UUID,
+    valor: str,
+    *,
+    service_name: str | None = None,
+    created_at: datetime | None = None,
+) -> DiscoveredAsset:
+    """Un activo escrito directamente en la base, con `created_at` fijable a mano.
+
+    Se escribe en vez de usar `service.merge_assets` porque esta prueba mide **filtros**, no la
+    idempotencia del descubrimiento, y el merge fija `last_scanned_at` al reloj. Fijar
+    `created_at` a mano es lo único que permite medir un rango sin depender de la hora.
+    """
+
+    activo = DiscoveredAsset(
+        domain_id=dominio.id,
+        organization_id=organization_id,
+        asset_type=AssetTypeEnum.SUBDOMAIN,
+        value=valor,
+        service_name=service_name,
+        **({} if created_at is None else {"created_at": created_at}),
+    )
+    session.add(activo)
+    await session.commit()
+    return activo
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_activos_alcanza_valor_servicio_y_dominio(
+    integration_session: AsyncSession,
+) -> None:
+    """Un host se recuerda por tres cosas, y el buscador tiene que llegar a las tres.
+
+    `api.empresa.com` se busca por el nombre completo, por `api`, o por el nombre de servicio que
+    apareció en la tabla. Con una sola columna, dos de cada tres búsquedas darían página vacía y
+    el buscador parecería roto.
+    """
+
+    session = integration_session
+    assert session is not None
+    _, org, cabeceras = await _tenant(session, prefijo="busca")
+    dominio = await _dominio(session, org.id, "acme-filtro.com", verificado=True)
+    await _activo(session, dominio, org.id, "api.acme-filtro.com", service_name="payments")
+    await _activo(session, dominio, org.id, "www.acme-filtro.com", service_name="web")
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as cliente:
+            por_valor = await cliente.get(
+                "/api/v1/assets/discovery", params={"query": "api."}, headers=cabeceras
+            )
+            por_servicio = await cliente.get(
+                "/api/v1/assets/discovery", params={"query": "payments"}, headers=cabeceras
+            )
+            por_dominio = await cliente.get(
+                "/api/v1/assets/discovery",
+                params={"query": "acme-filtro"},
+                headers=cabeceras,
+            )
+
+        assert por_valor.json()["total"] == 1
+        assert por_valor.json()["items"][0]["value"] == "api.acme-filtro.com"
+        assert por_servicio.json()["total"] == 1
+        assert por_servicio.json()["items"][0]["value"] == "api.acme-filtro.com"
+        assert por_dominio.json()["total"] == 2
+    finally:
+        await _limpiar(session, org.id)
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_activos_no_trata_los_comodines_como_comodines(
+    integration_session: AsyncSession,
+) -> None:
+    """`%` y `_` se buscan literales, y no devuelven el inventario entero.
+
+    El fallo más silencioso de un buscador: la pantalla responde, enseña filas y el operador da
+    por bueno un filtro que no ha filtrado nada. El `_` importa de verdad porque los hosts
+    generados por los descubrimiento llevan `_` con frecuencia (`stage_acme`).
+    """
+
+    session = integration_session
+    assert session is not None
+    _, org, cabeceras = await _tenant(session, prefijo="comodin")
+    dominio = await _dominio(session, org.id, "comodin.com", verificado=True)
+    await _activo(session, dominio, org.id, "web_app.comodin.com")
+    await _activo(session, dominio, org.id, "webXapp.comodin.com")
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as cliente:
+            con_porcentaje = await cliente.get(
+                "/api/v1/assets/discovery", params={"query": "%"}, headers=cabeceras
+            )
+            con_subrayado = await cliente.get(
+                "/api/v1/assets/discovery", params={"query": "web_app"}, headers=cabeceras
+            )
+
+        assert con_porcentaje.json()["total"] == 0, con_porcentaje.json()
+        assert con_subrayado.json()["total"] == 1
+        assert con_subrayado.json()["items"][0]["value"] == "web_app.comodin.com"
+    finally:
+        await _limpiar(session, org.id)
+
+
+@pytest.mark.asyncio
+async def test_el_rango_de_activos_va_sobre_el_alta_y_no_sobre_la_ultima_revision(
+    integration_session: AsyncSession,
+) -> None:
+    """El rango recorta por `created_at`, y su límite superior es inclusivo.
+
+    `last_scanned_at` es `NULL` en un activo recién descubierto, así que un rango sobre ella no
+    recortaría filas: las **borraría**, y todos los activos nuevos desaparecerían de la tabla en
+    cuanto se tocara cualquiera de las dos fechas. Aquí se siembra un activo con
+    `last_scanned_at` a `NULL` —el caso que lo rompe— y tiene que seguir apareciendo.
+    """
+
+    session = integration_session
+    assert session is not None
+    _, org, cabeceras = await _tenant(session, prefijo="rango")
+    dominio = await _dominio(session, org.id, "rango-activos.com", verificado=True)
+    nuevo = await _activo(
+        session,
+        dominio,
+        org.id,
+        "nuevo.rango-activos.com",
+        created_at=datetime(2026, 3, 3, 23, 30, tzinfo=UTC),
+    )
+    viejo = await _activo(
+        session,
+        dominio,
+        org.id,
+        "viejo.rango-activos.com",
+        created_at=datetime(2026, 3, 1, 8, 0, tzinfo=UTC),
+    )
+    # El activo nuevo no se ha vuelto a revisar nunca: es el caso que un rango sobre
+    # `last_scanned_at` borraría de la tabla.
+    assert nuevo.last_scanned_at is None
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as cliente:
+            dentro = await cliente.get(
+                "/api/v1/assets/discovery",
+                params={"created_from": "2026-03-01", "created_to": "2026-03-03"},
+                headers=cabeceras,
+            )
+            invertido = await cliente.get(
+                "/api/v1/assets/discovery",
+                params={"created_from": "2026-03-05", "created_to": "2026-03-01"},
+                headers=cabeceras,
+            )
+
+        ids = {item["id"] for item in dentro.json()["items"]}
+        # El día final entra entero: el activo de las 23:30 del día 3 está dentro.
+        assert ids == {str(nuevo.id), str(viejo.id)}
+        # Rango invertido: lista vacía, no un `422`.
+        assert invertido.status_code == 200, invertido.text
+        assert invertido.json()["total"] == 0
+    finally:
+        await _limpiar(session, org.id)
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_activos_no_atraviesa_el_aislamiento(
+    integration_session: AsyncSession,
+) -> None:
+    """El texto no es una puerta trasera al filtro de organización.
+
+    El `organization_id` es la primera condición de la consulta. Si el texto se mezclara con él
+    en un `or_`, un término que casara con el host de otro workspace lo devolvería.
+    """
+
+    session = integration_session
+    assert session is not None
+    _, org_ajeno, _ = await _tenant(session, prefijo="ajeno-activos")
+    _, org_propio, cabeceras = await _tenant(session, prefijo="propio-activos")
+    dominio_ajeno = await _dominio(session, org_ajeno.id, "ajeno-activos.com", verificado=True)
+    await _activo(session, dominio_ajeno, org_ajeno.id, "secreto.ajeno-activos.com")
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as cliente:
+            respuesta = await cliente.get(
+                "/api/v1/assets/discovery", params={"query": "secreto"}, headers=cabeceras
+            )
+        assert respuesta.status_code == 200
+        assert respuesta.json()["total"] == 0
+        assert respuesta.json()["items"] == []
+    finally:
+        await _limpiar(session, org_ajeno.id)
+        await _limpiar(session, org_propio.id)
+
+
+# --------------------------------------------------------------------------- #
 # Descubrimiento: idempotencia, fusión y no destructividad
 # --------------------------------------------------------------------------- #
 
@@ -1135,3 +1345,276 @@ def test_una_lista_vacia_no_produce_candidatos() -> None:
 
     assert discovery.candidate_prefixes(" , , ") == ()
     assert discovery.candidate_prefixes("") == ()
+
+# --------------------------------------------------------------------------- #
+# Filtros y paginacion del listado de dominios
+# --------------------------------------------------------------------------- #
+#
+# ## Por que estas pruebas miran `total` y no solo `items`
+#
+# Porque un filtro que no se aplica no falla de forma visible: devuelve la lista entera y la
+# pantalla "funciona". Lo que delata el fallo es el numero, asi que se afirma sobre `total` y
+# sobre **todas** las filas, nunca sobre `items[0]`.
+
+
+async def _listar_dominios(cabeceras: dict[str, str], parametros: str = "") -> Response:
+    """La **respuesta**, no el cuerpo ya parseado.
+
+    Se devuelve el `Response` y el cuerpo se lee con `.json()` en cada aserción por la misma
+    razón que en `test_pr_reviews_api.py`: `json()` devuelve `Any`, y con un `dict[str, object]`
+    el tipado estricto se queja de cada `cuerpo["items"][0]` —que es ruido en una prueba— mientras
+    que con `Any` el fallo real, que es una clave que no existe, sale en el `KeyError`.
+    """
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as cliente:
+        respuesta = await cliente.get(
+            f"/api/v1/assets/domains{parametros}", headers=cabeceras
+        )
+    assert respuesta.status_code == 200, respuesta.text
+    return respuesta
+
+
+@pytest.mark.asyncio
+async def test_el_listado_de_dominios_trae_total_limit_y_offset(
+    integration_session: AsyncSession,
+) -> None:
+    """La paginacion viaja en la respuesta, y `total` cuenta los dominios del workspace.
+
+    Sin `limit`/`offset` no hay forma de filtrar nada: el buscador devolveria la superficie
+    entera en cada tecla. Y sin `total` la barra de paginacion no puede decir si hay mas.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    for indice in range(3):
+        await _dominio(integration_session, org.id, f"empresa{indice}.com")
+
+    cuerpo = (await _listar_dominios(cabeceras)).json()
+
+    assert cuerpo["total"] == 3
+    assert len(cuerpo["items"]) == 3
+    assert cuerpo["limit"] == 25
+    assert cuerpo["offset"] == 0
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_dominios_trata_los_comodines_como_literales(
+    integration_session: AsyncSession,
+) -> None:
+    """`_` y `%` se buscan literales en el nombre de dominio.
+
+    El caso real es `_`, porque es el separador de wildcard de DNS: `acme_corp.com` y
+    `acmeXcorp.com` son nombres validos y distintos, y sin escapar uno devuelve tambien el
+    otro. Y `%` sin escapar devuelve la superficie entera, porque `%` casa con cualquier cosa.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    await _dominio(integration_session, org.id, "acme_corp.com")
+    await _dominio(integration_session, org.id, "acmeXcorp.com")
+    await _dominio(integration_session, org.id, "descuento100%off.com")
+    await _dominio(integration_session, org.id, "descuento1000off.com")
+
+    con_guion_bajo = (await _listar_dominios(cabeceras, "?search=acme_corp")).json()
+    con_porcentaje = (await _listar_dominios(cabeceras, "?search=100%25off")).json()
+    solo_porcentaje = (await _listar_dominios(cabeceras, "?search=%25")).json()
+
+    assert con_guion_bajo["total"] == 1
+    assert con_guion_bajo["items"][0]["domain_name"] == "acme_corp.com"
+    assert con_porcentaje["total"] == 1
+    assert con_porcentaje["items"][0]["domain_name"] == "descuento100%off.com"
+    # `%` a secas devuelve **una** fila, la que de verdad lleva el simbolo, y no las cuatro.
+    assert solo_porcentaje["total"] == 1
+    assert solo_porcentaje["items"][0]["domain_name"] == "descuento100%off.com"
+
+
+@pytest.mark.asyncio
+async def test_el_filtro_de_dominios_por_estado_separa_verificados_de_pendientes(
+    integration_session: AsyncSession,
+) -> None:
+    """`VERIFIED` y `PENDING` devuelven conjuntos disjuntos, y omitirlo devuelve los dos.
+
+    Se comprueba el `total` de las tres peticiones porque el fallo tipico —ignorar el filtro y
+    devolver la lista entera— solo se ve en el numero.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    await _dominio(integration_session, org.id, "verificado.com", verificado=True)
+    await _dominio(integration_session, org.id, "pendiente.com", verificado=False)
+
+    todos = (await _listar_dominios(cabeceras)).json()
+    verificados = (await _listar_dominios(cabeceras, "?status=VERIFIED")).json()
+    pendientes = (await _listar_dominios(cabeceras, "?status=PENDING")).json()
+
+    assert todos["total"] == 2
+    assert verificados["total"] == 1
+    assert verificados["items"][0]["domain_name"] == "verificado.com"
+    assert pendientes["total"] == 1
+    assert pendientes["items"][0]["domain_name"] == "pendiente.com"
+
+
+@pytest.mark.asyncio
+async def test_un_estado_de_dominio_que_no_existe_es_422(
+    integration_session: AsyncSession,
+) -> None:
+    """Un valor inventado se rechaza, en vez de devolver una lista vacia sin avisar.
+
+    El `422` es lo que distingue "el desplegable mando algo que el servidor no entiende" de
+    "este workspace no tiene dominios con ese estado". Lo segundo es un resultado legitimo y el
+    primero es un fallo de programacion, asi que no pueden parecerse.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    await _dominio(integration_session, org.id, "pendiente.com")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as cliente:
+        respuesta = await cliente.get(
+            "/api/v1/assets/domains?status=INVENTADO", headers=cabeceras
+        )
+
+    assert respuesta.status_code == 422, respuesta.text
+
+
+@pytest.mark.asyncio
+async def test_el_rango_de_dominios_usa_la_fecha_de_alta_y_el_ultimo_dia_entra_entero(
+    integration_session: AsyncSession,
+) -> None:
+    """Los cuatro bordes del rango, con el dia final **entero**.
+
+    Y va sobre `created_at`, no sobre `verified_at`, que es `NULL` en todos los dominios
+    pendientes: un filtro sobre ella no recorta filas, las **borra**, y desaparecerian
+    justo los que el usuario quiere ver cuando pregunta por los que le faltan.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    ayer = await _dominio(
+        integration_session,
+        org.id,
+        "ayer.com",
+        created_at=datetime(2026, 3, 9, 23, 59, tzinfo=UTC),
+    )
+    primer_dia = await _dominio(
+        integration_session,
+        org.id,
+        "primer.com",
+        created_at=datetime(2026, 3, 10, 0, 0, tzinfo=UTC),
+    )
+    ultimo_dia = await _dominio(
+        integration_session,
+        org.id,
+        "ultimo.com",
+        created_at=datetime(2026, 3, 12, 23, 59, 59, tzinfo=UTC),
+    )
+    dia_siguiente = await _dominio(
+        integration_session,
+        org.id,
+        "siguiente.com",
+        created_at=datetime(2026, 3, 13, 0, 0, tzinfo=UTC),
+    )
+
+    rango = (
+        await _listar_dominios(cabeceras, "?created_from=2026-03-10&created_to=2026-03-12")
+    ).json()
+    invertido = (
+        await _listar_dominios(cabeceras, "?created_from=2026-03-12&created_to=2026-03-10")
+    ).json()
+
+    assert rango["total"] == 2
+    assert {str(item["id"]) for item in rango["items"]} == {
+        str(primer_dia.id),
+        str(ultimo_dia.id),
+    }
+    assert str(ayer.id) not in {str(item["id"]) for item in rango["items"]}
+    assert str(dia_siguiente.id) not in {str(item["id"]) for item in rango["items"]}
+    # Un rango invertido no es un `422`: las dos condiciones son incompatibles por
+    # construccion, asi que la lista vacia ya es la respuesta que corresponde.
+    assert invertido["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_el_rango_de_dominios_no_borra_los_pendientes(
+    integration_session: AsyncSession,
+) -> None:
+    """Un dominio sin `verified_at` sigue apareciendo cuando se toca cualquiera de las dos fechas.
+
+    Es la otra mitad del rango, y es la que se Lee mal: `verified_at` es `NULL` en todos los
+    pendientes, asi que un filtro sobre ella los deja fuera y el usuario leeria que sus dominios
+    se han perdido.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    await _dominio(
+        integration_session,
+        org.id,
+        "pendiente.com",
+        verificado=False,
+        created_at=datetime(2026, 3, 11, 12, 0, tzinfo=UTC),
+    )
+
+    cuerpo = (
+        await _listar_dominios(
+            cabeceras, "?created_from=2026-03-11&created_to=2026-03-11&status=PENDING"
+        )
+    ).json()
+
+    assert cuerpo["total"] == 1
+    assert cuerpo["items"][0]["domain_name"] == "pendiente.com"
+    assert cuerpo["items"][0]["verified_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_los_filtros_de_dominios_no_amplian_la_vista_del_tenant(
+    integration_session: AsyncSession,
+) -> None:
+    """R3 tambien con los filtros nuevos: buscar no es una puerta trasera.
+
+    Se mira lo que **no** devuelve tanto como lo que si, porque un buscador es la forma mas
+    facil de meter en la consulta una condicion que el llamador elige.
+    """
+
+    _user, org_a, cabeceras_a = await _tenant(integration_session, prefijo="alpha")
+    _otro, org_b, _cabeceras_b = await _tenant(integration_session, prefijo="beta")
+    await _dominio(integration_session, org_a.id, "solo-de-alfa.com")
+    await _dominio(integration_session, org_b.id, "solo-de-beta.com")
+
+    ajeno = (await _listar_dominios(cabeceras_a, "?search=solo-de-beta")).json()
+    propio = (await _listar_dominios(cabeceras_a, "?search=solo-de-alfa")).json()
+
+    # Buscar el dominio del otro workspace devuelve cero, no su fila: el filtro de organizacion
+    # va antes que el buscador en la misma clausula `WHERE`, no despues de filtrar en memoria.
+    assert ajeno["total"] == 0
+    assert ajeno["items"] == []
+    assert propio["total"] == 1
+    assert propio["items"][0]["domain_name"] == "solo-de-alfa.com"
+
+
+@pytest.mark.asyncio
+async def test_los_filtros_de_dominios_cuentan_antes_de_paginar(
+    integration_session: AsyncSession,
+) -> None:
+    """`total` cuenta lo que coincide con los filtros, no lo que hay en el workspace.
+
+    Es lo que hace honesta la barra de paginacion: si `total` saliera sin filtrar, el resumen
+    "1-25 de 300" prometeria paginas que al pulsarlas saldrian vacias.
+    """
+
+    _user, org, cabeceras = await _tenant(integration_session)
+    for indice in range(3):
+        await _dominio(integration_session, org.id, f"coincide{indice}.com")
+    await _dominio(integration_session, org.id, "otro.com")
+
+    primera = (await _listar_dominios(cabeceras, "?search=coincide&limit=2&offset=0")).json()
+    segunda = (await _listar_dominios(cabeceras, "?search=coincide&limit=2&offset=2")).json()
+
+    assert primera["total"] == 3
+    assert len(primera["items"]) == 2
+    assert primera["limit"] == 2
+    assert primera["offset"] == 0
+    assert segunda["offset"] == 2
+    assert len(segunda["items"]) == 1
+    assert all(
+        "coincide" in str(item["domain_name"])
+        for item in list(primera["items"]) + list(segunda["items"])
+    )

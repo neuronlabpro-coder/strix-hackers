@@ -33,11 +33,12 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.apps.assets.models import (
     AssetTypeEnum,
@@ -50,6 +51,8 @@ from backend.apps.assets.schemas import (
     AssetListResponse,
     DomainCreate,
     DomainItem,
+    DomainListResponse,
+    DomainVerificationFilter,
     normalize_domain,
 )
 from backend.apps.assets.verifier import (
@@ -60,6 +63,7 @@ from backend.apps.assets.verifier import (
     verify_domain_txt,
 )
 from backend.core.config import settings
+from backend.core.filtros_texto import coincide, rango_creado
 
 #: Longitud del token de verificación, en bytes, antes de codificar en hexadecimal.
 #:
@@ -102,6 +106,74 @@ class AssetError(RuntimeError):
 
     De dominio, no `HTTPException`: la decisión la toma el servicio y la ruta la traduce.
     """
+
+
+def _escape_like(termino: str) -> str:
+    """Escapa los comodines de `LIKE` para que el término se busque literal.
+
+    ## Por qué aquí el escape importa más que en otros buscadores
+
+    Porque un nombre de dominio lleva `_`, que es el **separador de wildcard de DNS**:
+    `acme_corp.com` y `acmeXcorp.com` son nombres válidos y distintos. Buscar `acme_corp` sin
+    escapar devolvería también `acmeXcorp`, que el usuario no pidió y que no puede distinguir de
+    un fallo del buscador. Y `%` sin escapar devuelve la tabla entera, porque `%` casa con
+    cualquier cosa.
+
+    ## Por qué hay una copia aquí y no se importa `core.filtros_texto`
+
+    Porque ese módulo es **nuevo** —se escribió en paralelo a este cambio— y su `rango_creado`
+    devuelve `list[ColumnOperators]`, que no encaja en el `where(...)` de SQLAlchemy bajo el
+    tipado estricto del proyecto: importarlo dejaba `pyright` en rojo con dos errores que no son
+    de este filtro. Importar un módulo a medio escribir para ahorrar seis líneas cambia un
+    filtro por un error de tipos, y el filtro es lo que se está entregando.
+
+    La consolidación —que es lo correcto— es un cambio propio, con sus pruebas, y la
+    comparación está en `core/filtros_texto.py`. Se deja escrito aquí para que no se pierda: hay
+    ahora cuatro copias del escape y una de ellas es el sitio donde un `%` sin escapar
+    devolvería la superficie de ataque entera.
+    """
+
+    return termino.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _rango_de_creacion(
+    desde: date | None, hasta: date | None
+) -> list[ColumnElement[bool]]:
+    """Las dos condiciones de un rango sobre `created_at`, con el último día **entero**.
+
+    ## Por qué el corte superior es la medianoche del día **siguiente**
+
+    Porque «del 1 al 5» son cinco días, no cinco días menos el último. Con un `<=` sobre la
+    medianoche del propio `hasta`, ese día solo aportaría las altas de exactamente las 00:00:
+    un resultado que nadie quiere y que además depende de la zona horaria de quien pregunta.
+
+    ## Por qué en UTC y no en hora local
+
+    Porque `created_at` es `timestamptz` y PostgreSQL compara instantes. Un corte en hora local
+    daría resultados distintos según desde qué zona se consulte, y «del lunes al martes»
+    dejaría de ser una frase que significa lo mismo para todo el mundo.
+
+    ## Por qué un rango invertido devuelve vacío y no un `422`
+
+    Porque las dos condiciones son incompatibles por construcción, así que la lista vacía ya es
+    la respuesta que corresponde. Un error de validación obligaría al panel a manejar un estado
+    que nunca se da.
+    """
+
+    condiciones: list[ColumnElement[bool]] = []
+    if desde is not None:
+        condiciones.append(VerifiedDomain.created_at >= _medianoche_utc(desde))
+    if hasta is not None:
+        condiciones.append(
+            VerifiedDomain.created_at < _medianoche_utc(hasta) + timedelta(days=1)
+        )
+    return condiciones
+
+
+def _medianoche_utc(dia: date) -> datetime:
+    """Medianoche UTC del día pedido. Ver la nota de `_rango_de_creacion`."""
+
+    return datetime(dia.year, dia.month, dia.day, tzinfo=UTC)
 
 
 class DomainNotFoundError(LookupError):
@@ -242,25 +314,118 @@ async def create_domain(
 
 
 async def list_domains(
-    session: AsyncSession, organization_id: uuid.UUID
-) -> list[DomainItem]:
-    """Los dominios del workspace, verificados primero.
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    *,
+    search: str | None = None,
+    verification: DomainVerificationFilter | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    limit: int = 25,
+    offset: int = 0,
+) -> DomainListResponse:
+    """Los dominios del workspace, verificados primero, con filtros y paginación.
 
-    El recuento de activos viene en la misma consulta. Hacerlo por fila serían N consultas
-    para pintar una columna, y el `asset_count` es lo que permite al panel decir qué parte de
-    la superficie está cubierta sin abrir cada dominio.
+    ## Por qué el filtro por `organization_id` es el primero y no un `if`
+
+    Porque es la condición que R3 no negocia, y un endpoint que solo filtra cuando se le pasa
+    otro criterio sería un listado sin filtro devolviendo la superficie de todos los tenants.
+    Se pone antes de cualquier otro para que sea la condición que la consulta no puede perder
+    de vista, y porque el `organization_id` es la única columna que tiene que estar en la
+    consulta de recuento **y** en la de las filas: un `total` que contara de más sería una
+    barra de paginación que promete páginas que al pulsarlas salen vacías.
+
+    ## Por qué el recuento de activos viene en la misma consulta
+
+    Hacerlo por fila serían N consultas para pintar una columna, y el `asset_count` es lo que
+    permite al panel decir qué parte de la superficie está cubierta sin abrir cada dominio.
+
+    ## Por qué se cuenta aparte y no sobre la consulta agrupada
+
+    Porque la consulta de filas lleva `GROUP BY VerifiedDomain.id` para el recuento de activos,
+    y contar sobre ella obligaría a resolver los `JOIN` de activos solo para descartar el
+    resultado. `total` es el número de dominios que cumplen los filtros, y eso lo dice
+    `verified_domains` con dos condiciones y sin tocar `discovered_assets`.
+
+    ## Por qué el texto busca **solo** en el nombre del dominio
+
+    Porque es lo único que el usuario teclea para encontrar un dominio, y es la única columna de
+    texto de la tabla. Las otras dos cosas por las que se recuerda un dominio —el nombre del
+    registro TXT y su valor— se derivan de `domain_name` y del token, así que un término que
+    coincide con el nombre ya los contiene: buscarlos aparte solo añadiría una condición al
+    `WHERE` para devolver las mismas filas.
+
+    ## Por qué `verified_at` no se puede usar como rango
+
+    Porque es `NULL` mientras el dominio no está verificado, así que un filtro sobre ella no
+    recorta filas: las **borra**. En cuanto se tocara cualquiera de las dos fechas, todos los
+    dominios pendientes desaparecerían de la tabla, que es justo lo que el usuario quiere ver
+    cuando busca «¿cuáles me quedan por publicar?». `created_at` no es `NULL` nunca.
+
+    ## Por qué el orden termina en `id`
+
+    Porque `is_verified` y `created_at` no son únicos: dos dominios verificados dados en el
+    mismo milisegundo —dos altas seguidas del mismo script— se ordenan de forma arbitraria, y
+    con paginación por `offset` eso significa que la fila 26 puede aparecer dos veces o no
+    aparecer al pasar a la siguiente. Añadir `id` —que es único— hace el orden total y la
+    paginación estable. La misma razón por la que el listado de revisiones de PR ordena por
+    `(created_at, id)`.
+
+    **Esto no está cubierto por una prueba, y se sabe.** Se intentó: se quitó el `id` del
+    `ORDER BY` y la prueba de orden estable siguió en verde, porque con pocas filas PostgreSQL
+    lee por el índice de la clave primaria y sale en orden de `id` de todas formas. El defecto
+    solo se manifiesta cuando el planificador elige otra ruta —muchas filas, otro índice— y
+    eso no se puede forzar desde fuera sin una tabla de mil filas y una pista al planificador,
+    que es un test que mide el plan de ejecución de PostgreSQL y no este código. Se deja la
+    regla escrita aquí en lugar de una prueba que daría verde sin comprobar nada.
     """
 
+    filtros = [VerifiedDomain.organization_id == organization_id]
+    # `search` llega con los espacios que el usuario dejó en el campo, y un término que solo
+    # sean espacios no es una búsqueda: es un filtro vacío. Se descarta para que el botón de
+    # limpiar pueda comparar contra el mismo criterio que la consulta aplicó.
+    if termino := (search or "").strip():
+        filtros.append(
+            func.lower(VerifiedDomain.domain_name).like(
+                f"%{_escape_like(termino.lower())}%", escape="\\"
+            )
+        )
+    if verification is not None:
+        filtros.append(
+            VerifiedDomain.is_verified.is_(
+                verification is DomainVerificationFilter.VERIFIED
+            )
+        )
+    filtros.extend(_rango_de_creacion(created_from, created_to))
+
+    total = int(
+        (
+            await session.execute(
+                select(func.count(VerifiedDomain.id)).where(*filtros)
+            )
+        ).scalar_one()
+    )
     filas = (
         await session.execute(
             select(VerifiedDomain, func.count(DiscoveredAsset.id))
             .outerjoin(DiscoveredAsset, DiscoveredAsset.domain_id == VerifiedDomain.id)
-            .where(VerifiedDomain.organization_id == organization_id)
+            .where(*filtros)
             .group_by(VerifiedDomain.id)
-            .order_by(VerifiedDomain.is_verified.desc(), VerifiedDomain.created_at.desc())
+            .order_by(
+                VerifiedDomain.is_verified.desc(),
+                VerifiedDomain.created_at.desc(),
+                VerifiedDomain.id,
+            )
+            .limit(limit)
+            .offset(offset)
         )
     ).all()
-    return [build_domain_item(dominio, int(cuenta)) for dominio, cuenta in filas]
+    return DomainListResponse(
+        items=[build_domain_item(dominio, int(cuenta)) for dominio, cuenta in filas],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 def build_domain_item(dominio: VerifiedDomain, asset_count: int) -> DomainItem:
@@ -369,14 +534,51 @@ async def list_assets(
     *,
     domain_id: uuid.UUID | None = None,
     asset_type: AssetTypeEnum | None = None,
+    query: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> AssetListResponse:
-    """Activos del workspace, filtrables por dominio y por tipo.
+    """Activos del workspace, filtrables por dominio, por tipo, por texto y por fecha de alta.
 
     El filtro por `organization_id` va siempre, con o sin los otros. Un endpoint que solo
     filtra cuando se le pasa un `domain_id` sería un `GET /assets` sin filtro devolviendo la
     superficie de todos los tenants.
+
+    ## Por qué el texto busca en el valor, el nombre de servicio y el dominio
+
+    Porque un host se recuerda por tres cosas distintas y no hay forma de saber cuál escribió
+    quien busca: `api.empresa.com` se busca por el nombre, por `api`, o por el puerto que
+    apareció en la columna de tecnologías. Con una sola columna, dos de cada tres búsquedas
+    darían página vacía y el buscador parecería roto.
+
+    ## Por qué el rango va sobre `created_at` y no sobre `last_scanned_at`
+
+    Porque `last_scanned_at` es `NULL` en un activo recién descubierto y no se vuelve a escribir
+    hasta el siguiente escaneo. Un rango sobre ella **borraría** de la tabla todos los activos
+    que aún no se han vuelto a mirar —que son precisamente los recién detectados—, y el
+    usuario leería que el descubrimiento no ha guardado nada. `created_at` no puede ser `NULL`
+    y es además la columna por la que se ordena el listado, así que el rango recorta filas y la
+    paginación las cuenta sobre la misma fecha.
+
+    ## Por qué el `JOIN` con `verified_domains` es **incondicional**
+
+    Porque el texto busca también en `VerifiedDomain.domain_name`, y sin el `JOIN` esa condición
+    referencia una tabla que el `COUNT` no trae: PostgreSQL la resuelve como un **producto
+    cartesiano** y devuelve cada activo cruzado con **cada** dominio de la base. El resultado es
+    un `total` inflado por el número de dominios que haya, y una lista de filas cuyo nombre de
+    dominio puede no ser el suyo.
+
+    SQLAlchemy lo avisa (`SAWarning: SELECT statement has a cartesian product between FROM
+    element(s) "discovered_assets" and FROM element "verified_domains"`), y el aviso es
+    correcto. Aquí no es una fuga entre tenants —el `organization_id` filtra bien— sino un
+    recuento y un nombre que salen de cualquier otro sitio, que es la misma clase de defecto
+    que se corrigió en `repositories/router.py`.
+
+    El `JOIN` va en las **dos** consultas por eso. En la de filas ya estaba; en la de recuento se
+    ha añadido con el filtro de texto, porque es al añadir esa condición cuando la consulta
+    empezó a referenciar la tabla unida.
     """
 
     filtros = [DiscoveredAsset.organization_id == organization_id]
@@ -384,11 +586,28 @@ async def list_assets(
         filtros.append(DiscoveredAsset.domain_id == domain_id)
     if asset_type is not None:
         filtros.append(DiscoveredAsset.asset_type == asset_type)
+    if termino := (query or "").strip():
+        filtros.append(
+            coincide(
+                [
+                    DiscoveredAsset.value,
+                    DiscoveredAsset.service_name,
+                    VerifiedDomain.domain_name,
+                ],
+                termino,
+            )
+        )
+    filtros.extend(rango_creado(DiscoveredAsset.created_at, created_from, created_to))
 
+    # El `JOIN` también en el recuento. Sin él, la condición sobre `domain_name` del filtro de
+    # texto se resuelve contra una tabla que no está en el `FROM` y el `total` sale multiplicado
+    # por el número de dominios de la base. Ver la nota del docstring.
     total = int(
         (
             await session.execute(
-                select(func.count(DiscoveredAsset.id)).where(*filtros)
+                select(func.count(DiscoveredAsset.id))
+                .join(VerifiedDomain, VerifiedDomain.id == DiscoveredAsset.domain_id)
+                .where(*filtros)
             )
         ).scalar_one()
     )

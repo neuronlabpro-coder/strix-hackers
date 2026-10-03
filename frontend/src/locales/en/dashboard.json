@@ -19,7 +19,14 @@
     "distributionTitle": "Severity distribution",
     "distributionCaption": "Active findings per severity",
     "distributionEmpty": "No active findings yet",
-    "gaugeValue": "{{score}}/100"
+    "gaugeValue": "{{score}}/100",
+    "severityLegend": "Open findings",
+    "severityAria": "{{total}} open findings by severity",
+    "trendEyebrow": "Trend",
+    "trendTitle": "Findings detected per day",
+    "trendAxis": "Day",
+    "trendEmpty": "No findings detected in this period",
+    "trendAria": "{{total}} findings detected in the last 30 days, by severity"
   },
   "repositoriesWidget": {
     "title": "Connected repositories",

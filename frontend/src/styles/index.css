@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
 /* ------------------------------------------------------------------------- *
@@ -235,29 +235,30 @@ a {
 /*
  * Cuando un encabezado o un `eyebrow` lleva un icono delante, el par se centra.
  *
- * ## Por qué con `:has()` y no con una clase nueva en el JSX
+ * ## Por qué `display: flex` y no un margen o un `text-align`
  *
- * ## Por qué
+ * Porque el icono y el texto son dos hijos, no texto con adorno: sin una caja flex el SVG se apoya
+ * en la línea base del texto y el par se ve torcido —el icono más arriba y descentrado—, que es el
+ * síntoma. `align-items: center` los alinea por el centro y el `gap: 8px` pone la separación, de
+ * modo que el texto puede ocupar varias líneas sin que el icono se descuelgue.
  *
- * ## Por qué `:has()`
+ * ## Por qué `:has()` y no una clase nueva en el JSX
  *
- * ## Por qué así
+ * Porque los cuatro casos no comparten nada en el marcado salvo el icono: un `<h2>` de modal, un
+ * `<h2>` de sección de ajustes, un `.eyebrow` y un `.chart-empty`. En todo el panel hay exactamente
+ * tres `.eyebrow` con icono —los tres KPI de saldo, gasto y compra de `BillingPage`— y un solo
+ * `.chart-empty` con icono, el pie de nota de precios de `AdminTenantPricingPage`; ninguno de los
+ * cuatro lleva una clase modificadora. Añadirla al JSX obligaría a mantener la lista en dos sitios:
+ * el componente que pinta el icono y la hoja que dice cómo se centra. `:has(> svg)` lee el icono
+ * del propio DOM, así que un rótulo con icono nuevo se centra sin tocar ni la hoja ni el
+ * componente.
  *
- * ## Por qué no una clase
+ * ## Por qué los dos `h2` no usan `:has()`
  *
- * ## Por qué
- *
- * ## Por qué no hace falta tocar el JSX
- *
- * ## Por qué
- *
- * ## Por qué así funciona
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
+ * Porque `.modal-header h2` y `.settings-section-heading h2` se centran siempre, con o sin icono, y
+ * en un `h2` de un solo hijo una fila flex es indistinguible de un bloque: el único elemento
+ * arranca al principio y el texto se parte igual. No hacía falta dejar dos de los cuatro
+ * selectores en modo condicional.
  */
 .modal-header h2,
 .settings-section-heading h2,
@@ -722,8 +723,6 @@ a {
  *
  * ## Por qué hay que declarar `display` aquí y no confiar en el `gap`
  *
- * ## Por qué
- *
  * Porque `gap` no aplica a un contenedor `display: block`. Estas dos reglas declaraban `gap: 10px`
  * sobre un contenedor que no declaraba `display`, así que el `gap` era inerte y los hijos se
  * tocaban. Los hijos son `inline-flex`, y React **no** emite nodos de texto entre elementos de un
@@ -731,10 +730,6 @@ a {
  * salían como cuatro cajas pegadas, que es el síntoma que reportó el usuario.
  *
  * ## Por qué el `flex-wrap` que ya estaba tampoco hacía nada
- *
- * ## Por qué
- *
- * ## Por qué `flex-wrap` tampoco
  *
  * Porque `flex-wrap` es tan inerte como `gap` sobre un bloque. Las dos propiedades estaban
  * escritas como si el contenedor fuera flex, y la única que faltaba era `display: flex`.
@@ -797,6 +792,29 @@ a {
   gap: 16px;
 }
 
+/*
+ * Dos gráficos en vez de tres.
+ *
+ * ## Por qué la variante existe en vez de medir y elegir
+ *
+ * Porque las barras horizontales de un reparto necesitan ancho para que la etiqueta de la fila
+ * quepa **entera** —«Remediación propuesta» son veintidós caracteres— y en una rejilla de tres
+ * son 266 a 448 píxeles: suficiente a 1150, insuficiente por debajo, y el texto empezaría a
+ * recortarse justo en el ancho de portátil, que es donde se usa. Con dos columnas la tarjeta
+ * pasa a 448-690 píxeles y la etiqueta cabe con el separador de miles al lado.
+ *
+ * ## Por qué no baja a una columna antes de 1150
+ *
+ * Porque dos barras de severidad y dos de estado caben de sobra en dos columnas de un monitor
+ * de 1150, y bajarlas a una convertiría la pantalla de issues en cuatro tarjetas apiladas con
+ * scroll para ver la tabla, que es lo que hay que ver. El punto de ruptura lo fija el
+ * `chart-grid` de tres columnas, que es el que ya sabe cuándo no cabe: compartirlo evita que
+ * las dos rejillas dejen de coincidir.
+ */
+.chart-grid-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .chart-canvas {
   width: 100%;
   margin-top: 12px;
@@ -805,26 +823,19 @@ a {
 /*
  * Las alturas de la fila de filtros se igualan.
  *
- * ## Por qué
- *
- * ## Por qué importa
- *
- * ## Por qué
- *
- * ## Por qué importa
- *
- * ## Por qué
- *
- * ## Por qué importa
- *
- * ## Por qué importa
- *
- * ## Por qué
+ * ## Por qué 36 px y no una media de las cuatro alturas
  *
  * Porque en la misma barra convivían cuatro alturas distintas: `.filter-chip` de 26 px,
  * `.ghost-button` de 34, `.search-field` de 36 y `.secondary-button` de 38. Alineados por el
  * `align-items: start` correcto, cada uno empezaba a su altura y la fila se leía como un escalón;
  * con `align-items: center` se centraban y era peor, porque las etiquetas quedaban a media altura.
+ *
+ * Y el valor es el del buscador, que es el control con etiqueta de la barra y el único que ya
+ * fijaba `height: 36px` medido en el navegador. Igualar al que ya estaba medido es más seguro que
+ * inventar un valor intermedio: `.secondary-button` se queda en 38 porque no entra en esta regla,
+ * que solo sube el chip y el botón fantasma.
+ *
+ * ## Por qué la regla que los iguala vive aquí y no en `knowledge.css`
  *
  * Y `.filter-chip` se define en `knowledge.css`, pero la regla que lo iguala vive aquí porque es
  * una propiedad de la **barra**, no de la ficha: la propiedad la tiene el contenedor, no el hijo.
@@ -837,19 +848,23 @@ a {
 /*
  * `chart-empty` dentro de un contenedor que ya tiene su propio hueco.
  *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
+ * ## Por qué el margen se anula en vez de reducirse
  *
  * `chart-empty` trae `margin: 24px 0 8px` porque vive suelto en una página. Como sub-rótulo de un
  * `.filter-field`, que ya tiene `gap: 6px`, los 24 px se suman: 30 px entre el campo y su pista, y
  * el formulario se desparrama. Dentro de un contenedor con hueco propio el margen tiene que ser 0.
+ *
+ * Los tres selectores son los tres sitios donde el padre ya separa: `.filter-field` es una columna
+ * con `gap: 6px`, `.onboarding-step-body` una rejilla con `gap: 4px` y `.console-switch-cell` una
+ * fila con `gap: 8px`. Los tres necesitan exactamente lo mismo, y por eso se anulan los tres juntos
+ * en vez de repetir el cálculo en cada uno.
+ *
+ * ## Por qué el tercer selector es redundante y se conserva
+ *
+ * `.console-switch-cell` está en la lista dos veces: aquí con el combinador de hijo, y más abajo con
+ * `.console-switch-cell .chart-empty { margin: 0 }`, que es lo mismo con la misma especificidad y
+ * gana por estar después. La declaración de aquí no llega aVERSE. Se deja porque detectar que hay
+ * dos reglas iguales exige leer el fichero entero, y el aviso es más barato que el riesgo.
  */
 .filter-field > .chart-empty,
 .onboarding-step-body > .chart-empty,
@@ -1542,141 +1557,27 @@ code.mono,
 /*
  * La etiqueta de un filtro no lleva `margin-bottom`.
  *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
+ * ## Por qué la separación la pone el `gap` del contenedor
+ *
+ * Porque `.filter-field` es una columna flex con `gap: 6px`, así que la distancia entre la etiqueta
+ * y su control ya está resuelta. Un `margin-bottom` en la etiqueta se sumaría a ese `gap` y el
+ * formulario se abriría por abajo justo en los campos con etiqueta larga, que son los que más se
+ * notan porque su texto es el que se sale de una línea.
+ *
+ * ## Por qué el `margin-bottom: 0` de aquí no llega a aplicarse
+ *
+ * Porque más abajo, en el bloque de la barra de búsqueda, hay un segundo
+ * `.filter-field label { margin-bottom: 6px }`. Es el mismo selector con la misma especificidad, y
+ * en un empate gana el último. Así que el hueco efectivo entre etiqueta y control son 12 px, no 6.
+ * La declaración se deja como está porque revisar el orden de dos reglas iguales no cambia nada de
+ * lo que se ve, pero quien lea esto tiene que saber que el valor que manda es el de abajo.
+ *
+ * ## Por qué el resto de la regla repite la familia de los rótulos del panel
+ *
+ * Mono, versalita y 0.68rem son la marca de todo lo que nombra un grupo: es lo que ya usan
+ * `.eyebrow`, `.board-column-header` y `.data-table thead th`. Un rótulo que se sale de esa familia
+ * se lee como un párrafo en mayúsculas. Y `color-caption` en vez de `primary` porque la etiqueta
+ * nombra el control, no es el dato que se viene a leer.
  */
 .filter-field label {
   margin-bottom: 0;
@@ -2273,9 +2174,12 @@ code.mono,
 }
 
 
+/* El icono de KEV va dentro de `.cell-inline`, así que la separación la pone el `gap` de la celda
+ * y no un margen. El `margin-left` que llevaba aquí era además la causa de que el icono pareciera
+ * desplazado: cuando la insignia y el icono no cabían en la misma línea, el icono caía abajo
+ * **manteniendo** su margen lateral, y se leía como un elemento suelto bajo la etiqueta. */
 .cve-kev-icon {
-  margin-left: 6px;
-  vertical-align: middle;
+  flex: 0 0 auto;
   color: var(--color-critical);
 }
 
@@ -2291,15 +2195,21 @@ code.mono,
 /*
  * Un enlace que actúa como botón.
  *
- * ## Por qué ahora es flex y antes no lo era
- *
- * ## Por qué ahora es flex
+ * ## Por qué `inline-flex` y no entrar en la lista de clases de arriba
  *
  * Porque la lista de clases con `display: flex; align-items: center` de este fichero incluye a
  * `.primary-button` y `.secondary-button` pero **no** a `.link-button`. Sus hijos —un icono de
  * `lucide-react` y un `<span>`— se renderizaban en flujo inline, así que el SVG se apoyaba en la
- * línea base del texto en vez de centrarse: el icono se veía subido ytorcido respecto a su
+ * línea base del texto en vez de centrarse: el icono se veía subido y torcido respecto a su
  * etiqueta. Con `inline-flex` y `gap` el par queda centrado y separado.
+ *
+ * ## Por qué `inline-flex` y no `flex`
+ *
+ * Porque los dieciséis usos de la clase están ya dentro de una caja flex —`.console-row-actions`,
+ * `.scope-quick-actions` y los `<li>` de `.cve-kev-list`—, y en un ítem flex `display` se
+ * blockifica igual: hoy las dos formas renderizan lo mismo. La diferencia solo aparecería dentro de
+ * un párrafo, donde un `flex` tendería el subrayado a todo el ancho disponible. No hay ningún uso
+ * en línea, así que la elección no está forzada por nada y conviene no darla por buena.
  */
 .link-button {
   display: inline-flex;
@@ -2367,11 +2277,46 @@ code.mono,
   gap: 8px;
 }
 
+/* Un campo que es solo una casilla, dentro de una barra cuyos demás campos llevan
+ * etiqueta encima.
+ *
+ * ## Por qué el `padding-top` y no una fila de etiqueta vacía
+ *
+ * Porque los campos con etiqueta ocupan dos filas —la etiqueta arriba, el control debajo— y la
+ * casilla no tiene sitio para una etiqueta: va al lado. Sin nada que ocupe la fila de arriba, la
+ * casilla se alineaba con la **etiqueta** del `select` de al lado y no con su control, que es lo
+ * que se veía en CVE: el recuadro flotando 7 px más arriba que la lista desplegable.
+ *
+ * ## Por qué 28 px y no el 18 que había
+ *
+ * Porque 28 es exactamente la altura de la fila de etiqueta de los demás campos, medido en el
+ * navegador: con `align-items: center`, el `padding-top` es lo que deja al control en la línea de
+ * control de sus hermanos. El 18 era una aproximación visual que funcionaba con etiquetas cortas y
+ * fallaba con la primera más alta — y `SEVERIDAD` en mayúsculas es justo ese caso.
+ *
+ * ## Por qué `min-height` y no solo `padding-top`
+ *
+ * Porque `padding-top` pone la casilla en la fila correcta, pero no la centra dentro de ella: la
+ * fila de contenido la dimensiona el `<label>` que va al lado —unos 18 px— y no el control de al
+ * lado, que mide 36. Con solo el `padding`, la casilla se quedaba pegada al borde superior de su
+ * propia fila y 3 px por debajo de la línea de control.
+ *
+ * El `min-height` es la suma de las dos filas: la de etiqueta y la de control. Con eso
+ * `align-items: center` centra la casilla en la fila de control sin tener que calcular ningún
+ * desplazamiento, que es lo que hace que siga siendo correcta si mañana el control crece.
+ *
+ * ## Por qué no se mide en unidades relativas
+ *
+ * Porque el valor depende de la altura de la etiqueta y del control, que son decisiones de diseño
+ * que pueden cambiar. Si cambiaran, este número se queda corto y el defecto vuelve sin que nada
+ * avise. Lo que lo sostiene es `_alinear_filtros.py`, que compara la línea de control de cada
+ * campo de la barra y avisa cuando uno se sale. */
 .filter-field-check {
   flex-direction: row;
   align-items: center;
   min-width: 0;
-  padding-top: 18px;
+  min-height: 64px;
+  padding-top: 28px;
   gap: 8px;
 }
 
@@ -2679,123 +2624,47 @@ code.mono,
 /*
  * El campo de margen cubre también el desplegable.
  *
- * ## Por qué
+ * ## Por qué esta regla existe y no la trae la base de `.margin-field`
  *
- * ## Por qué
+ * Porque `.margin-field` solo declara la disposición —fila, `align-items: center`, `gap: 6px`— y el
+ * ancho y el alto se dejan en el hijo, que es donde cada control necesita los suyos: el input de
+ * prioridad lleva su propia clase y el de margen lleva un sufijo «%» al lado. El desplegable de
+ * caso de uso no tiene nada propio, y sin esta regla salía con el tamaño por defecto del navegador
+ * mientras los otros dos controles de la misma columna medían 34 px de alto.
  *
- * ## Por qué
+ * ## Por qué 96 px fijos y no `width: 100%`
  *
- * ## Por qué
+ * Porque los tres usos viven en celdas de tabla y el ancho lo decide la columna, no el control. Un
+ * `width: 100%` —que es lo que lleva `.cost-field input`, porque ahí sí manda la celda— estiraría
+ * el control a todo lo disponible, y la celda de la tabla de modelos es mucho más ancha que un
+ * campo: el número quedaría perdido contra el borde derecho. 96 es lo justo para el número de
+ * margen con dos decimales y para el nombre del caso de uso.
  *
- * ## Por qué
+ * ## Por qué dos reglas idénticas en vez de una lista de selectores
  *
- * ## Por qué
+ * Porque `.margin-field select` y `.margin-field input` declaran las mismas ocho propiedades con
+ * los mismos valores: son la misma regla escrita dos veces. Se pueden fundir en
+ * `.margin-field select, .margin-field input` sin que cambie nada de lo que se ve, así que
+ * mantenerlas separadas no aporta nada hoy. Quien lea las dos tiene que saber que no son dos
+ * criterios distintos.
  *
- * ## Por qué
+ * ## Por qué aquí `--color-background` y `--radius-sm`, y en `.cost-field input` no
  *
- * ## Por qué
+ * Porque no son el mismo control, aunque los dos campos vivan en la misma tabla. `.cost-field
+ * input` usa la superficie elevada y `--radius-md`; el campo de margen usa el lienzo y
+ * `--radius-sm`. Los dos miden 34 px de alto, así que conviven en una columna sin escalas distintas.
+ * Es una diferencia heredada, no una decisión que esté escrita en ningún sitio: si algún día se
+ * unifican, hay que tocar las dos reglas a la vez.
  *
- * ## Por qué
+ * ## Por qué el input de prioridad no sale circular aquí
  *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
+ * Porque no sale. `LlmModelsPage` pone `className="mono priority-badge"` en el input de prioridad,
+ * dentro de un `<label className="margin-field">`, y `.margin-field input` tiene especificidad
+ * (0,1,1) contra (0,1,0) de `.priority-badge`: gana en `width`, `min-height`, `padding`,
+ * `background`, `color`, `border-radius` y `font-size`. El círculo de 24 px que describe el
+ * comentario de `.priority-badge` no llega a verse, y su `border-radius: 50%` también pierde. Se
+ * anota aquí porque la contradicción es entre dos reglas de este mismo bloque y quien lea
+ * cualquiera de las dos lo tiene que saber.
  */
 .margin-field select {
   width: 96px;
@@ -3089,7 +2958,8 @@ code.mono,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chart-grid {
+  .chart-grid,
+  .chart-grid-two {
     grid-template-columns: 1fr;
   }
 }
@@ -3739,6 +3609,26 @@ code.mono,
 .filter-bar > .search-field {
   flex: 0 1 300px;
   align-self: end;
+  /* ## Por qué un `min-width` y no un `flex: 0 0 300px`
+   *
+   * Porque `flex: 0 1 300px` permite encogerse, y en CVE se encogía: el buscador quedaba en 236 px
+   * con un placeholder que necesita más, así que el navegador lo cortaba a media palabra —«Buscar por
+   * ID de CVE o palabra c»—. Un campo de búsqueda con el texto a medias no dice qué se puede buscar,
+   * y el `id` de un CVE es justo lo que se viene a buscar.
+   *
+   * Fijarlo a 300 px sin encoger tampoco vale: en una barra con tres desplegables el buscador se
+   * sale de la pantalla. Con un mínimo, el buscador conserva texto legible mientras la barra decide
+   * cuánto sobra; si de verdad no cabe, la barra envuelve, que es lo que ya hace.
+   *
+   * El 330 px esta medido, no estimado. Con el campo en 300 px el navegador daba al input 254 -el
+   * ancho del campo menos el icono de 16, el `gap` y el relleno- y el placeholder de CVE necesita
+   * 274. Eran justo esos 20 px los que faltaban, y por eso se leia «palabra c».
+   *
+   * Se mide con `_medir_ancho.py`, que compara el ancho que el texto necesita con el que el campo
+   * le da. Estimar a ojo es lo que produjo el 240: cabia en el campo y aun asi se recortaba, porque
+   * el campo no es todo el ancho del placeholder -hay un icono dentro-. Si manana hay un placeholder
+   * mas largo, ese script dice cuanto falta en vez de dejar que se corte en silencio. */
+  min-width: 330px;
 }
 
 /* El buscador con etiqueta dentro de un `.filter-field`: el ancho se lo da el envoltorio, que
@@ -3753,6 +3643,23 @@ code.mono,
 .filter-bar .filter-field-search > .search-field {
   flex: none;
   width: 100%;
+}
+
+/* El botón de limpiar filtros va en la línea de los **controles**, no en la de las etiquetas.
+ *
+ * ## Por qué hace falta una regla
+ *
+ * Porque `.filter-bar` usa `align-items: start`, que es lo correcto para campos con etiqueta:
+ * todos empiezan a la misma altura. Un botón suelto sin etiqueta es una fila más corta que el
+ * resto, y con `start` queda pegado a la línea de las etiquetas, un escalón por encima de los
+ * controles de al lado. Con `end` baja hasta la línea de control, que es donde se lee.
+ *
+ * ## Por qué no se aplica a la barra entera
+ *
+ * Porque los campos **sí** llevan etiqueta, y bajarlos todos los dejaría un escalón por debajo
+ * de sus propias etiquetas. `align-self` se aplica al botón y no a `.filter-bar` por eso. */
+.filter-bar > .filter-bar-clear {
+  align-self: end;
 }
 
 /* La barra de herramientas de Repositories no lleva etiquetas, así que su `align-items: center`
@@ -4323,103 +4230,26 @@ input[type='checkbox']:not(.switch input) {
 /*
  * ESTA regla se marca como retirada y no se borra.
  *
- * ## Por qué
+ * ## Por qué se conservan dos reglas vacías
  *
- * ## Por qué
+ * Porque `.empty-state-list` y `.empty-state-note` se vaciaron y se renombraron con el sufijo
+ * `-retirada` en el mismo commit, y lo que sobrevive es la marca de que existieron. La segunda
+ * llegaba a declarar `max-width: 46ch`, `margin: 0`, `color: var(--color-muted)` y
+ * `font-size: 0.74rem`; hoy ese papel lo cumple el estado vacío de `.empty-card`, que sí tiene su
+ * regla. Ningún componente del panel referencia ya los dos nombres, y por eso el cuerpo se puede
+ * dejar vacío: una regla sin declaraciones no pinta nada.
  *
- * ## Por qué
+ * ## Por qué el sufijo y no solo un comentario
  *
- * ## Por qué
+ * Porque un sufijo en el nombre sobrevive a cualquier limpieza del comentario: se lee en el propio
+ * selector que la clase está retirada, sin abrir este bloque. Y quien combine un nombre
+ * `-retirada` en el JSX ve el aviso en la línea del `className`, que es donde va a mirar.
  *
- * ## Por qué
+ * ## Lo que no está anotado
  *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
+ * El motivo por el que se vaciaron las dos reglas no está en el fichero ni en el mensaje del
+ * commit, así que aquí no se inventa: lo comprobable es el antes y el después.
  */
-/* Cuerpo vacío a propósito: la clase está retirada y no la usa nadie, así que no hace
-   falta su declaración. Se deja la regla solo para que quede constancia de que existió
-   y de por qué ya no está en uso. */
 .empty-state-list-retirada {
 }
 
@@ -4990,9 +4820,7 @@ input[type='checkbox']:not(.switch input) {
 /*
  * El texto de una etiqueta cuando la `<label>` **es** el campo.
  *
- * ## Por qué hace falta, y no basta con quitar el `<span>`
- *
- * ## Por qué el markup original no se podría quedar como estaba
+ * ## Por qué hace falta la clase, y no basta con quitar el `<span>`
  *
  * Porque la estructura que se usa es `<label className="field"><span>texto</span><input/></label>`:
  * la etiqueta es el campo. Y la regla que estíla el texto de las etiquetas, `.field label`, solo
@@ -5003,6 +4831,14 @@ input[type='checkbox']:not(.switch input) {
  * Y no se quita el `span` porque `<label className="field">Texto<input/></label>` mezcla el texto
  * del rótulo con la rejilla del campo: el `display: grid` de `.field` crearía una fila de más por
  * cada nodo de texto. El `span` es lo que hace falta, solo que con nombre.
+ *
+ * ## Por qué aquí no basta con copiar `.field label`
+ *
+ * Porque `.field-label` no es una copia: `.field label` pone `color: var(--color-primary)` y este
+ * rótulo va en `--color-secondary`, un tono más apagado, y además declara `font-weight: 500` y
+ * `text-transform: uppercase`, que `.field label` no tiene. Heredando solo de `.field label` el
+ * rótulo de filtro salía en el mismo tono que el valor del campo al que nombra, y no se
+ * distinguía de él.
  */
 .field-label {
   color: var(--color-secondary);
@@ -5464,145 +5300,22 @@ select option:checked {
 /*
  * El formulario dentro de una celda se separa de la fila de botones y puede partir línea.
  *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
- *
- * ## Por qué
+ * ## Por qué `white-space: normal`
+ *
+ * Porque `.data-table th, .data-table td` declara `white-space: nowrap` para que las celdas de
+ * datos —un identificador de escaneo, una insignia, un nombre corto— no se partan en varias líneas
+ * y no desalineen la altura de la fila. Ese `nowrap` es el valor por defecto de la celda y esta
+ * regla lo baja solo para el grupo de campos: lo que hay dentro son frases, y con `nowrap` una
+ * etiqueta larga se salía de la celda en vez de partirse. El resto de la fila, incluidos los
+ * botones de acción de al lado, sigue sin partirse.
+ *
+ * ## Por qué `margin-top: 12px` y no el `gap` de un padre
+ *
+ * Porque el padre inmediato del grupo es el `<td>`, que no es flex: no hay ningún `gap` que lo
+ * separe de la fila de botones que lleva encima. 12 px es el mismo valor que usa `gap: 12px`
+ * dentro de `.field-group` en `console.css`, así que la separación entre el formulario y los
+ * botones es igual que la separación entre los campos del formulario, y no se lee un salto en
+ * medio de la celda.
  */
 .data-table td .field-group {
   margin-top: 12px;
@@ -5915,26 +5628,37 @@ select option:checked {
   font-size: 0.72rem;
 }
 
-/* `.table-caption` bajo `.content-card`: la variante que sustituye a un bloque entero.
+/*
+ * `.table-caption` bajo `.content-card`: la variante que sustituye a un bloque entero.
  *
- * ## Por qué aquí y no junto a la otra
- *
- * ## Por qué esta regla va al final de la hoja
+ * ## Por qué esta variante gana, y por qué da igual dónde esté escrita
  *
  * Porque `.table-caption` está definida en dos sitios distintos: la de aquí, y otra en
  * `knowledge.css` que la importa después y la pisa. Las dos son selectores de una clase, así que
- * ninguna gana por especificidad: gana la última. Poner la variante al final de `index.css` es lo
- * que garantiza que sea la que aplique —y si algún día se añade una hoja después, esto hay que
- * volver a mirarlo, porque el orden de importación manda tanto como la posición en el fichero.
+ * entre ellas ninguna gana por especificidad: gana la última. Lo que gana esta variante no es el
+ * orden sino el selector —`.content-card > .table-caption` tiene (0,2,0) frente a (0,1,0) de
+ * `.table-caption`—, así que aplica esté donde esté. El aviso sobre el orden sigue en pie para lo
+ * contrario: si algún día se añade una hoja después de `knowledge.css`, el orden de importación
+ * manda tanto como la posición en el fichero.
  *
- * Y el `width: 100%` no es decorativo: `.content-card` es un contenedor flex, así que el `<p>` se
- * convierte en un ítem flex y puede encogerse por debajo de su contenido. Sin el ancho explícito,
- * «Cargando el catálogo…» se parte en tres renglones de tres palabras en una tarjeta de mil píxeles
- * de ancho, que es exactamente lo que se veía en la captura.
+ * Y `width: 100%` es aquí redundante: `.content-card` es un bloque —más abajo se dice
+ * explícitamente que las tarjetas se quedan en bloque o grid para que ningún hijo se comprima— y un
+ * hijo de bloque ya ocupa el ancho completo. Se puede quitar sin cambiar nada de lo que se ve; se
+ * deja como red de seguridad para el día en que la tarjeta pase a flex.
  *
- * El `min-height` evita el salto cuando el texto da paso al estado vacío o a la rejilla de apuntes,
- * y el `text-align: center` lo alinea con el resto de estados de carga del panel, que van centrados
- * en `.empty-card`. */
+ * El `min-height: 96px` evita el salto cuando el texto da paso al estado vacío o a la rejilla de
+ * apuntes, y el `text-align: center` lo alinea con el resto de estados de carga del panel, que van
+ * centrados en `.empty-card`. Los 96 son 24 de padding por arriba y por abajo más 48 de alto
+ * mínimo: el rótulo sustituye a la tarjeta entera, así que necesita aire, pero no los 220 px de
+ * `.empty-card`, que están puestos para un estado vacío con marca y título.
+ *
+ * ## Por qué mono y `--color-muted`
+ *
+ * Porque `.content-card p:last-child` pone `--color-caption` a todo el párrafo final de la tarjeta,
+ * y este rótulo no es una frase de contenido sino un estado —cargando, vacío—. Por eso baja un tono
+ * y se pone en la misma familia que las marcas de los estados vacíos, que es lo único en mono de
+ * `.empty-card`: el texto se distingue de la etiqueta de arriba sin tener que competir con ella.
+ */
 .content-card > .table-caption {
   width: 100%;
   min-height: 96px;

@@ -15,6 +15,7 @@ La asimetría es deliberada y es la razón de que esta tabla no comparta modelo 
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,7 @@ from backend.apps.knowledge.documents import (
     KnowledgeDocTypeEnum,
     WorkspaceKnowledgeDocument,
 )
+from backend.core.filtros_texto import coincide, rango_creado
 
 
 class DocumentNotFoundError(Exception):
@@ -59,6 +61,9 @@ async def list_documents(
     organization_id: uuid.UUID,
     *,
     doc_type: KnowledgeDocTypeEnum | None = None,
+    query: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[WorkspaceKnowledgeDocument], int]:
@@ -68,11 +73,46 @@ async def list_documents(
     `where` que el llamador pueda olvidar. Es la misma razón por la que la cabecera
     `X-Organization-Id` es un selector y no una autoridad: el aislamiento se comprueba siempre,
     aunque hoy el único llamador pase bien el valor.
+
+    ## Por qué el texto busca en el título y en el contenido
+
+    Porque el título es lo que se escribe al guardar y el contenido es lo que se va a leer. Un
+    documento de arquitectura se titula `payments` y dentro tiene la palabra `webhook` mil
+    veces; quien busca es quien recuerda una frase que leyó, y esa frase casi nunca está en el
+    título. Con el título solo, el buscador parecería roto la mitad de las veces.
+
+    Y con las dos columnas, `LIKE` va sin escapar por el motivo que explica
+    `core.filtros_texto.escape_like`: los títulos de documentos llevan `_` y `%` con más
+    frecuencia de lo que parece, y sin escape `?query=%` devolvería la tabla entera.
+
+    ## Por qué el rango va sobre `created_at` y no sobre `updated_at`
+
+    Porque el listado se ordena por `updated_at`, pero `created_at` es la columna que nunca es
+    `NULL` y la que responde a «qué documentos subí en esta semana». Filtrar por `updated_at`
+    mezclaría dos preguntas distintas —cuándo se subió y cuándo se tocó— y un documento
+    reescrito la semana pasada aparecería en el rango de creación de hace seis meses, que es
+    justo lo que el filtro está diciendo que no quiere.
+
+    Se dice en el `title` de la etiqueta, en la pantalla, que el rango es de alta.
     """
 
     condiciones = [WorkspaceKnowledgeDocument.organization_id == organization_id]
     if doc_type is not None:
         condiciones.append(WorkspaceKnowledgeDocument.doc_type == doc_type)
+    # `coincide` devuelve **una sola** condición, con su propio `or_` de columnas dentro. Se
+    # añade a la lista y no se mezcla con el filtro de organización: la lista se une con `AND`,
+    # así que el texto acota la lista que el tenant ya ha recortado. Envolver los dos en un
+    # `or_` sería devolver el workspace entero en cuanto el término casara con un título.
+    if termino := (query or "").strip():
+        condiciones.append(
+            coincide(
+                [WorkspaceKnowledgeDocument.title, WorkspaceKnowledgeDocument.content],
+                termino,
+            )
+        )
+    condiciones.extend(
+        rango_creado(WorkspaceKnowledgeDocument.created_at, created_from, created_to)
+    )
 
     total = int(
         (

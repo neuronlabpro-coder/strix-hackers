@@ -11,6 +11,7 @@ import {
 } from '../../lib/api'
 import type { GitProvider, RemoteRepository } from '../../types/api'
 import { useAuth } from '../auth/useAuth'
+import { claveDeErrorDeInventario } from './inventarioErrores'
 
 type ProviderOption = { provider: GitProvider; labelKey: string }
 
@@ -55,6 +56,21 @@ export function ConnectRepositoryModal({
   const [provider, setProvider] = useState<GitProvider>('GITHUB')
   const [remoteRepositories, setRemoteRepositories] = useState<RemoteRepository[]>([])
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
+  /**
+   * `true` cuando la **última** carga del inventario terminó en fallo.
+   *
+   * ## Por qué hace falta y no se deduce de `remoteRepositories`
+   *
+   * Porque `remoteRepositories` está a `[]` en los dos casos —no hay repositorios, o no se ha
+   * podido preguntar— y el modal pintaba el mismo texto para los dos: «No hay repositorios
+   * disponibles con esta credencial». Con la carga fallida, esa frase es una afirmación que el
+   * panel no puede sostener: no es que no haya repositorios, es que no se ha enterado. Y puesta
+   * al lado del aviso de error, las dos frases juntas son un diagnóstico que no lleva a ninguna
+   * parte, que es justo el defecto que este estado viene a quitar.
+   *
+   * Con el valor a `false`, la lista vacía **sí** significa lista vacía y el texto vale.
+   */
+  const [inventarioFallido, setInventarioFallido] = useState(false)
   const [pendingRemoteId, setPendingRemoteId] = useState<string | null>(null)
   const [isStartingOAuth, setIsStartingOAuth] = useState<GitProvider | null>(null)
   const [connectMethod, setConnectMethod] = useState<ConnectMethod>('oauth')
@@ -111,6 +127,7 @@ export function ConnectRepositoryModal({
         .then((page) => {
           setRemoteRepositories(page.items)
           setTotalInventario(page.total)
+          setInventarioFallido(false)
           // Se compara lo pedido con lo aplicado. Un backend viejo no trae el campo y
           // `busqueda` vacía lo cuenta como «no filtró», que es la lectura conservadora: ante
           // la duda, se avisa de más y no de menos.
@@ -123,13 +140,27 @@ export function ConnectRepositoryModal({
           setSeleccionados(new Set())
         })
         .catch((error: unknown) => {
+          /*
+            El motivo lo decide el **código de estado**, no el tipo de excepción.
+            *
+            Antes esta rama era «si es `409`, credencial; en cualquier otro caso, no hay
+            * conector». Eso convertía un `502` —que aquí es «el proveedor rechazó tu
+            * credencial»— en «GitHub no tiene conector», que es lo que se vio en pantalla con un
+            * token caducado: la ventana decía que no había repositorios de GitHub con la lista de
+            * al lado que sí los tenía. La tabla de `inventarioErrores.ts` pone cada caso en su
+            * sitio.
+            *
+            Y el nombre del proveedor va como lo ve el usuario («GitHub»), no como la constante
+            del enum («GITHUB»): un identificador interno en un mensaje de una acción que el
+            usuario tiene que hacer no le dice nada.
+            */
           setRemoteRepositories([])
+          setInventarioFallido(true)
+          const estado = error instanceof ApiError ? error.status : null
+          const nombre = providerName(selectedProvider)
           setNotice({
             kind: 'error',
-            text:
-              error instanceof ApiError && error.status === 409
-                ? t('modal.noCredential', { provider: selectedProvider })
-                : t('modal.unsupportedProvider'),
+            text: t(claveDeErrorDeInventario(estado), { provider: nombre }),
           })
         })
         .finally(() => {
@@ -671,15 +702,29 @@ export function ConnectRepositoryModal({
             </button>
           </div>
 
+          {/*
+            `role="alert"` y no `status`. El aviso de error es lo único que hay que leer cuando
+            falla la carga, y `status` es una región live de cortesía: se anuncia, pero no
+            interrumpe. `alert` sí interrumpe, que es lo que corresponde a un fallo que acaba de
+            aparecer sin que nadie lo haya pedido.
+          */}
           {notice ? (
-            <p className={`modal-notice modal-notice-${notice.kind}`} role="status">
+            <p
+              className={`modal-notice modal-notice-${notice.kind}`}
+              role={notice.kind === 'error' ? 'alert' : 'status'}
+            >
               {notice.text}
             </p>
           ) : null}
 
           {isLoadingInventory ? (
             <p className="modal-empty">{t('states.loading')}</p>
-          ) : remoteRepositories.length === 0 ? (
+          ) : /*
+            El texto de lista vacía solo se pinta si la carga **terminó bien**. Con la carga
+            fallida ya hay un aviso arriba que dice por qué, y añadir debajo «no hay
+            repositorios» convierte un fallo en una afirmación que el panel no puede hacer: no
+            sabemos cuántos hay, sabemos que no lo hemos preguntado.
+          */ inventarioFallido ? null : remoteRepositories.length === 0 ? (
             <p className="modal-empty">{t('modal.empty')}</p>
           ) : (
             <>

@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.audit.models import AuditActionEnum, AuditLogEntry
@@ -24,6 +24,8 @@ from backend.apps.vulnerabilities.schemas import (
     AutofixRequest,
     AutofixResponse,
     RemediationResponse,
+    SeverityCount,
+    StatusCount,
     VulnerabilityDetail,
     VulnerabilityListItem,
     VulnerabilityPage,
@@ -49,6 +51,28 @@ PageLimit = Annotated[int, Query(ge=1, le=100)]
 PageOffset = Annotated[int, Query(ge=0, le=100_000)]
 VulnerabilityStatus = Annotated[IssueStatusEnum | None, Query(alias="status")]
 TargetFilter = Annotated[str | None, Query(max_length=512)]
+
+#: Orden fijo de los desgloses. Existe para que la respuesta sea estable: el panel dibuja una
+#: serie por severidad y otra por estado, y si el orden cambiase entre llamadas las barras
+#: saltarían de sitio en cada recarga sin que hubiera cambiado ningún dato.
+_SEVERITY_ORDER = (
+    SeverityEnum.CRITICAL,
+    SeverityEnum.HIGH,
+    SeverityEnum.MEDIUM,
+    SeverityEnum.LOW,
+    SeverityEnum.INFO,
+)
+
+#: El orden es el del ciclo de vida, no el alfabético: abierto, en curso, propuesto, corregido,
+#: aplazado, ignorado. Es el orden en el que un hallazgo avanza y el que se lee de un vistazo.
+_STATUS_ORDER = (
+    IssueStatusEnum.OPEN,
+    IssueStatusEnum.IN_PROGRESS,
+    IssueStatusEnum.REMEDIATION_PROPOSED,
+    IssueStatusEnum.FIXED,
+    IssueStatusEnum.SNOOZED,
+    IssueStatusEnum.IGNORED,
+)
 
 
 @router.get("/api/v1/vulnerabilities/", response_model=VulnerabilityPage)
@@ -93,7 +117,48 @@ async def list_vulnerabilities(
         .offset(offset)
     )
     items = [VulnerabilityListItem.model_validate(item) for item in result.scalars().all()]
-    return VulnerabilityPage(items=items, total=total, limit=limit, offset=offset)
+    # Los dos desgloses cuentan **todo** lo que casa con el filtro, no la página. Sin esto el
+    # panel tendría que agregarlos en cliente sobre las 25 filas que le devuelven, y la gráfica
+    # se leería como la distribución del conjunto cuando sería la de la primera página.
+    severity_counts, status_counts = await _breakdowns(session, filters)
+    return VulnerabilityPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        severity_breakdown=[
+            SeverityCount(severity=severity, total=severity_counts.get(severity, 0))
+            for severity in _SEVERITY_ORDER
+        ],
+        status_breakdown=[
+            StatusCount(status=status, total=status_counts.get(status, 0))
+            for status in _STATUS_ORDER
+        ],
+    )
+
+
+async def _breakdowns(
+    session: AsyncSession,
+    filters: list[ColumnElement[bool]],
+) -> tuple[dict[SeverityEnum, int], dict[IssueStatusEnum, int]]:
+    """Dos `GROUP BY` sobre el mismo filtro que la lista, en una sola ida a la base de datos.
+
+    Se resuelven juntos porque comparten la lista de filtros y siempre se piden juntos: separarlos
+    en dos helpers distintos no aportaría nada y sí dos viajes de más a la base de datos.
+    """
+
+    severity_result = await session.execute(
+        select(Vulnerability.severity, func.count(Vulnerability.id)).where(*filters)
+        .group_by(Vulnerability.severity)
+    )
+    status_result = await session.execute(
+        select(Vulnerability.status, func.count(Vulnerability.id)).where(*filters)
+        .group_by(Vulnerability.status)
+    )
+    return (
+        {severity: int(total) for severity, total in severity_result.all()},
+        {status: int(total) for status, total in status_result.all()},
+    )
 
 
 @router.get(

@@ -28,7 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.audit.models import AuditActionEnum, AuditLogEntry
-from backend.apps.billing.models import CreditLedger, LedgerReasonEnum
+from backend.apps.billing.models import CreditLedger, LedgerReasonEnum, StripeEvent
 from backend.apps.billing.schemas import CREDIT_PACKS
 from backend.apps.billing.service import apply_credit_delta
 from backend.apps.organizations.models import (
@@ -723,6 +723,198 @@ async def test_el_visor_de_auditoria_filtra_por_accion_y_tenant(
     assert propio.status_code == 200
     assert vacio.status_code == 200
     assert vacio.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_usuarios_no_trata_el_porcentaje_como_comodin(
+    integration_session: AsyncSession,
+) -> None:
+    r"""`?search=%` busca un símbolo de porcentaje, no devuelve todos los usuarios.
+
+    Es el fallo más silencioso de un buscador: la pantalla responde, enseña filas y el operador
+    da por bueno un filtro que no ha filtrado nada. Sin escapar el comodín, el patrón es
+    `%\%%`, que casa con cualquier valor.
+    """
+
+    session = integration_session
+    assert session is not None
+    _user, headers = await _superuser(session)
+    await _varios_tenants(session)
+    transporte = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        respuesta = await client.get("/api/v1/admin/users", params={"search": "%"}, headers=headers)
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    # El término sale por la URL sin decodificar, así que se escribe el valor ya codificado.
+    assert cuerpo["total"] == 0, cuerpo
+    assert cuerpo["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_usuarios_no_trata_el_subrayado_como_comodin(
+    integration_session: AsyncSession,
+) -> None:
+    """Un correo con `_` se busca literal, no como comodín de un carácter.
+
+    El `_` no es una rareza en esta tabla: los correos de prueba y de integración llevan `_` en
+    el prefijo, y un nombre de persona puede llevarlo. Sin escapar, `web_app` también devolvería
+    `webXapp`.
+    """
+
+    session = integration_session
+    assert session is not None
+    suffix = uuid.uuid4().hex
+    con_subrayado = User(
+        email=f"web_app-{suffix}@example.com",
+        hashed_password=hash_password("NoSeUsa"),
+        full_name="Con underscore",
+        email_verified=True,
+    )
+    session.add(con_subrayado)
+    await session.commit()
+    _user, headers = await _superuser(session)
+    transporte = ASGITransport(app=app)
+
+    # El usuario **no se borra** en un `finally`, y no es un descuido: la propia creación del
+    # superusuario y de los tenants escribe asientos en `audit_log`, que apunta a `actor_user_id`
+    # con clave foránea y es *append-only* por R4. Un `DELETE FROM users` choca con las dos
+    # cosas y la prueba falla por el estado que ella misma ha creado. Se deja la cuenta, con un
+    # sufijo único: no molesta a ninguna otra prueba porque nadie la busca.
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        respuesta = await client.get(
+            "/api/v1/admin/users",
+            params={"search": f"web_app-{suffix}"},
+            headers=headers,
+        )
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    assert cuerpo["total"] == 1
+    assert cuerpo["items"][0]["id"] == str(con_subrayado.id)
+
+
+@pytest.mark.asyncio
+async def test_el_rango_de_auditoria_usa_la_fecha_de_alta_y_es_inclusivo(
+    integration_session: AsyncSession,
+) -> None:
+    """Del 1 al 3 son tres días, y el tercero entra entero.
+
+    `created_at` no puede ser `NULL` nunca, así que un rango sobre ella recorta filas. Sobre una
+    columna anulable el rango las **borraría**, que es el motivo por el que no se usa aquí
+    `updated_at`.
+    """
+
+    session = integration_session
+    assert session is not None
+    _user, headers = await _superuser(session)
+    organization = await _varios_tenants(session)
+    entrada = AuditLogEntry(
+        organization_id=organization["pro"].id,
+        actor_user_id=None,
+        action=AuditActionEnum.ORGANIZATION_RENAMED,
+        entity_type="organization",
+        entity_id=str(organization["pro"].id),
+        created_at=datetime(2026, 3, 3, 23, 30, tzinfo=UTC),
+    )
+    session.add(entrada)
+    await session.commit()
+    transporte = ASGITransport(app=app)
+
+    # La entrada **no se borra** en el `finally`, y no es un descuido: `audit_log` es
+    # *append-only* por R4 y la base tiene un trigger que rechaza `DELETE` con un `RaiseError`.
+    # Intentar limpiarla haría fallar la prueba por la regla que está comprobando. Se deja la
+    # fila: es una entrada de auditoría más, con una fecha de 2026 que ninguna ventana de
+    # rango del resto de la batería solapa.
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        dentro = await client.get(
+            "/api/v1/admin/audit",
+            params={
+                "created_from": "2026-03-01",
+                "created_to": "2026-03-03",
+            },
+            headers=headers,
+        )
+        invertido = await client.get(
+            "/api/v1/admin/audit",
+            params={"created_from": "2026-03-05", "created_to": "2026-03-01"},
+            headers=headers,
+        )
+
+    assert dentro.status_code == 200, dentro.text
+    ids = {item["id"] for item in dentro.json()["items"]}
+    assert str(entrada.id) in ids
+    # Un rango invertido no es un `422`: las dos condiciones son incompatibles por
+    # construcción y la lista vacía ya es la respuesta.
+    assert invertido.status_code == 200, invertido.text
+    assert invertido.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_las_ventas_se_filtran_por_texto_y_por_fecha(
+    integration_session: AsyncSession,
+) -> None:
+    """El buscador de ventas alcanza al evento y al nombre del tenant.
+
+    Con solo el `event_id` el operador no encontraría una venta por el nombre del cliente que
+    la pagó, que es por lo que se busca más de la mitad de las veces. Y el rango va sobre
+    `created_at`, la única columna de fecha de la tabla.
+    """
+
+    session = integration_session
+    assert session is not None
+    _user, headers = await _superuser(session)
+    creados = await _varios_tenants(session)
+    objetivo = creados["pro"]
+    evento = StripeEvent(
+        organization_id=objetivo.id,
+        event_id="evt_filtro_texto_001",
+        event_type="checkout.session.completed",
+        created_at=datetime(2026, 3, 10, 12, 0, tzinfo=UTC),
+    )
+    session.add(evento)
+    await session.commit()
+    transporte = ASGITransport(app=app)
+
+    try:
+        async with AsyncClient(transport=transporte, base_url="http://test") as client:
+            por_evento = await client.get(
+                "/api/v1/admin/sales",
+                params={"query": "evt_filtro_texto_001"},
+                headers=headers,
+            )
+            por_tenant = await client.get(
+                "/api/v1/admin/sales",
+                params={"query": objetivo.name},
+                headers=headers,
+            )
+            por_fecha = await client.get(
+                "/api/v1/admin/sales",
+                params={"created_from": "2026-03-10", "created_to": "2026-03-10"},
+                headers=headers,
+            )
+            fuera_de_rango = await client.get(
+                "/api/v1/admin/sales",
+                params={"created_from": "2026-03-11", "created_to": "2026-03-12"},
+                headers=headers,
+            )
+
+        assert por_evento.status_code == 200, por_evento.text
+        ids = {item["id"] for item in por_evento.json()["items"]}
+        assert ids == {str(evento.id)}
+
+        assert por_tenant.status_code == 200, por_tenant.text
+        assert str(evento.id) in {item["id"] for item in por_tenant.json()["items"]}
+
+        assert por_fecha.status_code == 200, por_fecha.text
+        assert str(evento.id) in {item["id"] for item in por_fecha.json()["items"]}
+
+        assert fuera_de_rango.status_code == 200, fuera_de_rango.text
+        assert str(evento.id) not in {item["id"] for item in fuera_de_rango.json()["items"]}
+    finally:
+        await session.delete(evento)
+        await session.commit()
 
 
 @pytest.mark.asyncio

@@ -152,6 +152,18 @@ export function ContainersPage() {
     [summary, palette]
   )
 
+  /*
+    Las tres guardas de «¿hay algo que repartir?».
+  *
+   * No se deduce del total porque hay tres totales distintos y ninguno es el que decide:
+    * `total_agentes` cuenta agentes vivos, que existen aunque no se escanee nada;
+      `escaneos` necesita mirar día a día porque la serie viene rellena con ceros y el total
+    * viene dado aparte; y los paquetes tienen su propio contador.
+  */
+  const hayEscaneos = (summary?.por_dia ?? []).some((dia) => dia.escaneos > 0)
+  const hayEstados = Object.values(summary?.por_estado ?? {}).some((valor) => valor > 0)
+  const hayPaquetes = (summary?.total_paquetes ?? 0) > 0
+
   if (!isAuthenticated) {
     return (
       <div className="page-section">
@@ -230,19 +242,30 @@ export function ContainersPage() {
         </div>
       )}
 
+      {/*
+   Los tres bloques se pintan **siempre**, cada uno con su propio estado vacío. Mismo motivo que
+        en `NetworksPage`: retirar un bloque hace que los que quedan salten de sitio en cada
+        recarga. Y la torta de estado es el caso que peor lo llevaba: con la lista de datos
+   vacía, ECharts dibuja el anillo completo, así que un workspace sin escaneos enseñaba un
+        círculo blanco del tamaño de la tarjeta.
+      */}
       <div className="chart-grid">
         <section className="content-card" aria-labelledby="containers-trend">
           <p className="eyebrow">{t('containers.charts.trendEyebrow')}</p>
           <h2 id="containers-trend">{t('containers.charts.trendTitle')}</h2>
-          <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-            <EChart
-              option={porDia}
-              height={220}
-              ariaLabel={t('containers.charts.trendAria', {
-                total: summary?.por_dia.reduce((suma, dia) => suma + dia.escaneos, 0) ?? 0,
-              })}
-            />
-          </Suspense>
+          {hayEscaneos ? (
+            <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+              <EChart
+                option={porDia}
+                height={220}
+                ariaLabel={t('containers.charts.trendAria', {
+                  total: summary?.por_dia.reduce((suma, dia) => suma + dia.escaneos, 0) ?? 0,
+                })}
+              />
+            </Suspense>
+          ) : (
+            <p className="chart-empty">{t('containers.charts.trendEmpty')}</p>
+          )}
           <p className="visually-hidden">
             {t('containers.charts.trendTitle')}:{' '}
             {t('containers.charts.trendAria', {
@@ -254,29 +277,37 @@ export function ContainersPage() {
         <section className="content-card" aria-labelledby="containers-status">
           <p className="eyebrow">{t('containers.charts.statusEyebrow')}</p>
           <h2 id="containers-status">{t('containers.charts.statusTitle')}</h2>
-          <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-            <EChart
-              option={porEstado}
-              height={220}
-              ariaLabel={t('containers.charts.statusAria', {
-                done: summary?.por_estado.COMPLETED ?? 0,
-              })}
-            />
-          </Suspense>
+          {hayEstados ? (
+            <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+              <EChart
+                option={porEstado}
+                height={220}
+                ariaLabel={t('containers.charts.statusAria', {
+                  done: summary?.por_estado.COMPLETED ?? 0,
+                })}
+              />
+            </Suspense>
+          ) : (
+            <p className="chart-empty">{t('containers.charts.statusEmpty')}</p>
+          )}
         </section>
 
         <section className="content-card" aria-labelledby="containers-ecosystem">
           <p className="eyebrow">{t('containers.charts.ecosystemEyebrow')}</p>
           <h2 id="containers-ecosystem">{t('containers.charts.ecosystemTitle')}</h2>
-          <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-            <EChart
-              option={porEcosistema}
-              height={220}
-              ariaLabel={t('containers.charts.ecosystemAria', {
-                total: summary?.total_paquetes ?? 0,
-              })}
-            />
-          </Suspense>
+          {hayPaquetes ? (
+            <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+              <EChart
+                option={porEcosistema}
+                height={220}
+                ariaLabel={t('containers.charts.ecosystemAria', {
+                  total: summary?.total_paquetes ?? 0,
+                })}
+              />
+            </Suspense>
+          ) : (
+            <p className="chart-empty">{t('containers.charts.ecosystemEmpty')}</p>
+          )}
         </section>
       </div>
 
@@ -464,7 +495,14 @@ function serieOption(summary: AgentSummary | null, palette: ReturnType<typeof re
       bottom: 0,
       textStyle: { color: palette.secondary, fontSize: 11 },
     },
-    grid: { left: 8, right: 8, top: 16, bottom: 28, containLabel: true },
+    grid: {
+      left: 8,
+      right: 8,
+      top: 16,
+      bottom: 28,
+      outerBoundsMode: 'same',
+      outerBoundsContain: 'axisLabel',
+    },
     xAxis: {
       type: 'category',
       data: dias.map((dia) => dia.dia.slice(5)),

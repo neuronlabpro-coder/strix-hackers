@@ -87,18 +87,44 @@ export function AdminOperationsPage() {
   const [motivoDe, setMotivoDe] = useState<string | null>(null)
 
   /**
-   * La clave lleva la seccion y el filtro.
+   * La clave lleva la seccion y **solo los filtros que existen en ella**.
    *
    * Porque es lo que hace que la recarga ocurra: `useAsyncResource` vuelve a pedir cuando cambia
    * la clave, y un contador suelto que solo se llama desde un manejador no recarga nada. Y por
    * eso al cambiar de pestaña no se pide la de la anterior: cada tabla trae lo suyo y no hay un
    * «volver a cargar» que las mezcle.
+   *
+   * ## Por qué `soloColgados` solo entra en la clave en la pestaña de escaneos
+   *
+   * Porque es el **único** filtro de esta pantalla, y solo existe ahí: un contenedor no está
+   * «colgado», y una revisión de pull request tampoco. Meterlo en la clave de las otras tres no
+   * filtraba nada —el `fetcher` ya lo ignoraba— pero sí cambiaba la clave, así que marcar la
+   * casilla y luego pulsar «Contenedores» disparaba una petición idéntica a la que ya se había
+   * hecho. El operador ve la pantalla parpadear por un filtro que no está en ella, y no hay
+   * ninguna forma de saber por qué.
+   *
+   * El estado **no** se borra al cambiar de pestaña: se conserva para que al volver a
+   * «Escaneos» la casilla siga marcada, que es lo que espera quien la marcó.
    */
   const claveDatos =
-    tokenActivo === null ? null : `${tokenActivo}:${seccion}:${soloColgados ? '1' : '0'}`
+    tokenActivo === null
+      ? null
+      : JSON.stringify([
+          tokenActivo,
+          seccion,
+          seccion === 'scans' ? soloColgados : null,
+        ])
 
   /**
-   * La clave lleva `<token>:<seccion>:<soloColgados>` y el fetcher la lee.
+   * La clave es un `JSON.stringify` de tres valores y el fetcher la lee.
+   *
+   * ## Por qué serializada y no unida con `|`
+   *
+   * Porque los valores van a acabar dentro de una URL y dentro de un `WHERE`. Un separador de un
+   * carácter es seguro mientras ningún valor lo contenga, y aquí uno de los tres es el token de
+   * sesión: un JWT es base64url, así que hoy no trae `|`, pero escribir código que funciona
+   * porque el otro valor «no suele traer ese carácter» es escribir código que fallará el día que
+   * el otro valor cambie. Con `JSON` no hay separador que pueda aparecer.
    *
    * ## Por qué el token viaja en la clave
    *
@@ -121,14 +147,15 @@ export function AdminOperationsPage() {
 
   const cargar = useCallback(
     (k: string): Promise<PaginaOperaciones> => {
-      const partes = k.split(':')
-      const auth = partes[0] ?? ''
-      const seccionDeClave = partes[1] ?? 'scans'
-      const soloColgados = partes[2] === '1'
+      const [auth, seccionDeClave, soloColgados] = JSON.parse(k) as [
+        string,
+        Seccion,
+        boolean | null,
+      ]
       if (seccionDeClave === 'containers') return getAdminContainers(auth)
       if (seccionDeClave === 'reviews') return getAdminReviews(auth)
       if (seccionDeClave === 'jobs') return getAdminJobs(auth)
-      return getAdminScans(auth, { soloColgados })
+      return getAdminScans(auth, { soloColgados: soloColgados === true })
     },
     [],
   )
@@ -194,7 +221,22 @@ export function AdminOperationsPage() {
       </div>
     )
   }
-  if (datos.isLoading && datos.data === null) {
+  // ## Por qué esta rama no mira `datos.data === null`
+  //
+  // Porque `useAsyncResource` **conserva el resultado anterior** hasta que la petición nueva
+  // resuelve, y `isLoading` es exactamente «la clave que pido no es la clave de los datos que
+  // tengo». Con la condición antigua —`isLoading && data === null`— solo se cubría la primera
+  // carga: al cambiar de pestaña, `data` ya era un objeto y la pantalla pintaba las filas de la
+  // pestaña anterior bajo el título de la nueva.
+  //
+  // En Contenedores eso además rompía: las filas que llegaban eran de escaneo, que traen `id` y no
+  // `run_id`, así que la clave de cada `<tr>` era `undefined` y React avisaba de que los hijos de
+  // una lista no tenían clave única —atribuyendo el aviso a `TablaContenedores`, que es donde se
+  // creaba el elemento. El aviso era cierto y la causa estaba dos niveles más arriba.
+  //
+  // Con esta rama, mientras los datos no son de la sección que se está pintando, no se pinta
+  // ninguna tabla. Es lo que hace el resto del panel.
+  if (datos.isLoading) {
     return (
       <div className="empty-card">
         <p>{t('operations.states.loading')}</p>

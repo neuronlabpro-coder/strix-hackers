@@ -14,7 +14,7 @@ para que añadir una ruta nueva no la haga pública por descuido.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -542,13 +542,29 @@ async def list_sales(
     _superuser: SuperuserDependency,
     session: SessionDependency,
     organization_id: Annotated[UUID | None, Query()] = None,
+    query: Annotated[str | None, Query(max_length=256)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
 ) -> AdminSalePage:
-    """Historial de transacciones procesadas por Stripe."""
+    """Historial de transacciones procesadas por Stripe.
+
+    Acepta búsqueda por texto y rango de fechas de alta, con el mismo criterio que el resto de
+    los listados paginados del proyecto: el término se escapa para que `%` y `_` se busquen
+    literales, y el rango es **inclusivo** en su límite superior. Un rango invertido devuelve la
+    lista vacía en vez de un `422`, porque las dos condiciones son incompatibles por
+    construcción.
+    """
 
     return await queries.list_sales(
-        session, organization_id=organization_id, limit=limit, offset=offset
+        session,
+        organization_id=organization_id,
+        search=query,
+        created_from=created_from,
+        created_to=created_to,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -558,7 +574,9 @@ async def list_audit(
     session: SessionDependency,
     organization_id: Annotated[UUID | None, Query()] = None,
     action: Annotated[str | None, Query(description="Nombre exacto de la acción.")] = None,
-    search: Annotated[str | None, Query()] = None,
+    search: Annotated[str | None, Query(max_length=256)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
 ) -> AdminAuditPage:
@@ -596,6 +614,8 @@ async def list_audit(
         organization_id=organization_id,
         action=filtro_accion,
         search=search,
+        created_from=created_from,
+        created_to=created_to,
         limit=limit,
         offset=offset,
     )

@@ -256,7 +256,14 @@ export function revokeAgentAsAdmin(
 
 export function getAdminSales(
   token: string,
-  params: { organizationId?: string | null; limit?: number; offset?: number } = {},
+  params: {
+    organizationId?: string | null
+    query?: string | null
+    createdFrom?: string | null
+    createdTo?: string | null
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<AdminSalePage> {
   return adminRequest(
     `/api/v1/admin/sales${query({ limit: 50, offset: 0, ...params })}`,
@@ -275,6 +282,10 @@ export interface AdminAuditFilters {
   organizationId?: string | null
   action?: string | null
   search?: string | null
+  /** Rango de alta, en `AAAA-MM-DD`. El límite superior del servidor es inclusivo. */
+  createdFrom?: string | null
+  /** Rango de alta, en `AAAA-MM-DD`. El límite superior del servidor es inclusivo. */
+  createdTo?: string | null
   limit?: number
   offset?: number
 }
@@ -283,13 +294,28 @@ export function getAdminAuditLog(
   token: string,
   filters: AdminAuditFilters = {},
 ): Promise<{ items: AdminAuditEntry[]; total: number; limit: number; offset: number }> {
+  /*
+    `limit` y `offset` vienen de `filters` en las dos últimas líneas, y antes no venían: los dos
+    valores de abajo eran fijos y la paginación de la consola no hacía nada. `useAdminPage` pedía
+    la página 2 con `limit=50&offset=50`, esta función lo traducía a `limit=50&offset=0`, y el
+    botón «Siguiente» enseñaba las mismas cincuenta filas de siempre con el resumen cambiando de
+    «1 de 2» a «2 de 2». El fallo era invisible porque la respuesta trae `total` y la barra se
+    dibujaba bien: solo las filas no cambiaban.
+
+    Van en dos `...(cond ? { clave } : {})` y no en un `...filters` a secas porque el resto de
+    este fichero usa nombres camelCase en la interfaz y `snake_case` en la query, y un
+    `...filters` se llevaría por delante los `limit` y `offset` con los que el resto de
+    funciones sí cuentan. Aquí se escriben a mano para que se vean.
+  */
   return adminRequest(
     `/api/v1/admin/audit${query({
-      limit: 50,
-      offset: 0,
+      limit: filters.limit ?? 50,
+      offset: filters.offset ?? 0,
       organization_id: filters.organizationId,
       action: filters.action,
       search: filters.search,
+      created_from: filters.createdFrom,
+      created_to: filters.createdTo,
     })}`,
     {},
     token,

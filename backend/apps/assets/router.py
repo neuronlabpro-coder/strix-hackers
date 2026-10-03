@@ -14,6 +14,7 @@ devuelve `404`.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -29,6 +30,7 @@ from backend.apps.assets.schemas import (
     DomainCreate,
     DomainItem,
     DomainListResponse,
+    DomainVerificationFilter,
     VerifyDomainResponse,
 )
 from backend.apps.organizations.models import RoleEnum
@@ -110,11 +112,54 @@ async def create_domain(
 async def list_domains(
     tenant: TenantDependency,
     session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+    search: Annotated[str | None, Query(max_length=253)] = None,
+    status_filter: Annotated[
+        DomainVerificationFilter | None, Query(alias="status")
+    ] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
 ) -> DomainListResponse:
-    """Los dominios del workspace activo, verificados primero."""
+    """Los dominios del workspace activo, verificados primero, con filtros y paginación.
 
-    items = await service.list_domains(session, tenant.organization.id)
-    return DomainListResponse(items=items, total=len(items))
+    ## Por qué el listado se paginó y no se quedó en «traerlo todo»
+
+    Porque sin paginación no hay forma de filtrar: el buscador devolvería la superficie
+    entera del tenant en cada tecla, el `total` no diría nada y un workspace con cuarenta
+    dominios vería cómo la tabla crece por debajo sin ninguna señal de que hay más. Con
+    `limit`/`offset` el buscador recorta en el servidor y `total` sigue contando lo que
+    coincide con los filtros, que es lo que hace honesta la barra de paginación.
+
+    El límite por defecto es **25** y no 50: es el mismo que usan los listados de tickets y de
+    revisiones de PR, y un único número para todas las tablas del panel es lo que permite que la
+    barra de paginación se parezca en todas. Subirlo para un recurso concreto es una decisión
+    que se toma aquí y no en el panel, que no puede inventarse un tope.
+
+    ## Por qué el rango va sobre la fecha de alta y no sobre la de verificación
+
+    Porque `verified_at` es `NULL` en todos los dominios pendientes, y filtrar por él haría
+    desaparecer justo los que el usuario quiere ver cuando busca «¿cuáles me quedan por
+    publicar?». `created_at` no es `NULL` nunca.
+
+    ## Por qué el estado se llama `status` en la URL y `status_filter` en Python
+
+    Porque `status` está en el espacio de nombres del módulo —`from fastapi import status`— y un
+    parámetro que se llamara así taparía ese import en todo el fichero. El alias lo deja
+    exposed como `?status=` sin que el nombre interno estorbe. Es el mismo truco que ya usa la
+    ruta de tickets de soporte.
+    """
+
+    return await service.list_domains(
+        session,
+        tenant.organization.id,
+        search=search,
+        verification=status_filter,
+        created_from=created_from,
+        created_to=created_to,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/domains/{domain_id}/verify", response_model=VerifyDomainResponse)
@@ -177,16 +222,27 @@ async def list_assets(
     session: SessionDependency,
     domain_id: Annotated[UUID | None, Query()] = None,
     asset_type: Annotated[AssetTypeEnum | None, Query()] = None,
+    query: Annotated[str | None, Query(max_length=256)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
 ) -> AssetListResponse:
-    """Activos descubiertos del workspace, filtrables por dominio y por tipo."""
+    """Activos descubiertos del workspace, filtrables por dominio, tipo, texto y fecha de alta.
+
+    El rango es de **alta** del activo y su límite superior es inclusivo, como en el resto de
+    listados paginados del proyecto. Un rango invertido devuelve la lista vacía y no un `422`:
+    las dos condiciones son incompatibles por construcción, así que esa ya es la respuesta.
+    """
 
     return await service.list_assets(
         session,
         tenant.organization.id,
         domain_id=domain_id,
         asset_type=asset_type,
+        query=query,
+        created_from=created_from,
+        created_to=created_to,
         limit=limit,
         offset=offset,
     )

@@ -50,5 +50,10 @@
   "confirm": "Confirmar",
   "sessionLoadFailedTitle": "No pudimos cargar tu workspace",
   "sessionLoadFailedDescription": "Tu sesión sigue activa: el problema es de conexión con el servidor, no tu cuenta. Puedes reintentar sin volver a identificarte.",
-  "sessionRetry": "Reintentar"
+  "sessionRetry": "Reintentar",
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
+  }
 }

@@ -51,6 +51,14 @@
     "typeFilterLabel": "Filter by document type",
     "allTypes": "All types",
     "add": "Add OKF document",
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Document title or content...",
+      "dateFrom": "Created from",
+      "dateTo": "Created to",
+      "dateHint": "Filters by the document creation date, not by the last modified date shown on the card. The range includes the final day in full.",
+      "clear": "Clear filters"
+    },
     "types": {
       "DOCUMENTATION": "Documentation",
       "BUSINESS_RULE": "Business rule",
@@ -69,8 +77,13 @@
     "count": "Showing {{shown}} of {{total}} documents",
     "emptyTitle": "No business rules or documentation indexed yet",
     "emptyBody": "Add documents in OKF format so scans and the assistant stop producing false positives.",
-    "emptyFilteredTitle": "No document matches the filter",
-    "emptyFilteredBody": "Try removing the type filter."
+    "emptyFilteredTitle": "No document matches the filters",
+    "emptyFilteredBody": "Try removing the type filter, the text or the date range."
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "summary": "{{from}}–{{to}} of {{total}}"
   },
   "okfEditor": {
     "title": "Add OKF document",

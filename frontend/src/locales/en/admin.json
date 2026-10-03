@@ -221,6 +221,9 @@
     "description": "Every registered account and the workspaces it belongs to.",
     "searchPlaceholder": "Email or name",
     "onlySuperusers": "Superusers only",
+    "filters": {
+      "clear": "Clear filters"
+    },
     "columns": {
       "email": "Email",
       "name": "Name",
@@ -236,7 +239,8 @@
     "active": "Active",
     "inactive": "Deactivated",
     "noOrganizations": "No organization",
-    "empty": "No user matches the search",
+    "empty": "No account has been registered yet",
+    "emptyFiltered": "No user matches the filters",
     "total": "{{total}} users in total",
     "noRoles": "No organization",
     "actions": {
@@ -263,6 +267,14 @@
   "sales": {
     "title": "Sales and revenue",
     "description": "History of the payment events processed by the payment provider.",
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Event, type or tenant...",
+      "dateFrom": "Processed from",
+      "dateTo": "Processed to",
+      "dateHint": "Filters by the date the event was processed, which is the one shown in the table. The range includes the final day in full.",
+      "clear": "Clear filters"
+    },
     "columns": {
       "event": "Event",
       "type": "Type",
@@ -277,6 +289,7 @@
     "noTenant": "No tenant",
     "noSession": "—",
     "empty": "No payment has been processed yet",
+    "emptyFiltered": "No event matches the filters",
     "total": "{{count}} events · {{credits}} credits on this page",
     "totalCaption": "The sum covers this page's recorded amounts, not the full history.",
     "notApplicable": "Not applicable",

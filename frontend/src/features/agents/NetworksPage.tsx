@@ -28,6 +28,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Globe, Network, RefreshCw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
 import type { ChartOption } from '../../charts/EChart'
 import { readChartPalette } from '../../charts/palette'
@@ -145,7 +146,28 @@ export function NetworksPage() {
   const palette = useMemo(() => readChartPalette(), [])
   const puertos = useMemo(() => puertosOption(summary, palette), [summary, palette])
   const estado = useMemo(() => estadoOption(summary, palette), [summary, palette])
-  const porDia = useMemo(() => serieOption(summary, palette), [summary, palette])
+  const porDia = useMemo(
+    () => serieOption(summary, palette, t),
+    [summary, palette, t],
+  )
+
+  /*
+    Los tres gráficos se ocultan cuando no hay nada que repartir.
+ *
+ * Porque un gráfico de ceros es ruido que ocupa una tarjeta entera para decir «no hay nada»,
+    y —en el caso de la torta— es peor: ECharts dibuja el anillo completo aunque la lista de
+    datos esté vacía, así que un workspace sin escaneos muestra un círculo blanco enorme que
+    parece un resultado. Esa tarjeta tampoco es interactiva: no hay nada que filtrar con ella.
+ *
+    Y el reparto por estado tiene el problema añadido de que su lista de colores es una
+    tabla `Record` de nombres de estado en inglés. Con la serie ahora traducida, ese `Record`
+    se queda como estaba: son colores de un esquema de estados que el panel ya pinta en las
+    píldoras, y cambiarlo aquí sin cambiarlo allí haría que un estado fuera de dos tonos
+    distintos en dos pantallas.
+    */
+  const hayPuertos = Object.keys(summary?.puertos_por_numero ?? {}).length > 0
+  const hayEstados = Object.values(summary?.por_estado ?? {}).some((valor) => valor > 0)
+  const hayEscaneos = (summary?.por_dia ?? []).some((dia) => dia.escaneos > 0)
 
   if (!isAuthenticated) {
     return (
@@ -224,17 +246,27 @@ export function NetworksPage() {
         </div>
       )}
 
+      {/*
+        Los tres bloques se pintan **siempre**, cada uno con su propio estado vacío, y no se
+        retira el `chart-grid` entero. Un bloque que aparece y desaparece hace que la fila de
+        los que quedan cambie de sitio en cada recarga, y con ello la posición de todo lo que
+        hay debajo. Con las tres tarjetas siempre presentes, la rejilla no se mueve nunca.
+      */}
       <div className="chart-grid">
         <section className="content-card" aria-labelledby="networks-ports">
           <p className="eyebrow">{t('networks.charts.portsEyebrow')}</p>
           <h2 id="networks-ports">{t('networks.charts.portsTitle')}</h2>
-          <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-            <EChart
-              option={puertos}
-              height={220}
-              ariaLabel={t('networks.charts.portsAria', { total: summary?.total_puertos ?? 0 })}
-            />
-          </Suspense>
+          {hayPuertos ? (
+            <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+              <EChart
+                option={puertos}
+                height={220}
+                ariaLabel={t('networks.charts.portsAria', { total: summary?.total_puertos ?? 0 })}
+              />
+            </Suspense>
+          ) : (
+            <p className="chart-empty">{t('networks.charts.portsEmpty')}</p>
+          )}
           <p className="visually-hidden">
             {t('networks.charts.portsTitle')}:{' '}
             {t('networks.charts.portsAria', { total: summary?.total_puertos ?? 0 })}
@@ -244,29 +276,37 @@ export function NetworksPage() {
         <section className="content-card" aria-labelledby="networks-status">
           <p className="eyebrow">{t('networks.charts.statusEyebrow')}</p>
           <h2 id="networks-status">{t('networks.charts.statusTitle')}</h2>
-          <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-            <EChart
-              option={estado}
-              height={220}
-              ariaLabel={t('networks.charts.statusAria', {
-                done: summary?.por_estado.COMPLETED ?? 0,
-              })}
-            />
-          </Suspense>
+          {hayEstados ? (
+            <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+              <EChart
+                option={estado}
+                height={220}
+                ariaLabel={t('networks.charts.statusAria', {
+                  done: summary?.por_estado.COMPLETED ?? 0,
+                })}
+              />
+            </Suspense>
+          ) : (
+            <p className="chart-empty">{t('networks.charts.statusEmpty')}</p>
+          )}
         </section>
 
         <section className="content-card" aria-labelledby="networks-trend">
           <p className="eyebrow">{t('networks.charts.trendEyebrow')}</p>
           <h2 id="networks-trend">{t('networks.charts.trendTitle')}</h2>
-          <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
-            <EChart
-              option={porDia}
-              height={220}
-              ariaLabel={t('networks.charts.trendAria', {
-                total: summary?.por_dia.reduce((suma, dia) => suma + dia.escaneos, 0) ?? 0,
-              })}
-            />
-          </Suspense>
+          {hayEscaneos ? (
+            <Suspense fallback={<div className="chart-placeholder" style={{ height: 220 }} />}>
+              <EChart
+                option={porDia}
+                height={220}
+                ariaLabel={t('networks.charts.trendAria', {
+                  total: summary?.por_dia.reduce((suma, dia) => suma + dia.escaneos, 0) ?? 0,
+                })}
+              />
+            </Suspense>
+          ) : (
+            <p className="chart-empty">{t('networks.charts.trendEmpty')}</p>
+          )}
         </section>
       </div>
 
@@ -445,7 +485,17 @@ function puertosOption(
       borderColor: palette.secondary,
       textStyle: { color: palette.primary },
     },
-    grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
+    // `outerBounds` y no `containLabel`: ECharts 6 marca `containLabel` como obsoleto y avisa por
+    // consola en cada pintado. Su equivalente exacto es
+    // `{ outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' }`.
+    grid: {
+      left: 8,
+      right: 16,
+      top: 16,
+      bottom: 8,
+      outerBoundsMode: 'same',
+      outerBoundsContain: 'axisLabel',
+    },
     xAxis: {
       type: 'category',
       data: entradas.map((entrada) => entrada.puerto),
@@ -518,10 +568,20 @@ function estadoOption(
   }
 }
 
-/** Escaneos por día. */
+/**
+ * Escaneos por día, apilados por resultado.
+ *
+ * ## Por qué el nombre de la serie llega como parámetro y no se escribe aquí
+ *
+ * Porque antes iba escrito: `name: 'ok'` y `name: 'ko'` en inglés, en la leyenda, en una
+ * pantalla que por lo demás está en español. Es una violación de R1 de las que no se ven: la
+ * leyenda se dibuja, se lee «ok» y «ko», y nadie lo reporta porque nadie tiene inglés roto. Se
+ * traduce como cualquier otro texto, y por eso la función necesita `t`.
+ */
 function serieOption(
   summary: AgentSummary | null,
-  palette: ReturnType<typeof readChartPalette>
+  palette: ReturnType<typeof readChartPalette>,
+  t: TFunction<'agents'>,
 ): ChartOption {
   const dias = summary?.por_dia ?? []
   return {
@@ -533,7 +593,14 @@ function serieOption(
       textStyle: { color: palette.primary },
     },
     legend: { show: true, bottom: 0, textStyle: { color: palette.secondary, fontSize: 11 } },
-    grid: { left: 8, right: 8, top: 16, bottom: 28, containLabel: true },
+    grid: {
+      left: 8,
+      right: 8,
+      top: 16,
+      bottom: 28,
+      outerBoundsMode: 'same',
+      outerBoundsContain: 'axisLabel',
+    },
     xAxis: {
       type: 'category',
       data: dias.map((dia) => dia.dia.slice(5)),
@@ -549,7 +616,7 @@ function serieOption(
     },
     series: [
       {
-        name: 'ok',
+        name: t('networks.charts.trendOk'),
         type: 'bar',
         stack: 'total',
         data: dias.map((dia) => dia.terminados),
@@ -557,7 +624,7 @@ function serieOption(
         barMaxWidth: 18,
       },
       {
-        name: 'ko',
+        name: t('networks.charts.trendKo'),
         type: 'bar',
         stack: 'total',
         data: dias.map((dia) => dia.fallidos),

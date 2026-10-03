@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -10,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.dashboard.schemas import (
     DashboardSummaryResponse,
+    FindingsTrendPoint,
     RepositoryDashboardItem,
     RepositoryMonitoringStatusEnum,
     SeverityCount,
+    StatusCount,
 )
 from backend.apps.dashboard.score import compute_security_score
 from backend.apps.pentests.models import PentestRun, ScanModeEnum
@@ -40,6 +43,89 @@ _SEVERITY_ORDER = (
     SeverityEnum.LOW,
     SeverityEnum.INFO,
 )
+
+#: Orden del ciclo de vida de la remediación. No es el alfabético: es el orden en el que un
+#: hallazgo avanza, y es el que se lee sin pensar en la pantalla de triaje.
+_STATUS_ORDER = (
+    IssueStatusEnum.OPEN,
+    IssueStatusEnum.IN_PROGRESS,
+    IssueStatusEnum.REMEDIATION_PROPOSED,
+    IssueStatusEnum.FIXED,
+    IssueStatusEnum.SNOOZED,
+    IssueStatusEnum.IGNORED,
+)
+
+#: Ventana de la serie temporal, en días. Es la misma que usa el resumen de agentes para los
+#: escaneos, y por el mismo motivo: treinta días es un ciclo de corrección completo en una
+#: cadencia semanal, así que la serie responde «¿voy bien?» en vez de «¿qué pasó hoy?».
+DIAS_DE_SERIE = 30
+
+
+async def _findings_trend(
+    session: AsyncSession,
+    organization_id: UUID,
+    now: datetime,
+) -> list[FindingsTrendPoint]:
+    """Hallazgos detectados por día en la ventana, desglosados por severidad.
+
+    ## Por qué la serie se calcula aquí y no la arma el panel
+
+    Porque la API de issues está paginada. Un «hallazgos por día» montado en el navegador solo
+    podría mirar la página que tiene delante —veinticinco filas—, y daría dos mentiras a la vez:
+    que no hay hallazgos en las fechas que no salen en esa página, y que los hay en las que sí
+    salen pero repetidos de cada vez que se pasa de página. Con cuatro mil hallazgos abiertos, la
+    gráfica mentiría en voz alta. Aquí la cuenta la base de datos sobre el conjunto entero, con
+    el filtro de organización aplicado, que es además la única forma de que el aislamiento
+    multi-tenant (R3) no dependa de qué filas le interpretada el cliente.
+
+    ## Por qué los días vacíos se rellenan con cero
+
+    Porque un gráfico con huecos **lee** como si faltaran datos. Un día sin hallazgos y un día sin
+    consultar se ven igual, y quien lee la gráfica concluiría que el escaneo del martes falló.
+    Con el cero explícito, la línea baja sola y el vacío se lee como vacío.
+
+    ## Por qué el desglose va por severidad y no por estado
+
+    Porque la severidad es la lectura que ya conoce quien mira un hallazgo, y porque el estado
+    cambia con el triaje mientras que la severidad no cambia nunca. Dibujar el estado en la
+    serie dibujaría una curva que además depende de quién ha pulsado botones.
+    """
+
+    desde = now - dt.timedelta(days=DIAS_DE_SERIE - 1)
+    filas = (
+        await session.execute(
+            select(
+                func.date_trunc("day", Vulnerability.discovered_at).label("dia"),
+                Vulnerability.severity,
+                func.count(Vulnerability.id),
+            )
+            .where(
+                Vulnerability.organization_id == organization_id,
+                Vulnerability.discovered_at >= desde,
+            )
+            .group_by("dia", Vulnerability.severity)
+        )
+    ).all()
+
+    por_dia: dict[dt.date, dict[SeverityEnum, int]] = {}
+    for dia, severity, total in filas:
+        por_dia.setdefault(dia.date(), {})[severity] = int(total)
+
+    serie: list[FindingsTrendPoint] = []
+    for desplazamiento in range(DIAS_DE_SERIE):
+        dia = (desde + dt.timedelta(days=desplazamiento)).date()
+        conteo = por_dia.get(dia, {})
+        # Las cinco claves siempre presentes: el panel dibuja una serie por severidad y necesita
+        # distinguir «cero» de «no hay dato». Ver `FindingsTrendPoint`.
+        reparto = {severity: conteo.get(severity, 0) for severity in _SEVERITY_ORDER}
+        serie.append(
+            FindingsTrendPoint(
+                dia=dia,
+                total=sum(reparto.values()),
+                por_severidad=reparto,
+            )
+        )
+    return serie
 
 
 async def _severity_counts(session: AsyncSession, organization_id: UUID) -> dict[SeverityEnum, int]:
@@ -172,6 +258,7 @@ async def build_dashboard_summary(
     current_time = now or datetime.now(UTC)
     severity_counts = await _severity_counts(session, organization_id)
     status_counts = await _status_counts(session, organization_id)
+    findings_trend = await _findings_trend(session, organization_id, current_time)
     prs_reviewed, prs_reviewed_total = await _review_metrics(session, organization_id, current_time)
     pentests_total = await _pentest_total(session, organization_id)
     open_by_repository = await _repository_open_vulnerabilities(session, organization_id)
@@ -212,6 +299,11 @@ async def build_dashboard_summary(
             SeverityCount(severity=severity, total=severity_counts.get(severity, 0))
             for severity in _SEVERITY_ORDER
         ],
+        status_distribution=[
+            StatusCount(status=status, total=status_counts.get(status, 0))
+            for status in _STATUS_ORDER
+        ],
+        findings_trend=findings_trend,
         repositories=[
             RepositoryDashboardItem(
                 id=repository.id,

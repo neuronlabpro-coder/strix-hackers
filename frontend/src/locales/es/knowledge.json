@@ -51,6 +51,14 @@
     "typeFilterLabel": "Filtrar por tipo de documento",
     "allTypes": "Todos los tipos",
     "add": "Añadir documento OKF",
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "Título o contenido del documento...",
+      "dateFrom": "Alta desde",
+      "dateTo": "Alta hasta",
+      "dateHint": "Filtra por la fecha de alta del documento, no por la de última modificación que muestra la tarjeta. El rango incluye el día final entero.",
+      "clear": "Quitar filtros"
+    },
     "types": {
       "DOCUMENTATION": "Documentación",
       "BUSINESS_RULE": "Regla de negocio",
@@ -70,7 +78,12 @@
     "emptyTitle": "No hay reglas de negocio ni documentación indexada",
     "emptyBody": "Añade documentos en formato OKF para que los escaneos y el asistente no generen falsos positivos.",
     "emptyFilteredTitle": "Ningún documento coincide con el filtro",
-    "emptyFilteredBody": "Prueba a quitar el filtro de tipo."
+    "emptyFilteredBody": "Prueba a quitar el filtro de tipo, el texto o el rango de fechas."
+  },
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
   },
   "okfEditor": {
     "title": "Añadir documento OKF",

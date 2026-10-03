@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 import type { IssueStatus, VulnerabilityListItem, VulnerabilitySeverity } from '../../types/api'
+import { IssuesCharts } from './GraficosIssues'
 import { KanbanBoard } from './KanbanBoard'
 import {
   PAGE_SIZE,
@@ -35,6 +36,8 @@ export function IssuesPage() {
   const {
     items,
     severityTotals,
+    severityCounts,
+    statusCounts,
     total,
     offset,
     limit,
@@ -83,6 +86,18 @@ export function IssuesPage() {
         </div>
       </div>
 
+      {/*
+        Los gráficos van **después** de la tira de severidad y no antes, por una razón de
+        lectura: la tira es el filtro y el filtro va arriba. Quien entra a esta pantalla
+        lo primero que quiere saber casi nunca es «¿cuántos hay?» sino «¿cuál es el más grave
+        que tengo?», y esa pregunta la contestan las píldoras en un segundo. La distribución es
+        la segunda pregunta: la que se hace cuando ya se sabe que hay trabajo y se quiere ver
+        de qué tipo.
+
+        Y el orden importa también para el foco: los botones de la tira son pulsables con
+        teclado y van antes que un `<canvas>` que no lo es, así que quien navega con teclado
+        llega a los controles sin atravesar un elemento que no puede usar.
+      */}
       <div className="severity-strip" role="group" aria-label={t('severityCounts.label')}>
         {SEVERITIES.map((severity) => (
           <button
@@ -173,6 +188,20 @@ export function IssuesPage() {
           />
         </div>
       </div>
+
+      {/*
+        Los gráficos se montan **aunque haya un filtro activo**, y esa es la decisión que los
+        hace útiles: filtrar por `CRITICAL` y ver «Crítico: 12, todo lo demás cero» es la
+        confirmación de que el filtro funciona. Si solo se pintaran sin filtros, la segunda
+        pregunta —la que se hace con el filtro puesto— quedaría sin respuesta.
+      */}
+      {!isLoading && !loadFailed && total > 0 ? (
+        <IssuesCharts
+          severityCounts={severityCounts}
+          statusCounts={statusCounts}
+          total={total}
+        />
+      ) : null}
 
       {isLoading ? (
         <div className="empty-card">

@@ -57,5 +57,10 @@
     "loading": "Cargando el catálogo",
     "error": "No se pudo cargar el catálogo",
     "retry": "Reintentar"
+  },
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
   }
 }

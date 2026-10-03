@@ -94,12 +94,17 @@
       "trendEyebrow": "Activity",
       "trendTitle": "Scans per day",
       "trendAria": "{{total}} scans over the last fifteen days.",
+      "trendOk": "Completed",
+      "trendKo": "Failed",
+      "trendEmpty": "No scans in this period yet",
       "statusEyebrow": "Status",
       "statusTitle": "How they end",
       "statusAria": "{{done}} scans completed.",
+      "statusEmpty": "No scans to classify yet",
       "ecosystemEyebrow": "Inventory",
       "ecosystemTitle": "Packages per ecosystem",
-      "ecosystemAria": "{{total}} packages split by package manager."
+      "ecosystemAria": "{{total}} packages split by package manager.",
+      "ecosystemEmpty": "No packages inventoried yet"
     },
     "filters": {
       "search": "Search image",
@@ -176,12 +181,17 @@
       "portsEyebrow": "Exposure",
       "portsTitle": "Open ports",
       "portsAria": "{{total}} open ports, grouped by number.",
+      "portsEmpty": "No open ports to show yet",
       "statusEyebrow": "Status",
       "statusTitle": "How they end",
       "statusAria": "{{done}} scans completed.",
+      "statusEmpty": "No scans to classify yet",
       "trendEyebrow": "Activity",
       "trendTitle": "Scans per day",
-      "trendAria": "{{total}} scans over the last fifteen days."
+      "trendAria": "{{total}} scans over the last fifteen days.",
+      "trendOk": "Completed",
+      "trendKo": "Failed",
+      "trendEmpty": "No scans in this period yet"
     },
     "filters": {
       "search": "Search",

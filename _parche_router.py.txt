@@ -1,0 +1,113 @@
+async def _exigir_credencial_vigente(
+    session: AsyncSession,
+    organization_id: UUID,
+    provider: GitProviderEnum,
+) -> None:
+    """Deja la credencial en vigor, o responde por qué no se pudo.
+
+    ## Por qué esto hace falta y no lo hacía
+
+    Porque `git_credentials.token_expires_at` se rellenaba en el callback de OAuth y no se leía
+    **en ningún sitio**. Una credencial OAuth de GitHub dura ocho horas: al día siguiente el
+    proveedor contesta `401`, la ruta lo traducía a `502`, el modal lo pintaba como «este
+    proveedor todavía no tiene conector» y el checklist de onboarding seguía marcando «cuenta
+    Git conectada» porque contaba filas. Dos pantallas afirmando cosas opuestas sobre la misma
+    fila, y ninguna de las dos preguntándose si esa fila seguía sirviendo.
+
+    ## Por qué ahora **renueva** y no solo corta
+
+    Porque antes de este arreglo el `410` era la única salida, y la salida correcta para un token
+    OAuth caducado no es «vuelve a conectar»: es «se ha renovado solo». La fila guardaba un
+    `refresh_token` cifrado desde la fase 3 que no usaba nadie, de modo que un cliente que conectaba
+    su GitHub el lunes perdía la integración el martes, sin explicación y sin manera de arreglarlo
+    desde el panel. Para un producto que se vende, eso no es un detalle: es la integración entera
+    rota a las ocho horas.
+
+    La caducidad se sigue mirando antes de llamar al proveedor —no se gasta una ida y vuelta para
+    que GitHub conteste `401` lo que ya sabemos—, pero cuando hay `refresh_token` lo que se hace
+    es renovarlo. El trabajo está en `token_refresh.py`; aquí solo se traduce su veredicto a un
+    código de respuesta.
+
+    ## Por qué se corta **antes** de llamar al proveedor cuando no hay salida
+
+    Por dos razones, y las dos son de coste y de honestidad. De coste: una ida y vuelta a GitHub
+    para que conteste `401` no compra nada que no sepamos ya. De honestidad: el mensaje «tu
+    credencial caducó» solo es posible si la caducidad la dice la base de datos; si se espera al
+    `401` del proveedor, la respuesta correcta es «la rechazó», que es un hecho distinto con una
+    solución distinta.
+
+    ## Por qué `410` y no `401`
+
+    Porque son dos hechos distintos y el panel necesita separarlos: `401` es «el proveedor no te
+    reconoce» y se arregla mirando permisos; `410` es «esto que guardamos se apagó el día X» y se
+    arregla reconectando. Con un solo código el panel tendría que elegir uno de los dos textos y
+    acertar por azar. `410 Gone` es justo la semántica de HTTP para un recurso que existió y ya
+    no, y no lo usa ninguna otra ruta del proyecto.
+
+    ## Por qué no se contesta `401` ni siquiera cuando la renovación ha funcionado
+
+    Porque la renovación **no cambia el estado de la respuesta**: si el token estaba en vigor o se
+    ha renovado, la ruta sigue contestando lo que contestaba —`200`— y este punto ni se ve. Lo que
+    importa es que el caso que queda, «no se pudo renovar», se contesta con `410` y no con `401`:
+    en el panel un `401` significa «tu sesión ha caducado» y `lib/session-errors.ts` borra la
+    sesión cuando lo ve. Hoy ese clasificador solo se aplica al arranque de la sesión, pero si
+    algún día se extiende a las peticiones de cada pantalla, un `401` por credencial de GitHub
+    expulsaría al usuario al login cada vez que su repositorio se re-sincronice. Que la renovación
+    haya funcionado no produce ningún estado nuevo; que no haya podido sí, y ese es `410`.
+
+    ## Por qué `token_expires_at IS NULL` no es una credencial caducada
+
+    Porque es lo que deja un token personal: un PAT no lleva fecha de caducidad conocida y
+    `connect_personal_token` lo pone a `None` a propósito. Marcarlo como caducado sería inventar
+    un dato que no existe, y el panel pediría una reconexión que no arregla nada. Tampoco se
+    intenta renovar: un PAT no tiene `refresh_token`, y si lo tuviera —porque sustituyó a una
+    conexión OAuth— intentar renovarlo cambiaría el token del usuario sin avisar.
+
+    ## Por qué un proveedor caído no se traduce a `410`
+
+    Porque son al revés. `410` significa «reconecta tu cuenta», y esa es la acción que resuelve el
+    caso de verdad. Si GitHub está caído y el panel pide reconectar, el usuario obedece, llega a la
+    pantalla de consentimiento de GitHub, y GitHub sigue caído. Además los `401` y `403` del
+    proveedor sí se traducen a `502` en `_translate_client_error`, y una renovación que saliera
+    `410` porque GitHub tuvo un mal día sería el mismo error de diagnóstico que este arreglo
+    corrije, con otro envoltorio.
+
+    ## Por qué «OAuth App no configurada» no se disfraza de `410`
+
+    Porque reconectar no lo arregla: si a esta instalación no le falta `GITHUB_OAUTH_CLIENT_ID` ni
+    el secreto, mandar al usuario a la pantalla de consentimiento lo devuelve al mismo sitio. Es el
+    mismo criterio que ya usa `authorize` para el mismo caso, y por eso sale `503`.
+    """
+
+    try:
+        resultado = await asegurar_credentialo_vigente(session, organization_id, provider)
+    except GitCredentialNotFoundError:
+        # Sin fila no hay nada que exigir aquí. Que falte la credencial lo dice el `409` que
+        # `_open_client` levanta al no conseguir el cliente, que es donde ese caso ya vive.
+        return
+    if resultado.estado in {EstadoDeRefresh.VIGENTE, EstadoDeRefresh.REFRESCADO}:
+        return
+    if resultado.estado is EstadoDeRefresh.NO_DISPONIBLE:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="El proveedor Git no está disponible para renovar la credencial",
+            headers={"Retry-After": "30"},
+        )
+    if resultado.estado is EstadoDeRefresh.NO_CONFIGURADO:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Esta instalación no tiene configurada la OAuth App de {provider.value}, "
+                "así que no puede renovar la credencial"
+            ),
+        )
+    # `SIN_REFRESH_TOKEN` y `RECHAZADO` son el mismo hecho para quien lo ve: lo que guardamos se
+    # apagó y no hay forma de recuperarlo sin que el usuario vuelva a autorizar la aplicación.
+    caducado = resultado.caduca_en.isoformat() if resultado.caduca_en else "sin fecha conocida"
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            f"La credencial de {provider.value} de esta organización caducó el {caducado} "
+            "y hay que volver a conectarla"
+        ),
+    )

@@ -43,28 +43,79 @@ function rowStatus(review: {
 
 const STATUSES: PRReviewStatus[] = ['PASSED', 'FAILED', 'SCANNING', 'QUEUED', 'ERROR']
 
+/**
+ * Filtros del historial, en el estado en que los pinta la pantalla.
+ *
+ * Las fechas son cadenas `AAAA-MM-DD` y no `Date`: es lo que da el `<input type="date">`
+ * y lo que viaja en la query. Convertirlas a `Date` en el cliente obligaría a decidir una
+ * zona horaria para un filtro por día natural, y esa decisión no está en ningún sitio del
+ * proyecto. El backend corta el rango en UTC y ya se ha explicado por qué allí.
+ */
+export interface PrReviewsQuery {
+  status: PRReviewStatus | null
+  search: string
+  createdFrom: string
+  createdTo: string
+}
+
+export const EMPTY_QUERY: PrReviewsQuery = {
+  status: null,
+  search: '',
+  createdFrom: '',
+  createdTo: '',
+}
+
 export interface PrReviewsState {
   page: PRReviewPage | null
   metrics: PRReviewMetrics | null
   isLoading: boolean
   loadFailed: boolean
-  statusFilter: PRReviewStatus | null
-  setStatusFilter: (status: PRReviewStatus | null) => void
+  query: PrReviewsQuery
+  setQuery: (query: PrReviewsQuery) => void
+  setPage: (offset: number) => void
   refresh: () => void
 }
 
+/**
+ * Historial de revisiones de pull request: filtros, paginación y KPI de cabecera.
+ *
+ * ## Por qué el estado de carga se **deriva** de una clave y no se marca a mano
+ *
+ * Porque la respuesta anterior se conserva mientras llega la nueva, y el error que se
+ * pinta tiene que ser el de **esta** petición. Se guarda la clave de la petición junto a
+ * sus datos: mientras la clave pedida no sea la clave de los datos que hay, la vista está
+ * cargando, y eso se responde durante el render sin escribir nada. La pantalla usa
+ * `isLoading` a secas —no `isLoading && page === null`— porque con la segunda forma, al
+ * cambiar de filtro se pintarían las filas del filtro anterior bajo el título del nuevo.
+ * Ese error ya se corrigió en `AdminOperationsPage` y aquí se evita por construcción.
+ *
+ * ## Por qué los KPI van en un efecto aparte
+ *
+ * Porque describen la actividad **total** del tenant y no dependen del filtro. Si compartieran
+ * efecto con la tabla, cambiar de página o de estado los volvería a pedir, y un `429` de la
+ * cabecera —que es solo un extra— dejaría la pantalla medio vacía en el momento de paginar.
+ * Con su propio efecto los números se quedan clavados mientras la tabla cambia, que es lo que
+ * dice el comentario de la tabla: los KPI del tenant, no los del filtro.
+ */
 export function usePrReviews(): PrReviewsState {
   const { token, selectedOrganizationId } = useAuth()
-  const [statusFilter, setStatusFilter] = useState<PRReviewStatus | null>(null)
+  const [query, setQueryState] = useState<PrReviewsQuery>(EMPTY_QUERY)
+  const [offset, setOffset] = useState(0)
   const [reloadToken, setReloadToken] = useState(0)
   const [result, setResult] = useState<{
     key: string
     page: PRReviewPage | null
-    metrics: PRReviewMetrics | null
     failed: boolean
-  }>({ key: '', page: null, metrics: null, failed: false })
+  }>({ key: '', page: null, failed: false })
+  const [metrics, setMetrics] = useState<PRReviewMetrics | null>(null)
 
-  const requestKey = JSON.stringify([token, selectedOrganizationId, statusFilter, reloadToken])
+  const requestKey = JSON.stringify([
+    token,
+    selectedOrganizationId,
+    offset,
+    query,
+    reloadToken,
+  ])
   const isCurrent = result.key === requestKey
 
   useEffect(() => {
@@ -72,43 +123,71 @@ export function usePrReviews(): PrReviewsState {
       return
     }
     let isActive = true
-    // Los indicadores de cabecera se piden una vez por carga y no dependen del filtro:
-    // los KPI del Tenant describen su actividad total, y recalcularlos al cambiar el
-    // filtro haría que las cifras de la cabecera dejaran de cuadrar con la tabla.
-    void Promise.allSettled([
-      getPRReviews(token, selectedOrganizationId, {
-        limit: PAGE_SIZE,
-        offset: 0,
-        ...(statusFilter ? { status: statusFilter } : {}),
-      }),
-      getPRReviewMetrics(token, selectedOrganizationId),
-    ]).then(([page, metrics]) => {
-      if (!isActive) {
-        return
-      }
-      if (page.status === 'rejected') {
-        setResult((current) => ({ ...current, key: requestKey, failed: true }))
-        return
-      }
-      setResult({
-        key: requestKey,
-        page: page.value,
-        metrics: metrics.status === 'fulfilled' ? metrics.value : null,
-        failed: false,
-      })
+    void getPRReviews(token, selectedOrganizationId, {
+      limit: PAGE_SIZE,
+      offset,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search.trim() ? { query: query.search.trim() } : {}),
+      ...(query.createdFrom ? { createdFrom: query.createdFrom } : {}),
+      ...(query.createdTo ? { createdTo: query.createdTo } : {}),
     })
+      .then((page) => {
+        if (!isActive) {
+          return
+        }
+        setResult({ key: requestKey, page, failed: false })
+      })
+      .catch(() => {
+        // Se conserva la página anterior: un corte de red no es «esta lista no tiene nada».
+        if (isActive) {
+          setResult((current) => ({ ...current, key: requestKey, failed: true }))
+        }
+      })
     return () => {
       isActive = false
     }
-  }, [reloadToken, requestKey, selectedOrganizationId, statusFilter, token])
+  }, [offset, query, reloadToken, requestKey, selectedOrganizationId, token])
+
+  useEffect(() => {
+    if (!token || !selectedOrganizationId) {
+      return
+    }
+    let isActive = true
+    void getPRReviewMetrics(token, selectedOrganizationId)
+      .then((value) => {
+        if (isActive) {
+          setMetrics(value)
+        }
+      })
+      .catch(() => {
+        // Los KPI son un extra de la cabecera. Si fallan, la tabla sigue siendo útil y no
+        // merece la pena tapar la pantalla con un error por cuatro números.
+        if (isActive) {
+          setMetrics(null)
+        }
+      })
+    return () => {
+      isActive = false
+    }
+  }, [reloadToken, selectedOrganizationId, token])
 
   return {
     page: isCurrent ? result.page : null,
-    metrics: isCurrent ? result.metrics : null,
+    metrics,
     isLoading: Boolean(token && selectedOrganizationId) && !isCurrent && !result.failed,
     loadFailed: isCurrent && result.failed,
-    statusFilter,
-    setStatusFilter,
+    query,
+    // ## Por qué cambiar un filtro vuelve a la primera página
+    //
+    // Porque la página 4 del filtro anterior no significa nada en el nuevo. Sin este
+    // `setOffset(0)`, escribir tres letras en el buscador deja la tabla vacía —el
+    // `offset` 75 está más allá del total del resultado nuevo— y el usuario ve «ningún
+    // resultado» con un filtro que sí tiene resultados.
+    setQuery: (next: PrReviewsQuery) => {
+      setQueryState(next)
+      setOffset(0)
+    },
+    setPage: (nextOffset: number) => setOffset(Math.max(0, nextOffset)),
     refresh: () => setReloadToken((current) => current + 1),
   }
 }

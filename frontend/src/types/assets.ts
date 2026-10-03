@@ -41,6 +41,30 @@ export interface VerifiedDomain {
 export interface DomainListResponse {
   items: VerifiedDomain[]
   total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * Estado de verificación por el que se puede filtrar el listado.
+ *
+ * Es un enum y no un `boolean` porque `?verified=false` se lee como «no verificado» y también
+ * puede leerse como «no me importa», y en una tabla la primera lectura es la que hace la gente.
+ * Con dos valores que se escriben enteros, lo que no se manda es «sin filtro» y lo que se
+ * manda es siempre una de las dos respuestas.
+ */
+export type DomainVerificationFilter = 'VERIFIED' | 'PENDING'
+
+export interface DomainFilters {
+  /** Texto libre sobre el nombre de dominio. */
+  search?: string
+  status?: DomainVerificationFilter
+  /** Fecha de alta en formato `AAAA-MM-DD`. */
+  created_from?: string
+  /** Fecha de alta en formato `AAAA-MM-DD`, **inclusiva**: cubre el día entero. */
+  created_to?: string
+  limit?: number
+  offset?: number
 }
 
 export interface DomainCreatePayload {
@@ -85,6 +109,12 @@ export interface DiscoveryEnqueuedResponse {
 export interface AssetFilters {
   domain_id?: string
   asset_type?: AssetType
+  /** Texto libre. Lo busca el servidor en el valor, el nombre de servicio y el dominio. */
+  query?: string
+  /** Rango de **alta**, en `AAAA-MM-DD`. El límite superior es inclusivo. */
+  created_from?: string
+  /** Rango de **alta**, en `AAAA-MM-DD`. El límite superior es inclusivo. */
+  created_to?: string
   limit?: number
   offset?: number
 }

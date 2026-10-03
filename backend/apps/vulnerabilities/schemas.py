@@ -24,6 +24,32 @@ class VulnerabilityListItem(BaseModel):
     discovered_at: datetime
 
 
+class SeverityCount(BaseModel):
+    """Conteo de hallazgos por severidad dentro de un conjunto ya filtrado.
+
+    ## Por qué vive aquí y no en `dashboard.schemas`
+
+    Porque cuenta hallazgos, no KPIs de panel, y lo consumen tres superficies distintas: el
+    resumen del dashboard, la página de issues y el detalle de una ejecución. Duplicar el
+    modelo tres veces es una manera de que un día los tres digan cosas distintas sobre el
+    mismo dato; importarlo de aquí es lo que hace imposible esa divergencia.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    severity: SeverityEnum
+    total: int = Field(ge=0)
+
+
+class StatusCount(BaseModel):
+    """Conteo de hallazgos por estado de remediación dentro de un conjunto ya filtrado."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    status: IssueStatusEnum
+    total: int = Field(ge=0)
+
+
 class VulnerabilityDetail(VulnerabilityListItem):
     """Detalle completo con evidencias técnicas."""
 
@@ -113,9 +139,25 @@ class RemediationResponse(BaseModel):
 
 
 class VulnerabilityPage(BaseModel):
-    """Página de vulnerabilidades de un tenant."""
+    """Página de vulnerabilidades de un tenant.
+
+    ## Por qué `severity_breakdown` y `status_breakdown` acompañan a la página
+
+    Porque el reparto de la lista **no** se puede deducir de los elementos de la página. Con
+    `limit=25` y 4 000 hallazgos, contar severidades sobre las 25 filas de la página da una
+    distribución que no es la del conjunto, y el panel la presents como si lo fuera: es la
+    diferencia entre «hay 3 críticos» y «en esta página hay 3 críticos, y hay 41 en total».
+
+    Los dos desgloses se calculan en SQL con **los mismos filtros** que la lista, así que
+    cuentan todos los hallazgos que casan con el filtro activo, no solo los de la página. Por
+    eso el filtro de severidad o de estado no los invalida: si filtras por `CRITICAL`, el
+    desglose por severidad muestra `CRITICAL: n` y el resto a cero, que es exactamente la
+    lectura correcta de esa pantalla.
+    """
 
     items: list[VulnerabilityListItem]
     total: int
     limit: int
     offset: int
+    severity_breakdown: list[SeverityCount]
+    status_breakdown: list[StatusCount]

@@ -16,12 +16,13 @@ y no `403`: un `403` confirmaría que ese identificador existe.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import NamedTuple
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.apps.organizations.models import (
     Organization,
@@ -241,6 +242,109 @@ async def anadir_mensaje(
     return mensaje
 
 
+def _busqueda_por_texto(
+    termino: str, *, incluir_nombre_tenant: bool
+) -> ColumnElement[bool] | None:
+    """Condición de la búsqueda por texto, con `or_` sobre las columnas de texto.
+
+    ## Por qué busca en varias columnas y no en una
+
+    Porque «¿qué era ese ticket?» no tiene un único sitio donde mirar: lo que se recuerda de un
+    ticket es su número —`#TK-1005`—, la frase del asunto y, cuando lo abrió otra persona del
+    equipo, su correo. Con una sola columna, escribir el número tal como aparece en la pantalla
+    devolvería página vacía y el buscador parecería roto.
+
+    ## Por qué el nombre del tenant solo se busca en la consola
+
+    Porque en la vista de cliente el nombre del workspace es **siempre el mismo**, así que
+    incluirlo haría que cualquier término que saliera en él —y el nombre de una empresa suele
+    ser una palabra suelta— devolviera todos los tickets del cliente en vez de los que
+    coinciden. En la consola el tenant es justo una de las cosas por las que se busca, y esa
+    diferencia la decide quien llama, no el servicio.
+
+    ## Por qué devuelve `None` y no una condición
+
+    Porque un término vacío no es una búsqueda: es un filtro que la consulta no aplicó. Devolver
+    una condición que casa con todo parecería funcionar, y el botón de limpiar acabaría
+    diciendo que hay un filtro puesto cuando en realidad no hay ninguno.
+
+    ## Por qué el escape de `%` y `_` sí está aquí
+
+Porque este buscador **no** escapaba nada, y eso es un fallo silencioso que no reporta nadie:
+el comodín va en los dos extremos, así que escribir `%` en el campo devolvía **la tabla
+entera** —la condición casa con cualquier valor— y escribir `_` devolvía también las filas que
+tuvieran cualquier carácter en esa posición. La pantalla «funciona»: sale una tabla, solo que
+entera, y eso es indistinguible de un filtro correcto.
+
+## Por qué hay una copia aquí y no se importa `core.filtros_texto`
+
+Porque ese módulo es **nuevo** —se escribió en paralelo a este cambio— y su firma de
+`rango_creado` (`list[ColumnOperators]`) no encaja en el `where(...)` de SQLAlchemy bajo el
+tipado estricto del proyecto: importarlo dejaba `pyright` en rojo con errores ajenos a este
+filtro. La consolidación es lo correcto y es un cambio propio; queda escrito aquí para que no se
+pierda.
+    """
+
+    # La almohadilla se muestra en pantalla (`#TK-1005`) pero **no** se guarda: lo que la
+    # columna contiene es `TK-1005`. El agente va a copiar lo que ve y pegarlo en el buscador,
+    # así que la `#` se quita antes de comparar. Sin esto, escribir el número tal como aparece
+    # en la lista —que es lo natural— no devuelve nada, y el buscador parece roto sin estarlo.
+    #
+    # Se quita **una** `#` inicial y solo esa. `#TK` y `#TK-10` siguen funcionando como
+    # búsqueda parcial, que es lo que hace útil un `LIKE` con `%` a ambos lados.
+    limpio = termino.strip().removeprefix("#").strip()
+    if not limpio:
+        return None
+
+    # `func.lower` y `like(..., escape="\\")` en vez de `ilike`: las dos formas dan el mismo
+    # resultado en PostgreSQL, y lo que importa es que **todas** las pantallas comparen igual.
+    # Un buscador que distingue mayúsculas en una columna y no en otra es el peor de los dos
+    # mundos, porque el usuario no puede saber cuál de los dos está fallando.
+    patron = f"%{_escape_like(limpio.lower())}%"
+    alternativas: list[ColumnElement[bool]] = [
+        func.lower(SupportTicket.subject).like(patron, escape="\\"),
+        func.lower(SupportTicket.ticket_number).like(patron, escape="\\"),
+        func.lower(Creador.email).like(patron, escape="\\"),
+    ]
+    if incluir_nombre_tenant:
+        alternativas.append(func.lower(Organization.name).like(patron, escape="\\"))
+    return or_(*alternativas)
+
+
+def _escape_like(termino: str) -> str:
+    """Escapa los comodines de `LIKE` para que el término se busque literal.
+
+    ## Por qué la barra invertida se escapa primero
+
+    Porque el orden de los tres `replace` no es arbitrario. Si la barra se escapara al final, la
+    propia barra que ponen los otros dos reemplazos se convertiría a su vez en `\\\\` y el resto
+    del escape quedaría mal. De aquí que la barra vaya en la **primera** posición.
+    """
+
+    return termino.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _rango_de_alta(desde: date | None, hasta: date | None) -> list[ColumnElement[bool]]:
+    """Las dos condiciones de un rango sobre `created_at`, con el último día **entero**.
+
+    Ver la nota del docstring de `listar_tickets`: el corte es la medianoche UTC del día pedido
+    y el límite superior es la medianoche del día **siguiente**, para que «del 1 al 5» sean
+    cinco días. Un rango invertido sale vacío, no `422`.
+    """
+
+    condiciones: list[ColumnElement[bool]] = []
+    if desde is not None:
+        condiciones.append(
+            SupportTicket.created_at >= datetime(desde.year, desde.month, desde.day, tzinfo=UTC)
+        )
+    if hasta is not None:
+        condiciones.append(
+            SupportTicket.created_at
+            < datetime(hasta.year, hasta.month, hasta.day, tzinfo=UTC) + timedelta(days=1)
+        )
+    return condiciones
+
+
 async def listar_tickets(
     session: AsyncSession,
     *,
@@ -248,6 +352,9 @@ async def listar_tickets(
     status: TicketStatusEnum | None = None,
     priority: TicketPriorityEnum | None = None,
     search: str | None = None,
+    incluir_nombre_tenant: bool = True,
+    created_from: date | None = None,
+    created_to: date | None = None,
     solo_id: uuid.UUID | None = None,
     limit: int = 25,
     offset: int = 0,
@@ -266,6 +373,29 @@ async def listar_tickets(
     fila: una lista de 25 tickets con 40 mensajes cada uno son mil filas bajadas para pintar
     un contador. Y el hilo se pide solo cuando el usuario abre el ticket, así que la
     conversación entera nunca viaja en el listado.
+
+    ## Por qué el rango de fechas va sobre `created_at` y no sobre `updated_at`
+
+    Porque `updated_at` es lo que **ordena** la lista —la columna «Actualizado» de la tabla— y
+    un filtro por una columna que se mueve con cada mensaje corta filas de forma distinta en
+    cada consulta: el mismo rango daría resultados distintos a los diez minutos, porque alguien
+    habría contestado. `created_at` es la fecha en la que se abre el ticket, no cambia nunca, y
+    «los tickets que abrí la semana pasada» significa lo mismo a las nueve de la mañana y a las
+    seis de la tarde. Por eso el filtro se anuncia como rango de alta aunque la columna que se ve
+    sea la de actualización.
+
+    ## Por qué `created_to` es **inclusivo**
+
+    Porque «del 1 al 5» son cinco días, no cinco días menos el último. El límite superior es la
+    medianoche **del día siguiente**, en UTC, de modo que el último día entra entero. Con
+    `<= medianoche_del_día` el día final solo aportaría los tickets de exactamente las 00:00,
+    que es un resultado que nadie quiere y que además depende de la zona horaria de quien
+    pregunta.
+
+    Un rango invertido —`created_from` posterior a `created_to`— devuelve la lista vacía y no un
+    `422`: las dos condiciones son incompatibles por construcción, así que la respuesta ya es la
+    que corresponde, y un error de validación obligaría al panel a manejar un estado que nunca
+    se da.
     """
 
     mensajes = (
@@ -300,22 +430,19 @@ async def listar_tickets(
     if priority is not None:
         consulta = consulta.where(SupportTicket.priority == priority)
     if search:
-        # La almohadilla se muestra en pantalla (`#TK-1005`) pero **no** se guarda: lo que
-        # la columna contiene es `TK-1005`. El agente va a copiar lo que ve y pegarlo en el
-        # buscador, así que la `#` se quita antes de comparar. Sin esto, escribir el número
-        # tal como aparece en la lista —que es lo natural— no devuelve nada, y el buscador
-        # parece roto sin estarlo.
+        # La construcción de la condición —incluido el escape de `%` y `_` y el `or_` sobre
+        # las columnas de texto— vive en `_busqueda_por_texto`, no aquí: la comparten las dos
+        # vistas y este listado también lo usa el detalle, que pide una fila con `solo_id`.
         #
-        # Se quita **una** `#` inicial y solo esa. `#TK` y `#TK-10` siguen funcionando como
-        # búsqueda parcial, que es lo que hace útil un `ilike` con `%` a ambos lados.
-        termino = search.strip().removeprefix("#").strip()
-        if termino:
-            patron = f"%{termino}%"
-            consulta = consulta.where(
-                SupportTicket.subject.ilike(patron)
-                | SupportTicket.ticket_number.ilike(patron)
-                | Organization.name.ilike(patron)
+        # Se compara con `is not None` y no con la walrus en el `if`: `ColumnElement[bool]`
+        # declara `__bool__` como `NoReturn`, así que preguntarle por su verdad no es una
+        # pregunta que el tipado pueda responder.
+        condicion = _busqueda_por_texto(
+            search, incluir_nombre_tenant=incluir_nombre_tenant
         )
+        if condicion is not None:
+            consulta = consulta.where(condicion)
+    consulta = consulta.where(*_rango_de_alta(created_from, created_to))
 
     total = int(
         (

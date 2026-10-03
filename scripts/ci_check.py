@@ -539,7 +539,11 @@ def imprimir_detalle(resumen: Resumen) -> None:
         print(f"\n{'=' * 78}\n{resultado.gate.clave}: {etiqueta}\n{'=' * 78}")
         if resultado.fallida_por_entorno:
             print(f"Motivo detectado: {resultado.motivo_entorno}")
-        print(resultado.salida.rstrip() or "(sin salida)")
+        # Cinturón y tirantes: `main()` ya pone la consola en UTF-8, pero la salida del subproceso
+        # se imprime aquí y aquí es donde se cayó. Si aun así no se puede representar un carácter,
+        # se sustituye en lugar de tumbar el informe entero, porque el informe entero es
+        # precisamente lo que dice qué gate falló y por qué.
+        print((resultado.salida.rstrip() or "(sin salida)").encode("utf-8", "replace").decode("utf-8", "replace"))
 
     for resultado in resumen.por_entorno:
         print(
@@ -692,7 +696,50 @@ def parsear_argumentos() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _preparar_consola() -> None:
+    """Pone la salida en UTF-8 con reemplazo, para que imprimir no reviente.
+
+    ## Por qué esto hace falta
+
+    Porque `imprimir_detalle` saca por pantalla **la salida cruda del subproceso que falló**, y esa
+    salida viene de herramientas que escriben UTF-8 sin mirar la consola: el `✓` de vitest, los `─`
+    de pytest, los acentos de los propios mensajes. En una consola de Windows el `sys.stdout` está
+    en `cp1252`, y `print` de un carácter que no existe ahí lanza `UnicodeEncodeError`.
+
+    ## Por qué el fallo era peor que un carácter raro
+
+    Porque solo pasaba **cuando un gate fallaba**, que es justo cuando hace falta leer la salida. El
+    script se caía con su propio `UnicodeEncodeError` en el `print` que iba a decir qué había
+    fallado, así que de un fallo se veía «el script se ha roto» y nada más. Es la clase de fallo que
+    esconde el fallo que vino a delatar.
+
+    ## Por qué `errors="replace"` y no `errors="strict"`
+
+    Porque `strict` es el valor por defecto, y es justo lo que we're arreglando. Con `replace` un
+    carácter sin representable sale como `?` y el resto de la línea se lee igual. Un `✓` perdido en
+    una tabla de resultados es un cosmetics; perder el informe entero es no tener diagnóstico.
+
+    Se hace con `reconfigure` y no|Asignando a `sys.stdout`, porque en 3.7+ es lo único que funciona
+    cuando el flujo ya está asociado a un descriptor de consola de Windows, que es justo nuestro
+    caso: el `TextIOWrapper` de la biblioteca estándar no siempre deja reasignarlo.
+
+    ## Por qué va al principio de `main()` y no al importar el módulo
+
+    Porque importar un módulo no debería cambiar el comportamiento de quien lo importa. Si otro
+    script usa estas utilidades, que no le cambies la consola por sorpresa; que lo cambie el CLI,
+    que es quien va a imprimir la salida ajena.
+    """
+    for flujo in (sys.stdout, sys.stderr):
+        try:
+            flujo.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError, ValueError):
+            # Sin `reconfigure` —o con un flujo que no lo admite— se sigue adelante: es preferible
+            # un `UnicodeEncodeError` en un caso raro a no ejecutar los gates nunca.
+            pass
+
+
 def main() -> int:
+    _preparar_consola()
     argumentos = parsear_argumentos()
     gates = seleccionar(
         argumentos.only, set(argumentos.skip.split(",")) if argumentos.skip else set()

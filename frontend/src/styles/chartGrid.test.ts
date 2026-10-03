@@ -46,6 +46,19 @@ const PANTALLAS: ReadonlyArray<readonly [string, number]> = [
   ['features/dashboard/DashboardPage.tsx', 3],
 ]
 
+/**
+ * Las pantallas que usan la variante de dos columnas.
+ *
+ * Van aparte porque el invariante es distinto: aquí el problema no es que sobre una celda
+ * vacía, sino que la etiqueta de la fila —que es una **palabra larga**— se recorta en el ancho
+ * de portátil. Con tres columnas son 266 px por tarjeta y «Remediación propuesta» no entra; con
+ * dos son 448 y entra con el separador de miles al lado. Por eso la lista lleva su propio
+ * número esperado y su propia regla.
+ */
+const PANTALLAS_DOS: ReadonlyArray<readonly [string, number]> = [
+  ['features/issues/GraficosIssues.tsx', 2],
+]
+
 /** La declaración de columnas de una regla, contando solo la del nivel superior. */
 function columnasDe(selector: string): number | null {
   const regla = new RegExp(
@@ -69,22 +82,61 @@ describe('La rejilla de gráficos cuenta bien sus hijos', () => {
       const rejilla = fuente.indexOf('className="chart-grid"')
       expect(rejilla, `${fichero} ya no usa chart-grid: revisa esta lista`).toBeGreaterThan(-1)
 
-      // Se cuentan los `<section className="content-card"` hasta el cierre del div de la rejilla.
-      // La ventana está acotada a propósito: si se cuenta el fichero entero, cada `content-card`
-      // de la tabla de debajo contaría como si fuera un gráfico.
-      const ventana = fuente.slice(rejilla, rejilla + 4000)
-      const hijos = (ventana.match(/<section className="content-card"/g) ?? []).length
+      // Se cuentan los **`<EChart>`**, no los `<section className="content-card">`. Contando
+      // secciones, esta prueba falló sola cuando el dashboard añadió una tarjeta más de contenido
+      // —el widget de repositorios, que no es un gráfico— junto a los tres gráficos: contaba
+      // cuatro celdas donde hay tres gráficas y daba por roto un layout que estaba bien. El
+      // invariante que importa es cuántas gráficas hay, y se cuenta lo que las dibuja.
+      const ventana = fuente.slice(rejilla, rejilla + 8000)
+      const hijos = (ventana.match(/<EChart\b/g) ?? []).length
       expect(hijos, `${fichero} mete ${hijos} gráficos y la rejilla es de 3 columnas`).toBe(
         esperados,
       )
     }
   })
 
+  it('la variante de dos columnas declara dos columnas', () => {
+    expect(columnasDe('.chart-grid-two')).toBe(2)
+  })
+
+  it('ninguna pantalla de la variante de dos le mete un número que no cuadre', () => {
+    for (const [fichero, esperados] of PANTALLAS_DOS) {
+      const fuente = readFileSync(join(RAIZ, fichero), 'utf-8')
+      const rejilla = fuente.indexOf('className="chart-grid chart-grid-two"')
+      expect(rejilla, `${fichero} ya no usa chart-grid-two: revisa esta lista`).toBeGreaterThan(-1)
+
+      // Aquí sí se cuentan las `<section>`, y no por capricho: el fichero de los gráficos de
+      // issues **no** contiene ninguna otra tarjeta de contenido, así que las dos cuentas
+      // coinciden. Si algún día ese fichero gana una tabla, la cuenta tiene que cambiar a
+      // `<EChart>` como en la prueba de arriba.
+      const ventana = fuente.slice(rejilla, rejilla + 4000)
+      const hijos = (ventana.match(/<section className="content-card"/g) ?? []).length
+      expect(hijos, `${fichero} mete ${hijos} gráficos y la rejilla es de 2 columnas`).toBe(
+        esperados,
+      )
+    }
+  })
+
+  it('la variante de dos columnas baja a una en el mismo punto que la de tres', () => {
+    // Si solo baja `.chart-grid`, entonces a 1000 px las barras de issues se quedan en dos
+    // columnas de 300 px —donde la etiqueta larga se recorta— mientras el resto del panel ya
+    // es de una. Compartir el corte es lo que evita que las dos rejillas digan cosas distintas
+    // sobre el mismo monitor.
+    const corte = /@media \(max-width: (\d+)px\) \{\s*\.metric-grid[\s\S]*?\.chart-grid,\s*\.chart-grid-two \{\s*grid-template-columns: 1fr;/.exec(
+      CSS,
+    )
+    expect(
+      corte,
+      'el media query tiene que bajar las dos variantes juntas',
+    ).not.toBeNull()
+    expect(Number(corte![1])).toBeLessThanOrEqual(1150)
+  })
+
   it('el corte a una columna está por debajo del ancho en que el gráfico deja de caber', () => {
     // Con 256 de barra lateral y 64 de relleno, 1150 de viewport dejan 830 de rejilla, que
     // repartidos en tres son 255 px por gráfico. Un gráfico con eje de fechas se empieza a
     // recortar por debajo de eso, así que el corte tiene que estar antes, no después.
-    const corte = /@media \(max-width: (\d+)px\) \{\s*\.metric-grid[\s\S]*?\.chart-grid \{\s*grid-template-columns: 1fr;/.exec(
+    const corte = /@media \(max-width: (\d+)px\) \{\s*\.metric-grid[\s\S]*?\.chart-grid,\s*\.chart-grid-two \{\s*grid-template-columns: 1fr;/.exec(
       CSS,
     )
     expect(corte, 'el media query que baja la rejilla a una columna ha desaparecido').not.toBeNull()

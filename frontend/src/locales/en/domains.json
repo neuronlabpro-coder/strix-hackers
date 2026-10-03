@@ -8,11 +8,21 @@
     "refresh": "Refresh",
     "verifyNow": "Verify now",
     "verifying": "Verifying…",
-    "delete": "Delete domain"
+    "delete": "Delete domain",
+    "clearFilters": "Clear filters"
+  },
+  "filters": {
+    "search": "Search",
+    "searchPlaceholder": "Domain name...",
+    "status": "Verification status",
+    "allStatuses": "All statuses",
+    "dateFrom": "Added from",
+    "dateTo": "Added to",
+    "dateHint": "Filters by the date the domain was added, not by the verification date shown in the table. The range includes the last day in full."
   },
   "status": {
-    "verified": "Verified",
-    "pending": "Pending"
+    "VERIFIED": "Verified",
+    "PENDING": "Pending"
   },
   "table": {
     "domain": "Domain",
@@ -26,7 +36,14 @@
     "error": "The domains could not be loaded.",
     "retry": "Try again",
     "emptyTitle": "No domains yet",
-    "emptyDescription": "Add a domain and publish the TXT record we will show you. Discovery is not possible without verification."
+    "emptyDescription": "Add a domain and publish the TXT record we will show you. Discovery is not possible without verification.",
+    "noResultsTitle": "No domain matches the filters",
+    "noResultsDescription": "Try another status, another date, or a shorter name."
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "summary": "{{from}}–{{to}} of {{total}}"
   },
   "verify": {
     "MATCH": "Domain verified. You can now run asset discovery.",

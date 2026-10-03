@@ -221,6 +221,9 @@
     "description": "Todas las cuentas registradas y los workspaces a los que pertenecen.",
     "searchPlaceholder": "Email o nombre",
     "onlySuperusers": "Solo superusuarios",
+    "filters": {
+      "clear": "Quitar filtros"
+    },
     "columns": {
       "email": "Email",
       "name": "Nombre",
@@ -236,7 +239,8 @@
     "active": "Activo",
     "inactive": "Desactivado",
     "noOrganizations": "Sin organización",
-    "empty": "Ningún usuario coincide con la búsqueda",
+    "empty": "Todavía no hay ninguna cuenta registrada",
+    "emptyFiltered": "Ningún usuario coincide con los filtros",
     "total": "{{total}} usuarios en total",
     "noRoles": "Sin organización",
     "actions": {
@@ -263,6 +267,14 @@
   "sales": {
     "title": "Ventas e ingresos",
     "description": "Historial de los eventos de pago procesados por el proveedor de cobro.",
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "Evento, tipo o tenant...",
+      "dateFrom": "Procesado desde",
+      "dateTo": "Procesado hasta",
+      "dateHint": "Filtra por la fecha en que se procesó el evento, que es la que muestra la tabla. El rango incluye el día final entero.",
+      "clear": "Quitar filtros"
+    },
     "columns": {
       "event": "Evento",
       "type": "Tipo",
@@ -277,6 +289,7 @@
     "noTenant": "Sin tenant",
     "noSession": "—",
     "empty": "Todavía no se ha procesado ningún pago",
+    "emptyFiltered": "Ningún evento coincide con los filtros",
     "total": "{{count}} eventos · {{credits}} créditos en esta página",
     "totalCaption": "La suma es de los importes registrados de esta página, no del histórico.",
     "notApplicable": "No aplica",

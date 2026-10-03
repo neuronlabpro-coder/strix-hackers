@@ -26,6 +26,7 @@ import type {
   AssetListResponse,
   DiscoveryEnqueuedResponse,
   DomainCreatePayload,
+  DomainFilters,
   DomainListResponse,
   DomainClaimConflict,
   VerifiedDomain,
@@ -139,9 +140,27 @@ function query(params: Record<string, string | number | undefined>): string {
 // Dominios
 // --------------------------------------------------------------------------- //
 
-export function listDomains(token: string, organizationId: string): Promise<DomainListResponse> {
+/**
+ * Los dominios del workspace, con filtros y paginación.
+ *
+ * Los filtros viajan en la query y **no** se filtran en el cliente: sin paginación no hay forma
+ * de saber si lo que no sale de la respuesta existe o no, así que un buscador aplicado sobre la
+ * lista entera prometería resultados que la siguiente página no trae.
+ */
+export function listDomains(
+  token: string,
+  organizationId: string,
+  filters: DomainFilters = {},
+): Promise<DomainListResponse> {
   return tenantRequest<DomainListResponse>(
-    '/api/v1/assets/domains',
+    `/api/v1/assets/domains${query({
+      search: filters.search,
+      status: filters.status,
+      created_from: filters.created_from,
+      created_to: filters.created_to,
+      limit: filters.limit,
+      offset: filters.offset,
+    })}`,
     { method: 'GET' },
     token,
     organizationId,
@@ -201,6 +220,9 @@ export function listDiscoveredAssets(
     `/api/v1/assets/discovery${query({
       domain_id: filters.domain_id,
       asset_type: filters.asset_type,
+      query: filters.query,
+      created_from: filters.created_from,
+      created_to: filters.created_to,
       limit: filters.limit,
       offset: filters.offset,
     })}`,

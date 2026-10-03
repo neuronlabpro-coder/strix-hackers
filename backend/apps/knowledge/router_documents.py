@@ -14,12 +14,14 @@ decision de la forma del dato, no una funcionalidad pendiente.
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from backend.apps.knowledge import documents_service
-from backend.apps.knowledge.documents import KnowledgeDocTypeEnum
+from backend.apps.knowledge.documents import KnowledgeDocTypeEnum, WorkspaceKnowledgeDocument
+from backend.apps.knowledge.okf import OkfError, parse_okf
 from backend.apps.knowledge.schemas import (
     KnowledgeDocumentCreate,
     KnowledgeDocumentDetail,
@@ -61,26 +63,79 @@ async def listar_documentos(
     tenant: TenantDependency,
     session: SessionDependency,
     doc_type: Annotated[KnowledgeDocTypeEnum | None, Query()] = None,
+    query: Annotated[str | None, Query(max_length=256)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
 ) -> KnowledgeDocumentPage:
     """Los documentos de contexto del workspace activo.
 
     Devuelve solo la cabecera de cada uno; el contenido se pide documento a documento. Un
     listado con veinte especificaciones de API son varios megabytes que la tabla de la pantalla
     no usa.
+
+    Acepta tipo, búsqueda por texto y rango de fechas de alta, y devuelve `limit` y `offset`
+    junto al `total` porque la barra de paginación los necesita y no los puede adivinar.
+
+    ## Por qué el rango invertido no es un `422`
+
+    Porque `created_from` posterior a `created_to` deja las dos condiciones incompatibles y la
+    lista vacía **es** la respuesta correcta. Un `422` obligaría al panel a manejar un estado
+    de error que solo se da cuando alguien se equivoca escribiendo las fechas, y ese estado no
+    aporta nada: el usuario ve que no hay documentos y ya sabe que el rango era imposible.
     """
 
     documentos, total = await documents_service.list_documents(
         session,
         tenant.organization.id,
         doc_type=doc_type,
+        query=query,
+        created_from=created_from,
+        created_to=created_to,
         limit=limit,
         offset=offset,
     )
     return KnowledgeDocumentPage(
-        documents=[KnowledgeDocumentItem.model_validate(d) for d in documentos],
+        documents=[
+            _cabecera(d) for d in documentos
+        ],
         total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _cabecera(documento: WorkspaceKnowledgeDocument) -> KnowledgeDocumentItem:
+    """La cabecera de un documento, con la descripción del frontmatter.
+
+    ## Por qué la descripción se extrae aquí y no en el cliente
+
+    Porque el listado no devuelve `content` —a propósito, para que veinte especificaciones de API
+    no sean varios megabytes— y el panel la necesita para pintar la tarjeta. Si se extrajera en
+    el cliente, el panel leería un `content` que no existe.
+
+    ## Por qué un documento que no parsea no rompe el listado
+
+    Porque `parse_okf` lanza `OkfError` con un frontmatter inválido, y un listado no puede dejar de
+    responder por un documento que alguien guardó antes de que el formato fuera estricto. En ese
+    caso la descripción sale vacía y la tarjeta enseña el título, que es lo que hay.
+
+    Es el mismo criterio que ya usa el resto de la vista: el título es lo que el cliente escribió
+    al guardar, y un documento sin descripción posible es posible en la base.
+    """
+
+    try:
+        descripcion = parse_okf(documento.content).description
+    except OkfError:
+        descripcion = ""
+    return KnowledgeDocumentItem(
+        id=documento.id,
+        title=documento.title,
+        doc_type=documento.doc_type,
+        description=descripcion,
+        created_at=documento.created_at,
+        updated_at=documento.updated_at,
     )
 
 

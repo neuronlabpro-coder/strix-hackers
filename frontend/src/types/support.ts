@@ -104,6 +104,24 @@ export interface AdminTicketFilters {
 }
 
 /**
+ * Filtros de la vista de cliente, en `/settings/support`.
+ *
+ * `query` es el nombre que usa el endpoint, no `search`: son dos rutas distintas con dos
+ * clientes distintos y cada una escribe en su cliente. El parámetro `search` de la consola se
+ * conserva porque renombrar uno que ya está en uso rompe a su llamador sin avisar.
+ */
+export interface TicketFilters {
+  status?: TicketStatus
+  query?: string
+  /** Fecha de alta en formato `AAAA-MM-DD`. */
+  created_from?: string
+  /** Fecha de alta en formato `AAAA-MM-DD`, **inclusiva**: cubre el día entero. */
+  created_to?: string
+  limit?: number
+  offset?: number
+}
+
+/**
  * Cambio administrativo sobre un ticket.
  *
  * `assigned_to_user_id` es opcional y **distinguible de "no lo he tocado"**: mandarlo a

@@ -18,21 +18,24 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
-import { Radar, RefreshCw, ScanLine } from 'lucide-react'
+import { Radar, RefreshCw, ScanLine, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useAuth } from '../auth/useAuth'
 import { listDiscoveredAssets, listDomains, startDiscovery } from '../../lib/assetsApi'
-import type { AssetListResponse, AssetType, DomainListResponse } from '../../types/assets'
+import type { AssetListResponse, DomainListResponse } from '../../types/assets'
 import { formatDate } from '../../lib/format'
 import { useAsyncResource } from '../shared/useAsyncResource'
 import { useToast } from '../shared/toast-context'
+import {
+  EMPTY_QUERY,
+  hayFiltrosPuestos,
+  type InventarioQuery,
+  type TypeFilter,
+} from './filtrosInventario'
 
 /** Página de la tabla. Coincide con el tope del servidor para que no haya recorte callado. */
 const PAGE_SIZE = 50
-
-/** Filtro de tipo. `'ALL'` no es un valor de la API: se traduce a "sin filtro". */
-type TypeFilter = AssetType | 'ALL'
 
 export function AssetDiscoveryPage() {
   const { t } = useTranslation('assetDiscovery')
@@ -40,10 +43,40 @@ export function AssetDiscoveryPage() {
   const organizationId = selectedOrganizationId
   const { notify } = useToast()
 
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL')
-  const [domainFilter, setDomainFilter] = useState('')
+  const [filters, setFilters] = useState<InventarioQuery>(EMPTY_QUERY)
   const [page, setPage] = useState(0)
   const [scanningId, setScanningId] = useState<string | null>(null)
+
+  /**
+   * Los filtros van en **un** estado y no en cuatro.
+   *
+   * Porque la clave del inventario se construye con ellos, y cuatro estados sueltos obligarían a
+   * escribirla con cuatro campos que se pueden desincronizar. Con uno, `cambiar` es siempre la
+   * misma operación y la vuelta a la primera página viene en el mismo sitio.
+   */
+  function cambiar(
+    campo: 'type' | 'domainId' | 'search' | 'createdFrom' | 'createdTo',
+    valor: string,
+  ): void {
+    setFilters((actual) => ({
+      ...actual,
+      // El `as TypeFilter` solo es un `as`: el valor viene del `<select>`, cuyas cuatro
+      // opciones son exactamente los cuatro valores del tipo. Es el único `as` de la vista y no
+      // es una puerta trasera —no cambia lo que se pide, solo le dice al compilador lo que el
+      // DOM ya garantiza—. Para el resto de campos el valor es texto y no necesita nada.
+      [campo]: campo === 'type' ? (valor as TypeFilter) : valor,
+    }))
+    // ## Por qué cambiar un filtro vuelve a la primera página
+    //
+    // Porque la página 4 del filtro anterior no significa nada en el nuevo. Sin este
+    // `setPage(0)`, escribir tres letras en el buscador deja la tabla vacía —el `offset` 150 está
+    // más allá del total del resultado nuevo— y el usuario ve «ningún resultado» con un filtro
+    // que sí tiene resultados.
+    setPage(0)
+  }
+
+  const hayFiltros = hayFiltrosPuestos(filters)
+
 
   /**
    * Token y workspace ya estrechados, o `null` si aún no los hay.
@@ -90,13 +123,14 @@ export function AssetDiscoveryPage() {
    * y el hook pediría los datos en bucle. Y por eso se **parsean** de la clave en lugar de
    * leerse de un `ref`: la clave es la única fuente, de modo que no puede quedar
    * desincronizada con lo que realmente se pidió.
+   *
+   * Los filtros van **serializados** con `JSON.stringify` y no unidos con `|`, porque el texto
+   * que teclea el usuario puede contener el separador. Con `|` un dominio llamado `a|b` partía
+   * la clave en tres y el `fetcher` leía un tipo que no era el pedido.
    */
   const claveInventario = useMemo(
-    () =>
-      [organizationId, typeFilter, domainFilter, page]
-        .map((parte) => (parte === null ? '' : String(parte)))
-        .join('|'),
-    [organizationId, typeFilter, domainFilter, page],
+    () => JSON.stringify([organizationId, filters, page]),
+    [organizationId, filters, page],
   )
 
   /**
@@ -124,12 +158,19 @@ export function AssetDiscoveryPage() {
         if (activeToken === null) {
           throw new Error('sin token')
         }
-        const [, tipo, dominio, pagina] = key.split('|')
-        return listDiscoveredAssets(activeToken, key.split('|')[0], {
-          asset_type: tipo !== 'ALL' ? (tipo as AssetType) : undefined,
-          domain_id: dominio === '' ? undefined : dominio,
+        const [orgId, filtrosDeClave, pagina] = JSON.parse(key) as [
+          string | null,
+          InventarioQuery,
+          number,
+        ]
+        return listDiscoveredAssets(activeToken, orgId ?? key, {
+          asset_type: filtrosDeClave.type !== 'ALL' ? filtrosDeClave.type : undefined,
+          domain_id: filtrosDeClave.domainId === '' ? undefined : filtrosDeClave.domainId,
+          query: filtrosDeClave.search.trim() === '' ? undefined : filtrosDeClave.search.trim(),
+          created_from: filtrosDeClave.createdFrom === '' ? undefined : filtrosDeClave.createdFrom,
+          created_to: filtrosDeClave.createdTo === '' ? undefined : filtrosDeClave.createdTo,
           limit: PAGE_SIZE,
-          offset: Number(pagina) * PAGE_SIZE,
+          offset: pagina * PAGE_SIZE,
         })
       },
       [token],
@@ -183,15 +224,29 @@ export function AssetDiscoveryPage() {
       </div>
 
       <form className="filter-bar" role="search" onSubmit={(event) => event.preventDefault()}>
+        {/* El buscador va primero porque es el filtro que más se usa, y va **con etiqueta**
+            como los otros tres: los cuatro controles comparten línea y el botón de limpiar
+            queda en la línea de control gracias al `align-self: end` de `.filter-bar-clear`. */}
+        <div className="filter-field filter-field-search">
+          <label htmlFor="asset-search-filter">{t('filters.search')}</label>
+          <span className="search-field">
+            <Search size={16} aria-hidden="true" />
+            <input
+              id="asset-search-filter"
+              type="search"
+              value={filters.search}
+              placeholder={t('filters.searchPlaceholder')}
+              onChange={(event) => cambiar('search', event.target.value)}
+            />
+          </span>
+        </div>
+
         <div className="filter-field">
           <label htmlFor="asset-type-filter">{t('filters.type')}</label>
           <select
             id="asset-type-filter"
-            value={typeFilter}
-            onChange={(event) => {
-              setTypeFilter(event.target.value as TypeFilter)
-              setPage(0)
-            }}
+            value={filters.type}
+            onChange={(event) => cambiar('type', event.target.value)}
           >
             <option value="ALL">{t('filters.allTypes')}</option>
             <option value="SUBDOMAIN">{t('types.SUBDOMAIN')}</option>
@@ -204,11 +259,8 @@ export function AssetDiscoveryPage() {
           <label htmlFor="asset-domain-filter">{t('filters.domain')}</label>
           <select
             id="asset-domain-filter"
-            value={domainFilter}
-            onChange={(event) => {
-              setDomainFilter(event.target.value)
-              setPage(0)
-            }}
+            value={filters.domainId}
+            onChange={(event) => cambiar('domainId', event.target.value)}
           >
             <option value="">{t('filters.allDomains')}</option>
             {(dominios.data?.items ?? []).map((domain) => (
@@ -218,6 +270,48 @@ export function AssetDiscoveryPage() {
             ))}
           </select>
         </div>
+
+        {/*
+          El rango va sobre la fecha de **alta** del activo, no sobre la de última revisión que
+          muestra la tabla. La razón está en el `title` de las dos etiquetas porque es donde cabe
+          sin romper la alineación: una línea de ayuda dentro del `.filter-field` le añadiría
+          altura a un solo campo y descuadraría la fila entera.
+        */}
+        <div className="filter-field">
+          <label htmlFor="asset-created-from" title={t('filters.dateHint')}>
+            {t('filters.dateFrom')}
+          </label>
+          <input
+            id="asset-created-from"
+            type="date"
+            value={filters.createdFrom}
+            onChange={(event) => cambiar('createdFrom', event.target.value)}
+          />
+        </div>
+        <div className="filter-field">
+          <label htmlFor="asset-created-to" title={t('filters.dateHint')}>
+            {t('filters.dateTo')}
+          </label>
+          <input
+            id="asset-created-to"
+            type="date"
+            value={filters.createdTo}
+            onChange={(event) => cambiar('createdTo', event.target.value)}
+          />
+        </div>
+
+        {hayFiltros ? (
+          <button
+            className="ghost-button filter-bar-clear"
+            type="button"
+            onClick={() => {
+              setFilters(EMPTY_QUERY)
+              setPage(0)
+            }}
+          >
+            <span>{t('filters.clear')}</span>
+          </button>
+        ) : null}
       </form>
 
       <section className="panel" aria-labelledby="assets-scan-title">
@@ -271,12 +365,16 @@ export function AssetDiscoveryPage() {
           <h2>
             {!hayDominiosVerificados && !dominios.isLoading
               ? t('states.emptyWithoutDomains')
-              : t('states.emptyTitle')}
+              : hayFiltros
+                ? t('states.emptyFilteredTitle')
+                : t('states.emptyTitle')}
           </h2>
           <p>
             {!hayDominiosVerificados && !dominios.isLoading
               ? t('states.emptyWithoutDomainsDescription')
-              : t('states.emptyDescription')}
+              : hayFiltros
+                ? t('states.emptyFilteredDescription')
+                : t('states.emptyDescription')}
           </p>
           {/*
             El enlace solo aparece cuando el bloqueo real es "no hay dominio verificado". Con

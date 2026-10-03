@@ -251,6 +251,14 @@ class Settings(BaseSettings):
     gitlab_oauth_authorize_url: str = "https://gitlab.com/oauth/authorize"
     gitlab_oauth_token_url: str = "https://gitlab.com/oauth/token"  # noqa: S105
     gitlab_oauth_scopes: str = "api read_user read_repository"
+    #: Antelación con la que se renueva un token de acceso OAuth antes de que expire.
+    #:
+    #: No es un detalle: `token_expires_at` es un instante y una petición al proveedor dura un rato,
+    #: así que renovar justo al expirar entrega un token que se caduca a mitad de la llamada y
+    #: produce un `401` en una operación que un minuto antes funcionaba. El suelo es `0` —quien no
+    #: quiera margen, no lo quiere— y el techo de una hora impide que un valor mal puesto convierta
+    #: cada petición de inventario en un refresco.
+    git_token_refresh_margin_seconds: int = Field(default=60, ge=0, le=3600)
 
     jwt_algorithm: Literal["HS256", "HS384", "HS512"]
     access_token_expire_minutes: int = Field(gt=0)

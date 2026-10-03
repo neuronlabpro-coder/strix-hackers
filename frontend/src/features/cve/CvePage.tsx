@@ -4,14 +4,26 @@ import { RefreshCw, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { CVESeverity } from '../../types/api'
+import { Pagination } from '../shared/Pagination'
 import { CveDetailModal } from './CveDetailModal'
 import { formatDate, formatProbability } from './format'
 import { SEVERITIES, useCveCatalog } from './useCveCatalog'
 
 export function CvePage() {
   const { t } = useTranslation('cve')
-  const { page, trending, years, isLoading, loadFailed, filters, setFilters, clearFilters, hasFilters, refresh } =
-    useCveCatalog()
+  const {
+    page,
+    trending,
+    years,
+    isLoading,
+    loadFailed,
+    filters,
+    setFilters,
+    setOffset,
+    clearFilters,
+    hasFilters,
+    refresh,
+  } = useCveCatalog()
   const [draftQuery, setDraftQuery] = useState(filters.query)
   const [selectedCveId, setSelectedCveId] = useState<string | null>(null)
 
@@ -139,7 +151,13 @@ export function CvePage() {
                             {record.cve_id}
                           </button>
                         </th>
-                        <td>
+                        {/* `.cell-inline` y no el `margin-left` que lleva `.cve-kev-icon`.
+                            Antes la insignia y el icono convivían en flujo en línea: como la
+                            columna SEVERIDAD es estrecha, el icono no cabía y se caía a la línea
+                            siguiente —con su margen de 6 px, que es lo que lo veía desplazado—.
+                            El `gap` de la celda da la separación y el `nowrap` impide que el icono
+                            vuelva a caer. */}
+                        <td className="cell-inline">
                           <span className={`badge badge-status-${record.severity.toLowerCase()}`}>
                             {t(`severity.${record.severity}`)}
                           </span>
@@ -159,6 +177,19 @@ export function CvePage() {
                   </tbody>
                 </table>
               </div>
+              {/* La paginación va **debajo** de la tabla y no en la barra de filtros.
+               *
+               * Antes no había ninguna: la pantalla decía «50 vulnerabilidades», pintaba 29 y no
+               * había forma de llegar al resto. El backend ya aceptaba `limit` y `offset` y devolvía
+               * `total`, así que lo único que faltaba era el estado de página y este control.
+               */}
+              <Pagination
+                total={page.total}
+                limit={page.limit}
+                offset={page.offset}
+                onOffsetChange={setOffset}
+                namespace="cve"
+              />
             </>
           ) : null}
         </div>

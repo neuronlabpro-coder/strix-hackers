@@ -111,11 +111,55 @@ export interface VulnerabilityListItem {
   discovered_at: string
 }
 
+/**
+ * Reparto de hallazgos por severidad dentro del conjunto que casaba con el filtro.
+ *
+ * ## Por qué no se deduce de `items`
+ *
+ * Porque `items` es **una página**. Con 4 000 hallazgos y `limit` 25, contar severidades sobre
+ * la página da la distribución de las 25 filas más recientes, y pintarla junto al total engaña
+ * con la misma naturalidad con la que engaña una etiqueta: nadie ve el `limit` al mirar una
+ * barra. Los desgloses llegan del servidor con los mismos filtros que la lista, así que son
+ * del conjunto entero.
+ *
+ * Siempre vienen las cinco severidades, aunque valgan cero: el gráfico necesita el cero para
+ * dibujar la fila, y filtrar las vacías en el cliente es una decisión que puede desaparecer
+ * sin que nadie lo note.
+ */
+export interface SeverityCount {
+  severity: VulnerabilitySeverity
+  total: number
+}
+
+/** Lo mismo para el estado de remediación, con los seis estados del ciclo de vida. */
+export interface StatusCount {
+  status: IssueStatus
+  total: number
+}
+
 export interface VulnerabilityPage {
   items: VulnerabilityListItem[]
   total: number
   limit: number
   offset: number
+  /** Reparto por severidad de **todo** lo que casaba con el filtro, no solo de la página. */
+  severity_breakdown: SeverityCount[]
+  /** Reparto por estado de remediación de todo lo que casaba con el filtro. */
+  status_breakdown: StatusCount[]
+}
+
+/**
+ * Un día de la serie de hallazgos, desglosado por severidad.
+ *
+ * La API la devuelve con los días vacíos a cero y rellenados, porque un gráfico con huecos lee
+ * como si faltaran datos: «no escaneé el martes» y «no consulté el martes» se ven igual.
+ */
+export interface FindingsTrendPoint {
+  /** Fecha en ISO `YYYY-MM-DD`, en UTC. */
+  dia: string
+  total: number
+  /** Siempre las cinco claves: un cero explícito y una ausencia son cosas distintas. */
+  por_severidad: Record<VulnerabilitySeverity, number>
 }
 
 export interface VulnerabilityDetail extends VulnerabilityListItem {
@@ -907,11 +951,6 @@ export interface RepositoryUpdatePayload {
   is_active?: boolean
 }
 
-export interface SeverityCount {
-  severity: VulnerabilitySeverity
-  total: number
-}
-
 export interface DashboardRepository {
   id: string
   provider: GitProvider
@@ -934,9 +973,27 @@ export interface DashboardSummary {
   prs_reviewed_total: number
   pentests_total: number
   repositories_monitored: number
+  /** Hallazgos **abiertos** por severidad. Solo abiertos: los corregidos no son carga viva. */
   severity_distribution: SeverityCount[]
+  /** Hallazgos por estado de remediación, incluidos los corregidos. */
+  status_distribution: StatusCount[]
+  /**
+   * Producción diaria de hallazgos de la ventana, con los días vacíos a cero.
+   *
+   * La calcula el servidor porque la lista de issues está paginada: un «hallazgos por día»
+   * armado en el navegador solo podría mirar una página de veinticinco filas, y daría dos
+   * mentiras a la vez.
+   */
+  findings_trend: FindingsTrendPoint[]
   repositories: DashboardRepository[]
   generated_at: string
+}
+
+/** Lo que encontró una ejecución concreta, para el detalle del escaneo. */
+export interface PentestFindingsBreakdown {
+  total: number
+  severity_distribution: SeverityCount[]
+  status_distribution: StatusCount[]
 }
 
 // --------------------------------------------------------------------------- //
@@ -1027,7 +1084,18 @@ export interface KnowledgeDocument {
   id: string
   title: string
   doc_type: KnowledgeDocType
-  content: string
+  /**
+   * Descripción del frontmatter, ya extraída por el servidor.
+   *
+   * **No** está en el listado: el listado devuelve la cabecera para no meter varios megabytes de
+   * especificaciones de API en una tabla, y el cuerpo llega al pedir un documento concreto.
+   *
+   * Antes de que existiera, la tarjeta la sacaba de `content` del listado, que no viene, y la
+   * pantalla reventaba con `undefined.replace(...)` en cuanto había un documento.
+   */
+  description: string
+  /** Solo en el detalle de un documento concreto. Ausente en el listado. */
+  content?: string
   created_at: string
   updated_at: string
 }
@@ -1035,6 +1103,15 @@ export interface KnowledgeDocument {
 export interface KnowledgeDocumentPage {
   documents: KnowledgeDocument[]
   total: number
+  /**
+   * Tamaño de página y desplazamiento **que aplicó el servidor**.
+   *
+   * No se calculan en el cliente: la barra de paginación los necesita para dibujar el resumen
+   * y para decidir si hay páginas, y si los inventara cada pantalla lo haría de una forma que
+   * el servidor no cumple.
+   */
+  limit: number
+  offset: number
 }
 
 export interface KnowledgeDocumentCreate {

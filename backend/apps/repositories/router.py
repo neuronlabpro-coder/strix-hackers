@@ -6,11 +6,12 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +46,10 @@ from backend.apps.repositories.schemas import (
 from backend.apps.repositories.services import (
     GitCredentialNotFoundError,
     build_organization_client,
+)
+from backend.apps.repositories.token_refresh import (
+    EstadoDeRefresh,
+    asegurar_credentialo_vigente,
 )
 from backend.core.crypto import CryptoError
 from backend.core.database import get_db
@@ -106,9 +111,45 @@ async def _require_admin(tenant: TenantDependency) -> None:
 
 
 def _translate_client_error(error: GitClientError) -> HTTPException:
+    """Convierte un error del proveedor en una respuesta con código distinguible.
+
+    ## Por qué el `401` del proveedor contesta `401` y no `502`
+
+    Porque antes contestaba `502` —«Bad Gateway»— y con eso el panel no tenía forma de
+    distinguir «tu credencial caducó o el proveedor la rechazó» de «GitHub se ha caído». Son dos
+    fallos opuestos: el primero lo arregla quien usa el panel reconectando, el segundo esperando.
+    Con un solo código los dos salían en pantalla con el mismo mensaje, que es exactamente el
+    diagnóstico que hace inútil un ticket.
+
+    ## Por qué `401` y no `400`
+
+    Porque es la misma traducción que ya está escrita y razonada en `router_auth.py`, en el alta
+    de token personal: *«Se traduce a `400` y no a `502` porque la causa es la credencial, no el
+    proveedor: un `401` del proveedor no es un problema de la plataforma que se pueda
+    reintentar»*. Aquí estaba en `502` y allí en `400`, y dos rutas que consumen la misma
+    credencial no pueden contestar con códigos distintos para la misma causa.
+
+    ## Por qué el `403` del proveedor se agrupa con el `401`
+
+    Porque para quien usa el panel es el mismo problema y la misma solución: con lo que tiene no
+    puede leer repositorios. Separarlos obligaría a la interfaz a ofrecer una acción que no
+    existe para uno de los dos. Lo que sí se distinguen —caducada de rechazada— no llega por
+    aquí: se detecta antes, en `_exigir_credencial_vigente`, que ya conoce la fecha de caducidad.
+
+    ## Por qué un `401` aquí es seguro y hay que vigilarlo
+
+    Porque en el panel un `401` significa normalmente «tu sesión ha caducado», y
+    `lib/session-errors.ts` borra la sesión cuando lo ve. Hoy ese clasificador **solo** se aplica
+    al arranque de la sesión —`loadOrganizations`— y no a las llamadas de cada pantalla, así que
+    un `401` del inventario no cierra la sesión de nadie. Si algún día se extiende ese
+    clasificador a las peticiones de las pantallas, este `401` empezará a expulsar al usuario al
+    login cada vez que su credencial de GitHub caduque, que es justo lo contrario de lo que
+    arregla. Por eso el texto del modal y el `401` del panel tienen que seguir tratándose como
+    cosas distintas, y por eso el caso de «caducada» se evita con el `410`.
+    """
     if error.status_code in {401, 403}:
         return HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="La credencial del proveedor fue rechazada o carece de permisos",
         )
     if error.status_code == 404:
@@ -133,23 +174,193 @@ def _translate_client_error(error: GitClientError) -> HTTPException:
     )
 
 
+async def _exigir_credencial_vigente(
+    session: AsyncSession,
+    organization_id: UUID,
+    provider: GitProviderEnum,
+) -> None:
+    """Deja la credencial en vigor, o responde por qué no se pudo.
+
+    ## Por qué esto hace falta y no lo hacía
+
+    Porque `git_credentials.token_expires_at` se rellenaba en el callback de OAuth y no se leía
+    **en ningún sitio**. Una credencial OAuth de GitHub dura ocho horas: al día siguiente el
+    proveedor contesta `401`, la ruta lo traducía a `502`, el modal lo pintaba como «este
+    proveedor todavía no tiene conector» y el checklist de onboarding seguía marcando «cuenta
+    Git conectada» porque contaba filas. Dos pantallas afirmando cosas opuestas sobre la misma
+    fila, y ninguna de las dos preguntándose si esa fila seguía sirviendo.
+
+    ## Por qué ahora **renueva** y no solo corta
+
+    Porque antes de este arreglo el `410` era la única salida, y la salida correcta para un token
+    OAuth caducado no es «vuelve a conectar»: es «se ha renovado solo». La fila guardaba un
+    `refresh_token` cifrado desde la fase 3 que no usaba nadie, de modo que un cliente que conectaba
+    su GitHub el lunes perdía la integración el martes, sin explicación y sin manera de arreglarlo
+    desde el panel. Para un producto que se vende, eso no es un detalle: es la integración entera
+    rota a las ocho horas.
+
+    La caducidad se sigue mirando antes de llamar al proveedor —no se gasta una ida y vuelta para
+    que GitHub conteste `401` lo que ya sabemos—, pero cuando hay `refresh_token` lo que se hace
+    es renovarlo. El trabajo está en `token_refresh.py`; aquí solo se traduce su veredicto a un
+    código de respuesta.
+
+    ## Por qué se corta **antes** de llamar al proveedor cuando no hay salida
+
+    Por dos razones, y las dos son de coste y de honestidad. De coste: una ida y vuelta a GitHub
+    para que conteste `401` no compra nada que no sepamos ya. De honestidad: el mensaje «tu
+    credencial caducó» solo es posible si la caducidad la dice la base de datos; si se espera al
+    `401` del proveedor, la respuesta correcta es «la rechazó», que es un hecho distinto con una
+    solución distinta.
+
+    ## Por qué `410` y no `401`
+
+    Porque son dos hechos distintos y el panel necesita separarlos: `401` es «el proveedor no te
+    reconoce» y se arregla mirando permisos; `410` es «esto que guardamos se apagó el día X» y se
+    arregla reconectando. Con un solo código el panel tendría que elegir uno de los dos textos y
+    acertar por azar. `410 Gone` es justo la semántica de HTTP para un recurso que existió y ya
+    no, y no lo usa ninguna otra ruta del proyecto.
+
+    ## Por qué no se contesta `401` ni siquiera cuando la renovación ha funcionado
+
+    Porque la renovación **no cambia el estado de la respuesta**: si el token estaba en vigor o se
+    ha renovado, la ruta sigue contestando lo que contestaba —`200`— y este punto ni se ve. Lo que
+    importa es que el caso que queda, «no se pudo renovar», se contesta con `410` y no con `401`:
+    en el panel un `401` significa «tu sesión ha caducado» y `lib/session-errors.ts` borra la
+    sesión cuando lo ve. Hoy ese clasificador solo se aplica al arranque de la sesión, pero si
+    algún día se extiende a las peticiones de cada pantalla, un `401` por credencial de GitHub
+    expulsaría al usuario al login cada vez que su repositorio se re-sincronice. Que la renovación
+    haya funcionado no produce ningún estado nuevo; que no haya podido sí, y ese es `410`.
+
+    ## Por qué `token_expires_at IS NULL` no es una credencial caducada
+
+    Porque es lo que deja un token personal: un PAT no lleva fecha de caducidad conocida y
+    `connect_personal_token` lo pone a `None` a propósito. Marcarlo como caducado sería inventar
+    un dato que no existe, y el panel pediría una reconexión que no arregla nada. Tampoco se
+    intenta renovar: un PAT no tiene `refresh_token`, y si lo tuviera —porque sustituyó a una
+    conexión OAuth— intentar renovarlo cambiaría el token del usuario sin avisar.
+
+    ## Por qué un proveedor caído no se traduce a `410`
+
+    Porque son al revés. `410` significa «reconecta tu cuenta», y esa es la acción que resuelve el
+    caso de verdad. Si GitHub está caído y el panel pide reconectar, el usuario obedece, llega a la
+    pantalla de consentimiento de GitHub, y GitHub sigue caído. Además los `401` y `403` del
+    proveedor sí se traducen a `502` en `_translate_client_error`, y una renovación que saliera
+    `410` porque GitHub tuvo un mal día sería el mismo error de diagnóstico que este arreglo
+    corrije, con otro envoltorio.
+
+    ## Por qué «OAuth App no configurada» no se disfraza de `410`
+
+    Porque reconectar no lo arregla: si a esta instalación no le falta `GITHUB_OAUTH_CLIENT_ID` ni
+    el secreto, mandar al usuario a la pantalla de consentimiento lo devuelve al mismo sitio. Es el
+    mismo criterio que ya usa `authorize` para el mismo caso, y por eso sale `503`.
+
+    ## Por qué aquí ya no se explica el filtro por `organization_id`
+
+    Porque la consulta que exige la caducidad se ha movido a `asegurar_credentialo_vigente`, en
+    `token_refresh.py`, y el motivo de R3 —la credencial que hay que renovar es la de **esta**
+    organización, y la caducidad de la de otra no dice nada de este tenant— está escrito allí, junto
+    a la consulta que lo aplica. Dejarlo aquí sería documentarlo en un sitio donde ya no hay SQL.
+    """
+
+    try:
+        resultado = await asegurar_credentialo_vigente(session, organization_id, provider)
+    except GitCredentialNotFoundError:
+        # Sin fila no hay nada que exigir aquí. Que falte la credencial lo dice el `409` que
+        # `_open_client` levanta al no conseguir el cliente, que es donde ese caso ya vive.
+        return
+    if resultado.estado in {EstadoDeRefresh.VIGENTE, EstadoDeRefresh.REFRESCADO}:
+        return
+    if resultado.estado is EstadoDeRefresh.NO_DISPONIBLE:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="El proveedor Git no está disponible para renovar la credencial",
+            headers={"Retry-After": "30"},
+        )
+    if resultado.estado is EstadoDeRefresh.NO_CONFIGURADO:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Esta instalación no tiene configurada la OAuth App de {provider.value}, "
+                "así que no puede renovar la credencial"
+            ),
+        )
+    # `SIN_REFRESH_TOKEN` y `RECHAZADO` son el mismo hecho para quien lo ve: lo que guardamos se
+    # apagó y no hay forma de recuperarlo sin que el usuario vuelva a autorizar la aplicación.
+    caducado = resultado.caduca_en.isoformat() if resultado.caduca_en else "sin fecha conocida"
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            f"La credencial de {provider.value} de esta organización caducó el {caducado} "
+            "y hay que volver a conectarla"
+        ),
+    )
+
 @asynccontextmanager
 async def _open_client(
     session: AsyncSession,
     organization_id: UUID,
     provider: GitProviderEnum,
 ) -> AsyncIterator[BaseGitClient]:
+    """Abre el cliente del tenant distinguiendo **por qué** no se puede abrir.
+
+    ## Por qué aquí las causas van separadas y en `_try_open_client` no
+
+    Porque `_try_open_client` devuelve `None` para tres cosas que no son la misma, y uno de sus
+    dos llamadores —el borrado del webhook al desvincular un repositorio— **quiere** ese
+    `None`: si no hay credencial utilizable, avisa por log y sigue con el desvínculo local, que es
+    lo que evita dejar un repositorio atado a un webhook que nadie va a borrar.
+
+    Aquí la situación es la contraria: quien llama está inventariando o conectando, y un `None`
+    sin explicación se convierte en un «no hay repositorios con esta credencial» que es falso
+    cuando lo que hay es una credencial caducada o una clave de cifrado que no abre lo guardado.
+    Por eso este camino traduce cada causa a su código, y el otro se los queda todos en `None`.
+
+    ## Por qué `CryptoError` es `500` y no `409`
+
+    Porque la fila **existe**: lo que falla es la clave maestra con la que se cifró, que se rotó
+    o no es la de esta instalación. Un `409` —«conecta primero una credencial de GitHub»— sería
+    justo lo contrario de la verdad, y además es un bucle: el usuario reconecta, se cifra con la
+    misma clave, y vuelve a fallar. Lo que se puede hacer es mirar los logs, y para eso tiene que
+    ser un `5xx`.
+
+    ## Por qué `UnsupportedGitProviderError` sale con `501` y no se traga
+
+    Porque con el proveedor ya filtrado por `_SUPPORTED_MANAGEMENT_PROVIDERS` no puede ocurrir;
+    pero si mañana se añade un proveedor al enum y se olvida su conector, esta función no debe
+    cambiar el síntoma —«no hay credencial»— por el motivo real —«no hay conector»—. El `501` es
+    el mismo que ya devuelve la guarda de arriba.
+    """
+
     if provider not in _SUPPORTED_MANAGEMENT_PROVIDERS:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="El proveedor todavía no tiene conector de gestión",
         )
-    client = await _try_open_client(session, organization_id, provider)
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Conecta primero una credencial de {provider.value} para esta organización",
+    await _exigir_credencial_vigente(session, organization_id, provider)
+    try:
+        client = await build_organization_client(session, organization_id, provider)
+    except (GitCredentialNotFoundError, UnsupportedGitProviderError) as error:
+        codigo = (
+            status.HTTP_501_NOT_IMPLEMENTED
+            if isinstance(error, UnsupportedGitProviderError)
+            else status.HTTP_409_CONFLICT
         )
+        detalle = (
+            "El proveedor todavía no tiene conector de gestión"
+            if isinstance(error, UnsupportedGitProviderError)
+            else f"Conecta primero una credencial de {provider.value} para esta organización"
+        )
+        raise HTTPException(status_code=codigo, detail=detalle) from error
+    except CryptoError as error:
+        logger.error(
+            "No se pudo descifrar la credencial Git guardada: provider=%s reason=%s",
+            provider.value,
+            str(error),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo leer la credencial guardada para esta organización",
+        ) from error
     try:
         yield client
     finally:
@@ -161,7 +372,12 @@ async def _try_open_client(
     organization_id: UUID,
     provider: GitProviderEnum,
 ) -> BaseGitClient | None:
-    """Construye el cliente del tenant o devuelve `None` si no hay credencial utilizable."""
+    """Construye el cliente del tenant o devuelve `None` si no hay credencial utilizable.
+
+    Se mantiene el `None` para las tres causas, y sin distinguirlas, a propósito: el llamador de
+    la desvinculación trata «no hay credencial utilizable» como un caso normal y sigue adelante.
+    Quien necesita saber el motivo usa `_open_client`.
+    """
 
     try:
         return await build_organization_client(session, organization_id, provider)
@@ -515,6 +731,66 @@ async def list_repository_reviews(
     )
 
 
+def _escape_like(termino: str) -> str:
+    """Escapa los comodines de `LIKE` para que el término se busque literal.
+
+    ## Por qué aquí hace falta y en otros buscadores del proyecto no se nota
+
+    Porque en este buscador los comodines son el caso **normal** y no el caso límite: los nombres
+    de repositorio y de rama llevan `_` —`acme/web_app`, `feature/fix_auth`-— así que buscar
+    `web_app` sin escapar devolvería también `webXapp`, que el usuario no pidió. En el catálogo
+    CVE el mismo criterio ya está resuelto en `_escape_like` de `cve_database.service`; aquí se
+    repite en lugar de mover aquél a `core` porque tocar un módulo compartido por cuatro
+    pantallas para ahorrar seis líneas no sale a cuenta en un cambio de esta tamaño.
+    """
+
+    return termino.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _busqueda_por_texto(termino: str) -> ColumnElement[bool]:
+    """Condición de la búsqueda por texto del historial de revisiones.
+
+    ## Por qué busca en cuatro columnas y no en una
+
+    Porque «¿se revisó esto?» no tiene un único sitio donde mirar: un nombre de repositorio, un
+    título de pull request, el autor y la rama de origen son las cuatro cosas que una persona
+    usa para recordar una revisión concreta. Con una sola columna, buscar `auth` devolvería
+    página vacía la mitad de las veces y el buscador parecería roto.
+
+    ## Por qué el número de PR se compara con `==` y no con `LIKE`
+
+    Porque `%42%` también casa con `142` y con `420`, y el número de un pull request es un
+    identificador exacto: quien escribe `42` quiere la revisión 42, no las tres. Solo se compara
+    cuando el término es puramente numérico, y se acota a nueve dígitos porque la columna es un
+    entero de 32 bits y un término de cuarenta dígitos haría fallar la consulta entera en vez de
+    devolver cero filas.
+    """
+
+    patron = f"%{_escape_like(termino.lower())}%"
+    alternativas: list[ColumnElement[bool]] = [
+        func.lower(PullRequestReview.pr_title).like(patron, escape="\\"),
+        func.lower(PullRequestReview.pr_author).like(patron, escape="\\"),
+        func.lower(PullRequestReview.source_branch).like(patron, escape="\\"),
+        func.lower(Repository.full_name).like(patron, escape="\\"),
+    ]
+    if termino.isdigit() and len(termino) <= 9:
+        alternativas.append(PullRequestReview.pr_number == int(termino))
+    return or_(*alternativas)
+
+
+def _medianoche_utc(dia: date) -> datetime:
+    """Medianoche UTC del día pedido.
+
+    ## Por qué en UTC y no en hora local
+
+    Porque `created_at` es `timestamptz` y PostgreSQL compara instantes. Si el corte se calculara
+    en hora local, el mismo rango daría resultados distintos según desde qué zona se consulte, y
+    «del lunes al martes» dejaría de ser una frase que significa lo mismo para todo el mundo.
+    """
+
+    return datetime(dia.year, dia.month, dia.day, tzinfo=UTC)
+
+
 @router.get("/api/v1/pr-reviews/", response_model=PRReviewPage)
 async def list_pr_reviews(
     tenant: TenantDependency,
@@ -523,8 +799,40 @@ async def list_pr_reviews(
     offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
     review_status: Annotated[PRReviewStatusEnum | None, Query(alias="status")] = None,
     repository_id: UUID | None = None,
+    query: Annotated[str | None, Query(max_length=256)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
 ) -> PRReviewPage:
     """Historial paginado de revisiones de pull request de toda la organización.
+
+    Acepta estado, repositorio, búsqueda por texto y rango de fechas de alta, y devuelve
+    `total` con la página, que es lo que necesita la barra de paginación del panel.
+
+    ## Por qué el rango de fechas va sobre `created_at` y no sobre `finished_at`
+
+    Porque `finished_at` es `NULL` mientras la revisión está en cola o escaneando —los estados
+    `QUEUED` y `SCANNING`—, así que filtrar por él haría desaparecer de la tabla las revisiones
+    en curso en cuanto se tocara cualquiera de las dos fechas. El usuario vería desaparecer sus
+    escaneos pendientes por haber pedido un rango, y lo leería como que el motor los perdió.
+
+    Y porque `created_at` es la columna por la que se ordena el listado: el rango recorta filas y
+    la paginación las cuenta, así que ambos van sobre la misma fecha y los bordes de página caen
+    donde el usuario espera. La columna «Fecha» de la tabla sigue mostrando `finished_at`, que es
+    la fecha de finalización del escaneo; el filtro se anuncia como rango de alta para que no se
+    confundan.
+
+    ## Por qué `created_to` es **inclusivo**
+
+    Porque «del 1 al 5» son cinco días, no cinco días menos el último. El límite superior es la
+    medianoche **del día siguiente**, en UTC, de modo que el último día entra entero. Con
+    `<= medianoche_del_día` el día final solo aportaría las revisiones de exactamente las 00:00,
+    que es un resultado que nadie quiere y que además depende de la zona horaria de quien
+    pregunta.
+
+    Un rango invertido —`created_from` posterior a `created_to`— devuelve la lista vacía y no un
+    `422`: las dos condiciones son incompatibles por construcción, así que la respuesta ya es la
+    que corresponde, y un error de validación obligaría al panel a manejar un estado que nunca
+    se da.
 
     ## Por qué el `JOIN` es **incondicional**
 
@@ -567,6 +875,19 @@ async def list_pr_reviews(
         # existe o no. La lista simplemente sale vacía, igual que si el filtro fuese suyo
         # y no tuviera revisiones.
         filters.append(PullRequestReview.repository_id == repository_id)
+    # `query` llega con los espacios que el usuario dejó en el campo de búsqueda, y un
+    # término que solo sean espacios no es una búsqueda: es un filtro vacío. Se descarta
+    # para que el botón de limpiar pueda comparar contra el mismo criterio que la consulta.
+    if termino := (query or "").strip():
+        filters.append(_busqueda_por_texto(termino))
+    if created_from is not None:
+        filters.append(PullRequestReview.created_at >= _medianoche_utc(created_from))
+    if created_to is not None:
+        # Inclusivo: el límite superior es la medianoche del día **siguiente**, no la del
+        # propio `created_to`. Ver la nota del docstring.
+        filters.append(
+            PullRequestReview.created_at < _medianoche_utc(created_to) + timedelta(days=1)
+        )
 
     join_condition = Repository.id == PullRequestReview.repository_id
     count_query = (

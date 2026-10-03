@@ -38,6 +38,7 @@ import type {
   OnboardingStatus,
   Organization,
   PentestCreatePayload,
+  PentestFindingsBreakdown,
   PentestRun,
   PentestRunPage,
   PRReviewMetrics,
@@ -789,6 +790,12 @@ export function sendChatMessage(
 export interface PRReviewQuery {
   status?: PRReviewStatus
   repositoryId?: string
+  /** Texto libre: repositorio, título, autor, rama o número exacto de pull request. */
+  query?: string
+  /** Fecha de alta en formato `AAAA-MM-DD`, inclusiva. */
+  createdFrom?: string
+  /** Fecha de alta en formato `AAAA-MM-DD`, **inclusiva**: cubre el día entero. */
+  createdTo?: string
   limit?: number
   offset?: number
 }
@@ -801,6 +808,9 @@ export function getPRReviews(
   const params = new URLSearchParams()
   if (query.status) params.set('status', query.status)
   if (query.repositoryId) params.set('repository_id', query.repositoryId)
+  if (query.query) params.set('query', query.query)
+  if (query.createdFrom) params.set('created_from', query.createdFrom)
+  if (query.createdTo) params.set('created_to', query.createdTo)
   if (query.limit !== undefined) params.set('limit', String(query.limit))
   if (query.offset !== undefined) params.set('offset', String(query.offset))
   const encoded = params.toString()
@@ -854,6 +864,29 @@ export function getPentestRun(
   runId: string,
 ): Promise<PentestRun> {
   return request<PentestRun>(`/api/v1/pentests/${runId}`, {}, token, organizationId)
+}
+
+/**
+ * Reparto por severidad y estado de los hallazgos de una ejecución.
+ *
+ * ## Por qué es una llamada aparte y no dos campos más en el run
+ *
+ * Porque el detalle de una ejecución se refresca **cada cinco segundos** mientras corre, y el
+ * reparto solo cambia cuando el motor escribe hallazgos. Si fuera parte de `getPentestRun`,
+ * se calcularía un `GROUP BY` en cada sondeo para pintar algo que no se ha movido, y eso en
+ * una pantalla que se mira mientras dura el escaneo es coste por nada.
+ */
+export function getPentestFindings(
+  token: string,
+  organizationId: string,
+  runId: string,
+): Promise<PentestFindingsBreakdown> {
+  return request<PentestFindingsBreakdown>(
+    `/api/v1/pentests/${runId}/findings`,
+    {},
+    token,
+    organizationId,
+  )
 }
 
 export function createPentest(
@@ -1085,6 +1118,12 @@ export function indexSupplyChainManifest(
 
 export interface KnowledgeDocumentQuery {
   doc_type?: KnowledgeDocType
+  /** Texto libre. Lo busca el servidor en el título **y** en el contenido. */
+  query?: string
+  /** Rango de **alta**, en `AAAA-MM-DD`. El límite superior es inclusivo. */
+  createdFrom?: string
+  /** Rango de **alta**, en `AAAA-MM-DD`. El límite superior es inclusivo. */
+  createdTo?: string
   limit?: number
   offset?: number
 }
@@ -1096,6 +1135,9 @@ export function getKnowledgeDocuments(
 ): Promise<KnowledgeDocumentPage> {
   const params = new URLSearchParams()
   if (query.doc_type) params.set('doc_type', query.doc_type)
+  if (query.query) params.set('query', query.query)
+  if (query.createdFrom) params.set('created_from', query.createdFrom)
+  if (query.createdTo) params.set('created_to', query.createdTo)
   if (query.limit !== undefined) params.set('limit', String(query.limit))
   if (query.offset !== undefined) params.set('offset', String(query.offset))
   return request<KnowledgeDocumentPage>(

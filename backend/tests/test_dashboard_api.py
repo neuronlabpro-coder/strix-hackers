@@ -118,6 +118,25 @@ async def test_dashboard_summary_of_empty_tenant(integration_session: AsyncSessi
         "INFO",
     ]
     assert all(item["total"] == 0 for item in payload["severity_distribution"])
+    # Los estados salen también a cero, en el orden del ciclo de vida, no en el que los devuelva
+    # el `GROUP BY`. Un tenant vacío tiene que ser legible sin tener que interpretar un [].
+    assert [item["status"] for item in payload["status_distribution"]] == [
+        "OPEN",
+        "IN_PROGRESS",
+        "REMEDIATION_PROPOSED",
+        "FIXED",
+        "SNOOZED",
+        "IGNORED",
+    ]
+    assert all(item["total"] == 0 for item in payload["status_distribution"])
+    # Y la serie temporal tiene que venir con los treinta días rellenos a cero, no vacía: un
+    # gráfico con huecos lee como si faltaran datos.
+    assert len(payload["findings_trend"]) == 30
+    assert all(punto["total"] == 0 for punto in payload["findings_trend"])
+    assert all(
+        set(punto["por_severidad"]) == {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}
+        for punto in payload["findings_trend"]
+    )
 
 
 @pytest.mark.asyncio
@@ -250,6 +269,20 @@ async def test_dashboard_summary_aggregates_findings_reviews_and_repositories(
     distribution = {item["severity"]: item["total"] for item in payload["severity_distribution"]}
     assert distribution == {"CRITICAL": 1, "HIGH": 0, "MEDIUM": 0, "LOW": 1, "INFO": 0}
 
+    # El reparto por estado cuenta **todos** los hallazgos, incluidos los corregidos y el
+    # ignorado, y es distinto del de severidad a propósito: aquel es solo la cola abierta. Aquí
+    # se lee «de cuatro hallazgos, uno se corrigió y otro se descartó a mano», que es la
+    # pregunta que responde `status_distribution` y la que `fix_rate` no contesta sola.
+    estados = {item["status"]: item["total"] for item in payload["status_distribution"]}
+    assert estados == {
+        "OPEN": 2,
+        "IN_PROGRESS": 0,
+        "REMEDIATION_PROPOSED": 0,
+        "FIXED": 1,
+        "SNOOZED": 0,
+        "IGNORED": 1,
+    }
+
     repositories = {item["full_name"]: item for item in payload["repositories"]}
     assert set(repositories) == {"acme/app", "acme/legacy"}
     assert repositories["acme/app"]["status"] == "SCANNING"
@@ -259,6 +292,93 @@ async def test_dashboard_summary_aggregates_findings_reviews_and_repositories(
     assert repositories["acme/legacy"]["status"] == "NOT_TESTED"
     assert repositories["acme/legacy"]["open_vulnerabilities"] == 0
     assert repositories["acme/legacy"]["last_tested_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_dashboard_findings_trend_groups_by_day_and_severity(
+    integration_session: AsyncSession,
+) -> None:
+    """La serie temporal reparte por día y por severidad, y rellena los días vacíos.
+
+    ## Por qué esta prueba y no una lectura del código
+
+    Porque los tres fallos posibles de una serie así **no se ven en el código**: que se olvide
+    el `GROUP BY` y devuelva una fila por hallazgo, que no rellene los días sin hallazgos y
+    deixe la serie con huecos, o que la suma del día no cuadre con el desglose por severidad.
+    Los tres producen un JSON bien formado que el panel dibuja sin quejarse.
+    """
+
+    assert integration_session is not None
+    organization, headers = await _seed_tenant(integration_session)
+    run = PentestRun(
+        organization_id=organization.id,
+        target_type=TargetTypeEnum.DOMAIN,
+        target_identifier="trend.example.com",
+        scan_mode=ScanModeEnum.DEEP,
+        status=ScanStatusEnum.COMPLETED,
+    )
+    integration_session.add(run)
+    await integration_session.flush()
+
+    hoy = datetime.now(UTC).date()
+    ayer = hoy - timedelta(days=1)
+    hace_30 = hoy - timedelta(days=29)
+    fuera_de_ventana = hoy - timedelta(days=45)
+
+    # Tres hallazgos de hoy, uno ayer y uno fuera de la ventana. Los de hoy se reparten entre
+    # CRITICAL y LOW a propósito: si la serie no agrupara por severidad, ambos saldrían en la
+    # misma fila y la suma no cuadraría con el desglose.
+    casos = [
+        (SeverityEnum.CRITICAL, IssueStatusEnum.OPEN, hoy),
+        (SeverityEnum.CRITICAL, IssueStatusEnum.OPEN, hoy),
+        (SeverityEnum.LOW, IssueStatusEnum.FIXED, hoy),
+        (SeverityEnum.HIGH, IssueStatusEnum.OPEN, ayer),
+        (SeverityEnum.MEDIUM, IssueStatusEnum.OPEN, hace_30),
+        (SeverityEnum.CRITICAL, IssueStatusEnum.OPEN, fuera_de_ventana),
+    ]
+    for indice, (severity, status, dia) in enumerate(casos, start=100):
+        hallazgo = _make_vulnerability(organization.id, run.id, severity, status, indice)
+        # El modelo rellena `discovered_at` con el reloj del servidor; se sobrescribe para que la
+        # ventana sea determinista y no dependa de la hora a la que corra la prueba.
+        hallazgo.discovered_at = datetime.combine(dia, datetime.min.time(), tzinfo=UTC)
+        integration_session.add(hallazgo)
+    await integration_session.commit()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/dashboard/summary", headers=headers)
+
+    assert response.status_code == 200
+    serie = {punto["dia"]: punto for punto in response.json()["findings_trend"]}
+
+    assert len(serie) == 30
+    # La ventana va de hace 29 días a hoy, ambos inclusive. El hallazgo de hace 45 días queda
+    # fuera: si se colara, la serie diría que ayer y hoy pasaron cosas cuando no pasaron.
+    assert min(serie) == hace_30.isoformat()
+    assert max(serie) == hoy.isoformat()
+
+    hoy_punto = serie[hoy.isoformat()]
+    assert hoy_punto["total"] == 3
+    assert hoy_punto["por_severidad"] == {
+        "CRITICAL": 2,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 1,
+        "INFO": 0,
+    }
+    # La suma del día tiene que ser la suma de su desglose, o el gráfico enseña dos cifras
+    # distintas para la misma altura de barra.
+    assert hoy_punto["total"] == sum(hoy_punto["por_severidad"].values())
+
+    ayer_punto = serie[ayer.isoformat()]
+    assert ayer_punto["total"] == 1
+    assert ayer_punto["por_severidad"]["HIGH"] == 1
+
+    # Un día sin hallazgos existe y vale cero: es lo que hace que un hueco se lea como «no
+    # hubo hallazgos» y no como «no se miró».
+    assert "MEDIUM" in serie[hace_30.isoformat()]["por_severidad"]
+    for punto in serie.values():
+        assert punto["total"] == sum(punto["por_severidad"].values())
 
 
 @pytest.mark.asyncio
@@ -310,3 +430,6 @@ async def test_dashboard_summary_never_leaks_other_tenants(
     assert payload["security_score"] == 100
     assert organization_a.id != organization_b.id
     assert "secreto" not in response.text
+    # Y la serie temporal tampoco: el hallazgo de B es de hoy, que es justo el día que la
+    # ventana incluye siempre. Una fuga aquí se vería como un pico en el gráfico del tenant A.
+    assert all(punto["total"] == 0 for punto in payload["findings_trend"])

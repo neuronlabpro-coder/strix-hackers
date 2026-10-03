@@ -1,77 +1,65 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Plus, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { formatDateTime } from '../../lib/format'
-import { getMyTickets, getSupportSummary } from '../../lib/supportApi'
-import { useAuth } from '../auth/useAuth'
 import { useToast } from '../shared/toast-context'
-import { useAsyncResource } from '../shared/useAsyncResource'
-import type { SupportSummary, TicketSummary } from '../../types/support'
+import { Pagination } from '../shared/Pagination'
 import { NewTicketDialog } from './NewTicketDialog'
 import { PriorityPill, StatusPill } from './TicketPills'
-
-/** Lo que el endpoint devuelve para los dos recursos que se piden a la vez. */
-interface TicketsPayload {
-  tickets: TicketSummary[]
-  summary: SupportSummary
-}
+import {
+  EMPTY_QUERY,
+  TICKET_STATUSES,
+  useSupportTickets,
+  type TicketsQuery,
+} from './useSupportTickets'
 
 /**
  * Vista de tickets del cliente, en `/settings/support`.
  *
- * ## Por qué la lista se pide sin paginar
+ * ## Por qué la lista **sí** pagina
  *
- * El endpoint acepta `limit` y `offset`, y la lista se pide con el tope. Un workspace con
- * veinte tickets ve los veinte, y el ticket que abrió hace un mes sigue a la vista. Paginar
- * obligaría a un cliente a buscar su propio ticket en páginas, que es exactamente lo que no
- * se hace cuando se viene a soporte: se viene a comprobar si han contestado.
+ * Porque el endpoint aceptaba `limit` y `offset` y esta vista no los mandaba: el backend
+ * aplicaba su tope por defecto de veinticinco y los tickets que quedaban detrás no existían
+ * para nadie, sin barra y sin aviso de que faltara nada. El comentario anterior decía que
+ * paginar «obligaría a un cliente a buscar su propio ticket en páginas», y era cierto solo
+ * mientras la lista no llegara a veinticinco. Con buscador encima —que es lo que hace falta
+ * para no perder un ticket de hace tres meses entre veinte de esta semana— la paginación es
+ * lo que hace que el buscador devuelva exactamente lo pedido.
  *
- * ## Por qué la clave de la petición es el `organizationId` y no un contador
+ * ## Por qué el rango de fechas es de **alta** y no de actualización
  *
- * Porque la clave tiene que cambiar **exactamente** cuando el resultado cambia, ni antes ni
- * después. El identificador del workspace es lo único que puede cambiar los datos desde
- * fuera de esta vista: los filtros son de la consola de soporte, y el `reload` usa un
- * contador interno que comparte clave a propósito. Con la clave mal elegida, cambiar de
- * workspace dejaría los tickets del anterior en pantalla hasta que la nueva respuesta
- * llegara, que es justo la fuga entre tenants que R3 prohíbe.
+ * Porque la columna de la tabla es `updated_at`, que se mueve con cada mensaje: un filtro
+ * sobre ella daría un resultado distinto cada diez minutos, según si alguien ha contestado.
+ * `created_at` no cambia nunca. La columna se sigue llamando «Actualizado» y el filtro se
+ * anuncia como rango de alta, con la explicación en el `title` de las dos etiquetas.
+ *
+ * ## Por qué las tarjetas de arriba no dependen del filtro
+ *
+ * Porque cuentan **todos** los tickets del workspace. Van en su propia petición —con su
+ * propia clave— para que cambiar de página o de estado no las vuelva a pedir, y para que un
+ * `429` de la cabecera no deje la pantalla sin números justo al paginar.
  */
 export function SupportTicketsPage() {
   const { t } = useTranslation('support')
-  const { token, selectedOrganizationId } = useAuth()
   const { notify } = useToast()
   const navigate = useNavigate()
 
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const organizationId = selectedOrganizationId
+  const { page, summary, isLoading, loadFailed, query, setQuery, setPage, reload } =
+    useSupportTickets()
 
-  const fetcher = useCallback(
-    async (key: string): Promise<TicketsPayload> => {
-      const activeToken = token
-      if (activeToken === null) {
-        throw new Error('sin token')
-      }
-      // La clave **es** el identificador del workspace, y se usa para pedir. No es un
-      // adorno que el hook ignore: es lo que garantiza que los datos de la pantalla
-      // pertenecen al workspace de la cabecera.
-      const [listado, resumen] = await Promise.all([
-        getMyTickets(activeToken, key),
-        getSupportSummary(activeToken, key),
-      ])
-      return { tickets: listado.items, summary: resumen }
-    },
-    [token],
+  const tickets = useMemo(() => page?.items ?? [], [page])
+
+  const hasFilters = Boolean(
+    query.status || query.search.trim() || query.createdFrom || query.createdTo,
   )
 
-  const { data, isLoading, loadFailed, reload } = useAsyncResource<TicketsPayload>(
-    fetcher,
-    organizationId,
-  )
-
-  const tickets = useMemo(() => data?.tickets ?? [], [data])
-  const summary = data?.summary ?? null
+  function cambiar(campo: 'search' | 'createdFrom' | 'createdTo', valor: string): void {
+    setQuery({ ...query, [campo]: valor } satisfies TicketsQuery)
+  }
 
   return (
     <section className="settings-section">
@@ -100,71 +88,158 @@ export function SupportTicketsPage() {
         </button>
       </div>
 
-      {loadFailed ? (
+      {/* Los cuatro filtros llevan etiqueta visible, incluido el buscador. Con etiquetas en
+          todos, `align-items: start` de la barra los deja compartiendo línea de control; un
+          buscador sin etiqueta sería una fila más corta y quedaría pegado a las etiquetas de
+          al lado, que es justo lo que el `align-self: end` de
+          `.filter-bar > .search-field` viene a arreglar en las pantallas que no llevan
+          etiqueta. */}
+      <div className="filter-bar">
+        <div className="filter-field filter-field-search">
+          <label htmlFor="support-tickets-search">{t('filters.search')}</label>
+          <span className="search-field">
+            <Search size={16} aria-hidden="true" />
+            <input
+              id="support-tickets-search"
+              type="search"
+              value={query.search}
+              placeholder={t('filters.searchPlaceholder')}
+              onChange={(event) => cambiar('search', event.target.value)}
+            />
+          </span>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="support-tickets-status">{t('filters.status')}</label>
+          <select
+            id="support-tickets-status"
+            value={query.status ?? ''}
+            onChange={(event) =>
+              setQuery({
+                ...query,
+                status: (event.target.value || null) as TicketsQuery['status'],
+              })
+            }
+          >
+            <option value="">{t('filters.allStatuses')}</option>
+            {TICKET_STATUSES.map((estado) => (
+              <option key={estado} value={estado}>
+                {t(`statuses.${estado}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="support-tickets-created-from" title={t('filters.dateHint')}>
+            {t('filters.dateFrom')}
+          </label>
+          <input
+            id="support-tickets-created-from"
+            type="date"
+            value={query.createdFrom}
+            onChange={(event) => cambiar('createdFrom', event.target.value)}
+          />
+        </div>
+        <div className="filter-field">
+          <label htmlFor="support-tickets-created-to" title={t('filters.dateHint')}>
+            {t('filters.dateTo')}
+          </label>
+          <input
+            id="support-tickets-created-to"
+            type="date"
+            value={query.createdTo}
+            onChange={(event) => cambiar('createdTo', event.target.value)}
+          />
+        </div>
+        {hasFilters ? (
+          <button
+            className="ghost-button filter-bar-clear"
+            type="button"
+            onClick={() => setQuery(EMPTY_QUERY)}
+          >
+            <span>{t('actions.clearFilters')}</span>
+          </button>
+        ) : null}
+      </div>
+
+      {/* `isLoading` a secas y no `isLoading && tickets.length === 0`: el hook conserva la
+          página anterior mientras llega la nueva, y con la segunda forma se pintarían las filas
+          del filtro anterior bajo el título del nuevo. Ese error ya se corrigió en
+          `AdminOperationsPage` y aquí se evita por construcción. */}
+      {isLoading ? (
         <div className="empty-card">
-          <p>{t('messages.loadError')}</p>
+          <p>{t('states.loading')}</p>
+        </div>
+      ) : loadFailed ? (
+        <div className="empty-card">
+          <p>{t('states.error')}</p>
           <button className="secondary-button" type="button" onClick={reload}>
             <span>{t('retry')}</span>
           </button>
         </div>
-      ) : null}
-
-      {isLoading && tickets.length === 0 ? (
-        <p className="field-hint">{t('loading')}</p>
-      ) : null}
-
-      {!isLoading && !loadFailed && tickets.length > 0 ? (
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">{t('table.number')}</th>
-                <th scope="col">{t('table.subject')}</th>
-                <th scope="col">{t('table.priority')}</th>
-                <th scope="col">{t('table.status')}</th>
-                <th scope="col">{t('table.messages')}</th>
-                <th scope="col">{t('table.updated')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket) => (
-                <tr
-                  key={ticket.id}
-                  className="ticket-row-clickable"
-                  onClick={() => navigate(`/settings/support/${ticket.id}`)}
-                >
-                  <td>
-                    <span className="ticket-number">{ticket.ticket_number}</span>
-                  </td>
-                  <td>
-                    <div className="ticket-subject">
-                      <strong>{ticket.subject}</strong>
-                      <span>
-                        {t(`categories.${ticket.category}`)} · {ticket.created_by_email}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <PriorityPill priority={ticket.priority} />
-                  </td>
-                  <td>
-                    <StatusPill status={ticket.status} />
-                  </td>
-                  <td>{ticket.message_count}</td>
-                  <td>{formatDateTime(ticket.updated_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {!isLoading && !loadFailed && tickets.length === 0 ? (
+      ) : tickets.length === 0 ? (
         <div className="empty-card">
-          <h2>{t('empty.title')}</h2>
-          <p>{t('empty.description')}</p>
+          <h2>{hasFilters ? t('states.noResultsTitle') : t('empty.title')}</h2>
+          <p>{hasFilters ? t('states.noResultsDescription') : t('empty.description')}</p>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t('table.number')}</th>
+                  <th scope="col">{t('table.subject')}</th>
+                  <th scope="col">{t('table.priority')}</th>
+                  <th scope="col">{t('table.status')}</th>
+                  <th scope="col">{t('table.messages')}</th>
+                  <th scope="col">{t('table.updated')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tickets.map((ticket) => (
+                  <tr
+                    key={ticket.id}
+                    className="ticket-row-clickable"
+                    onClick={() => navigate(`/settings/support/${ticket.id}`)}
+                  >
+                    <td>
+                      <span className="ticket-number">{ticket.ticket_number}</span>
+                    </td>
+                    <td>
+                      <div className="ticket-subject">
+                        <strong>{ticket.subject}</strong>
+                        <span>
+                          {t(`categories.${ticket.category}`)} · {ticket.created_by_email}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <PriorityPill priority={ticket.priority} />
+                    </td>
+                    <td>
+                      <StatusPill status={ticket.status} />
+                    </td>
+                    <td>{ticket.message_count}</td>
+                    <td>{formatDateTime(ticket.updated_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* La paginación va **debajo** de la tabla y habla el idioma del endpoint: `total`,
+              `limit` y `offset` llegan en la respuesta y el componente no traduce nada de su
+              cuenta. Solo aparece si hay más de una página. */}
+          {page ? (
+            <Pagination
+              total={page.total}
+              limit={page.limit}
+              offset={page.offset}
+              onOffsetChange={setPage}
+              namespace="support"
+            />
+          ) : null}
+        </>
+      )}
 
       <NewTicketDialog
         open={dialogOpen}

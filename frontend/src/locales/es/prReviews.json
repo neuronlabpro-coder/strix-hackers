@@ -10,7 +10,12 @@
   },
   "filters": {
     "status": "Estado del escaneo",
-    "allStatuses": "Todos los estados"
+    "allStatuses": "Todos los estados",
+    "search": "Buscar",
+    "searchPlaceholder": "Repositorio, PR, autor o rama...",
+    "dateFrom": "Desde",
+    "dateTo": "Hasta",
+    "dateHint": "Filtra por la fecha de alta de la revisión, no por la de finalización que muestra la tabla. El rango incluye el día final entero."
   },
   "table": {
     "repository": "Repositorio",
@@ -40,14 +45,21 @@
     "HIGH": "Alta"
   },
   "actions": {
-    "retry": "Actualizar"
+    "retry": "Actualizar",
+    "clearFilters": "Limpiar filtros"
   },
   "states": {
     "loading": "Cargando el historial de revisiones",
     "empty": "Aún no hay pull requests revisados",
     "emptyDescription": "Conecta un repositorio y activa las revisiones de PR para empezar a recoger resultados aquí.",
-    "noResults": "Ningún pull request coincide con el estado",
+    "noResults": "Ningún pull request coincide con los filtros",
+    "noResultsDescription": "Prueba con otro estado, otra fecha o una búsqueda más corta.",
     "error": "No se pudo cargar el historial de revisiones",
     "retry": "Reintentar"
+  },
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "summary": "{{from}}–{{to}} de {{total}}"
   }
 }

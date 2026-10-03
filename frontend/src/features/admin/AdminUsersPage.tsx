@@ -36,6 +36,21 @@ export function AdminUsersPage() {
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set())
   const [confirming, setConfirming] = useState<AdminUser | null>(null)
 
+  /**
+   * El botón de limpiar aparece solo si hay algo que limpiar.
+   *
+   * Siempre visible, un botón que no hace nada es un botón que el operador aprende a ignorar.
+   * Con dos filtros que se limpian con un clic, el criterio es `hayAlgoQueLimpiar`: o el texto
+   * tiene algo que no sean espacios —el servidor descarta los espacios, y el botón debe
+   * comparar contra el mismo criterio que la consulta— o la casilla está marcada.
+   */
+  const hayFiltros = search.trim() !== '' || onlySuperusers
+
+  function limpiarFiltros(): void {
+    setSearch('')
+    setOnlySuperusers(false)
+  }
+
   const load = useCallback(
     (limit: number, offset: number) =>
       // El hook recibe `disabled` y no pide nada sin sesión; esta guarda solo evita pasar
@@ -136,6 +151,11 @@ export function AdminUsersPage() {
           />
           <span>{t('users.onlySuperusers')}</span>
         </label>
+        {hayFiltros ? (
+          <button className="secondary-button" type="button" onClick={limpiarFiltros}>
+            <span>{t('users.filters.clear')}</span>
+          </button>
+        ) : null}
       </div>
 
       {page.loadFailed && page.items.length === 0 ? (
@@ -158,7 +178,7 @@ export function AdminUsersPage() {
         </div>
       ) : page.items.length === 0 ? (
         <div className="empty-card">
-          <p>{t('users.empty')}</p>
+          <p>{hayFiltros ? t('users.emptyFiltered') : t('users.empty')}</p>
         </div>
       ) : (
         <div className="table-wrapper">

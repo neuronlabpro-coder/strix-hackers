@@ -25,6 +25,7 @@ demás desde `emission.py`, no desde aquí.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -203,19 +204,47 @@ async def list_tickets(
     ] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+    query: Annotated[str | None, Query(max_length=256)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
 ) -> TicketPage:
-    """Los tickets del tenant activo, con filtro opcional por estado.
+    """Los tickets del tenant activo, con filtro por estado, texto y rango de alta.
 
     El tenant sale del contexto, no de un parámetro: un cliente no puede pedir los tickets
     de otro workspace ni por accidente ni queriendo. Y no hay filtro por prioridad aquí a
     propósito —en la vista de cliente cada ticket propio se distingue solo, y un filtro que
     solo puede vaciar la lista no es un filtro—.
+
+    ## Por qué aquí el parámetro se llama `query` y en la consola se llama `search`
+
+    Porque son dos rutas distintas con dos clientes distintos, y el nombre se ha copiado del
+    patrón que ya está verificado en `/api/v1/pr-reviews/`, donde el mismo filtro se llama
+    `query`. El nombre histórico de la consola —`search`— se conserva: renombrar un parámetro de
+    consulta que ya está en uso rompe a su llamador sin decir nada, y el cliente de la consola
+    no es este fichero. Queda la divergencia apuntada, no escondida: si algún día se unifica,
+    es un cambio con dos archivos de cliente y dos pruebas, no uno.
+
+    ## Por qué el rango va sobre la fecha de alta
+
+    Porque `updated_at` es la columna que ordena la lista y se mueve con cada mensaje: filtrar
+    por ella daría un resultado distinto cada vez que alguien conteste. `created_at` no cambia
+    nunca. La columna «Actualizado» de la tabla sigue mostrando la última actividad, y el filtro
+    se anuncia como rango de alta para que no se confundan. El corte es la medianoche UTC del día
+    pedido y el último día entra entero; un rango invertido devuelve la lista vacía, no un `422`.
+    Detalle en `service.listar_tickets`.
     """
 
     filas, total = await service.listar_tickets(
         session,
         organization_id=tenant.organization.id,
         status=status_filter,
+        search=query,
+        # El nombre del workspace **no** se busca en la vista de cliente: es siempre el mismo,
+        # así que igualaría el filtro a «devuélveme todos» en cuanto la palabra buscada saliera
+        # en el nombre de la empresa. Ver `service._busqueda_por_texto`.
+        incluir_nombre_tenant=False,
+        created_from=created_from,
+        created_to=created_to,
         limit=limit,
         offset=offset,
     )

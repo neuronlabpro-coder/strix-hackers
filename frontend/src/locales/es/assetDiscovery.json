@@ -11,7 +11,13 @@
     "type": "Tipo de activo",
     "allTypes": "Todos los tipos",
     "domain": "Dominio",
-    "allDomains": "Todos los dominios"
+    "allDomains": "Todos los dominios",
+    "search": "Buscar",
+    "searchPlaceholder": "Host, servicio o dominio...",
+    "dateFrom": "Alta desde",
+    "dateTo": "Alta hasta",
+    "dateHint": "Filtra por la fecha de alta del activo, no por la de última revisión que muestra la tabla. El rango incluye el día final entero.",
+    "clear": "Quitar filtros"
   },
   "actions": {
     "refresh": "Actualizar"
@@ -45,6 +51,8 @@
     "retry": "Reintentar",
     "emptyTitle": "Todavía no hay activos",
     "emptyDescription": "Lanza el descubrimiento sobre un dominio verificado para empezar a construir el inventario de tu superficie de ataque.",
+    "emptyFilteredTitle": "Ningún activo coincide con los filtros",
+    "emptyFilteredDescription": "Prueba con otro tipo, otro dominio, otra fecha o una búsqueda más corta.",
     "count": "{{count}} activo en total",
     "count_other": "{{count}} activos en total",
     "emptyWithoutDomains": "Aun no hay ningun dominio verificado",

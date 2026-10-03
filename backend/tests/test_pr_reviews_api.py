@@ -80,15 +80,26 @@ def _review(
     high: int = 0,
     merge_blocked: bool = False,
     days_ago: int = 1,
+    title: str | None = None,
+    author: str = "dev@example.com",
+    branch: str | None = None,
+    created_at: datetime | None = None,
 ) -> PullRequestReview:
+    """Revisión de prueba.
+
+    `created_at` se puede fijar a mano porque `TimestampMixin` solo declara
+    `server_default`: la columna acepta el valor explícito, que es lo que permite medir el
+    filtro de rango sin depender del reloj.
+    """
+
     return PullRequestReview(
         organization_id=repository.organization_id,
         repository_id=repository.id,
         run_id=None,
         pr_number=pr_number,
-        pr_title=f"Pull request #{pr_number}",
-        pr_author="dev@example.com",
-        source_branch=f"feature/pr-{pr_number}",
+        pr_title=title if title is not None else f"Pull request #{pr_number}",
+        pr_author=author,
+        source_branch=branch if branch is not None else f"feature/pr-{pr_number}",
         target_branch="main",
         commit_sha="a" * 40,
         base_sha="b" * 40,
@@ -97,6 +108,7 @@ def _review(
         issues_caught_high=high,
         merge_blocked=merge_blocked,
         finished_at=datetime.now(UTC) - timedelta(days=days_ago),
+        **({} if created_at is None else {"created_at": created_at}),
     )
 
 
@@ -256,6 +268,255 @@ async def test_pr_reviews_paginates(integration_session: AsyncSession) -> None:
     first_ids = {item["id"] for item in first.json()["items"]}
     second_ids = {item["id"] for item in second.json()["items"]}
     assert first_ids.isdisjoint(second_ids)
+
+
+# --------------------------------------------------------------------------- #
+# Búsqueda por texto y rango de fechas
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_pr_reviews_searches_title_author_branch_and_repository(
+    integration_session: AsyncSession,
+) -> None:
+    """El buscador tiene que encontrar por las cuatro cosas con las que se recuerda una revisión.
+
+    Si solo buscara en el título, escribir el nombre de quien abrió el pull request —que es
+    como se busca media vez— devolvería página vacía y el buscador parecería roto.
+    """
+
+    assert integration_session is not None
+    organization, headers = await _tenant(integration_session)
+    repository = await _repository(integration_session, organization.id)
+    integration_session.add_all(
+        [
+            _review(repository, pr_number=1, title="Anadir inicio de sesion unico"),
+            _review(repository, pr_number=2, author="ana@example.com"),
+            _review(repository, pr_number=3, branch="feature/pagos"),
+        ]
+    )
+    await integration_session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        por_titulo = await client.get("/api/v1/pr-reviews/?query=sesion", headers=headers)
+        por_autor = await client.get("/api/v1/pr-reviews/?query=ana@", headers=headers)
+        por_rama = await client.get("/api/v1/pr-reviews/?query=pagos", headers=headers)
+        por_repositorio = await client.get("/api/v1/pr-reviews/?query=acme", headers=headers)
+        sin_coincidencia = await client.get(
+            "/api/v1/pr-reviews/?query=nada-de-esto", headers=headers
+        )
+
+    assert por_titulo.json()["total"] == 1
+    assert por_titulo.json()["items"][0]["pr_number"] == 1
+    assert por_autor.json()["total"] == 1
+    assert por_autor.json()["items"][0]["pr_number"] == 2
+    assert por_rama.json()["total"] == 1
+    assert por_rama.json()["items"][0]["pr_number"] == 3
+    # `full_name` de los repositorios del tenant empieza por `acme/`, así que las tres entran.
+    assert por_repositorio.json()["total"] == 3
+    assert sin_coincidencia.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_pr_reviews_search_by_number_matches_only_that_pull_request(
+    integration_session: AsyncSession,
+) -> None:
+    """El número se compara exacto: `42` es la revisión 42, no la 142 ni la 420.
+
+    Con `LIKE '%42%'` las tres entrarían, y quien busca el pull request 42 leería como
+    hallazgo suyo una revisión de otro pull request. Ni los títulos ni las ramas de esta
+    prueba llevan dígitos a propósito, para que lo único que pueda hacer coincidir sea el
+    número.
+    """
+
+    assert integration_session is not None
+    organization, headers = await _tenant(integration_session)
+    repository = await _repository(integration_session, organization.id)
+    integration_session.add_all(
+        [
+            _review(repository, pr_number=42, title="Primer titulo", branch="feature/primera"),
+            _review(repository, pr_number=142, title="Segundo titulo", branch="feature/segunda"),
+            _review(repository, pr_number=420, title="Tercer titulo", branch="feature/tercera"),
+        ]
+    )
+    await integration_session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/pr-reviews/?query=42", headers=headers)
+
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["pr_number"] == 42
+
+
+@pytest.mark.asyncio
+async def test_pr_reviews_search_treats_like_wildcards_as_literals(
+    integration_session: AsyncSession,
+) -> None:
+    """`_` y `%` se buscan literales, no como comodines de `LIKE`.
+
+    Los nombres de rama llevan `_` —`feature/web_app`— así que sin escapar, buscar `web_app`
+    devolvería también `webXapp`: un resultado que el usuario no pidió y que no puede
+    distinguir de un fallo del buscador.
+    """
+
+    assert integration_session is not None
+    organization, headers = await _tenant(integration_session)
+    repository = await _repository(integration_session, organization.id)
+    integration_session.add_all(
+        [
+            _review(repository, pr_number=1, branch="feature/web_app"),
+            _review(repository, pr_number=2, branch="feature/webXapp"),
+            _review(repository, pr_number=3, branch="release/100%off"),
+            _review(repository, pr_number=4, branch="release/1000off"),
+        ]
+    )
+    await integration_session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        con_guion_bajo = await client.get("/api/v1/pr-reviews/?query=web_app", headers=headers)
+        con_porcentaje = await client.get("/api/v1/pr-reviews/?query=100%25off", headers=headers)
+
+    assert con_guion_bajo.json()["total"] == 1
+    assert con_guion_bajo.json()["items"][0]["pr_number"] == 1
+    assert con_porcentaje.json()["total"] == 1
+    assert con_porcentaje.json()["items"][0]["pr_number"] == 3
+
+
+@pytest.mark.asyncio
+async def test_pr_reviews_filters_by_creation_range_with_an_inclusive_last_day(
+    integration_session: AsyncSession,
+) -> None:
+    """El rango recorta por fecha de alta y el día final entra **entero**.
+
+    Se comprueban los cuatro bordes: una revisión de la medianoche previa se queda fuera, la
+    de la medianoche inicial entra, la del último segundo del día final entra y la de la
+    medianoche siguiente se queda fuera. Un `<=` sobre la medianoche del `created_to` dejaría
+    pasar la última y solo la última.
+    """
+
+    assert integration_session is not None
+    organization, headers = await _tenant(integration_session)
+    repository = await _repository(integration_session, organization.id)
+    integration_session.add_all(
+        [
+            _review(
+                repository,
+                pr_number=1,
+                created_at=datetime(2026, 3, 9, 23, 59, tzinfo=UTC),
+            ),
+            _review(
+                repository,
+                pr_number=2,
+                created_at=datetime(2026, 3, 10, 0, 0, tzinfo=UTC),
+            ),
+            _review(
+                repository,
+                pr_number=3,
+                created_at=datetime(2026, 3, 12, 23, 59, 59, tzinfo=UTC),
+            ),
+            _review(
+                repository,
+                pr_number=4,
+                created_at=datetime(2026, 3, 13, 0, 0, tzinfo=UTC),
+            ),
+        ]
+    )
+    await integration_session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        rango = await client.get(
+            "/api/v1/pr-reviews/?created_from=2026-03-10&created_to=2026-03-12", headers=headers
+        )
+        solo_desde = await client.get(
+            "/api/v1/pr-reviews/?created_from=2026-03-12", headers=headers
+        )
+        invertido = await client.get(
+            "/api/v1/pr-reviews/?created_from=2026-03-12&created_to=2026-03-10", headers=headers
+        )
+
+    assert rango.json()["total"] == 2
+    assert {item["pr_number"] for item in rango.json()["items"]} == {2, 3}
+    assert solo_desde.json()["total"] == 2
+    # Un rango invertido no es un `422`: las dos condiciones son incompatibles por
+    # construcción, así que la lista vacía ya es la respuesta que corresponde.
+    assert invertido.status_code == 200
+    assert invertido.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_pr_reviews_filters_stay_inside_the_tenant(
+    integration_session: AsyncSession,
+) -> None:
+    """R3 también con los filtros nuevos: la búsqueda no amplía la vista.
+
+    Un buscador es la forma más fácil de Meter en la consulta una condición que el llamador
+    elige, así que la prueba tiene que mirar lo que **no** devuelve tanto como lo que sí.
+    """
+
+    assert integration_session is not None
+    alpha, alpha_headers = await _tenant(integration_session)
+    beta, _beta_headers = await _tenant(integration_session)
+    alpha_repository = await _repository(integration_session, alpha.id)
+    beta_repository = await _repository(integration_session, beta.id)
+    integration_session.add_all(
+        [
+            _review(alpha_repository, pr_number=1, branch="feature/alfa"),
+            _review(beta_repository, pr_number=2, branch="feature/beta"),
+        ]
+    )
+    await integration_session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        ajeno = await client.get("/api/v1/pr-reviews/?query=beta", headers=alpha_headers)
+        propio = await client.get("/api/v1/pr-reviews/?query=alfa", headers=alpha_headers)
+
+    assert ajeno.json()["total"] == 0
+    assert ajeno.json()["items"] == []
+    assert propio.json()["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_pr_reviews_search_counts_only_matches_before_paginating(
+    integration_session: AsyncSession,
+) -> None:
+    """`total` cuenta lo que coincide con los filtros, no lo que hay en la organización.
+
+    Es lo que hace que la barra de paginación sea honesta: si `total` saliera sin filtrar, el
+    resumen «1-25 de 300» prometería páginas que al pulsarlas saldrían vacías.
+    """
+
+    assert integration_session is not None
+    organization, headers = await _tenant(integration_session)
+    repository = await _repository(integration_session, organization.id)
+    integration_session.add_all(
+        [_review(repository, pr_number=number, branch="feature/matches") for number in range(1, 4)]
+        + [_review(repository, pr_number=9, branch="feature/other")]
+    )
+    await integration_session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        primera = await client.get(
+            "/api/v1/pr-reviews/?query=matches&limit=2&offset=0", headers=headers
+        )
+        segunda = await client.get(
+            "/api/v1/pr-reviews/?query=matches&limit=2&offset=2", headers=headers
+        )
+
+    assert primera.json()["total"] == 3
+    assert len(primera.json()["items"]) == 2
+    assert primera.json()["limit"] == 2
+    assert segunda.json()["offset"] == 2
+    assert len(segunda.json()["items"]) == 1
+    assert all(
+        item["source_branch"] == "feature/matches"
+        for item in primera.json()["items"] + segunda.json()["items"]
+    )
 
 
 # --------------------------------------------------------------------------- #

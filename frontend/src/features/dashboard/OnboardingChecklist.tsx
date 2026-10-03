@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { getOnboardingStatus } from '../../lib/api'
 import type { OnboardingStatus, OnboardingStepKey } from '../../types/api'
 import { useAuth } from '../auth/useAuth'
+import { debePintarseElChecklist } from './visibilidadOnboarding'
 
 /**
  * Destino de cada paso. Se definen aquí y no en el backend porque son rutas de
@@ -66,6 +67,25 @@ export function OnboardingChecklist() {
       ? Math.round((status.completed_steps / status.total_steps) * 100)
       : 0
 
+  /*
+    El bloque desaparece cuando no queda nada pendiente.
+    *
+    La decisión y sus motivos están en `visibilidadOnboarding.ts`; aquí solo se aplica. Se
+    consulta **antes** de pintar nada, y no se monta un bloque «vacío» con un mensaje de
+    configuración completa: ese mensaje era el que ocupaba media pantalla del Dashboard de un
+    producto ya configurado.
+    *
+    ## Por qué volver a comprobarlo en cada render y no al montar
+    *
+    Porque la lectura del estado vuelve a hacerse al cambiar de organización o de sesión, y
+    porque un paso puede deshacerse: si la credencial caduca o se borra un repositorio,
+    `is_complete` pasa a `false` y el bloque tiene que volver a salir. Un `useState` que guardara
+    «ya estuvo completo» lo dejaría muerto para siempre.
+    */
+  if (!debePintarseElChecklist(status)) {
+    return null
+  }
+
   return (
     <section className="content-card onboarding" aria-labelledby="onboarding-title">
       <div className="onboarding-head">
@@ -114,11 +134,15 @@ export function OnboardingChecklist() {
         <p className="chart-empty">{t('states.loading')}</p>
       ) : loadFailed || !status ? (
         <p className="inline-notice inline-notice-warning">{t('states.error')}</p>
-      ) : status.is_complete ? (
-        <p className="inline-notice" role="status">
-          {t('complete')}
-        </p>
       ) : (
+        /*
+          Aquí ya no hay rama de «configuración completa»: el componente ha vuelto antes cuando
+          `is_complete` es `true`, así que llegar a este `return` con el checklist completo es
+          imposible. La rama se quitó en vez de dejarse como red de seguridad porque código que no
+          se puede ejecutar engaña a quien lea el componente y luego lo quita, y porque el día
+          que la visibilidad cambie, esta rama y `debePintarseElChecklist` dirían cosas
+          distintas.
+        */
         <ol className="onboarding-steps" id="onboarding-steps">
           {status.steps.map((step) => (
             <li
