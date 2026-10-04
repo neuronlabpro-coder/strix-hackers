@@ -260,6 +260,26 @@ class Settings(BaseSettings):
     #: cada petición de inventario en un refresco.
     git_token_refresh_margin_seconds: int = Field(default=60, ge=0, le=3600)
 
+    #: Ventana por adelantado del barrido de renovación de Celery Beat.
+    #:
+    #: Es la caducidad que se mira «tan pronto como» al barrido: cualquier credencial que caduque
+    #: dentro de esta ventana se renueva antes de que nadie la necesite. El suelo es de un minuto
+    #: porque por debajo el barrido no adelanta nada; el techo de un día impide que un valor mal
+    #: puesto convierta cada pasada en un refresco de todas las conexiones OAuth del producto.
+    #:
+    #: Esto **no** es el mecanismo que garantiza que haya un token en vigor en el momento de un
+    #: webhook: eso lo garantiza `asegurar_credentialo_vigente_en_sesion_ajena`, que se ejecuta
+    #: igual. El barrido es una comodidad que quita la llamada al proveedor del camino crítico.
+    git_token_proactive_refresh_window_seconds: int = Field(default=3600, ge=60, le=86400)
+    #: Cada cuánto se ejecuta el barrido. Tiene que ser **menor** que la ventana, o hay tramos en
+    #: los que una credencial ya está dentro de la ventana y el barrido todavía no ha pasado por
+    #: ella. Que no sea así se comprueba en el validador de la configuración.
+    git_token_proactive_refresh_interval_seconds: int = Field(default=900, gt=0, le=86400)
+    #: Tope de credenciales por pasada. Sin tope, un barrido con muchos tenants se lleva el ancho de
+    #: banda del proceso de Beat entero; con tope, lo que no llega hoy llega en la siguiente
+    #: pasada, y como el orden es por caducidad, lo que más urge es lo primero que se atiende.
+    git_token_proactive_refresh_batch_size: int = Field(default=100, gt=0, le=1000)
+
     jwt_algorithm: Literal["HS256", "HS384", "HS512"]
     access_token_expire_minutes: int = Field(gt=0)
     invitation_expire_days: int = Field(gt=0)
@@ -745,6 +765,19 @@ class Settings(BaseSettings):
             raise ValueError("El límite suave de Celery debe ser menor que el límite duro")
         if self.pr_scan_soft_timeout_seconds >= self.pr_scan_hard_timeout_seconds:
             raise ValueError("El timeout suave del scan PR debe ser menor que el duro")
+        # Sin esto el barrido puede tener un intervalo mayor que su ventana, y entonces hay un
+        # tramo —de hasta un intervalo entero— en el que una credencial ya está dentro de la
+        # ventana y el barrido todavía no ha pasado por ella. El síntoma es un token que se
+        # renueva «a tiempo» y a la vez demasiado tarde, que es la clase de configuración que
+        # parece correcta y no lo es.
+        if (
+            self.git_token_proactive_refresh_interval_seconds
+            >= self.git_token_proactive_refresh_window_seconds
+        ):
+            raise ValueError(
+                "El intervalo del barrido de renovación debe ser menor que su ventana "
+                "por adelantado"
+            )
         if not self.git_allowed_clone_hosts:
             raise ValueError("GIT_ALLOWED_CLONE_HOSTS_CSV debe contener al menos un host")
         subscription_events = [

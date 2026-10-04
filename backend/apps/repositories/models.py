@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
@@ -110,6 +111,20 @@ class GitCredential(TimestampMixin, Base):
             "organization_id",
             "provider",
             unique=True,
+        ),
+        # Índice **parcial** y no uno entero, y no por ahorro de espacio sino por exactitud: la
+        # consulta del barrido de Celery Beat es «las credenciales OAuth que caducan pronto», y
+        # las únicas filas que pueden salir son las que tienen `refresh_token` y fecha. Un índice
+        # sobre `token_expires_at` completo incluiría los tokens personales de acceso —que no
+        # caducan y que el barrido nunca renueva— y obligaría a leerlos para descartarlos. El
+        # predicado es el mismo filtro del `WHERE`, y por eso el planificador puede usarlo
+        # directamente en vez de filtrar después de leer la fila entera.
+        Index(
+            "ix_git_credentials_por_vencer",
+            "token_expires_at",
+            postgresql_where=text(
+                "token_expires_at IS NOT NULL AND encrypted_refresh_token IS NOT NULL"
+            ),
         ),
         CheckConstraint(
             "encrypted_access_token ~ '^v1\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{22,}$'",

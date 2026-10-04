@@ -38,6 +38,7 @@ from backend.apps.repositories.models import (
     Repository,
 )
 from backend.apps.repositories.services import build_client_for_repository
+from backend.apps.repositories.token_refresh import GitCredencialError
 from backend.apps.repositories.workspace import materialize_pr_workspace
 from backend.apps.vulnerabilities.models import SeverityEnum, Vulnerability
 from backend.apps.webhooks.emission import (
@@ -668,6 +669,35 @@ async def _run_pr_security_pipeline(
             if claim is not None:
                 await _mark_pipeline_error(session, claim, "GIT_TRANSIENT_ERROR")
             logger.exception("Fallo Git transitorio en el pipeline PR %s", parsed_review_id)
+            raise
+        except GitCredencialError as error:
+            # La credencial del tenant no estaba en vigor y no se ha podido dejar en vigor. Es el
+            # único fallo del pipeline que **no** es del escaneo, y por eso necesita su propio
+            # `error_code`: «PR_PIPELINE_FAILED» le diría a quien mira el panel que la revisión se
+            # rompió, y la acción que hay que hacer —reconectar la credencial— es otra distinta.
+            #
+            # Y necesita marcarla aunque después se reintente. `_mark_pipeline_error` solo
+            # transiciona lo que estaba en curso, así que un reintento posterior vuelve a
+            # `_claim_review` con la revisión en `SCANNING` —porque el propio marcado la devuelve a
+            # `ERROR` y el reintento la pone en `QUEUED`— y no se pierde nada por marcar antes.
+            #
+            # La excepción sale **sin envolver**, y a propósito: `autoretry_for` decide con el tipo,
+            # y un `GitCredencialNoDisponibleError` dentro de un `PRPipelineError` se trataría como
+            # permanente y no se reintentaría nunca.
+            if claim is not None:
+                await _mark_pipeline_error(session, claim, error.codigo_revision)
+            # `logger.exception` aquí volcaría el `repr` de la excepción, que es inocuo porque
+            # el mensaje no lleva nada del proveedor, pero `logger.error` con el estado ya lo dice
+            # entero y sin depender de que nadie mire un traceback.
+            logger.error(
+                "El pipeline PR %s no pudo dejar en vigor la credencial Git: organization=%s "
+                "repository=%s estado=%s motivo=%s",
+                parsed_review_id,
+                claim.organization_id if claim is not None else None,
+                claim.repository_id if claim is not None else None,
+                error.estado.value,
+                type(error).__name__,
+            )
             raise
         except Exception as error:
             if claim is not None:

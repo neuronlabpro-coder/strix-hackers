@@ -43,6 +43,16 @@ celery_app.conf.update(
             "task": "cve.sync_catalog",
             "schedule": timedelta(hours=settings.cve_sync_interval_hours),
         },
+        # Renueva las credenciales OAuth de Git antes de que caduquen, en un proceso sin trabajo de
+        # usuario alrededor. El intervalo tiene que ser menor que la ventana, y la configuración
+        # lo rechaza si no lo es; se deja la comprobación en un solo sitio porque dos comparaciones
+        # en dos ficheros divergen sin que ninguna prueba se entere.
+        "refresh-expiring-git-credentials": {
+            "task": "repositories.refresh_expiring_git_credentials",
+            "schedule": timedelta(
+                seconds=settings.git_token_proactive_refresh_interval_seconds
+            ),
+        },
     },
     # La tarea de CVE se registra en este módulo para que Celery pueda descubrirla
     # por nombre; sin el import, `cve.sync_catalog` no existiría en el worker.
