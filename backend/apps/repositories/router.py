@@ -329,6 +329,14 @@ async def _open_client(
     pero si mañana se añade un proveedor al enum y se olvida su conector, esta función no debe
     cambiar el síntoma —«no hay credencial»— por el motivo real —«no hay conector»—. El `501` es
     el mismo que ya devuelve la guarda de arriba.
+
+    ## Por qué la renovación va dentro del mismo `try`
+
+    Porque `_exigir_credencial_vigente` no solo mira fechas: también descifra el `refresh_token`
+    para renovarlo, y ese descifrado puede fallar con `CryptoError` si la clave maestra con la que
+    se cifró no es la de esta instalación. Es el mismo fallo de servidor que ya está traducido a
+    `500` un poco más abajo, y por eso tiene que caer en el mismo `except`: fuera de él saldría como
+    un `500` de FastAPI sin mensaje, que es justo lo que ese `except` existe para evitar.
     """
 
     if provider not in _SUPPORTED_MANAGEMENT_PROVIDERS:
@@ -336,8 +344,9 @@ async def _open_client(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="El proveedor todavía no tiene conector de gestión",
         )
-    await _exigir_credencial_vigente(session, organization_id, provider)
     try:
+        # Dentro del `try`, no antes: el motivo está en el docstring de arriba.
+        await _exigir_credencial_vigente(session, organization_id, provider)
         client = await build_organization_client(session, organization_id, provider)
     except (GitCredentialNotFoundError, UnsupportedGitProviderError) as error:
         codigo = (

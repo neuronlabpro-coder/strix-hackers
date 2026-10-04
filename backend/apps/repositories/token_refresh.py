@@ -36,11 +36,20 @@ bloquea cuando de verdad puede haber un refresco.
 ## Por qué `populate_existing=True` no es opcional
 
 Porque SQLAlchemy no sobrescribe los atributos de una instancia que ya está en el mapa de
-identidad. La lectura sin bloqueo de arriba —aunque solo pida `token_expires_at`— puede haber
-metido la fila en la sesión, y entonces la lectura bloqueante devolvería **la misma instancia con
-los valores viejos**: el segundo concurrente creería que el token sigue caducado y refrescaría con
-el `refresh_token` que el primero acaba de rotar. `supply_chain/service.py` documenta el mismo
-motivo para el mismo parámetro.
+identidad. La fila puede llevar ya un rato en la sesión —cualquier cosa que haya leído la credencial
+antes la dejó ahí— y entonces la lectura bloqueante devolvería **la misma instancia con los valores
+viejos**: el segundo concurrente creería que el token sigue caducado y refrescaría con el
+`refresh_token` que el primero acaba de rotar. `supply_chain/service.py` documenta el mismo motivo
+para el mismo parámetro.
+
+## Por qué esto es especialmente traicionero aquí
+
+Porque el mapa de identidad de SQLAlchemy guarda **referencias débiles**. Si la sesión no tiene
+nadie sujetando la fila, el primer `gc` la saca del mapa y la lectura siguiente la trae fresca de la
+base: el parámetro no hace falta. En cuanto alguien la sujeta —la ruta que lo llama, una vista que
+la consultó antes, cualquier cosa— la fila se queda con su valor viejo y el parámetro sí hace
+falta. Es decir: el defecto aparece y desaparece según cuándo pase el recolector, que es la peor
+forma posible de un defecto. Por eso se pone siempre y no «cuando haga falta».
 
 ## Por qué `refrescador` es inyectable
 
@@ -214,7 +223,6 @@ async def asegurar_credentialo_vigente(
         )
 
     # Bajo el bloqueo se decide de nuevo: si otro proceso ya renovó mientras se esperaba, su
-    # `token_expires_at` es el que se lee aquí y no hay nada que renovar.
     # `token_expires_at` es el que se lee aquí y no hay nada que renovar.
     caduca = credential.token_expires_at
     if caduca is not None and caduca > limite:

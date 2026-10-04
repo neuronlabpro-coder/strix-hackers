@@ -11,7 +11,7 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **1049** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de backend: **1069** funciones (39 con `@parametrize`, que generan mas de un caso cada una)
 - Pruebas de frontend: **180**
 
 ## Superficie funcional
@@ -179,24 +179,24 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/vulnerabilities/autofix.py:418` | MAX_RESPONSE_CHARS: Final[int] = settings.strix_max_autofix_chars | identificador: strix_max_autofix_chars |
 | identidad tecnica | `backend/apps/vulnerabilities/remediation.py:353` | max_tokens=settings.strix_max_autofix_chars // 4, | identificador: strix_max_autofix_chars |
 | identidad tecnica | `backend/core/config.py:116` | default="@fenix-team review,@strix review", | identificador: strix |
-| identidad tecnica | `backend/core/config.py:294` | strix_max_output_bytes: int = Field(default=10_000_000, gt=0, le=50_000_000) | identificador: strix_max_output_bytes |
-| identidad tecnica | `backend/core/config.py:295` | strix_max_findings: int = Field(default=10_000, gt=0, le=100_000) | identificador: strix_max_findings |
-| identidad tecnica | `backend/core/config.py:296` | strix_max_description_chars: int = Field(default=100_000, gt=0, le=1_000_000) | identificador: strix_max_description_chars |
-| identidad tecnica | `backend/core/config.py:297` | strix_max_poc_chars: int = Field(default=1_000_000, gt=0, le=5_000_000) | identificador: strix_max_poc_chars |
-| identidad tecnica | `backend/core/config.py:298` | strix_max_autofix_chars: int = Field(default=2_000_000, gt=0, le=10_000_000) | identificador: strix_max_autofix_chars |
-| identidad tecnica | `backend/core/config.py:299` | strix_sandbox_image: str = Field( | identificador: strix_sandbox_image |
-| identidad tecnica | `backend/core/config.py:300` | default="ghcr.io/usestrix/strix-sandbox:latest", | identificador: strix, usestrix |
-| identidad tecnica | `backend/core/config.py:303` | strix_workspace_root: str = Field(default="/tmp/fenix_workspaces", min_length=1)  # noq... | identificador: strix_workspace_root |
-| identidad tecnica | `backend/core/config.py:304` | strix_network_prefix: str = Field(default="strix_net", min_length=1) | identificador: strix_net, strix_network_prefix |
-| identidad tecnica | `backend/core/config.py:305` | strix_network_pool: str = Field( | identificador: strix_network_pool |
-| identidad tecnica | `backend/core/config.py:309` | strix_require_egress_fence: bool = Field( | identificador: strix_require_egress_fence |
-| identidad tecnica | `backend/core/config.py:312` | strix_require_llm_key_exposure_ack: bool = Field( | identificador: strix_require_llm_key_exposure_ack |
-| identidad tecnica | `backend/core/config.py:315` | strix_llm_key_exposure_ack: str = Field(default="") | identificador: strix_llm_key_exposure_ack |
-| identidad tecnica | `backend/core/config.py:316` | strix_memory_limit: str = Field(default="4g", min_length=1) | identificador: strix_memory_limit |
-| identidad tecnica | `backend/core/config.py:317` | strix_cpu_limit: float = Field(default=2.0, gt=0, le=8) | identificador: strix_cpu_limit |
-| identidad tecnica | `backend/core/config.py:318` | strix_pids_limit: int = Field(default=256, gt=0, le=100_000) | identificador: strix_pids_limit |
-| identidad tecnica | `backend/core/config.py:319` | strix_worker_concurrency: int = Field(default=1, gt=0, le=32) | identificador: strix_worker_concurrency |
-| identidad tecnica | `backend/core/config.py:320` | strix_hard_timeout_seconds: int = Field(default=1800, gt=0, le=86400) | identificador: strix_hard_timeout_seconds |
+| identidad tecnica | `backend/core/config.py:302` | strix_max_output_bytes: int = Field(default=10_000_000, gt=0, le=50_000_000) | identificador: strix_max_output_bytes |
+| identidad tecnica | `backend/core/config.py:303` | strix_max_findings: int = Field(default=10_000, gt=0, le=100_000) | identificador: strix_max_findings |
+| identidad tecnica | `backend/core/config.py:304` | strix_max_description_chars: int = Field(default=100_000, gt=0, le=1_000_000) | identificador: strix_max_description_chars |
+| identidad tecnica | `backend/core/config.py:305` | strix_max_poc_chars: int = Field(default=1_000_000, gt=0, le=5_000_000) | identificador: strix_max_poc_chars |
+| identidad tecnica | `backend/core/config.py:306` | strix_max_autofix_chars: int = Field(default=2_000_000, gt=0, le=10_000_000) | identificador: strix_max_autofix_chars |
+| identidad tecnica | `backend/core/config.py:307` | strix_sandbox_image: str = Field( | identificador: strix_sandbox_image |
+| identidad tecnica | `backend/core/config.py:308` | default="ghcr.io/usestrix/strix-sandbox:latest", | identificador: strix, usestrix |
+| identidad tecnica | `backend/core/config.py:311` | strix_workspace_root: str = Field(default="/tmp/fenix_workspaces", min_length=1)  # noq... | identificador: strix_workspace_root |
+| identidad tecnica | `backend/core/config.py:312` | strix_network_prefix: str = Field(default="strix_net", min_length=1) | identificador: strix_net, strix_network_prefix |
+| identidad tecnica | `backend/core/config.py:313` | strix_network_pool: str = Field( | identificador: strix_network_pool |
+| identidad tecnica | `backend/core/config.py:317` | strix_require_egress_fence: bool = Field( | identificador: strix_require_egress_fence |
+| identidad tecnica | `backend/core/config.py:320` | strix_require_llm_key_exposure_ack: bool = Field( | identificador: strix_require_llm_key_exposure_ack |
+| identidad tecnica | `backend/core/config.py:323` | strix_llm_key_exposure_ack: str = Field(default="") | identificador: strix_llm_key_exposure_ack |
+| identidad tecnica | `backend/core/config.py:324` | strix_memory_limit: str = Field(default="4g", min_length=1) | identificador: strix_memory_limit |
+| identidad tecnica | `backend/core/config.py:325` | strix_cpu_limit: float = Field(default=2.0, gt=0, le=8) | identificador: strix_cpu_limit |
+| identidad tecnica | `backend/core/config.py:326` | strix_pids_limit: int = Field(default=256, gt=0, le=100_000) | identificador: strix_pids_limit |
+| identidad tecnica | `backend/core/config.py:327` | strix_worker_concurrency: int = Field(default=1, gt=0, le=32) | identificador: strix_worker_concurrency |
+| identidad tecnica | `backend/core/config.py:328` | strix_hard_timeout_seconds: int = Field(default=1800, gt=0, le=86400) | identificador: strix_hard_timeout_seconds |
 
 _Y 129 mas._
 
