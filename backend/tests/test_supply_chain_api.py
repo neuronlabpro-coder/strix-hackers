@@ -498,6 +498,101 @@ async def test_filtrar_por_ecosistema_y_por_repositorio() -> None:
     assert total_todo == 4
 
 
+async def test_el_buscador_trata_los_comodines_como_literales() -> None:
+    r"""`%` y `_` se buscan literales en `listar_paquetes(busqueda=...)`.
+
+    Sin escapar, `busqueda="%"` devuelve **el inventario entero**: el comodín va también en los
+    dos extremos del patrón, así que `%\%` casa con cualquier nombre. Y `_` casa con cualquier
+    carácter, de modo que `web_app` también traería `webXapp` —y los nombres de paquete de npm
+    llevan `_` con frecuencia, `@types/node`, `lodash.merge` no pero `snake_case` sí—.
+
+    Se comprueba sobre el **servicio** y no sobre el endpoint porque el filtro se construye aquí,
+    en el servicio: un test del endpoint que pasara probaría el enrutado, no el `ILIKE`.
+
+    ## Por qué el patrón no viene ya escapado de otra capa
+
+    Porque no hay otra capa: `busqueda` llega del endpoint al servicio sin tocar nada, y aquí se
+    montaba el patrón. Que hoy el texto se escriba en minúsculas no lo salva: `ILIKE` ya es
+    insensible a mayúsculas y el escape del comodín es otra cosa.
+    """
+
+    async with _sesion() as sesion:
+        tenant = await _tenant(sesion, "sc")
+        repositorio = await _repositorio(sesion, tenant.organization_id, "cliente/web")
+        await service.indexar_manifiesto(
+            sesion,
+            organization_id=tenant.organization_id,
+            repository_id=repositorio.id,
+            manifest_path="package.json",
+            contenido=MANIFIESTO,
+        )
+        await sesion.commit()
+
+        # Dos paquetes que solo se diferencian en el carácter que se va a buscar: `_` contra `X`
+        # y `%` contra `0`. La licencia lleva el comodín en el segundo par, para comprobar que
+        # también escapa la segunda columna del `or_`.
+        sufijo = uuid.uuid4().hex[:8]
+        sesion.add_all(
+            [
+                SupplyChainPackage(
+                    organization_id=tenant.organization_id,
+                    repository_id=repositorio.id,
+                    name=f"web_app-{sufijo}",
+                    version="1.0.0",
+                    ecosystem=EcosystemEnum.NPM,
+                    license="MIT",
+                ),
+                SupplyChainPackage(
+                    organization_id=tenant.organization_id,
+                    repository_id=repositorio.id,
+                    name=f"webXapp-{sufijo}",
+                    version="1.0.0",
+                    ecosystem=EcosystemEnum.NPM,
+                    license="MIT",
+                ),
+                SupplyChainPackage(
+                    organization_id=tenant.organization_id,
+                    repository_id=repositorio.id,
+                    name=f"descuento-{sufijo}",
+                    version="1.0.0",
+                    ecosystem=EcosystemEnum.NPM,
+                    license="Lic-100%off",
+                ),
+                SupplyChainPackage(
+                    organization_id=tenant.organization_id,
+                    repository_id=repositorio.id,
+                    name=f"otro-{sufijo}",
+                    version="1.0.0",
+                    ecosystem=EcosystemEnum.NPM,
+                    license="Lic-1000off",
+                ),
+            ]
+        )
+        await sesion.commit()
+
+        por_subrayado, total_subrayado = await service.listar_paquetes(
+            sesion, tenant.organization_id, busqueda=f"web_app-{sufijo}"
+        )
+        por_porcentaje, total_porcentaje = await service.listar_paquetes(
+            sesion, tenant.organization_id, busqueda="Lic-100%off"
+        )
+        solo_porcentaje, total_solo_porcentaje = await service.listar_paquetes(
+            sesion, tenant.organization_id, busqueda="%"
+        )
+
+    # `_` no es comodín de un carácter: solo el paquete que lo lleva literalmente.
+    assert total_subrayado == 1
+    assert [f.name for f, _n, _c in por_subrayado] == [f"web_app-{sufijo}"]
+    # El `%` en medio se busca literal, sin arrastrar al `1000off` ni a las licencias del
+    # manifiesto sembrado antes.
+    assert total_porcentaje == 1
+    assert [f.license for f, _n, _c in por_porcentaje] == ["Lic-100%off"]
+    # Y `%` a secas devuelve **una** fila —la que lleva el símbolo— y no el inventario entero,
+    # que a estas alturas ya tiene siete paquetes entre el manifiesto y los cuatro añadidos.
+    assert total_solo_porcentaje == 1
+    assert [f.license for f, _n, _c in solo_porcentaje] == ["Lic-100%off"]
+
+
 async def test_filtrar_solo_por_las_no_comprobadas() -> None:
     """`has_vulnerabilities=None` como filtro es "no filtrar", no "solo las no comprobadas".
 

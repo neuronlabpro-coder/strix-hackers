@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { getPRReviewMetrics, getPRReviews } from '../../lib/api'
+import { analyzePrReview, getPRReviewMetrics, getPRReviews } from '../../lib/api'
 import type { PRReviewMetrics, PRReviewPage, PRReviewStatus } from '../../types/api'
 import { useAuth } from '../auth/useAuth'
 
@@ -65,6 +65,25 @@ export const EMPTY_QUERY: PrReviewsQuery = {
   createdTo: '',
 }
 
+/**
+ * Por qué un escaneo de revisión **no** se puede pedir dos veces.
+ *
+ * Y por eso esto es un conjunto, y no una lista: el botón de la fila tiene que saber si puede
+ * aparecer sin preguntar al backend. `QUEUED` y `SCANNING` quedan fuera porque relanzar algo que
+ * ya está corriendo produce dos contenedores para el mismo commit, y dos escaneos del mismo
+ * diff son la misma seguridad cobrada dos veces —con el mismo consumo de tokens—.
+ *
+ * `PASSED` y `FAILED` sí están: un PR al que se le añaden commits genera una revisión **nueva**,
+ * así que relanzar una `PASSED` no es una forma de trayarse commits nuevos. Y un `FAILED` de
+ *，原因 que nadie ve es justo el caso que este botón resuelve.
+ */
+export const ESTADOS_RELANZABLES = new Set<PRReviewStatus>(['PASSED', 'FAILED', 'ERROR'])
+
+export type Lanzamiento =
+  | { estado: 'inactivo' }
+  | { estado: 'en_curso'; reviewId: string }
+  | { estado: 'fallido'; reviewId: string; reintentable: boolean }
+
 export interface PrReviewsState {
   page: PRReviewPage | null
   metrics: PRReviewMetrics | null
@@ -74,6 +93,9 @@ export interface PrReviewsState {
   setQuery: (query: PrReviewsQuery) => void
   setPage: (offset: number) => void
   refresh: () => void
+  lanzamiento: Lanzamiento
+  lanzarAnalisis: (reviewId: string) => void
+  descartarAviso: () => void
 }
 
 /**
@@ -108,6 +130,7 @@ export function usePrReviews(): PrReviewsState {
     failed: boolean
   }>({ key: '', page: null, failed: false })
   const [metrics, setMetrics] = useState<PRReviewMetrics | null>(null)
+  const [lanzamiento, setLanzamiento] = useState<Lanzamiento>({ estado: 'inactivo' })
 
   const requestKey = JSON.stringify([
     token,
@@ -171,6 +194,56 @@ export function usePrReviews(): PrReviewsState {
     }
   }, [reloadToken, selectedOrganizationId, token])
 
+  /**
+   * Lanza el análisis de una revisión y recarga la tabla.
+   *
+   * ## Por qué recarga en vez de parchear la fila
+   *
+   * Porque el backend responde `202` con la revisión ya en `QUEUED`, y la fila que se pinta
+   * después **no** es la que devuelve el `POST`: el `run` se crea después, en el worker, y el
+   * pipeline va a cambiar el estado varias veces más. Recargar cuesta una petición y da la
+   * fila que el servidor tiene de verdad, no una copia que se quedó vieja en cuanto el worker
+   * empezó. Es lo mismo que hace la sincronización de Supply Chain y por el mismo motivo.
+   *
+   * ## Por qué el error distingue `reintentable`
+   *
+   * Porque un `503` de cola caída y un `404` de «esta revisión no se puede lanzar ahora» piden
+   * cosas opuestas del usuario: el primero, «vuelve a intentarlo en un momento»; el segundo,
+   * «no lo intentes otra vez, ya está en curso o el repositorio está desconectado». Un único
+   * mensaje de error para los dos dejaría al usuario en la duda justo cuando la duda es lo
+   * único que importa.
+   *
+   * ## Por qué el error se guarda en estado y no se lanza
+   *
+   * Porque es información sobre el estado de la pantalla, no una excepción. Se muestra como
+   * aviso y la tabla se queda como estaba: un error de red que vacía la tabla hace que el
+   * usuario piense que sus revisiones han desaparecido, que es peor que no poder lanzarlas.
+   */
+  const lanzarAnalisis = useCallback(
+    (reviewId: string) => {
+      if (!token || !selectedOrganizationId) {
+        return
+      }
+      setLanzamiento({ estado: 'en_curso', reviewId })
+      void analyzePrReview(token, selectedOrganizationId, reviewId)
+        .then(() => {
+          setLanzamiento({ estado: 'inactivo' })
+          setReloadToken((current) => current + 1)
+        })
+        .catch((error: unknown) => {
+          setLanzamiento({
+            estado: 'fallido',
+            reviewId,
+            // `503` es infraestructura: la cola no pudo atender una petición válida y el
+            // backend pone `Retry-After`. Cualquier otro status —un `404` o un `403`— no se
+            // arregla reintentando, así que no se ofrece como reintentable.
+            reintentable: esErrorDeServidor(error),
+          })
+        })
+    },
+    [selectedOrganizationId, token],
+  )
+
   return {
     page: isCurrent ? result.page : null,
     metrics,
@@ -189,7 +262,30 @@ export function usePrReviews(): PrReviewsState {
     },
     setPage: (nextOffset: number) => setOffset(Math.max(0, nextOffset)),
     refresh: () => setReloadToken((current) => current + 1),
+    lanzamiento,
+    lanzarAnalisis,
+    descartarAviso: () => setLanzamiento({ estado: 'inactivo' }),
   }
+}
+
+/**
+ * ¿El fallo fue del servidor y se puede reintentar?
+ *
+ * ## Por qué se mira el status y no el tipo del error
+ *
+ * Porque `request` ya envuelve el fallo en un error con el status dentro, y lo que el usuario
+ * necesita saber no es «qué clase de excepción es» sino «¿tengo que esperar o tengo que
+ * otra cosa». La distinción entre los dos casos es exactamente la del status: `503` es la cola
+ * o el proveedor, y `404`/`403` son decisiones del servidor que ya no van a cambiar por
+ * repetir la llamada.
+ */
+function esErrorDeServidor(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as { status: unknown }).status === 503
+  )
 }
 
 export { PAGE_SIZE, STATUSES, rowStatus }

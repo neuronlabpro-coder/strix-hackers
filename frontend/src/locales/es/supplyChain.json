@@ -9,6 +9,8 @@
   "filters": {
     "ecosystemLabel": "Filtrar por ecosistema",
     "statusLabel": "Filtrar por estado de vulnerabilidad",
+    "repositoryLabel": "Repositorio a sincronizar",
+    "allRepositories": "Todos los repositorios",
     "allEcosystems": "Todos",
     "todos": "Todas",
     "unchecked": "Sin comprobar",
@@ -27,10 +29,6 @@
   },
   "metrics": {
     "total": "Dependencias",
-    "repositories": {
-      "_one": "En {{count}} repositorio",
-      "_other": "En {{count}} repositorios"
-    },
     "unchecked": "Sin comprobar",
     "uncheckedCaption": "Nadie ha comprobado si tienen vulnerabilidades",
     "clean": "Comprobadas limpias",
@@ -50,11 +48,7 @@
     "unchecked": "Sin comprobar",
     "uncheckedHelp": "No hay fuente de vulnerabilidades por paquete conectada. Que esté aquí no significa que sea seguro.",
     "clean": "Limpia",
-    "cleanHelp": "Comprobada y sin vulnerabilidades conocidas.",
-    "vulnerable": {
-      "_one": "{{count}} CVE",
-      "_other": "{{count}} CVE"
-    }
+    "cleanHelp": "Comprobada y sin vulnerabilidades conocidas."
   },
   "devDependency": "desarrollo",
   "licenseUnknown": "sin declarar",
@@ -67,7 +61,8 @@
     "title": "Todavía no hay inventario",
     "body": "Se construye leyendo los manifiestos de los repositorios (package.json, requirements.txt, go.mod, Cargo.toml) y guardando solo los identificadores de sus dependencias. El texto del manifiesto no se guarda.",
     "filteredTitle": "Ninguna dependencia coincide con el filtro",
-    "filteredBody": "Prueba a ampliar el ecosistema o a quitar la búsqueda."
+    "filteredBody": "Prueba a ampliar el ecosistema o a quitar la búsqueda.",
+    "syncHint": "Elige un repositorio en el filtro de arriba y pulsa «Sincronizar dependencias» para leer sus manifiestos."
   },
   "sync": {
     "button": "Sincronizar dependencias",
@@ -75,5 +70,10 @@
     "failed": "No se pudo sincronizar con el proveedor. El inventario que ya tenías sigue aquí.",
     "result": "Manifiestos leídos: {{found}} de {{total}}. Paquetes actualizados: {{packages}}.",
     "missing": "No encontrados en el repositorio: {{manifests}}."
-  }
+  },
+  "status.vulnerable_one": "{{count}} CVE",
+  "status.vulnerable_other": "{{count}} CVE",
+  "marcadorDePlurales": "plano",
+  "metrics.repositories_one": "En {{count}} repositorio",
+  "metrics.repositories_other": "En {{count}} repositorios"
 }

@@ -118,6 +118,49 @@
 }
 
 /* --------------------------------------------------------------------------
+   El selector de repositorio
+   --------------------------------------------------------------------------
+   ## Por qué tiene `min-width` propio y no comparte el de `.filter-field`
+
+   Porque el ancho lo marca el contenido, y el contenido aquí es un `full_name` de GitHub:
+   `neuronlabpro-coder/ACDP-PCAD` no cabe en los 180 px que comparten los filtros de la consola,
+   y el `<select>` recorta por el medio sin avisar —el navegador pone elipsis solo si el
+   elemento lo pide, y en un `select` lo decide el navegador, no el autor—.
+
+   Con 260 px caben los nombres largos de un cliente real y los cortos siguen bien. Un `select`
+   más ancho que el más largo de sus opciones es lo que evita que el valor elegido se lea a
+   medias, que es la mitad de lo que un selector de esta barra tiene que hacer.
+
+   Y no lleva `flex: 1 1 200px` como los filtros de la consola porque no quiere ocupar el hueco
+   sobrante: crece con su contenido y deja que el resto de la barra se reparta el espacio que
+   quede. */
+.supply-repository-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+}
+
+/* La pista del estado vacío que dice qué hacer.
+
+   ## Por qué está en `.supplyChain.css` y no en `index.css`
+
+   Porque es de esta pantalla. `.empty-card` es compartida por veinte pantallas, y esta frase
+   solo tiene sentido aquí: en Pentests, en Issues o en Knowledge el estado vacío se llena
+   haciendo algo distinto en cada caso, y una regla general para "la acción que llena esto"
+   tendría que recibir un parámetro que ningún otro sitio usaría.
+
+   Y no es un botón porque el botón está en la barra de filtros, arriba: repetirlo aquí sería un
+   segundo botón que hace lo mismo en otro sitio, y dos botones de la misma acción en una
+   pantalla dividen la atención en vez de guiarla. Aquí basta con decir qué hacer y en dónde. */
+.empty-card-action {
+  margin: 4px 0 0;
+  max-width: 62ch;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* --------------------------------------------------------------------------
    El aviso de sincronización
    --------------------------------------------------------------------------
    Va dentro de la tarjeta, debajo de la barra de filtros y encima de la tabla, y no como un

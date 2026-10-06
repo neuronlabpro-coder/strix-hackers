@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!--
+    El escudo con la marca de verificacion es el `ShieldGlyph` de la consola
+    (`AdminLayout.tsx`) y el `ShieldCheck` de `lucide-react` que ya usan la barra lateral y las
+    pantallas de acceso. El favicon reutiliza ese mismo dibujo en vez de inventar una marca nueva,
+    y por eso es un SVG de texto y no un `.ico`: el repo no tiene ningun `.ico` propio, y anadir
+    un binario para un icono que ya existe dibujado en el codigo seria duplicarlo.
+
+    El relleno es `--color-accent` (`#17a163`) sobre `--color-on-primary` (`#06120c`), los dos
+    tokens de `design-dark.md`, en vez de un color suelto aqui: si la paleta cambia, el favicon
+    cambia con ella. `currentColor` no sirve en un favicon, que se pinta fuera de la pagina y no
+    hereda nada del CSS.
+  -->
+  <rect width="24" height="24" rx="5" fill="#06120c" />
+  <g fill="none" stroke="#17a163" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.5l7 2.9v4.9c0 4.3-2.9 8.2-7 9.7-4.1-1.5-7-5.4-7-9.7V6.4l7-2.9z" />
+    <path d="M9.2 12.2l2 2 3.6-4" />
+  </g>
+</svg>

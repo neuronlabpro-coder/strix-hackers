@@ -169,6 +169,41 @@ async def list_webhooks(
 
     El filtro por organización va en la consulta y no se aplica en memoria: una lista de
     endpoints de otro tenant filtrada en Python no está protegida por nada.
+
+    ## Por qué el desempate por `id`
+
+    Porque `created_at` no es único. Dos endpoints dados de alta en la misma transacción
+    comparten marca, y `ORDER BY created_at DESC` deja su orden relativo en manos del
+    planificador.
+
+    Conviene decir con precisión quéNO es este arreglo: esta lista **no** está paginada —
+    `total` es el número de filas que se devuelven y no hay `limit` ni `offset`—, así que no
+    puede solapar páginas ni perder filas. Lo que hace es que al recargar, dos endpoints con
+    la misma marca no se intercambien de sitio y la pantalla parezca haber cambiado sola. Es
+    el mismo modo de fallo, una escala más abajo, y el arreglo es el mismo y no cuesta nada:
+    no cambia qué filas se devuelven, solo el orden entre las que ya se devolvían.
+
+    El desempate es sobre `WebhookEndpoint.id`, la clave primaria, y no toca el `WHERE`: R3
+    sigue intacto.
+
+    ## Por qué el `id` no cuesta nada aquí, y está medido
+
+    Porque esta consulta **no tiene `LIMIT`**. Sin tope hay que leer todas las filas del tenant
+    y ordenarlas, así que el planificador elige `Sort` tanto con el desempate como sin él, y el
+    desempate solo añade una clave a ordenar dentro de un conjunto que ya se está ordenando.
+
+    Medido con `EXPLAIN (ANALYZE, BUFFERS)`, mediana de nueve ejecuciones con la primera
+    descartada, sobre 29.505 endpoints en 3.000 tenants, con un tenant de 5, de 500 y de 20.000
+    endpoints: plan y coste estimado **idénticos** con y sin desempate en los tres tamaños
+    (coste 34,2 / 797,0 / 2.567,9), y los mismos buffers.
+
+    ## Por qué no hay un índice con `id` al final
+
+    Porque se probó y no cambia nada: con `(organization_id, created_at, id)` el plan sigue siendo
+    un `Sort`, con los mismos buffers, y el coste estimado sale incluso **mayor**, porque el
+    índice es más ancho. Solo un `LIMIT` permitiría que un índice de orden compensara, porque
+    podría dejar de leer después de las primeras filas, y aquí no lo hay. El razonamiento entero
+    está en `webhooks/models.py`, junto al índice que se queda en dos columnas.
     """
 
     from sqlalchemy import select
@@ -178,7 +213,7 @@ async def list_webhooks(
             await session.execute(
                 select(WebhookEndpoint)
                 .where(WebhookEndpoint.organization_id == principal.organization.id)
-                .order_by(WebhookEndpoint.created_at.desc())
+                .order_by(WebhookEndpoint.created_at.desc(), WebhookEndpoint.id.desc())
             )
         )
         .scalars()
@@ -344,6 +379,32 @@ async def list_deliveries(
 
     El orden inverso al tiempo no es un detalle: quien mira un historial está
     diagnosticando un fallo recién ocurrido, y el evento que le interesa es el primero.
+
+    ## Por qué el desempate va sobre `WebhookDelivery.id`
+
+    Porque **`attempt` no es único, y no solo porque `created_at` no lo sea**. Los dos criterios
+    que ya había se empatan entre sí de una forma que no es rara: `created_at` es `now()` de
+    servidor, así que una entrega con reintentos nace con la marca de su transacción y sus tres
+    intentos la comparten; y `attempt` solo cuenta intentos **de un mismo evento**, así que dos
+    eventos distintos —dos entregas de la plataforma, dos facturas, dos escaneos— pueden llevar
+    los dos `attempt = 1` y además haber salido en la misma transacción, con la misma marca.
+
+    Ese empate es el caso normal, no el raro: un webhook que recibe cinco eventos en un lote
+    produce cinco filas con `attempt = 1` y la misma `created_at`. Con solo esos dos criterios,
+    el reparto entre las páginas lo decide el planificador, la página 2 repite filas de la 1 y
+    se come otras, y el operador ve el mismo fallo dos veces y pierde otro sin que nada lo avise.
+
+    El desempate es sobre `id`, la clave primaria de la tabla que se pagina, y cierra el orden
+    sin tocar el `WHERE`: `organization_id` sigue siendo la primera condición (R3).
+
+    ## Por qué aquí no hay tampoco un índice con `id` al final
+
+    A diferencia de la cola de trabajos del tenant, que **sí** tiene `LIMIT` y por eso gana un
+    índice compuesto, aquí el desempate lo resuelve PostgreSQL 13+ con `Incremental Sort` sobre
+    el índice de dos columnas que ya hay, y medido cuesta **0,012 ms de mediana y los mismos 4
+    buffers**. Con un índice de cuatro columnas serían 0,069 ms, o sea que tampoco mejoraría:
+    estaría pagando una entrada más en el índice de la tabla que más se escribe del módulo —una
+    fila por cada intento de entrega— para ahorrar un `Incremental Sort` que ya no cuesta nada.
     """
 
     from sqlalchemy import func, select
@@ -370,7 +431,11 @@ async def list_deliveries(
                     WebhookDelivery.endpoint_id == endpoint_id,
                     WebhookDelivery.organization_id == principal.organization.id,
                 )
-                .order_by(WebhookDelivery.created_at.desc(), WebhookDelivery.attempt.desc())
+                .order_by(
+                    WebhookDelivery.created_at.desc(),
+                    WebhookDelivery.attempt.desc(),
+                    WebhookDelivery.id.desc(),
+                )
                 .limit(limit)
                 .offset(offset)
             )

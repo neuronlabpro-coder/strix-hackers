@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.cve_database.models import CVERecord, CVESeverityEnum
+from backend.core.filtros_texto import escape_like
 
 logger = logging.getLogger(__name__)
 
@@ -197,17 +198,6 @@ async def sync_cve_catalog(
     )
 
 
-def _escape_like(term: str) -> str:
-    """Escapa los comodines de LIKE para que el término se busque literal.
-
-    Sin esto, buscar `a_b` devolvería `axb`: los identificadores CVE no
-    contienen `_`, pero una búsqueda de texto libre sí puede, y el resultado
-    sería una lista de coincidencias que el usuario no pidió.
-    """
-
-    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def build_search_filters(
     *,
     query: str | None,
@@ -221,6 +211,19 @@ def build_search_filters(
     `to_tsvector`, que partiría el texto en tokens y perdería el identificador.
     Se busca primero por coincidencia del `cve_id` y, en paralelo, por texto
     completo sobre la descripción.
+
+    ## Por qué el escape viene de `core.filtros_texto`
+
+    Porque el `cve_id` se compara con `ilike`, y sin escapar `a_b` devolvería
+    `axb`. Aquí el caso real es `%`: los identificadores CVE no llevan `_`, pero
+    una búsqueda de texto libre sí, y `?query=%` sin escapar devolvería el
+    catálogo entero.
+
+    El escape no está copiado aquí: había una copia local, se comprobó que
+    hacía lo mismo que la del módulo compartido en los mismos términos —la barra
+    invertida se escapa primero, y ese orden es el que más se puede equivocar
+    sin que se note— y se consolidó. La prueba que cubre este punto es
+    `test_cve_database_api.py::test_search_escapes_like_wildcards`.
     """
 
     filters: list[Any] = []
@@ -234,7 +237,7 @@ def build_search_filters(
         term = query.strip()
         if term:
             filters.append(
-                CVERecord.cve_id.ilike(f"%{_escape_like(term)}%", escape="\\")
+                CVERecord.cve_id.ilike(f"%{escape_like(term)}%", escape="\\")
                 | func.to_tsvector("spanish", CVERecord.description).op("@@")(
                     func.plainto_tsquery("spanish", term)
                 )

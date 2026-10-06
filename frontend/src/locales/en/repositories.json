@@ -85,15 +85,16 @@
     "close": "Close",
     "searchLabel": "Search repositories",
     "searchPlaceholder": "Search by name, path or branch",
-    "searchNoResults": "No repository matches the search",
+    "searchNoResults": "No repository matches the search \"{{search}}\". Clear it to see the full inventory.",
     "selectAll": "Select all",
     "importSelected": "Import selected ({{count}})",
     "importingSelected": "Importing…",
     "bulkSuccess": "{{count}} repositories imported",
     "bulkPartial": "Imported {{ok}} of {{total}}. Failed: {{failed}}",
     "bulkFailed": "None imported. Failed: {{failed}}",
-    "countAll": "{{shown}} of {{total}} repositories. Showing {{shown}} because the list comes in batches: use the search box to reach the rest.",
+    "countAll": "{{shown}} of {{total}} repositories",
     "countFiltered": "{{shown}} of {{total}} repositories match your search.",
+    "truncated": "The list comes in batches of 100, so the remaining {{missing}} are not shown here. The search box does reach all of them.",
     "searchNotApplied": "The server is not applying the search “{{search}}”, so this is the whole inventory. Restart the backend and search again."
   },
   "autofix": {

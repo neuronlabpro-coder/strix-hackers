@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1C1C1C" />
     <meta name="description" content="Mind Guard Fenix Team" />
+    <!--
+      El favicon va declarado en el HTML y no se deja que el navegador lo pida por su cuenta.
+
+      Sin esta linea, Chrome pide `/favicon.ico` aunque no exista, y como `public/` no traia
+      ninguno era la unica respuesta >=400 de las 40 capturas: una peticion que sale en cada
+      carga y que nadie ve en la pantalla. El icono es el escudo de la marca, el mismo
+      `ShieldGlyph` que dibuja la consola, en SVG —el repo no tiene ningun `.ico` propio—.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

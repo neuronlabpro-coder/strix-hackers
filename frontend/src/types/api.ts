@@ -217,6 +217,40 @@ export interface PentestRunListItem extends PentestRun {
   findings: number
 }
 
+/**
+ * Una comprobación del entorno de ejecución.
+ *
+ * `clave` es lo que se muestra y lo que se traduce; `motivo` es el **código** del fallo, no
+ * un texto, y es `null` cuando la comprobación pasa. El reparto entre backend y panel es
+ * deliberado: el backend no escribe frases en la base de datos porque el panel se traduce, y
+ * una frase en español guardada saldría en inglés en la interfaz inglesa.
+ *
+ * `bloquea` no es «pasa» con otro nombre: es si el fallo **impide lanzar un escaneo desde el
+ * proceso que respondió**. El cerco de salida desactivado falla y no bloquea —el escaneo sale,
+ * pero con los permisos de red del host—, y mezclar los dos casos en un solo color haría que
+ * el operador no supiera si puede escanear o si puede escanear con seguridad.
+ */
+export interface SandboxReadinessCheck {
+  clave: string
+  pasa: boolean
+  motivo: string | null
+  bloquea: boolean
+}
+
+export interface SandboxReadiness {
+  listo: boolean
+  /**
+   * ¿Puede este proceso lanzar un escaneo?
+   *
+   * No es lo mismo que `listo`. Y el nombre no dice «despliegue» a propósito: estas
+   * comprobaciones corrieron en el proceso que atiende la petición, que en Dokploy no es el
+   * que lanza los escaneos. Afirmar sobre el despliegue entero sería repetir, en la dirección
+   * contraria, el error que este diagnóstico vino a corregir.
+   */
+  bloquea_escaneo: boolean
+  comprobaciones: SandboxReadinessCheck[]
+}
+
 export interface PentestRunPage {
   items: PentestRunListItem[]
   total: number
@@ -721,6 +755,13 @@ export interface Repository {
   webhook_registered: boolean
   created_at: string
   updated_at: string
+}
+
+export interface RepositoryPage {
+  items: Repository[]
+  total: number
+  limit: number
+  offset: number
 }
 
 export interface RemoteRepository {

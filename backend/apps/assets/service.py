@@ -63,7 +63,7 @@ from backend.apps.assets.verifier import (
     verify_domain_txt,
 )
 from backend.core.config import settings
-from backend.core.filtros_texto import coincide, rango_creado
+from backend.core.filtros_texto import coincide, escape_like, rango_creado
 
 #: Longitud del token de verificación, en bytes, antes de codificar en hexadecimal.
 #:
@@ -106,34 +106,6 @@ class AssetError(RuntimeError):
 
     De dominio, no `HTTPException`: la decisión la toma el servicio y la ruta la traduce.
     """
-
-
-def _escape_like(termino: str) -> str:
-    """Escapa los comodines de `LIKE` para que el término se busque literal.
-
-    ## Por qué aquí el escape importa más que en otros buscadores
-
-    Porque un nombre de dominio lleva `_`, que es el **separador de wildcard de DNS**:
-    `acme_corp.com` y `acmeXcorp.com` son nombres válidos y distintos. Buscar `acme_corp` sin
-    escapar devolvería también `acmeXcorp`, que el usuario no pidió y que no puede distinguir de
-    un fallo del buscador. Y `%` sin escapar devuelve la tabla entera, porque `%` casa con
-    cualquier cosa.
-
-    ## Por qué hay una copia aquí y no se importa `core.filtros_texto`
-
-    Porque ese módulo es **nuevo** —se escribió en paralelo a este cambio— y su `rango_creado`
-    devuelve `list[ColumnOperators]`, que no encaja en el `where(...)` de SQLAlchemy bajo el
-    tipado estricto del proyecto: importarlo dejaba `pyright` en rojo con dos errores que no son
-    de este filtro. Importar un módulo a medio escribir para ahorrar seis líneas cambia un
-    filtro por un error de tipos, y el filtro es lo que se está entregando.
-
-    La consolidación —que es lo correcto— es un cambio propio, con sus pruebas, y la
-    comparación está en `core/filtros_texto.py`. Se deja escrito aquí para que no se pierda: hay
-    ahora cuatro copias del escape y una de ellas es el sitio donde un `%` sin escapar
-    devolvería la superficie de ataque entera.
-    """
-
-    return termino.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _rango_de_creacion(
@@ -385,9 +357,15 @@ async def list_domains(
     # sean espacios no es una búsqueda: es un filtro vacío. Se descarta para que el botón de
     # limpiar pueda comparar contra el mismo criterio que la consulta aplicó.
     if termino := (search or "").strip():
+        # El escape viene de `core.filtros_texto`, no de una copia local. Aquí es donde más se
+        # nota: un nombre de dominio lleva `_`, que es el **separador de wildcard de DNS**, así
+        # que `acme_corp.com` y `acmeXcorp.com` son nombres válidos y distintos. Buscar
+        # `acme_corp` sin escapar devolvería también `acmeXcorp`, que el usuario no pidió y que
+        # no puede distinguir de un fallo del buscador. Y `%` sin escapar devuelve la superficie
+        # entera, porque `%` casa con cualquier cosa.
         filtros.append(
             func.lower(VerifiedDomain.domain_name).like(
-                f"%{_escape_like(termino.lower())}%", escape="\\"
+                f"%{escape_like(termino.lower())}%", escape="\\"
             )
         )
     if verification is not None:

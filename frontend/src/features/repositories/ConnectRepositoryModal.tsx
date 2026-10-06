@@ -21,6 +21,34 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
 ]
 
 /**
+ * Cuántos repositorios se piden en cada página del inventario.
+ *
+ * ## Por qué 100 y no 500
+ *
+ * Porque `GET /repositories/remote` tiene `limit` topado a 100 en el backend, así que 100 es el
+ * máximo que una sola petición puede traer. Y el tope del backend no es arbitrario: esa ruta
+ * llama a `list_repositories` del proveedor, que devuelve **el inventario entero del cliente**
+ * en cada petición. Pedir 500 no abarataría la llamada, solo construiría 500 objetos en el
+ * navegador para pintar 50. El límite protege al navegador, no al servidor.
+ *
+ * ## Por qué esto **no** arregla el problema del cliente con 500 repositorios
+ *
+ * Y no lo arregla, y esa es la decisión que hay que tomar aquí. Con 500 repositorios, 100 por
+ * página son cinco páginas, y una barra de paginación en un **modal** es mala interfaz: obliga
+ * a cerrar el flujo de conexión para recorrer un inventario, y la conexión es lo que el usuario
+ * vino a hacer. La alternativa —cargar más al llegar al final, como un scroll infinito— mete
+ * cinco peticiones en una ruta con `repository_management_rate_limit`, que son 60 por minuto.
+ *
+ * Lo que sí se hace es que el **`total` sea honesto y la búsqueda llegue a todo**. Con eso, un
+ * cliente con 500 repositorios no los ve todos en la lista, pero **sí** llega a cualquiera de
+ * ellos escribiendo su nombre, y la pantalla le dice cuántas páginas hay. Ese es el compromiso:
+ * el buscador es la vía para llegar a algo concreto, y la lista es para elegir entre lo que ya
+ * sabes que hay. Lo contrario —una lista con 500 filas y paginación— es una tabla, y no es lo
+ * que este modal es.
+ */
+const INVENTARIO_POR_PAGINA = 100
+
+/**
  * Vías de conexión, en el orden en que se ofrecen.
  *
  * OAuth va primero porque es el camino de producción: no exige que el usuario tenga
@@ -123,6 +151,8 @@ export function ConnectRepositoryModal({
       setNotice(null)
       void getRemoteRepositories(token, selectedOrganizationId, selectedProvider, {
         search,
+        limit: INVENTARIO_POR_PAGINA,
+        offset: 0,
       })
         .then((page) => {
           setRemoteRepositories(page.items)
@@ -717,6 +747,63 @@ export function ConnectRepositoryModal({
             </p>
           ) : null}
 
+          {/*
+            La barra con el buscador va **siempre**, incluso con la lista vacía.
+
+            ## Por qué esto estaba dentro de la rama de la lista
+
+            Porque la estructura era «si hay repositorios, pinta la barra y la lista; si no, pinta
+            un texto». Con una búsqueda que no encuentra nada, `remoteRepositories` pasa a `[]`,
+            se entra en la rama del texto, **y el buscador desaparece con ella**.
+
+            ## Por qué eso es un fallo grave de flujo y no una molestia
+
+            Es el peor tipo de defecto de UI que hay. El usuario escribe una letra, no hay
+            coincidencias, y **el control con el que corregir lo que escribió ya no está**. No
+            puede borrar la letra, porque el campo desapareció con ella; no puede escribir otra,
+            porque no hay donde; no puede buscar nada, porque no hay campo. La única salida es
+            **cerrar el modal y volver a abrirlo**, y si el modal recuerda la búsqueda —que la
+            recuerda, porque está en el estado del padre—, la reopen sale igual y el usuario se
+            queda sin salida del todo.
+
+            Un campo de entrada no desaparece nunca. Como mucho dice «no hay coincidencias». Es
+            el mismo criterio que en el resto del panel y por el mismo motivo: un control que
+            puede desaparecer es un control que puede dejar al usuario atrapado.
+
+            Por eso la condición de la barra es **solo** «no estamos cargando y la carga no ha
+            fallado». La de la lista es la de siempre, y las dos están separadas.
+          */}
+          {!isLoadingInventory && !inventarioFallido ? (
+            <div className="remote-toolbar">
+              <div className="remote-search">
+                <Search size={15} aria-hidden="true" />
+                {/*
+                  El icono va dentro del recuadro y no al lado, con `pointer-events: none` en
+                  CSS para que el clic le llegue al input. Puesto al lado, el hueco entre
+                  icono y campo deja una zona muerta de unos pixeles donde el usuario hace
+                  clic esperando escribir.
+                */}
+                <input
+                  type="search"
+                  className="remote-search-input"
+                  value={busqueda}
+                  placeholder={t('modal.searchPlaceholder')}
+                  aria-label={t('modal.searchLabel')}
+                  onChange={(event) => setBusqueda(event.target.value)}
+                />
+              </div>
+              <label className="remote-selectall">
+                <input
+                  type="checkbox"
+                  checked={todosSeleccionados}
+                  disabled={importablesVisibles.length === 0}
+                  onChange={alternarTodos}
+                />
+                <span>{t('modal.selectAll')}</span>
+              </label>
+            </div>
+          ) : null}
+
           {isLoadingInventory ? (
             <p className="modal-empty">{t('states.loading')}</p>
           ) : /*
@@ -725,38 +812,24 @@ export function ConnectRepositoryModal({
             repositorios» convierte un fallo en una afirmación que el panel no puede hacer: no
             sabemos cuántos hay, sabemos que no lo hemos preguntado.
           */ inventarioFallido ? null : remoteRepositories.length === 0 ? (
-            <p className="modal-empty">{t('modal.empty')}</p>
+            <p className="modal-empty">
+              {/*
+                Dos textos y no uno, porque las dos situaciones piden acciones distintas.
+                «No hay repositorios» con la credencial conectada se resuelve reconectando;
+                «Nada coincide con la búsqueda» se resuelve **borrando la búsqueda**, y ese es
+                justo el gesto que el campo de arriba sigue ahí para poder hacer.
+
+                Con un solo texto, el caso de la búsqueda —que es el frecuente— salía con un
+                mensaje que no menciona la búsqueda, y el usuario leía «mi credencial está
+                rota» cuando lo que había escrito era una letra de más.
+              */}
+              {busqueda.trim() === '' ? t('modal.empty') : t('modal.searchNoResults', {
+                search: busqueda.trim(),
+              })}
+            </p>
           ) : (
             <>
-              <div className="remote-toolbar">
-                <div className="remote-search">
-                  <Search size={15} aria-hidden="true" />
-                  {/*
-                    El icono va dentro del recuadro y no al lado, con `pointer-events: none` en
-                    CSS para que el clic le llegue al input. Puesto al lado, el hueco entre
-                    icono y campo deja una zona muerta de unos pixeles donde el usuario hace
-                    clic esperando escribir.
-                  */}
-                  <input
-                    type="search"
-                    className="remote-search-input"
-                    value={busqueda}
-                    placeholder={t('modal.searchPlaceholder')}
-                    aria-label={t('modal.searchLabel')}
-                    onChange={(event) => setBusqueda(event.target.value)}
-                  />
-                </div>
-                <label className="remote-selectall">
-                  <input
-                    type="checkbox"
-                    checked={todosSeleccionados}
-                    disabled={importablesVisibles.length === 0}
-                    onChange={alternarTodos}
-                  />
-                  <span>{t('modal.selectAll')}</span>
-                </label>
-              </div>
-
+              {/* El resto del bloque: avisos, recuento y lista. */}
               {filtroIgnorado && (
                 <p className="remote-count remote-count-warning" role="alert">
                   {t('modal.searchNotApplied', { search: busqueda })}
@@ -770,14 +843,40 @@ export function ConnectRepositoryModal({
                 repositorios sin mirar: es exactamente el fallo que se reportó al buscar `shy`.
               */}
               {!isLoadingInventory && reposVisibles.length > 0 && (
-                <p className="remote-count" role="status">
-                  {busqueda.trim() === ''
-                    ? t('modal.countAll', { shown: reposVisibles.length, total: totalInventario })
-                    : t('modal.countFiltered', {
-                        shown: reposVisibles.length,
-                        total: totalInventario,
+                <>
+                  <p className="remote-count" role="status">
+                    {busqueda.trim() === ''
+                      ? t('modal.countAll', {
+                          shown: reposVisibles.length,
+                          total: totalInventario,
+                        })
+                      : t('modal.countFiltered', {
+                          shown: reposVisibles.length,
+                          total: totalInventario,
+                        })}
+                  </p>
+                  {/*
+                    El aviso de «no lo ves todo» sale **solo** sin búsqueda.
+
+                    Es el otro lado del compromiso del tope, y solo tiene sentido en un caso:
+                    con quinientos repositorios y una ventana de cien, la lista se ve llena y el
+                    recuento dice «100 de 500», pero «500» es el número de lo que **hay**, no el
+                    de lo que se puede elegir, y el usuario puede recorrer la lista entera
+                    creyendo que la ha visto.
+
+                    Con una búsqueda activa no sale, porque ahí el `total` ya es el de lo que
+                    coincide y la búsqueda llega a todo el inventario: no falta nada, y un aviso
+                    de «puede que falten» al lado de una lista ya filtrada sería miedo sin
+                    motivo. Por eso la condición incluye `busqueda.trim() === ''`.
+                  */}
+                  {busqueda.trim() === '' && totalInventario > reposVisibles.length ? (
+                    <p className="remote-count remote-count-warning" role="status">
+                      {t('modal.truncated', {
+                        missing: totalInventario - reposVisibles.length,
                       })}
-                </p>
+                    </p>
+                  ) : null}
+                </>
               )}
 
               {reposVisibles.length === 0 ? (

@@ -9,6 +9,8 @@
   "filters": {
     "ecosystemLabel": "Filter by ecosystem",
     "statusLabel": "Filter by vulnerability status",
+    "repositoryLabel": "Repository to sync",
+    "allRepositories": "All repositories",
     "allEcosystems": "All",
     "todos": "All",
     "unchecked": "Unchecked",
@@ -27,10 +29,6 @@
   },
   "metrics": {
     "total": "Dependencies",
-    "repositories": {
-      "_one": "Across {{count}} repository",
-      "_other": "Across {{count}} repositories"
-    },
     "unchecked": "Unchecked",
     "uncheckedCaption": "Nobody has checked them for vulnerabilities",
     "clean": "Checked clean",
@@ -50,11 +48,7 @@
     "unchecked": "Unchecked",
     "uncheckedHelp": "No per-package vulnerability source is connected. Being listed here does not mean it is safe.",
     "clean": "Clean",
-    "cleanHelp": "Checked and free of known vulnerabilities.",
-    "vulnerable": {
-      "_one": "{{count}} CVE",
-      "_other": "{{count}} CVEs"
-    }
+    "cleanHelp": "Checked and free of known vulnerabilities."
   },
   "devDependency": "dev",
   "licenseUnknown": "not declared",
@@ -67,7 +61,8 @@
     "title": "No inventory yet",
     "body": "It is built by reading your repository manifests (package.json, requirements.txt, go.mod, Cargo.toml) and keeping only the identifiers of their dependencies. The manifest text is not stored.",
     "filteredTitle": "No dependency matches the filter",
-    "filteredBody": "Try widening the ecosystem or clearing the search."
+    "filteredBody": "Try widening the ecosystem or clearing the search.",
+    "syncHint": "Pick a repository in the filter above and press \"Sync dependencies\" to read its manifests."
   },
   "sync": {
     "button": "Sync dependencies",
@@ -75,5 +70,10 @@
     "failed": "Could not sync with the provider. The inventory you already had is still here.",
     "result": "Manifests read: {{found}} of {{total}}. Packages updated: {{packages}}.",
     "missing": "Not found in the repository: {{manifests}}."
-  }
+  },
+  "metrics.repositories_one": "Across {{count}} repository",
+  "metrics.repositories_other": "Across {{count}} repositories",
+  "status.vulnerable_one": "{{count}} CVE",
+  "status.vulnerable_other": "{{count}} CVEs",
+  "marcadorDePlurales": "plano"
 }

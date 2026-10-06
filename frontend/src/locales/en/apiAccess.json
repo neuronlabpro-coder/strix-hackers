@@ -43,7 +43,8 @@
   "expiry": {
     "days30": "30 days",
     "days90": "90 days",
-    "year": "1 year"
+    "year": "1 year",
+    "never": "No expiry"
   },
   "create": {
     "title": "New API token",
@@ -262,6 +263,20 @@
     "chatgptStep1": "Register a remote MCP server in developer mode using this address:",
     "chatgptStep2": "Use token authentication. The token to paste is:",
     "chatgptStep3": "Save the configuration and restart the conversation. The server only exposes the core profile tools.",
-    "chatgptAuth": "Bearer"
+    "chatgptAuth": "Bearer",
+    "selectTokenLabel": "Token the agent will use",
+    "noTokenSelected": "None selected",
+    "selectTokenHint": "Pick the token by its name, not by its value: the value cannot be retrieved after creation.",
+    "tokenOption": "{{name}} ({{prefix}}) - {{scopes}} of {{total}} usual permissions",
+    "tokenExpires": "Expires",
+    "tokenLastUsed": "Last used",
+    "tokenNeverUsed": "Never used",
+    "tokenScopesTitle": "This token's permissions",
+    "valueUnavailable": "This token's value cannot be retrieved: it is only shown when it is created. If you have it at hand, paste it below; if not, create a new one with the minimum permissions.",
+    "oneTimeRule": "A token shows its value once, at creation. That is why there is no way to copy it from here: either you saved it when you created it, or you create another one.",
+    "tokenType": {
+      "personal": "Personal token",
+      "service_key": "Service key"
+    }
   }
 }

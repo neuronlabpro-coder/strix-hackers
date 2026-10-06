@@ -43,7 +43,8 @@
   "expiry": {
     "days30": "30 días",
     "days90": "90 días",
-    "year": "1 año"
+    "year": "1 año",
+    "never": "Sin caducidad"
   },
   "create": {
     "title": "Nuevo token de API",
@@ -262,6 +263,20 @@
     "chatgptStep1": "Configura un servidor MCP remoto en modo desarrollador usando esta direccion:",
     "chatgptStep2": "Usa autenticacion por token. El token a pegar es:",
     "chatgptStep3": "Guarda la configuracion y reinicia la conversacion. El servidor solo expone las herramientas del perfil core.",
-    "chatgptAuth": "Bearer"
+    "chatgptAuth": "Bearer",
+    "selectTokenLabel": "Token que usara el agente",
+    "noTokenSelected": "Ninguno seleccionado",
+    "selectTokenHint": "Elige el token por su nombre, no por su valor: el valor no se puede recuperar despues de crearlo.",
+    "tokenOption": "{{name}} ({{prefix}}) - {{scopes}} de {{total}} permisos habituales",
+    "tokenExpires": "Caduca",
+    "tokenLastUsed": "Ultimo uso",
+    "tokenNeverUsed": "Nunca se ha usado",
+    "tokenScopesTitle": "Permisos de este token",
+    "valueUnavailable": "El valor de este token no se puede recuperar: solo se muestra cuando se crea. Si lo tienes a mano, pegalo abajo; si no, crea uno nuevo con los permisos minimos.",
+    "oneTimeRule": "Un token solo muestra su valor una vez, al crearlo. Por eso no hay forma de copiarlo de aqui: o lo guardaste al crearlo, o hay que crear otro.",
+    "tokenType": {
+      "personal": "Token personal",
+      "service_key": "Clave de servicio"
+    }
   }
 }

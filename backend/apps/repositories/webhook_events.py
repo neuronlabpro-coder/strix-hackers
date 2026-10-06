@@ -139,6 +139,16 @@ async def _upsert_review(
     ):
         return review, False
     if review is None:
+        # La revisión anterior, la más reciente que ya tiene comentario. No está paginada —es
+        # un `limit(1)` para heredar el `comment_id`—, así que aquí no hay páginas que se
+        # solapen; lo que hay es una elección no determinista: si dos revisiones del mismo PR
+        # comparten `created_at` (es `now()` de servidor, y un PR con dos commits seguidos las
+        # mete en la misma transacción), la que sale es la que el planificador decide. El
+        # `comment_id` heredado cambia según eso, y con él el hilo en el que se publica el
+        # comentario.
+        #
+        # El desempate es sobre `PullRequestReview.id`, la clave primaria, y no altera el
+        # filtro: el `organization_id` sigue siendo la primera condición (R3).
         previous_result = await session.execute(
             select(PullRequestReview)
             .where(
@@ -147,7 +157,7 @@ async def _upsert_review(
                 PullRequestReview.pr_number == event.pr_number,
                 PullRequestReview.comment_id.is_not(None),
             )
-            .order_by(PullRequestReview.created_at.desc())
+            .order_by(PullRequestReview.created_at.desc(), PullRequestReview.id.desc())
             .limit(1)
         )
         previous = previous_result.scalar_one_or_none()

@@ -167,6 +167,13 @@ def simbolos_de_la_marca(linea: str) -> list[str]:
 COMENTARIO = re.compile(r"^\s*(#|//|\*|<!--)")
 DOCSTRING_EN_LINEA = re.compile(r'"""|\bfor """')
 
+#: Los comentarios de bloque de JavaScript y TypeScript abren con `/*`, que el patron de arriba
+#: no cubre porque `*` exige que la linea **empiece** por el asterisco y la de apertura empieza por
+#: la barra. Sin esta entrada, el cuerpo de un `/** ... */` que explica una decision pasa por
+#: codigo, y es justo el cuerpo de un comentario —que es donde va la explicacion— lo que se
+#: cuenta como texto de usuario.
+COMENTARIO_DE_BLOQUE = re.compile(r"^\s*/\*|\*/\s*$")
+
 
 @dataclass
 class Hallazgo:
@@ -275,7 +282,136 @@ def secciones_del_menu_map() -> set[str]:
     return {s for s in secciones if not s.startswith(("0.", "Objetivo", "Nota"))}
 
 
-def clasificar_marca(ruta_relativa: str, linea: str) -> tuple[str, str]:
+#: Una clave de traduccion que es un **codigo de error** del motor.
+#:
+#: La marca llega al panel por una via que no es la marca: el worker escribe un codigo estable
+#: —`STRIX_DOCKER_UNAVAILABLE`— en `pentest_runs.error_message` y el panel lo traduce. Ese
+#: codigo es un **contrato** entre el backend y el diccionario, no un texto: cambiarlo rompe la
+#: traduccion y el contrato, y el nombre del motor en el va con el.
+#:
+#: Se reconoce con esta forma y no con la palabra suelta porque `_` separa palabras y
+#: el nombre del motor va en mayusculas con el resto del codigo en `SCREAMING_SNAKE_CASE`, que
+#: es como se distinguen de la prosa. La prosa de una traduccion esta en minúsculas o con
+#: ortografia, nunca en ese formato.
+CODIGO_DE_ERROR = re.compile(r"^\s*\"[A-Z0-9_]*(?:STRIX)[A-Z0-9_]*\"\s*:")
+
+#: Una **variable de entorno** de la plataforma dentro de un texto de traduccion.
+#:
+#: La marca aparece en `STRIX_REQUIRE_EGRESS_FENCE`, y es lo unico que el texto puede decir si
+#: quiere que el operador sepa **que** tiene que cambiar. Un mensaje como «la comprobacion del
+#: cerco esta desactivada» sin el nombre deja al operador buscando un interruptor que no
+#: encuentra, y el propio modulo de la auditoria admite el criterio para los mensajes de
+#: operador: renombrar un mensaje de diagnostico para que suene a marca es cambiar su precision
+#: por su apariencia. Aqui no es que suene a marca: **es** el nombre de la variable.
+#:
+#: El patron exige el formato `SCREAMING_SNAKE_CASE` completo, que es como se escribe una
+#: variable de entorno y como no se escribe la prosa de una traduccion. Asi, un literal que
+#:équence la prosa Contenga una palabra en mayusculas sueltas no se clasifica como variable.
+VARIABLE_DE_ENTORNO = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+
+
+def _es_clave_de_codigo(linea: str) -> bool:
+    """¿Es esta línea la clave de un código de error, y no el texto que el usuario lee?"""
+
+    return CODIGO_DE_ERROR.match(linea) is not None
+
+
+def _menciona_solo_una_variable(linea: str) -> bool:
+    """¿Toda la marca de la línea está dentro del nombre de una variable de entorno?
+
+    ## Por qué existe y por qué es legítima esta excepción
+
+    Porque `STRIX_REQUIRE_EGRESS_FENCE` es una **variable de entorno de la plataforma**, y el
+    texto que la nombra es la instrucción más accionable que puede darle a un operador: sin el
+    nombre, quien lee «la comprobación del cerco está desactivada» busca un interruptor que no
+    está en ninguna pantalla.
+
+    Y el criterio ya está en el propio módulo de esta auditoría, escrito para los mensajes de
+    error del despliegue: *«renombrar un mensaje de diagnóstico para que suene a marca es cambiar
+    su precisión por su apariencia»*. Aquí no suena a marca: **es** el nombre de la variable.
+
+    ## Por qué se exige que sea **todo** lo que hay en la línea
+
+    Para que la excepción sea estrecha. Una línea cuyo único uso de la marca está dentro de un
+    `SCREAMING_SNAKE_CASE` se exime; una que además dice «Strix» en prosa no. Con la marca en dos
+    sitios en la misma línea hay una decisión que alguien tiene que tomar, y ese alguien no es
+    una expresión regular.
+    """
+
+    candidatos = [
+        candidato
+        for candidato in VARIABLE_DE_ENTORNO.findall(linea)
+        # La clave de la traduccion —`"EGRESS_FENCE_DISABLED":`— tambien es un
+        # `SCREAMING_SNAKE_CASE` y apareceria como candidata. Se filtra por no llevar la marca,
+        # que es justo lo que distingue una clave de una variable.
+        if "strix" in candidato.lower()
+    ]
+    if not candidatos:
+        return False
+    # Cada aparición de la marca tiene que estar **dentro** de uno de los nombres. Se busca con
+    # `find`, no con `in`: `STRIX_REQUIRE_EGRESS_FENCE` contiene a `STRIX` pero no al revés, y la
+    # comparación al reves es lo que haria que una prosa que mencionara `STRIX` suelto saliera
+    # como eximida.
+    for posicion in _posiciones_de_la_marca(linea):
+        if not any(
+            posicion >= candidato_posicion
+            and posicion < candidato_posicion + len(candidato)
+            for candidato in candidatos
+            for candidato_posicion in _posiciones(linea, candidato)
+        ):
+            return False
+    return True
+
+
+def _posiciones_de_la_marca(linea: str) -> list[int]:
+    return [m.start() for m in re.finditer(r"strix", linea, re.IGNORECASE)]
+
+
+def _posiciones(linea: str, subcadena: str) -> list[int]:
+    return [m.start() for m in re.finditer(re.escape(subcadena), linea)]
+
+
+def _es_comentario(linea: str, dentro_de_comentario: bool) -> bool:
+    """¿Esta línea es un comentario, y no algo que se renderiza?
+
+    Va en su propia función por dos razones que no son de estilo. La primera es que
+    `clasificar_marca` se sale de la legibilidad: una función que decide cuatro clases con siete
+    `return` es la que se vuelve imposible de revisar, y esta es la regla que decide si algo se
+    renderiza. La segunda es que el estado de bloque —`dentro_de_comentario`— es lo único que
+    hace falta para probarla, y probarla sola es mucho más barato que probarla a través del
+    clasificador entero.
+    """
+
+    return (
+        dentro_de_comentario
+        or COMENTARIO.match(linea) is not None
+        or COMENTARIO_DE_BLOQUE.search(linea) is not None
+        or DOCSTRING_EN_LINEA.search(linea) is not None
+    )
+
+
+def _clasificar_en_una_traduccion(linea: str) -> tuple[str, str] | None:
+    """Clasifica una línea de un fichero de traducciones, o `None` si no es de ese tipo.
+
+    Que viva separada es lo que deja `clasificar_marca` con una sola decisión por bloque de
+    ficheros, en vez de tres `return` encadenados que hay que leer para saber cuál se aplica.
+    Y su retorno es `None` y no una categoría, porque «esta línea no es de traducciones» no es
+    un cuarto tipo de aparición: es la ausencia de este bloque.
+    """
+
+    if _es_clave_de_codigo(linea):
+        return "identidad tecnica", "clave de un codigo de error del motor"
+    if _menciona_solo_una_variable(linea):
+        return "identidad tecnica", "nombre de una variable de entorno de la plataforma"
+    return "usuario", "literal en un fichero de traduccion"
+
+
+def clasificar_marca(
+    ruta_relativa: str,
+    linea: str,
+    *,
+    dentro_de_comentario: bool = False,
+) -> tuple[str, str]:
     """De que clase es una aparicion de la marca, y por que.
 
     ## El orden de las decisiones, y por que importa
@@ -287,23 +423,43 @@ def clasificar_marca(ruta_relativa: str, linea: str) -> tuple[str, str]:
 
     El orden correcto es el que empieza por lo que el usuario lee, porque es la unica categoria
     que hace fallar la auditoria, y de ahi para abajo hasta lo que solo es codigo.
+
+    ## La excepcion de las claves de codigo, y por que es legitima
+
+    En `frontend/src/locales/` hay dos cosas distintas con la marca: el **valor** de una
+    traduccion —prosa que alguien lee, y la marca ahi si es un fallo— y la **clave** de un codigo
+    de error —`STRIX_DOCKER_UNAVAILABLE`—, que es el contrato con el worker que escribe ese
+    codigo en la base.
+
+    La clave no se muestra en ninguna pantalla y no se renombra: el worker no conoce las
+    traducciones del panel, y el dia que el motor cambie de nombre hay que cambiar las dos
+    partes a la vez, no una. Contarlas como marca en texto de usuario haria que el gate pidiera
+    una decision que no existe, y lo que se conseguiria es que alguien renombrara la clave para
+    callar al verificador —que es como un gate que avisa de todo acaba sin avisar de nada.
     """
     # 1. Lo que el usuario lee. Unico caso que falla la auditoria.
+    #
+    # Y el comentario se mira **antes** que la extension del fichero, con una razon que no es
+    # cosmetica: un componente tiene comentarios que explican por que una clave se compone
+    # partida, y en esos comentarios la marca aparece precisamente para **explicar** la marca.
+    # Contarlos como texto de usuario obligaria a no explicar la decision, que es peor que la
+    # marca: un literal sin comentario del porque es la clase de codigo que nadie puede
+    # mantener. El orden es el que decide, y por eso el comentario va primero.
+    if _es_comentario(linea, dentro_de_comentario):
+        return "comentario", "explicacion interna"
     if ruta_relativa.startswith("frontend/src/locales/"):
-        return "usuario", "literal en un fichero de traduccion"
+        clasificacion = _clasificar_en_una_traduccion(linea)
+        assert clasificacion is not None, "una traduccion siempre se clasifica"
+        return clasificacion
     if ruta_relativa.endswith(".tsx"):
         return "usuario", "literal en un componente"
 
-    # 2. Lo que solo se lee al mantener el codigo.
-    if COMENTARIO.match(linea) or DOCSTRING_EN_LINEA.search(linea):
-        return "comentario", "explicacion interna"
-
-    # 3. Un identificador con la marca en su nombre: identidad tecnica, y se dice cual es.
+    # 2. Un identificador con la marca en su nombre: identidad tecnica, y se dice cual es.
     simbolos = simbolos_de_la_marca(linea)
     if simbolos:
         return "identidad tecnica", f"identificador: {', '.join(simbolos)}"
 
-    # 4. Prosa que menciona la marca fuera de un comentario. Necesita a alguien que la lea.
+    # 3. Prosa que menciona la marca fuera de un comentario. Necesita a alguien que la lea.
     return "por revisar", "prosa que menciona la marca fuera de un comentario"
 
 
@@ -323,11 +479,33 @@ def apariciones_de_la_marca() -> list[Hallazgo]:
                 texto = p.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
+            # El bloque de comentario se lleva **por el bucle**, no se deduce linea a linea.
+            #
+            # ## Por que hace falta estado
+            #
+            # Porque un comentario de varias lineas —`/** ... */}` en el codigo, `{/* ... */}` en
+            # JSX— tiene un cuerpo que no empieza por el delimitador de apertura, y ese cuerpo es
+            # donde se explica el porque de una decision. Sin el estado, el cuerpo se cuenta
+            # como codigo: un componente que explica por que compone una clave partida a mano
+            # seria marcado por el mismo motivo que un componente que le pone la marca a un
+            # usuario, que es justo lo que este gate tiene que distinguir.
+            #
+            # Y se lleva como parametro en vez de como re global porque la funcion
+            # `clasificar_marca` es el sitio donde la regla esta escrita y tiene que poder
+            # probarse sola: un re global haria que la regla dependiera del orden en que se
+            # recorre el arbol, y una prueba de ella no podria construirse.
+            dentro_de_comentario = False
             for n, linea in enumerate(texto.split("\n"), 1):
+                if not dentro_de_comentario:
+                    dentro_de_comentario = linea.count("/*") > linea.count("*/")
                 if "strix" not in linea.lower():
                     continue
                 relativa = str(p.relative_to(RAIZ)).replace("\\", "/")
-                categoria, razon = clasificar_marca(relativa, linea)
+                categoria, razon = clasificar_marca(
+                    relativa, linea, dentro_de_comentario=dentro_de_comentario
+                )
+                if "/*" in linea and "*/" in linea:
+                    dentro_de_comentario = False
                 severidad = "fallo" if categoria == "usuario" else "info"
                 hallazgos.append(
                     Hallazgo(

@@ -54,7 +54,28 @@ Antes de desplegar, prepara en el host Dokploy la ruta temporal de los workspace
 sudo install -d -o 10001 -g 10001 -m 0700 /tmp/fenix_workspaces
 ```
 
-El worker usa el socket Docker del host para crear los contenedores sandbox. El `:ro` del montaje del socket no limita las operaciones de Docker; protege el filesystem del montaje, no las llamadas al daemon. Restringe acceso al servicio worker y configura el cerco de egreso de Strix en el host antes de permitir escaneos: `sudo bash scripts/harden_runner_egress.sh`, con persistencia de esas reglas tras reinicio. `STRIX_REQUIRE_EGRESS_FENCE=true` hace que los escaneos fallen cerrados si falta el cerco.
+El worker usa el socket Docker del host para crear los contenedores sandbox. El `:ro` del montaje del socket no limita las operaciones de Docker; protege el filesystem del montaje, no las llamadas al demonio. Restringe acceso al servicio worker y configura el cerco de egreso de Strix en el host antes de permitir escaneos: `sudo bash scripts/harden_runner_egress.sh`, con persistencia de esas reglas tras reinicio. `STRIX_REQUIRE_EGRESS_FENCE=true` hace que los escaneos fallen cerrados si falta el cerco.
+
+## Por qué un escaneo puede fallar en menos de un segundo
+
+Porque hay cuatro comprobaciones de **despliegue** antes de que el contenedor exista, y ninguna es de código. Todas fallan en el mismo intervalo —sub segundo— y sin dejar contenedor, que es lo que las hace indistinguibles a simple vista.
+
+| Síntoma en el panel | Qué pasa en realidad | Qué hacer en el host |
+| --- | --- | --- |
+| `STRIX_DOCKER_UNAVAILABLE` | El worker no puede abrir el socket. Es `DOCKER_GID` distinto del GID real del socket, o el socket sin montar | `stat -c '%g' /var/run/docker.sock` y corregir `DOCKER_GID` |
+| `STRIX_EGRESS_FENCE_MISSING` | Falta el cerco de salida y el runner se niega a lanzar | `sudo bash scripts/harden_runner_egress.sh`, en el arranque del host |
+| `STRIX_LLM_KEY_ACK_MISSING` | Falta `STRIX_LLM_KEY_EXPOSURE_ACK` con la frase exacta | Ponerla en el Environment de Dokploy |
+| `STRIX_IMAGE_UNAVAILABLE` | La imagen de `STRIX_SANDBOX_IMAGE` no está descargada | `docker pull` de esa imagen en el host del worker |
+
+El panel **explica** el motivo en la ficha del escaneo, y `GET /api/v1/pentests/readiness` dice por adelantado lo que sí se puede comprobar desde el proceso de la API: el directorio de trabajo, el cerco y el reconocimiento de la clave. El demonio Docker y la imagen **no** se comprueban desde ahí a propósito, porque el proceso que responde es el de la API y en este despliegue el worker corre en otro contenedor: preguntar ahí describiría el host equivocado. Para esos dos motivos, la autoridad es el código del escaneo fallido.
+
+## El comando más rápido para diagnosticar un escaneo que falla
+
+```bash
+docker compose exec celery_worker sh -c 'ls -l /var/run/docker.sock; stat -c "%g" /var/run/docker.sock'
+```
+
+Si el `stat` no devuelve el GID que tiene `DOCKER_GID`, esa es la causa. Es el caso más frecuente y el que produce un `STRIX_EXECUTION_FAILED` sin ningún otro rastro: el `PermissionError(13)` ocurre dentro de `docker.from_env()` y, sin el diagnóstico, la excepción se perdía dentro de un `SandboxExecutionError` genérico.
 
 ## Acceso a los datos
 

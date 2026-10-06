@@ -1,4 +1,28 @@
-"""Consultas agregadas y de solo lectura para el resumen del dashboard."""
+"""Consultas agregadas y de solo lectura para el resumen del dashboard.
+
+## Qué dos cifras aparecen aquí y por qué no tienen que coincidir
+
+Este módulo produce **dos** lecturas del conjunto de hallazgos y son deliberadamente distintas:
+
+- `open_issues`, `severity_distribution` y `security_score` cuentan **riesgo vivo**: lo que
+  sigue sin corregir y por tanto sigue siendo un riesgo explotable. Es la lectura de postura.
+- `total_issues` y `status_distribution` cuentan **todo el histórico**: lo que se encontró,
+  incluido lo corregido, lo aplazado y lo descartado a mano. Es la lectura de inventario, y
+  es la que alimenta `fix_rate`.
+
+La misma pregunta —«¿cuántos críticos hay?»— tiene por tanto una sola respuesta, y sale de
+`IssueStatusEnum.is_open_for_closure`. La que **no** tiene una sola respuesta es el inventario,
+porque no debe tenerla: un registro de incidencias que no enseña las incidencias corregidas no
+es un registro de incidencias.
+
+## Por qué el filtro se define aquí y no en `vulnerabilities/models.py`
+
+Porque el enum **ya declara** el criterio con una propiedad —`is_open_for_closure`—, y
+`ROADMAP.md` lo ratifica: `REMEDIATION_PROPOSED` sigue contando como abierto porque un PR sin
+fusionar no arregla nada. Lo que faltaba era que las pantallas lo leyeran. Este fichero y
+`pentests/router.py` son los dos que lo leen, y los dos lo derivan de esa propiedad en vez de
+escribir su propia lista.
+"""
 
 from __future__ import annotations
 
@@ -26,8 +50,45 @@ from backend.apps.repositories.models import (
 )
 from backend.apps.vulnerabilities.models import IssueStatusEnum, SeverityEnum, Vulnerability
 
-_OPEN_ISSUE_STATUSES = (IssueStatusEnum.OPEN, IssueStatusEnum.IN_PROGRESS)
-_EXCLUDED_FROM_FIX_RATE = (IssueStatusEnum.IGNORED, IssueStatusEnum.SNOOZED)
+#: Los estados que cuentan como **riesgo vivo**, y por tanto entran en el anillo de severidad,
+#: en el `security_score` y en `open_issues`.
+#:
+#: ## Por qué sale de `IssueStatusEnum.is_open_for_closure` y no de una lista propia
+#:
+#: Porque ese criterio ya está decidido, escrito y aprobado —`ROADMAP.md` dice que
+#: `REMEDIATION_PROPOSED` «sigue contando como abierto» porque un PR sin fusionar no arregla
+#: nada— y porque la herramienta MCP `get_vulnerability_summary` ya lee de ahí. Este fichero
+#: tenía su propia lista, que además **dejaba fuera `REMEDIATION_PROPOSED`**: el resultado era
+#: que el anillo del dashboard decía «Crítico: 0» en un escaneo cuya ficha decía «Crítico: 1»,
+#: y las dos cifras eran técnicamente correctas.
+#:
+#: ## Por qué se listan los abiertos y no los cerrados
+#:
+#: Por lo mismo que en la herramienta MCP: un estado nuevo entra como riesgo mientras nadie lo
+#: declare cerrado. La lista inversa —«todo menos estos tres»— convierte cada estado que se
+#: añada al enum en un hallazgo que **desaparece** del riesgo sin que nadie lo decida, y
+#: desaparece hacia donde menos se ve: el anillo.
+ESTADOS_RIESGO_VIVO: tuple[IssueStatusEnum, ...] = tuple(
+    estado for estado in IssueStatusEnum if estado.is_open_for_closure
+)
+
+#: Los estados que **no** entran en el denominador de `fix_rate`: los corregidos sí, para que
+#: la tasa pueda bajar; los aplazados y los ignorados no, porque decidir no mirar un hallazgo no
+#: es lo mismo que no haberlo corregido. Se deriva del enum por el mismo motivo que arriba.
+#:
+#: ## Por qué esto es un criterio distinto y no el de riesgo vivo
+#:
+#: Porque `fix_rate` pregunta «de los hallazgos que podían corregirse, ¿cuántos se
+#: corrigieron?», y esa pregunta necesita el conjunto completo: con el riesgo vivo en el
+#: denominador, un tenant que corrige bien daría 0 —porque ya no le queda riesgo vivo—, que es
+#: justo lo contrario de lo que ha pasado. Por eso este denominador incluye `FIXED` y excluye
+#: los otros dos cerrados. Un criterio, dos preguntas, dos conjuntos, y ninguno repetido en otro
+#: fichero.
+_ESTADOS_FUERA_DE_FIX_RATE: tuple[IssueStatusEnum, ...] = tuple(
+    estado
+    for estado in IssueStatusEnum
+    if estado is not IssueStatusEnum.FIXED and not estado.is_open_for_closure
+)
 _TERMINAL_REVIEW_STATUSES = (
     PRReviewStatusEnum.PASSED,
     PRReviewStatusEnum.FAILED,
@@ -129,11 +190,23 @@ async def _findings_trend(
 
 
 async def _severity_counts(session: AsyncSession, organization_id: UUID) -> dict[SeverityEnum, int]:
+    """Reparto por severidad del **riesgo vivo**, que es lo que alimenta el anillo y el score.
+
+    ## Por qué el anillo y el `security_score` se calculan con el mismo conjunto
+
+    Porque el score es una función de este reparto y no de otro: si el anillo contara una cosa
+    y el score otra, el panel mostraría un «Crítico» que el número de al lado desmiente, que es
+    la clase de contradicción que hace que un panel deje de leerse. Los dos leen
+    `ESTADOS_RIESGO_VIVO`, y el score además solo empeora con riesgo vivo: contar un
+    `REMEDIATION_PROPOSED` como riesgo baja el score, que es lo correcto, porque el PR existe
+    pero nadie ha fusionado nada.
+    """
+
     result = await session.execute(
         select(Vulnerability.severity, func.count(Vulnerability.id))
         .where(
             Vulnerability.organization_id == organization_id,
-            Vulnerability.status.in_(_OPEN_ISSUE_STATUSES),
+            Vulnerability.status.in_(ESTADOS_RIESGO_VIVO),
         )
         .group_by(Vulnerability.severity)
     )
@@ -201,7 +274,7 @@ async def _repository_open_vulnerabilities(
             PullRequestReview.organization_id == organization_id,
             PullRequestReview.run_id.is_not(None),
             Vulnerability.organization_id == organization_id,
-            Vulnerability.status.in_(_OPEN_ISSUE_STATUSES),
+            Vulnerability.status.in_(ESTADOS_RIESGO_VIVO),
         )
         .group_by(PullRequestReview.repository_id)
     )
@@ -275,7 +348,7 @@ async def build_dashboard_summary(
     fixable_total = sum(
         total
         for status, total in status_counts.items()
-        if status not in _EXCLUDED_FROM_FIX_RATE
+        if status not in _ESTADOS_FUERA_DE_FIX_RATE
     )
     fixed_issues = status_counts.get(IssueStatusEnum.FIXED, 0)
     fix_rate = round(fixed_issues / fixable_total, _FIX_RATE_PRECISION) if fixable_total else 0.0

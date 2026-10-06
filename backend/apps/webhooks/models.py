@@ -133,6 +133,20 @@ class WebhookEndpoint(Base):
     __table_args__ = (
         # La lista de endpoints filtra por organización y ordena por creación. Es la
         # consulta que hace la pantalla al abrirse, así que va compuesta.
+        #
+        # Y se queda en **dos columnas**, aunque el `ORDER BY` de la lista lleve ya un desempate
+        # por `id`. No es una omisión: está medido. Con `id` al final, sobre 29.505 endpoints en
+        # 3.000 tenants y un tenant de 5, de 500 y de 20.000, el plan es un `Sort` **igual con
+        # y sin** el índice de tres columnas, con los mismos buffers, y el coste estimado sale
+        # incluso mayor con el de tres, que es más ancho. El motivo es que esta lista **no
+        # pagina**: sin `LIMIT` hay que leer todas las filas del tenant, y ordenar unas cientos
+        # en memoria sale más barato que leerlas en orden de índice. Un índice de orden solo
+        # compensaría si el `LIMIT` permitiera dejar de leer, y aquí no lo hay.
+        #
+        # El desempate por `id` se queda igualmente en la consulta: no cuesta nada medido y
+        # arregla un defecto real, que es que dos endpoints con la misma marca se intercambien
+        # de sitio al recargar. Pagar cero por corregir un defecto no vacío sale mejor que dejar
+        # el defecto a cambio de no pagar nada.
         Index("ix_webhook_endpoints_org_created", "organization_id", "created_at"),
         # `consecutive_failures` se lee en cada envío para decidir si el endpoint sigue
         # activo. Sin índice es un recorrido de los endpoints del tenant por cada

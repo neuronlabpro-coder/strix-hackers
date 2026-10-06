@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.pentests.router import get_dispatch_pentest_run
+from backend.apps.repositories.router import get_dispatch_pr_review
 from backend.core.config import settings
 from backend.core.database import engine, get_db
 from backend.core.rate_limit import (
@@ -66,6 +67,10 @@ def override_auth_rate_limits() -> Iterator[None]:
     app.dependency_overrides[enforce_invitation_rate_limit] = lambda: None
     app.dependency_overrides[enforce_pentest_rate_limit] = lambda: None
     app.dependency_overrides[get_dispatch_pentest_run] = lambda: (lambda _run_id: "test-task-id")
+    # La de revisiones de PR, por el mismo motivo: sin esto, un test que lanzara un análisis
+    # llegaría a Redis de verdad. Los tests que necesitan ver **qué** se encoló sustituyen esta
+    # por la suya con un contexto, y lo restauran a la de aquí.
+    app.dependency_overrides[get_dispatch_pr_review] = lambda: (lambda _review_id: "test-task-id")
     yield
     app.dependency_overrides.pop(enforce_login_rate_limit, None)
     app.dependency_overrides.pop(enforce_oauth_callback_rate_limit, None)
@@ -81,6 +86,7 @@ def override_auth_rate_limits() -> Iterator[None]:
     app.dependency_overrides.pop(enforce_invitation_rate_limit, None)
     app.dependency_overrides.pop(enforce_pentest_rate_limit, None)
     app.dependency_overrides.pop(get_dispatch_pentest_run, None)
+    app.dependency_overrides.pop(get_dispatch_pr_review, None)
 
 
 @pytest.fixture(autouse=True)

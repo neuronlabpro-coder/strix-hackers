@@ -3,8 +3,8 @@
  *
  * ## Qué defectos fija
  *
- * Tres, y los tres pasaron porque la búsqueda **no daba error**: contestaba `200`, traía el
- * inventario entero y el panel lo pintaba con un número que cuadraba.
+ * Cuatro, y todos pasaron porque la búsqueda **no daba error**: contestaba `200`, traía lo que
+ * fuera y el panel lo pintaba con un número que cuadraba.
  *
  * 1. **Un backend desactualizado finge que ha buscado.** Un parámetro de consulta que el
  *    servidor no declara se ignora en silencio: ni `422`, ni aviso. Escribiendo `shytai` salía
@@ -12,18 +12,29 @@
  *    había nada en pantalla que lo dijera. El buscador parecía roto; lo que estaba
  *    desactualizado era el servidor. Por eso la ruta devuelve `busqueda_aplicada` y aquí se
  *    comprueba que el panel avisa cuando lo que pidió no es lo que se aplicó.
- * 2. **El `limit` fijo de 100 en el cliente.** Con más de cien repositorios, una página entera
- *    de resultados obligaba a desplazarse para usar el buscador que estaba justo encima. Ahora
- *    la ventana son diez.
- * 3. **El título centrado.** `justify-content: space-between` con tres hijos dejaba el nombre
+ *
+ * 2. **La ventana de diez.** Estaba en diez y con ella el buscador era inservible: un cliente
+ *    con quinientos repositorios escribía el nombre de uno que estaba en la posición trescientos
+ *    y no lo encontraba. El servidor filtraba bien y devolvía `total: 1`, pero esa fila no
+ *    cabía en la ventana de la petición anterior, así que el resultado correcto **nunca llegaba a
+ *    pintarse**, y la pantalla no decía por qué. Ahora la ventana es el tope de la ruta y quien
+ *    llama decide el tamaño.
+ *
+ * 3. **El buscador desaparece cuando no hay resultados.** Este es el grave, y por eso tiene
+ *    prueba propia. La barra estaba dentro de la rama de «hay repositorios», así que una búsqueda
+ *    sin coincidencias sacaba de la pantalla el campo con el que corregirla. El usuario se
+ *    quedaba sin poder borrar lo que había escrito, sin poder escribir otra cosa y sin poder
+ *    buscar: la única salida era cerrar el modal y volverlo a abrir.
+ *
+ * 4. **El título centrado.** `justify-content: space-between` con tres hijos dejaba el nombre
  *    del repositorio en medio de la fila.
  *
  * ## Por qué se lee el CSS y el código en vez de montar el modal
  *
  * Porque lo que se vigila son **contratos y medidas**, no comportamiento de un árbol: que la
- * ventana valga diez, que la fila no reparta el texto al centro, que el retardo exista y que el
- * aviso se monte cuando toca. Los tres se leen del fuente, y así el test corre sin navegador,
- * sin red y en un segundo.
+ * ventana sea la correcta, que la barra se monte también sin resultados, que la fila no reparta
+ * el texto al centro, que el retardo exista y que el aviso se monte cuando toca. Todo se lee del
+ * fuente, y así el test corre sin navegador, sin red y en un segundo.
  */
 
 import { readFileSync } from 'node:fs'
@@ -47,13 +58,71 @@ const SCHEMAS = readFileSync(join(RAIZ, 'backend/apps/repositories/schemas.py'),
 const ROUTER = readFileSync(join(RAIZ, 'backend/apps/repositories/router.py'), 'utf8')
 
 describe('El buscador del inventario remoto', () => {
-  it('la ventana son diez, no cien', () => {
-    // Con cien, la lista se llenaba entera y había que desplazarse para usar el buscador que
-    // estaba encima. Con diez, lo que no coincide se ve de un vistazo.
-    expect(API).toMatch(/const VENTANA_INVENTARIO = 10\b/)
-    expect(API).not.toMatch(/const VENTANA_INVENTARIO = 100\b/)
-    // Y la ventana se manda de verdad, no es una constante muerta.
-    expect(API).toContain("limit: String(VENTANA_INVENTARIO)")
+  it('la ventana es el tope de la ruta y quien llama decide el tamaño', () => {
+    // Diez era el valor anterior, y con él el buscador no encontraba nada en un inventario
+    // grande. Cien es el `le=100` de la ruta, que es el techo de lo que se puede pedir en una
+    // llamada —y esa ruta trae el inventario entero del cliente del proveedor, así que el tope
+    // protege al navegador, no al servidor.
+    expect(API).toMatch(/const VENTANA_INVENTARIO_POR_DEFECTO = 100\b/)
+    expect(API).not.toMatch(/const VENTANA_INVENTARIO_POR_DEFECTO = 10\b/)
+    // Y la ventana se manda de verdad, con lo que pase quien llama, no es una constante muerta.
+    expect(API).toContain('limit: String(opciones.limit ?? VENTANA_INVENTARIO_POR_DEFECTO)')
+  })
+
+  it('el buscador no desaparece cuando la búsqueda no encuentra nada', () => {
+    /*
+     * El defecto más caro de esta pantalla, y el único que deja al usuario sin salida.
+     *
+     * Con la barra dentro de la rama de la lista, una búsqueda sin coincidencias sacaba de la
+     * pantalla el campo con el que corregirla. No había ni botón ni atajo: había que cerrar el
+     * modal y volverlo a abrir, y como la búsqueda se recuerda, salía igual.
+     *
+     * El aserto mira **dónde** se monta la barra, no si hay una en el fichero: `toContain`
+     * sobre el `<input>` pasaría igual con la barra dentro de la rama equivocada, que es
+     * exactamente lo que no se quiere. Lo que se comprueba es que la condición de la barra no
+     * menciona la lista.
+     */
+    const barra = /\{!isLoadingInventory && !inventarioFallido \? \(([\s\S]*?)\) : null\}/.exec(
+      MODAL,
+    )
+    expect(barra, 'no se encuentra la barra del buscador fuera de la rama de la lista').not.toBeNull()
+    expect(barra![1]).toContain('remote-toolbar')
+    expect(barra![1]).toContain('remote-search-input')
+    // Y la condición no puede depender de que haya resultados: esa es exactamente la causa.
+    expect(barra![0]).not.toMatch(/remoteRepositories\.length/)
+    expect(barra![0]).not.toMatch(/reposVisibles\.length/)
+    // El campo sigue siendo editable con la lista vacía, para que se pueda borrar la búsqueda.
+    const campo = /<input\s+type="search"[\s\S]{0,400}?\/>/.exec(MODAL)
+    expect(campo, 'no se encuentra el campo de búsqueda').not.toBeNull()
+    expect(campo![0]).not.toMatch(/disabled/)
+  })
+
+  it('el aviso de lista vacía distingue «no hay nada» de «no coincide»', () => {
+    // Con un solo texto, el caso frecuente —una letra de más— salía con un mensaje que no
+    // menciona la búsqueda, y el usuario leía «mi credencial está rota» cuando lo que había
+    // escrito era una letra. Y el texto de la búsqueda vacía no lleva el término, porque no hay.
+    expect(MODAL).toContain('modal.searchNoResults')
+    expect(ES.modal.searchNoResults).toContain('{{search}}')
+    expect(EN.modal.searchNoResults).toContain('{{search}}')
+  })
+
+  it('el recorte de la lista se dice, y solo sin búsqueda', () => {
+    /*
+     * La otra mitad del compromiso del tope: con quinientos repositorios y una ventana de cien,
+     * `total` es el número de lo que **hay**, no el de lo que se puede elegir. Sin este aviso el
+     * usuario recorre la lista creyendo que la ha visto.
+     *
+     * Y sale solo sin búsqueda, porque con el filtro activo el `total` ya es el de lo que
+     * coincide y la búsqueda alcanza a todo: un aviso de «puede que falten» al lado de una lista
+     * ya filtrada sería miedo sin motivo.
+     */
+    expect(MODAL).toContain('modal.truncated')
+    expect(MODAL).toMatch(
+      /busqueda\.trim\(\) === '' && totalInventario > reposVisibles\.length/,
+    )
+    for (const datos of [ES, EN]) {
+      expect(datos.modal.truncated).toContain('{{missing}}')
+    }
   })
 
   it('la búsqueda se manda al servidor y no se filtra en el cliente', () => {

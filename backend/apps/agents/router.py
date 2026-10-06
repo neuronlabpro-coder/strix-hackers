@@ -183,6 +183,18 @@ async def listar(
     parado es si el agente que lo hacía sigue dado de alta, y esconder los revocados obliga a
     adivinar por la ausencia. El token no se devuelve nunca; solo su prefijo visible, que es lo
     justo para distinguir dos agentes en la lista.
+
+    ## Por qué el desempate por `id`
+
+    Porque `enrolled_at` es `server_default=func.now()` y no es único: dos agentes dados de
+    alta en la misma transacción comparten marca. Sin un segundo criterio, el orden dentro de
+    ese grupo lo decide el planificador, y como esta lista **sí** está paginada, la página 2
+    puede repetir filas de la página 1 y perder otras sin que nada lo indique.
+
+    El desempate va sobre `ScannerAgent.id`, la clave primaria de la tabla que se pagina: la
+    consulta no tiene `JOIN`, así que `id` identifica cada fila de la salida sin ambigüedad.
+    No cambia qué filas se devuelven, solo su orden, y el filtro por organización sigue siendo
+    el primer `WHERE` (R3).
     """
 
     total = int(
@@ -199,7 +211,7 @@ async def listar(
             await session.execute(
                 select(ScannerAgent)
                 .where(ScannerAgent.organization_id == tenant.organization.id)
-                .order_by(ScannerAgent.enrolled_at.desc())
+                .order_by(ScannerAgent.enrolled_at.desc(), ScannerAgent.id.desc())
                 .limit(limit)
                 .offset(offset)
             )

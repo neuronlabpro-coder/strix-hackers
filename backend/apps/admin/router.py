@@ -98,6 +98,20 @@ async def list_platform_agents(
     Y no lleva `X-Organization-Id`, como ninguna otra ruta de esta consola: una vista que
     aceptara un tenant haría creer que está acotada, y aquí justamente lo que se busca es no
     estarlo.
+
+    ## Por qué el desempate va sobre `ScannerAgent.id` y no sobre `Organization`
+
+    Por dos razones, y las dos importan. La primera es que el `JOIN` es por
+    `Organization.id`, la clave primaria de la organización: es un `JOIN` de uno a uno y no
+    multiplica filas, de modo que `ScannerAgent.id` identifica igual de bien cada fila de la
+    salida. Y la segunda es el motivo real: la tabla que se pagina es `scanner_agents`, así
+    que es su clave primaria la que tiene que ser el último criterio.
+
+    Sin ese criterio, dos agentes dados de alta en la misma transacción —que comparten
+    `enrolled_at` porque es `now()`— pueden volver en distinto orden en dos peticiones
+    seguidas. Como esta vista **sí** está paginada, eso hace que la página 2 repita filas de
+    la 1 y pierda otras, y la fila perdida no es menos real por estar en la vista de otro
+    cliente: el filtro por organización no va aquí, así que la fila se pierde igual.
     """
 
     total = int(
@@ -110,7 +124,7 @@ async def list_platform_agents(
             await session.execute(
                 select(ScannerAgent, Organization.name)
                 .join(Organization, Organization.id == ScannerAgent.organization_id)
-                .order_by(ScannerAgent.enrolled_at.desc())
+                .order_by(ScannerAgent.enrolled_at.desc(), ScannerAgent.id.desc())
                 .limit(limit)
                 .offset(offset)
             )

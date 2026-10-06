@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.knowledge.models import (
@@ -16,6 +16,7 @@ from backend.apps.knowledge.models import (
 )
 from backend.apps.knowledge.schemas import KnowledgeDetail, KnowledgePage, KnowledgeSummary
 from backend.core.database import get_db
+from backend.core.filtros_texto import coincide
 from backend.core.middleware import TenantContext, get_current_tenant
 
 router = APIRouter(tags=["knowledge"])
@@ -46,13 +47,19 @@ async def list_knowledge_entries(
     if severity is not None:
         filters.append(KnowledgeEntry.severity == severity)
     if search:
-        pattern = f"%{search.strip().lower()}%"
+        # `coincide` escapa los comodines de `LIKE`. Sin ese escape, `?search=%` devuelve el
+        # catálogo entero —el comodín va también en los dos extremos del patrón— y `?search=web_app`
+        # también traería `webXapp`. El catálogo es compartido por todos los tenants, así que el
+        # listado que se cuela no es de un cliente: es de la plataforma entera.
         filters.append(
-            or_(
-                func.lower(KnowledgeEntry.title).like(pattern),
-                func.lower(KnowledgeEntry.reference_code).like(pattern),
-                func.lower(KnowledgeEntry.risk_summary).like(pattern),
-                func.lower(KnowledgeEntry.owasp_category).like(pattern),
+            coincide(
+                [
+                    KnowledgeEntry.title,
+                    KnowledgeEntry.reference_code,
+                    KnowledgeEntry.risk_summary,
+                    KnowledgeEntry.owasp_category,
+                ],
+                search,
             )
         )
 

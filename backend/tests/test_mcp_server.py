@@ -532,6 +532,101 @@ async def test_list_repositories_solo_ve_los_suyos(
 
 
 @pytest.mark.asyncio
+async def test_list_repositories_trata_los_comodines_del_search_como_literales(
+    integration_session: AsyncSession,
+) -> None:
+    r"""`%` y `_` se buscan literales en `list_repositories(search=...)`.
+
+    ## Por qué este buscador no es un caso más
+
+    Porque quien escribe el término **no es una persona**: es un agente. Escribe `api` y espera
+    repositorios, y un filtro que en vez de filtrar devuelve la lista entera produce exactamente
+    el fallo que un agente no sabe detectar: se lo queda como verdad y escanea el repositorio
+    equivocado. El `_` es el caso real aquí porque los repositorios llevan `_` en el nombre con
+    frecuencia —`web_app`, `api_admin`—, así que sin escape `web_app` también trae `webXapp` y el
+    agente elige entre dos que no son el que buscaba.
+
+    Se comprueba sobre la herramienta MCP por su interfaz de verdad —`tools/call` con JSON-RPC—,
+    porque lo que hay que proteger aquí es lo que el agente recibe, no la consulta interna.
+
+    ## Por qué el recuento esperado es «1 de 1» y no «0 de 0»
+
+    Porque el término `%` **sí aparece** en uno de los cuatro repositorios sembrados, y el
+    escape lo que garantiza es que se busque literal: el símbolo como símbolo, no como comodín.
+    Un `%` a secas tiene que devolver la fila que de verdad lleva el símbolo —una— y no las
+    cuatro.
+
+    Y el denominador del recuento es el total **de la respuesta**, no el de la siembra: así que
+    lo que hay que comprobar es el numerador y qué filas viajan. La comprobación fuerte es que
+    las otras tres no aparecen en el texto, porque un agente lee ese texto y no el `total`.
+    """
+
+    session = integration_session
+    assert session is not None
+    org, token = await _tenant_con_token(
+        session,
+        (Scope.MCP_CONNECT, Scope.MCP_INVOKE, Scope.REPOSITORIES_READ),
+        prefijo="comodin-mcp",
+    )
+
+    from backend.apps.repositories.models import Repository
+
+    # Cada par se diferencia solo en el carácter que se va a buscar: `_` contra `X` y `%` contra
+    # `0`. Y cada término aparece en **una sola** fila del par, para que un fallo de escape se
+    # cuente como un número y no como dos.
+    session.add_all(
+        [
+            Repository(
+                organization_id=org.id,
+                provider="GITHUB",
+                remote_repo_id=f"1-{indice}",
+                name=nombre,
+                full_name=f"acme/{nombre}",
+                clone_url=f"https://example.invalid/{nombre}.git",
+                default_branch="main",
+            )
+            for indice, nombre in enumerate(
+                (
+                    "web_app",
+                    "webXapp",
+                    "descuento-100%off",
+                    "descuento-1000off",
+                ),
+                start=1,
+            )
+        ]
+    )
+    await session.commit()
+
+    # Cada búsqueda tiene que devolver **una** fila de las cuatro sembradas. El recuento de la
+    # respuesta es «1 de 1» porque su denominador es el total de lo que casó, no el del
+    # inventario: lo que importa es el numerador y qué filas viajan en el texto.
+    solo_porcentaje = await _llamar(token, _invocar("list_repositories", {"search": "%"}))
+    texto_porcentaje = solo_porcentaje["result"]["content"][0]["text"]
+    # `%` a secas devuelve **el único** repositorio que lleva el símbolo. Sin escape serían los
+    # cuatro, que es exactamente lo que el agente se habría creído.
+    assert "1 de 1" in texto_porcentaje, texto_porcentaje
+    assert "acme/descuento-100%off" in texto_porcentaje, texto_porcentaje
+    assert "acme/descuento-1000off" not in texto_porcentaje, texto_porcentaje
+
+    con_subrayado = await _llamar(
+        token, _invocar("list_repositories", {"search": "web_app"})
+    )
+    texto_subrayado = con_subrayado["result"]["content"][0]["text"]
+    assert "1 de 1" in texto_subrayado, texto_subrayado
+    assert "acme/web_app" in texto_subrayado, texto_subrayado
+    assert "acme/webXapp" not in texto_subrayado, texto_subrayado
+
+    con_texto = await _llamar(
+        token, _invocar("list_repositories", {"search": "100%off"})
+    )
+    texto = con_texto["result"]["content"][0]["text"]
+    assert "1 de 1" in texto, texto
+    assert "acme/descuento-100%off" in texto, texto
+    assert "acme/descuento-1000off" not in texto, texto
+
+
+@pytest.mark.asyncio
 async def test_get_asset_inventory_no_enseña_activos_ajenos(
     integration_session: AsyncSession,
 ) -> None:

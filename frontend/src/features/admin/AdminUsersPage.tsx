@@ -143,14 +143,37 @@ export function AdminUsersPage() {
             placeholder={t('users.searchPlaceholder')}
           />
         </label>
-        <label className="checkbox-field">
+        {/*
+            El descriptor es `filter-field-check`, no `checkbox-field`, y **sin** `filter-field`.
+
+            Las dos clases existen y describen cosas distintas. `checkbox-field` es una **píldora
+            suelta**: se alinea por su centro (`align-self: start`, `min-height: 32px`), lleva
+            borde y fondo propios, y es lo que corresponde a una casilla que va por su cuenta —
+            la de Operaciones. `filter-field-check` es lo contrario: no dibuja caja, y reserva
+            `padding-top: 28px` con `min-height: 64px` para caerse en la **línea de control** de
+            una barra cuyos campos llevan etiqueta encima.
+
+            Aquí el campo de al lado es un `.field` con etiqueta, así que la barra tiene fila de
+            rótulo y fila de control. Con la píldora, la casilla se quedaba en la fila de rótulo:
+            medido, su centro estaba **29,1 px** por encima del centro del input, que es el
+            desplazamiento que documentaba la lista de pendientes.
+
+            Y sin `filter-field` a propósito, aunque en CVE la casilla sí lo lleva. Porque
+            `.admin-shell .filter-bar > .filter-field` es (0,3,0) y le gana a `.filter-field-check`
+            (0,1,0): le devuelve `flex-direction: column`, la casilla se iba encima de su texto y
+            el campo medía 72 px en vez de 64. El `label` con `htmlFor` sustituye al `<label>`
+            contenedor, que es lo que hace bien la accesibilidad aquí: el texto sigue siendo la
+            etiqueta de la casilla y el área pulsable es la fila entera.
+        */}
+        <div className="filter-field-check">
           <input
+            id="admin-users-only-superusers"
             type="checkbox"
             checked={onlySuperusers}
             onChange={(event) => setOnlySuperusers(event.target.checked)}
           />
-          <span>{t('users.onlySuperusers')}</span>
-        </label>
+          <label htmlFor="admin-users-only-superusers">{t('users.onlySuperusers')}</label>
+        </div>
         {hayFiltros ? (
           <button className="secondary-button" type="button" onClick={limpiarFiltros}>
             <span>{t('users.filters.clear')}</span>

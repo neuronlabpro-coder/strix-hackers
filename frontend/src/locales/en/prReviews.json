@@ -24,8 +24,15 @@
     "status": "Status",
     "issues": "Findings",
     "finishedAt": "Finished",
+    "actions": "Actions",
     "noIssues": "None",
     "inProgress": "In progress"
+  },
+  "analyze": {
+    "label": "Analyse pull request #{{pr}}",
+    "started": "Analysis queued. The row will update on its own.",
+    "queueFailed": "The analysis could not be queued: the work queue is not responding. Try again in a moment.",
+    "notLaunchable": "This review cannot be launched again right now. If it is still running, wait for it to finish; if the repository is disconnected, reconnect it from Repositories."
   },
   "status": {
     "PASSED": "Passed",

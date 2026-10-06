@@ -51,6 +51,7 @@ from backend.apps.pentests.models import PentestRun, ScanModeEnum, TargetTypeEnu
 from backend.apps.pentests.schemas import PentestCreate
 from backend.apps.repositories.models import Repository
 from backend.apps.vulnerabilities.models import IssueStatusEnum, SeverityEnum, Vulnerability
+from backend.core.filtros_texto import coincide
 
 logger = logging.getLogger(__name__)
 
@@ -335,15 +336,17 @@ async def _list_repositories(
     entrada = _ListRepositories.model_validate(params)
     filtros = [Repository.organization_id == principal.organization.id]
     if entrada.search:
-        # Se busca en minusculas porque un agente escribiré `API` y el repositorio se
+        # Se busca en minusculas porque un agente escribirá `API` y el repositorio se
         # llama `api`, y una busqueda sensible a mayusculas devolveria cero filas ante una
-        # peticion que es correcta. El `LIKE` con comodines es Case-Insensitive en la
-        # mayoria de intercalaciones, y el `lower()` explicito lo garantiza en todas.
-        patron = f"%{entrada.search.lower()}%"
-        filtros.append(
-            func.lower(Repository.full_name).like(patron)
-            | func.lower(Repository.name).like(patron)
-        )
+        # peticion que es correcta. El `lower()` de `coincide` lo garantiza en todas.
+        #
+        # Y `coincide` escapa los comodines de `LIKE`, que aquí importa más que en cualquier
+        # otro buscador del proyecto: quien escribe el término es un agente, no una persona. Un
+        # filtro que en vez de filtrar devuelve la lista entera no produce un error que el
+        # agente sepa leer —produce una lista que el agente se queda como verdad—, así que
+        # acaba escaneando el repositorio equivocado. Sin escape, `search="%"` devuelve todos
+        # los repositorios del tenant y `search="web_app"` también trae `webXapp`.
+        filtros.append(coincide([Repository.full_name, Repository.name], entrada.search))
 
     total = int(
         (

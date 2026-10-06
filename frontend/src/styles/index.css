@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
 /* ------------------------------------------------------------------------- *
@@ -1210,6 +1210,284 @@ code.mono,
   background: color-mix(in oklab, var(--color-high) 8%, var(--color-surface));
 }
 
+/*
+ * La tarjeta de diagnóstico de un escaneo fallido.
+ *
+ * ## Por qué no es un `inline-notice` más
+ *
+ * Porque `.inline-notice` es una fila: una línea de texto y, si hace falta, una acción a la
+ * derecha. Esto es **dos** cosas —una explicación de dos o tres frases y el código del fallo—
+ * y metidas en una fila el código se comería el texto en cuanto la explicación fuera larga,
+ * que es justo lo que pasa con los motivos de despliegue. Además `.inline-notice` reparte con
+ * `justify-content: space-between`, que aquí dejaría la explicación pegada a la izquierda y el
+ * código en el extremo opuesto con un hueco enorme en medio.
+ *
+ * ## Por qué el código va arriba y no debajo
+ *
+ * Porque es lo que se busca en el registro del worker. Quien va a diagnosticar un escaneo
+ * filtrado por `STRIX_EGRESS_FENCE_MISSING` lo busca en la columna `error_message` de la base,
+ * y tener el código a la vista y legible evita el viaje. Va en `.mono` porque es un literal
+ * que se compara, no un texto que se lee.
+ *
+ * ## Por qué `flex-wrap`
+ *
+ * Porque en una ventana estrecha el código tiene que bajar debajo de la explicación en vez de
+ * apretarla hasta partirla. Es la misma razón por la que `.metadata-grid` es una rejilla y no
+ * una fila de columnas fijas.
+ */
+.failure-card {
+  flex-wrap: wrap;
+  margin-top: 16px;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.failure-card > div {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.failure-card-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-caption);
+}
+
+.failure-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.failure-card-detail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-secondary);
+}
+
+.failure-card-code {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * La tarjeta de disponibilidad del motor de escaneo.
+ *
+ * ## Por qué es una `content-card` y no un `inline-notice-error`
+ *
+ * Porque lleva una lista y un botón. `.inline-notice` reparte con `space-between` y está pensada
+ * para una línea con una acción, no para un bloque con seis. Y su color de error
+ * (`--color-high`, naranja) aquí sería equivocado: lo que se comunica no es un fallo de una
+ * operación, es el estado del servidor.
+ *
+ * ## Por qué solo se listan las comprobaciones **fallidas**
+ *
+ * Porque las que pasan no aportan nada a la decisión. Un «Socket Docker: correcta» al lado de
+ * un «Cerco de salida: falla» es ruido que empuja el motivo real fuera de la línea de visión.
+ * El usuario abre la tarjeta cuando algo va mal, y lo que necesita es qué.
+ *
+ * ## Por qué el código va a la derecha y no debajo
+ *
+ * Porque el nombre y el código son de naturalezas distintas: el nombre se lee de un vistazo y el
+ * código se copia para buscarlo en un log. Metidos en una columna, el nombre —que es lo que
+ * cambia de idioma— arrastraría el código; en dos columnas cada uno va a su aire y el ancho
+ * del código es siempre el mismo, que es lo que permite que la lista lea como una tabla.
+ */
+.readiness-card {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.readiness-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.readiness-card-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: var(--color-medium);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.readiness-card-hint {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-secondary);
+}
+
+.readiness-card-checks-title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-caption);
+}
+
+.readiness-list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readiness-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.readiness-item-mark {
+  display: grid;
+  place-items: center;
+  color: var(--color-high);
+}
+
+.readiness-item-name {
+  font-size: 13px;
+  color: var(--color-primary);
+}
+
+.readiness-item-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--color-secondary);
+}
+
+.readiness-item-code {
+  padding: 2px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--color-caption);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+/**
+ * ## Por qué un aviso que no bloquea no se pinta en rojo
+ *
+ * Porque no es lo mismo. Un bloqueante es «aquí no se puede escanear»; un aviso es «aquí se
+ * escanea, pero el contenedor sale con los permisos de red del host». Con el mismo color, quien
+ * lo lee tiene que deducir la urgencia, y el que deduce mal se pasa un día arreglando un
+ * despliegue que sí funciona. `readiness-item-warn` baja el borde a `--color-border` y deja el
+ * texto en `--color-caption`, que es donde vive el matiz: está presente y no compite por la
+ * atención con el motivo que sí detiene el trabajo.
+ *
+ * ## Por qué el estado sigue siendo texto y no solo el color
+ *
+ * Por accesibilidad, y es lo mismo que obliga a que el icono sea `aria-hidden`: «No lo
+ * bloquea» se lee con un lector de pantalla igual que se ve. Un aviso que solo se distinguiera
+ * por el tono del borde sería invisible para una parte de los usuarios y además fallaría en
+ * modo de alto contraste.
+ */
+.readiness-item-warn {
+  border-color: var(--color-border);
+}
+
+.readiness-item-warn .readiness-item-mark {
+  color: var(--color-medium);
+}
+
+.readiness-item-warn-label {
+  color: var(--color-caption);
+}
+
+/**
+ * ## Por qué los motivos van en su propio bloque y no en la fila de la comprobación
+ *
+ * Porque son dos preguntas distintas. La fila dice **qué** falta —«cerco de salida»— y el motivo
+ * dice **qué se observó** —`EGRESS_FENCE_DISABLED`—. Meter el motivo en la fila obligaría a
+ * repetir el nombre de la comprobación delante de su explicación, y el motivo es largo: es una
+ * frase, no un código suelto.
+ *
+ * Y el motivo se separa de la lista porque es el texto que se cita. El código va en monoespaciado
+ * porque es lo que se busca en el registro del worker, y la frase va al lado porque es lo que se
+ * lee. Poner los dos en la misma caja haría que el ojo leyera el código, que es justo lo que no
+ * hace falta.
+ */
+.readiness-group {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.readiness-group-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.readiness-group-hint {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-secondary);
+}
+
+.readiness-reasons {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readiness-reason {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.readiness-reason-code {
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--color-caption);
+}
+
+.readiness-reason-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-secondary);
+}
+
+.readiness-card-footnote {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 12px;
+  color: var(--color-caption);
+}
+
 .icon-button {
   display: grid;
   width: 32px;
@@ -1564,13 +1842,20 @@ code.mono,
  * formulario se abriría por abajo justo en los campos con etiqueta larga, que son los que más se
  * notan porque su texto es el que se sale de una línea.
  *
- * ## Por qué el `margin-bottom: 0` de aquí no llega a aplicarse
+ * ## Por qué aquí no hay `margin-bottom`
  *
- * Porque más abajo, en el bloque de la barra de búsqueda, hay un segundo
- * `.filter-field label { margin-bottom: 6px }`. Es el mismo selector con la misma especificidad, y
- * en un empate gana el último. Así que el hueco efectivo entre etiqueta y control son 12 px, no 6.
- * La declaración se deja como está porque revisar el orden de dos reglas iguales no cambia nada de
- * lo que se ve, pero quien lea esto tiene que saber que el valor que manda es el de abajo.
+ * Porque lo hubo, y no llegaba a aplicarse: más abajo, en el bloque de la barra de búsqueda, hay un
+ * segundo `.filter-field label { margin-bottom: 6px }`. Mismo selector, misma especificidad, y en
+ * un empate gana el último. Dos reglas que se contradicen no son una decisión: son una que hace que
+ * el próximo que las toque no sepa cuál manda, así que la anulada se ha quitado y el valor real
+ * está declarado en un solo sitio.
+ *
+ * Y el valor real es **12 px**, no 6: 6 del `gap` de la columna más 6 del `margin-bottom` de abajo.
+ * Medido en el navegador sobre el filtro de severidad de CVE, que es una barra con etiqueta
+ * visible: etiqueta bottom 279, control top 291. Se conservan los 12 porque son los que salen en
+ * las capturas y los que se han revisado a ojo; bajarlos a 6 sería un cambio de una línea que
+ * mueve todos los rótulos de todos los filtros del panel, y eso se mide en las 40 capturas o no
+ * se hace.
  *
  * ## Por qué el resto de la regla repite la familia de los rótulos del panel
  *
@@ -1578,9 +1863,12 @@ code.mono,
  * `.eyebrow`, `.board-column-header` y `.data-table thead th`. Un rótulo que se sale de esa familia
  * se lee como un párrafo en mayúsculas. Y `color-caption` en vez de `primary` porque la etiqueta
  * nombra el control, no es el dato que se viene a leer.
+ *
+ * Este `font-size` queda además anulado por el de `.filter-field label` del bloque de píldoras,
+ * más abajo, que pone 0.69rem. La diferencia es de dos centésimas y no se ve; se anota para que
+ * quien Compare las dos reglas no la tome por un descuido.
  */
 .filter-field label {
-  margin-bottom: 0;
   color: var(--color-caption);
   font-family: var(--font-mono);
   font-size: 0.68rem;
@@ -2312,6 +2600,7 @@ code.mono,
  * avise. Lo que lo sostiene es `_alinear_filtros.py`, que compara la línea de control de cada
  * campo de la barra y avisa cuando uno se sale. */
 .filter-field-check {
+  display: flex;
   flex-direction: row;
   align-items: center;
   min-width: 0;
@@ -2328,9 +2617,31 @@ code.mono,
   duplicacion es justo lo que hace imposible razonar sobre cual de las dos manda.
 */
 
+/*
+  El rótulo de la casilla, y por qué aquí se declara y no se hereda de `.filter-field label`.
+ *
+  Porque hay dos formas de usar esta casilla, y solo una de las dos trae `filter-field`:
+ *
+  - **Con** `filter-field`, como «Solo KEV» en CVE. Entonces el rótulo lo viste `.filter-field
+ * label`, que lo pone en la familia de instrumentos del panel: mono, versalita, 0.69 rem.
+  - **Sin** `filter-field`, que es lo que hace falta dentro de `.admin-shell`. La barra de la
+ * consola tiene `.admin-shell .filter-bar > .filter-field` con especificidad (0,3,0), que le
+ * gana a `.filter-field-check` (0,1,0) y le devuelve `flex-direction: column`: la casilla se
+ * iba encima de su texto. Medido, el campo pasaba de 64 a 72 px de alto y la caja quedaba 9 px
+ * por encima de la línea de control.
+ *
+  Sin `filter-field` el rótulo se queda sin estilo: medido, salía a 15,36 px de cuerpo, más
+ * grande que los inputs de al lado (0,75 rem). Lo que se declara abajo es la misma familia que
+ * hereda el otro caso —mono, versalita, 0.69 rem, `--color-muted`—, escrita aquí para que las
+  dos formas de la casilla se lean igual y no dependa de qué clases lleve el contenedor.
+ */
 .filter-field-check label {
-  text-transform: none;
+  color: var(--color-muted);
   cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -2551,17 +2862,44 @@ code.mono,
    `design-dark.md`; ningún color nuevo.
    --------------------------------------------------------------------------- */
 
-/* Un `priority-badge` no lleva `padding`: es una caja circular de 24 px con el número dentro. */
+/*
+  El input de prioridad de la tabla de modelos.
+ *
+  ## Por qué aquí no hay círculo, aunque el nombre de la clase diga `badge`
+ *
+  Porque el círculo de 24 px **nunca se ha visto**. Medido en `/admin/llm` en el navegador, con la
+  regla tal como estaba: el input mide **96 × 34 px** con `border-radius: 4px`, no 24 × 24
+  circular. La razón es la especificidad: `LlmModelsPage` pone el input dentro de un
+  `<label className="margin-field">`, y `.margin-field input` es (0,1,1) contra (0,1,0) de
+  `.priority-badge`. Gana en siete propiedades —`width`, `min-height`, `padding`, `background`,
+  `color`, `border-radius` y `font-size`— y las siete arrive intactas al elemento.
+ *
+  Comprobado vaciando la regla entera y volviendo a medir: **todo lo que se ve es idéntico**
+ * salvo `display`. Lo que sí ganaba la clase era `display: inline-grid`, que al ser hijo de un
+ * `flex` se computes a `grid`, y su `place-items: center`, que centra el número. Eso es lo único
+  que queda declarado abajo.
+ *
+  ## Por qué no se sube el especificador para que salga el círculo
+ *
+  Porque el círculo no es lo que se ve ni lo que se ha revisado. Las capturas de `/admin/llm`
+ * muestran una caja de 96 × 34 con esquinas de 4 px, igual que el campo de margen de dos columnas
+ * más allá y que el desplegable de caso de uso. Un círculo de 24 px en medio de tres controles de
+ * 34 px en la misma tabla se vería como un elemento arrastrado a la columna, que es exactamente
+ * lo que el comentario de `.checkbox-field` dice de la casilla suelta.
+ *
+ * Y el input es de tipo `number`: un círculo de 24 px no tiene sitio para el número **ni** para
+ * los controles de incremento. Hacerlo círculo es un cambio de diseño de la pantalla, y eso se
+ * decide mirando la pantalla, no leyendo el selector.
+ *
+  ## Por qué se queda la clase y no se borra
+ *
+  Porque `LlmModelsPage.tsx` la pone en el `className`, y ese fichero no es de esta tanda. La
+ * clase se queda con lo único que aporta —el centrado del número— y el comentario dice la verdad
+  sobre lo que se renderiza, que es lo que no decía antes.
+ */
 .priority-badge {
-  padding: 0;
   display: inline-grid;
-  width: 24px;
-  height: 24px;
   place-items: center;
-  color: var(--color-on-primary);
-  background: var(--color-accent);
-  border-radius: 50%;
-  font-size: 0.72rem;
 }
 
 .row-inactive {
@@ -2640,13 +2978,16 @@ code.mono,
  * campo: el número quedaría perdido contra el borde derecho. 96 es lo justo para el número de
  * margen con dos decimales y para el nombre del caso de uso.
  *
- * ## Por qué dos reglas idénticas en vez de una lista de selectores
+ * ## Por qué una sola regla para el `select` y el `input`
  *
- * Porque `.margin-field select` y `.margin-field input` declaran las mismas ocho propiedades con
- * los mismos valores: son la misma regla escrita dos veces. Se pueden fundir en
- * `.margin-field select, .margin-field input` sin que cambie nada de lo que se ve, así que
- * mantenerlas separadas no aporta nada hoy. Quien lea las dos tiene que saber que no son dos
- * criterios distintos.
+ * Porque declaraban las mismas ocho propiedades con los mismos valores: eran la misma regla
+ * escrita dos veces, y eso es una contradicción esperando a que alguien corrija una y no la otra.
+ * Están fundidas en `.margin-field select, .margin-field input`, que es lo que ya se hace en
+ * `.filter-field select, .filter-field input` unas líneas más arriba.
+ *
+ * Lo que **no** se funde es el `:hover`: solo lo declara el `input`. El desplegable no lo tiene, y
+ * eso es un descuido heredado que se anota aquí en lugar de propagar a la regla fundida: añadirlo
+ * sería un cambio de lo que se ve, y esta tanda no cambia lo que se ve.
  *
  * ## Por qué aquí `--color-background` y `--radius-sm`, y en `.cost-field input` no
  *
@@ -2658,25 +2999,13 @@ code.mono,
  *
  * ## Por qué el input de prioridad no sale circular aquí
  *
- * Porque no sale. `LlmModelsPage` pone `className="mono priority-badge"` en el input de prioridad,
- * dentro de un `<label className="margin-field">`, y `.margin-field input` tiene especificidad
- * (0,1,1) contra (0,1,0) de `.priority-badge`: gana en `width`, `min-height`, `padding`,
- * `background`, `color`, `border-radius` y `font-size`. El círculo de 24 px que describe el
- * comentario de `.priority-badge` no llega a verse, y su `border-radius: 50%` también pierde. Se
- * anota aquí porque la contradicción es entre dos reglas de este mismo bloque y quien lea
- * cualquiera de las dos lo tiene que saber.
+ * Porque no sale, y ahora la regla de arriba lo dice con la medición en vez de con una
+ * descripción: el círculo de 24 px nunca se ha renderizado. `.margin-field input` es (0,1,1)
+ * contra (0,1,0) de `.priority-badge` y le gana en siete propiedades. El motivo por el que se
+ * gana está escrito en el comentario de `.priority-badge`, que es donde está la clase; aquí solo
+ * se apunta que esta es la regla que manda sobre el input de la fila de prioridad.
  */
-.margin-field select {
-  width: 96px;
-  min-height: 34px;
-  padding: 6px 8px;
-  color: var(--color-primary);
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: 0.78rem;
-}
-
+.margin-field select,
 .margin-field input {
   width: 96px;
   min-height: 34px;
@@ -3696,6 +4025,25 @@ code.mono,
   font-size: inherit;
 }
 
+/*
+  El `margin-bottom` del rótulo de un filtro, que es la declaración que manda.
+ *
+  ## Por qué vive aquí y no junto al resto de `.filter-field label`, más arriba
+ *
+  Porque ese `margin-bottom` estaba en la regla de arriba y **nunca se aplicaba**: aquí hay otra
+  `.filter-field label` con la misma especificidad, y en un empate gana la última. Con las dos, el
+  hueco real era el `gap` de 6 px más los 6 px de aquí —12 px medidos en el navegador— y el
+  comentario de arriba describía 6. Dos reglas que se contradigan no son una decisión, así que la
+  anulada se borró y esta es la única que declara el valor.
+ *
+  ## Por qué 6 px aquí y no el `gap` solo
+ *
+  Porque los 6 px de aquí son los que separan el rótulo **cuando el control no es un hermano
+  directo**: la barra de búsqueda y la de filtros comparten la clase, y ahí el `gap` de la columna
+  ya cubre la separación. Se conserva el `margin-bottom` porque es lo que se ha medido y lo que sale
+  en las capturas; quitarlo por simetría con el `gap` bajaría los rótulos 6 px en todas las barras
+  del panel, y eso hay que verlo en las 40 capturas antes de decidirlo.
+ */
 .filter-field label {
   margin-bottom: 6px;
 }
@@ -3924,6 +4272,71 @@ input[type='checkbox']:not(.switch input) {
   flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+}
+
+/*
+ * La celda de acciones de una fila.
+ *
+ * ## Por qué existe y no vale con nada
+ *
+ * Porque una columna de acciones tiene que tener el **mismo** ancho en todas las filas, y el
+ * ancho natural de un `<button>` depende de su contenido y del estado de su fila. Sin esto, la
+ * columna se dimensiona por el botón más ancho de la tabla y las que no lo tienen se quedan con
+ * el hueco, lo que hace que los botones no alineen en vertical y la tabla parezca rota a media
+ * pantalla. Es el mismo motivo por el que `.metadata-grid` es una rejilla y no columnas fijas.
+ *
+ * ## Por qué `nowrap` y no `flex`
+ *
+ * Porque no hay dos elementos que colocar: hay uno o ninguno. `nowrap` basta y no introduce una
+ * segunda eje que este elemento no necesita.
+ */
+.data-table td.cell-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* El botón de acción mientras la petición está en vuelo: cursor de progreso y atenuado.
+
+   ## Por qué `progress` y no `not-allowed`
+
+   Porque está deshabilitado por estar **ocupado**, no por no poder pulsarse. Un
+   `not-allowed` —el cursor por defecto de `disabled`— dice «esto no se puede hacer», y eso es
+   falso: se puede, y se está haciendo. Es la misma distinción que entre un campo de formulario
+   bloqueado por política y uno bloqueado porque la petición anterior sigue en el aire. */
+.icon-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/*
+ * El giro del icono mientras la petición está en vuelo.
+ *
+ * ## Por qué se respeta `prefers-reduced-motion`
+ *
+ * Porque un giro continuo es de los pocos movimientos que puede provocar una reacción física
+ * —cefalea y náusea en personas sensibles—, y la preferencia del sistema existe justo para eso.
+ * La alternativa a respetar la preferencia no es quitar la animación: es quitar **el movimiento**, y
+ * dejar el icono de espera quieto. El usuario sigue viendo que algo está en marcha porque el
+ * botón está atenuado y el aviso de «encolado» sigue en pantalla.
+ *
+ * Y por eso la animación va en una clase y no en `svg` a secas: una regla global aplicaría el
+ * giro a cualquier icono que se añada mañana.
+ */
+@keyframes fenix-giro {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: fenix-giro 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none;
+  }
 }
 
 .list-count {

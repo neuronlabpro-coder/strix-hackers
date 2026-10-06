@@ -37,6 +37,7 @@ from backend.apps.support.models import (
     TicketStatusEnum,
 )
 from backend.apps.support.schemas import SupportSummary
+from backend.core.filtros_texto import escape_like
 
 #: Dos alias del mismo modelo `User` para poder distinguir en el `SELECT` quién es el
 #: creador y quién el agente sin ambigüedad. Sin los alias, un `LEFT JOIN` a la misma tabla
@@ -276,13 +277,15 @@ entera** —la condición casa con cualquier valor— y escribir `_` devolvía t
 tuvieran cualquier carácter en esa posición. La pantalla «funciona»: sale una tabla, solo que
 entera, y eso es indistinguible de un filtro correcto.
 
-## Por qué hay una copia aquí y no se importa `core.filtros_texto`
+## Por qué el escape se importa de `core.filtros_texto` y no está copiado aquí
 
-Porque ese módulo es **nuevo** —se escribió en paralelo a este cambio— y su firma de
-`rango_creado` (`list[ColumnOperators]`) no encaja en el `where(...)` de SQLAlchemy bajo el
-tipado estricto del proyecto: importarlo dejaba `pyright` en rojo con errores ajenos a este
-filtro. La consolidación es lo correcto y es un cambio propio; queda escrito aquí para que no se
-pierda.
+Porque había una copia local y se consolidó en el módulo compartido. Antes de borrarla se
+comprobó que las dos hacen lo mismo en los mismos términos —incluida la barra invertida, que es
+el orden de los tres `replace` que más se puede equivocar sin que se note— y la prueba que cubre
+el cableado de este punto es
+`test_support_tickets.py::test_el_buscador_de_tickets_trata_los_comodines_como_literales`, que
+afirma sobre `total`: un parámetro que llegara sin escapar saldría como tabla entera, y el recuento
+lo delata, que es justo lo que una aserción sobre el resultado no vería.
     """
 
     # La almohadilla se muestra en pantalla (`#TK-1005`) pero **no** se guarda: lo que la
@@ -300,7 +303,7 @@ pierda.
     # resultado en PostgreSQL, y lo que importa es que **todas** las pantallas comparen igual.
     # Un buscador que distingue mayúsculas en una columna y no en otra es el peor de los dos
     # mundos, porque el usuario no puede saber cuál de los dos está fallando.
-    patron = f"%{_escape_like(limpio.lower())}%"
+    patron = f"%{escape_like(limpio.lower())}%"
     alternativas: list[ColumnElement[bool]] = [
         func.lower(SupportTicket.subject).like(patron, escape="\\"),
         func.lower(SupportTicket.ticket_number).like(patron, escape="\\"),
@@ -309,19 +312,6 @@ pierda.
     if incluir_nombre_tenant:
         alternativas.append(func.lower(Organization.name).like(patron, escape="\\"))
     return or_(*alternativas)
-
-
-def _escape_like(termino: str) -> str:
-    """Escapa los comodines de `LIKE` para que el término se busque literal.
-
-    ## Por qué la barra invertida se escapa primero
-
-    Porque el orden de los tres `replace` no es arbitrario. Si la barra se escapara al final, la
-    propia barra que ponen los otros dos reemplazos se convertiría a su vez en `\\\\` y el resto
-    del escape quedaría mal. De aquí que la barra vaya en la **primera** posición.
-    """
-
-    return termino.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _rango_de_alta(desde: date | None, hasta: date | None) -> list[ColumnElement[bool]]:

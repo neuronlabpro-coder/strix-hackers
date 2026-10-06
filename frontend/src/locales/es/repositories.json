@@ -85,15 +85,16 @@
     "close": "Cerrar",
     "searchLabel": "Buscar repositorios",
     "searchPlaceholder": "Buscar por nombre, ruta o rama",
-    "searchNoResults": "Ningun repositorio coincide con la busqueda",
+    "searchNoResults": "Ningun repositorio coincide con la busqueda «{{search}}». Borrala para volver a ver el inventario completo.",
     "selectAll": "Seleccionar todos",
     "importSelected": "Importar seleccionados ({{count}})",
     "importingSelected": "Importando…",
     "bulkSuccess": "Se han importado {{count}} repositorios",
     "bulkPartial": "Importados {{ok}} de {{total}}. Han fallado: {{failed}}",
     "bulkFailed": "No se ha importado ninguno. Han fallado: {{failed}}",
-    "countAll": "{{shown}} de {{total}} repositorios. Se muestran {{shown}} porque la lista se trae por tandas: usa el buscador para ver el resto.",
+    "countAll": "{{shown}} de {{total}} repositorios",
     "countFiltered": "{{shown}} de {{total}} repositorios coinciden con tu búsqueda.",
+    "truncated": "La lista se trae por tandas de 100, así que aquí no ves los {{missing}} restantes. El buscador sí los alcanza a todos.",
     "searchNotApplied": "El servidor no está aplicando la búsqueda «{{search}}», así que esto es el inventario entero. Recarga el backend y vuelve a buscar."
   },
   "autofix": {

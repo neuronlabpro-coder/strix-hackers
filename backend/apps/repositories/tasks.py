@@ -6,7 +6,10 @@ import asyncio
 import logging
 
 from backend.apps.repositories.clients.base import GitRateLimitError, GitServerError
-from backend.apps.repositories.pipeline import _run_pr_security_pipeline
+from backend.apps.repositories.pipeline import (
+    _run_pr_security_pipeline,
+    reintentar_comentario_de_revision,
+)
 from backend.apps.repositories.token_refresh import (
     GitCredencialNoDisponibleError,
     renovar_credenciales_por_vencer,
@@ -31,17 +34,48 @@ _ERRORES_REINTENTABLES: tuple[type[BaseException], ...] = (
     GitCredencialNoDisponibleError,
 )
 
+#: Cuántos intentos hace como mucho una tarea que habla con el proveedor, y cuánto espera entre
+#: ellos como tope.
+#:
+#: ## Por qué son constantes y no números escritos en cada decorador
+#:
+#: Porque hay **dos** tareas que reintentan contra el mismo proveedor con la misma política —el
+#: pipeline de la revisión y el reintento del comentario—, y dos decoradores con dos números
+#: escritos a mano divergen sin que nada se entere: uno acabaría reintentando cuatro veces y el
+#: otro tres, y el registro del worker mostraría dos políticas distintas para el mismo GitHub.
+#:
+#: ## Por qué viven aquí y no en la configuración
+#:
+#: Porque no son un parámetro del producto: son la política de resiliencia de un cliente HTTP
+#: concreto, y no hay operador que los negocie ni un precio que dependa de ellos. El contraste
+#: con R1 está en `platform_pricing`, que sí es un precio y por eso sí sale de la base de datos.
+MAX_INTENTOS_GIT = 3
+ESPERA_MAXIMA_ENTRE_INTENTOS = 300
+
 
 @celery_app.task(
     bind=True,
     name="repositories.run_pr_security_pipeline",
     autoretry_for=_ERRORES_REINTENTABLES,
     retry_backoff=True,
-    retry_backoff_max=300,
-    max_retries=3,
+    retry_backoff_max=ESPERA_MAXIMA_ENTRE_INTENTOS,
+    max_retries=MAX_INTENTOS_GIT,
 )
 def run_pr_security_pipeline(self, review_id: str) -> str:
-    """Ejecuta el scan rápido de un PR y publica su veredicto."""
+    """Ejecuta el scan rápido de un PR y publica su veredicto.
+
+    ## Por qué `retry_failed` es `self.request.retries > 0` y no un parámetro
+
+    Porque es la **única** señal que distingue «el proveedor nos lo ha pedido otra vez por lo
+    mismo» de «el cliente pidió analizar otra vez». Un reintento automático de esta tarea es la
+    misma tarea con el mismo argumento: no es un encargo nuevo, y por eso `_claim_review` no lo
+    vuelve a cobrar. Un relanzamiento desde el panel llega por aquí con `retries == 0`, y ese sí
+    cobra, porque es un análisis nuevo que alguien pidió.
+
+    Lo que mantiene esa separación en su sitio es que **solo** `autoretry_for` produce reintentos:
+    `process_git_webhook_event`, `_enqueue_pr_review` y el watchdog encolan siempre con
+    `.delay(review_id)`, que siempre arranca en `retries == 0`.
+    """
 
     return asyncio.run(
         _run_pr_security_pipeline(
@@ -52,6 +86,41 @@ def run_pr_security_pipeline(self, review_id: str) -> str:
     )
 
 
+@celery_app.task(
+    name="repositories.publish_pr_review_comment",
+    autoretry_for=_ERRORES_REINTENTABLES,
+    retry_backoff=True,
+    retry_backoff_max=ESPERA_MAXIMA_ENTRE_INTENTOS,
+    max_retries=MAX_INTENTOS_GIT,
+)
+def publicar_comentario_de_review(review_id: str) -> str:
+    """Republica el comentario de un pull request **sin repetir el escaneo**.
+
+    ## Por qué esta tarea existe y no es una bandera del pipeline
+
+    Porque el fallo que la justificaba no era «el comentario no se publicó», sino «no se publicó
+    el comentario y **el análisis tampoco**». `post_pr_comment` y `update_pr_comment` lanzaban
+    `GitClientError`, ese error salía por el `except Exception` del pipeline, `_mark_pipeline_error`
+    ponía la revisión en `ERROR` con el run ya en `COMPLETED`, y Celery —que reintenta ante
+    `GitRateLimitError`— relanzaba el pipeline entero para un problema de permisos de escritura
+    en el pull request.
+
+    Con el comentario detrás de su propia tarea, el fallo del comentario tiene su propio
+    reintento y ese reintento **no puede** repetir el escaneo: no pasa por `_claim_review`, no
+    crea un run y no toca el ledger. El precio de que exista una tarea más es una función de
+    treinta líneas; el precio de no tenerla era perder análisis ya pagados.
+
+    ## Por qué devuelve `SKIPPED` sin más
+
+    Porque `reintentar_comentario_de_revision` es idempotente y su resultado lo dice: `POSTED`
+    cuando publicó, `SKIPPED` cuando no había nada que publicar. Convertir un «no había nada» en
+    una tarea roja sería ruido que obliga a mirar un registro de worker para descubrir que no
+    pasó nada.
+    """
+
+    return asyncio.run(reintentar_comentario_de_revision(review_id))
+
+
 def _enqueue_pr_review(review_id: str) -> None:
     run_pr_security_pipeline.delay(review_id)  # pyright: ignore[reportFunctionMemberAccess]
 
@@ -60,7 +129,7 @@ def _enqueue_pr_review(review_id: str) -> None:
     name="repositories.process_git_webhook_event",
     autoretry_for=(WebhookEventError, *_ERRORES_REINTENTABLES),
     retry_backoff=True,
-    retry_backoff_max=300,
+    retry_backoff_max=ESPERA_MAXIMA_ENTRE_INTENTOS,
     max_retries=5,
 )
 def process_git_webhook_event(

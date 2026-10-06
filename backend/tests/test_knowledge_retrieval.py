@@ -26,6 +26,7 @@ from backend.apps.knowledge.documents import (
 )
 from backend.apps.knowledge.okf import parse_okf
 from backend.apps.knowledge.retrieval import (
+    condicion_de_terminos,
     extraer_terminos,
     recuperar_documentos,
 )
@@ -120,6 +121,168 @@ async def test_parte_un_termino_por_guion() -> None:
     terminos = extraer_terminos("revisa el api-gateway")
     assert "api-gateway" in terminos or "apigateway" in terminos
     assert "gateway" in terminos
+
+
+async def test_los_comodines_de_la_consulta_se_buscan_literales() -> None:
+    r"""Un `%` en la pregunta no devuelve el workspace entero.
+
+    Es el mismo defecto de los listados, aqui con una consecuencia extra: la recuperacion decide
+    que documentos entran en el prompt del chat. Un `ILIKE` sin escapar hace que un `%` escrito
+    en la pregunta devuelva documentos que no tienen nada que ver, y el modelo los toma como
+    contexto fiable. Es el peor sitio donde se cuela un filtro sin escape, porque lo que se cuela
+    no es una fila de mas en una tabla: es una regla de negocio en la respuesta de otro tenant.
+
+    ## Por que aquí se comprueba el `%` y no el `_`
+
+    Porque el `_` **queda enmascarado por el troceado de términos**, y conviene decirlo en voz
+    alta para que nadie busque un fallo donde no lo hay. `extraer_terminos` parte `web_app` en
+    `web_app`, `web` y `app`, y las dos partes —`web` y `app`— también son subcadena de
+    `webXapp`. Así que el documento `webXapp` entra de todos modos por las partes, con el `_`
+    escapado o sin él: el resultado observable es el mismo y el caso no discrimina.
+
+    El `%` sí discrimina, y por eso es el que se comprueba: `100%%` no se trocea —el separador
+    es el guion y el espacio— y llega entero al `ILIKE`. Sin escape, el comodín del término se
+    come el resto del patrón y el resultado pasa a ser «cualquier título y cualquier cuerpo».
+
+    Y por eso el término de la prueba es **`100%%` y no `100%`**: el troceado separa por espacio,
+    así que de una pregunta `100%` sale un único término `100%` —y un comodín en medio del patrón
+    no amplía la búsqueda por sí solo, porque los comodines que hacen eso son los de los extremos,
+    que aquí los pone la función—, mientras que de `100%%` sale un término con dos comodines que
+    sí se come el resto del patrón.
+
+    ## Por qué la pregunta es solo `100%%` y no `descuento 100%%`
+
+    Porque `extraer_terminos` devuelve **todos** los términos y la condición es un `or_`: si la
+    pregunta incluye `descuento`, ese término casa con «Regla de descuentos» y el documento entra
+    por la puerta de al lado, con o sin escape. Para que el fallo sea atribuible al comodín hace
+    falta que la pregunta **no tenga ningún otro término que case**, y ese es el motivo de que la
+    pregunta de la prueba sea el símbolo solo.
+
+    ## Lo que esta prueba NO puede detectar, y por qué se documenta
+
+    **Esta prueba pasa con el escape y sin él.** Se comprobó revirtiendo el `ILIKE` de
+    `retrieval.py` a `f"%{termino}%"`: sigue en verde. Y hay que decirlo, porque si no este
+    fichero daría a pensar que el escape está cubierto cuando no lo está.
+
+    La razón es que `recuperar_documentos` **filtra dos veces**. La consulta trae los candidatos
+    con el `ILIKE`, y luego `_puntuar` los repasa con un `in` de Python —subcadena literal— sobre
+    título, descripción y cuerpo, y descarta todo lo que puntúe cero. Un término `100%%` no
+    aparece literalmente en ningún documento, así que `_puntuar` lo tira igual, con o sin escape:
+    el comodín amplía la consulta y el segundo filtro deshace la ampliación.
+
+    ## Qué es lo que sí protege el escape aquí
+
+    Una defensa que hoy no se ve y que depende de un detalle de otro sitio: que `_puntuar` siga
+    usando `in` literal. Si alguien lo cambiara por un `re` para admitir búsqueda por palabras,
+    el `ILIKE` sin escape empezaría a devolver documentos que `_puntuar` aceptaría, y el defecto
+    que hoy es latente pasaría a ser real. El escape no sobra: es lo que deja de depender de ese
+    otro filtro. Y su prueba es `test_el_escape_del_patron_de_la_recuperacion_lleva_escape`, que
+    sí mira el SQL emitido.
+    """
+
+    async with _sesion() as session:
+        organization_id = await _tenant(session, "comodin")
+        await _guardar(
+            session,
+            organization_id,
+            _okf(
+                tipo="policy",
+                titulo="Regla de descuentos",
+                descripcion="Regla sobre descuentos",
+                cuerpo="Los descuentos requieren aprobacion.",
+            ),
+            titulo="Regla de descuentos",
+        )
+        # Este documento **no lleva el símbolo**, pero sí lleva la cifra `100`. Es lo que hace
+        # que la prueba tenga dientes: sin escape, el comodín del término se come el resto del
+        # patrón y este documento entra igual, porque lo único que el patrón ya escapado exige
+        # —los caracteres `100%` completos— aquí no aparece.
+        await _guardar(
+            session,
+            organization_id,
+            _okf(
+                tipo="policy",
+                titulo="Regla de rendimiento",
+                descripcion="Regla sobre rendimiento",
+                cuerpo="El limite es de 100 peticiones por segundo.",
+            ),
+            titulo="Regla de rendimiento",
+        )
+        await session.commit()
+
+        por_porcentaje = await recuperar_documentos(session, organization_id, "100%%")
+        por_texto = await recuperar_documentos(session, organization_id, "revisa descuentos")
+
+    # El símbolo no aparece en ningún documento, así que la respuesta es **cero**. Ojo: esta
+    # aserción también se cumple sin el escape del `ILIKE`, porque `_puntuar` vuelve a filtrar por
+    # subcadena literal. Ver el docstring.
+    assert por_porcentaje == [], [d.title for d in por_porcentaje]
+    # Y la búsqueda normal sigue encontrando lo que tiene que encontrar: el escape no ha
+    # roto el camino bueno.
+    assert {d.title for d in por_texto} == {"Regla de descuentos"}
+
+
+async def test_el_escape_del_patron_de_la_recuperacion_lleva_escape() -> None:
+    """El SQL que sale de `recuperar_documentos` escapa el término y declara su `ESCAPE`.
+
+    Esta es la prueba que **sí** cubre el escape, a diferencia de la anterior.
+
+    ## Por qué hay que mirar el SQL y no el resultado
+
+    Porque el resultado no lo delata. `recuperar_documentos` trae candidatos con el `ILIKE` y
+    después `_puntuar` los repasa con un `in` de Python, que es subcadena literal: un término con
+    comodines no aparece literalmente en ningún documento, así que acaba puntuando cero y
+    descartándose. El `ILIKE` sin escape amplía la consulta y el segundo filtro deshace la
+    ampliación —hoy. Se comprobó revirtiendo el `ILIKE` a `f"%{termino}%"`: la prueba de
+    comportamiento sigue verde.
+
+    ## Por qué el escape sigue siendo necesario aquí
+
+    Porque esa doble filtración es una coincidencia de implementación, no una garantía. Si
+    `_puntuar` pasara a buscar por palabras con expresiones regulares —que es lo que haría falta
+    para suportar `web_app` y `camelCase` sin trocear— el `ILIKE` sin escape empezaría a devolver
+    documentos que `_puntuar` aceptaría, y un `%` en la pregunta volvería a meter el workspace
+    entero en el prompt del chat. El escape es lo que deja de depender de ese otro filtro.
+
+    ## Por qué se comprueba el SQL compilado y no la consulta ejecutada
+
+    Porque la consulta ejecutada devuelve la respuesta correcta con y sin escape, así que no
+    distingue. El SQL compilado sí: el `ESCAPE` explícito y la barra invertida en el parámetro son
+    la diferencia entre las dos versiones, y se leen en la cadena sin tener que confiar en el
+    contenido de ninguna tabla.
+    """
+
+    async with _sesion() as session:
+        organization_id = await _tenant(session, "escape-sql")
+        await _guardar(
+            session,
+            organization_id,
+            _okf(
+                tipo="policy",
+                titulo="Regla de descuentos",
+                descripcion="Regla sobre descuentos",
+                cuerpo="Los descuentos requieren aprobacion.",
+            ),
+            titulo="Regla de descuentos",
+        )
+        await session.commit()
+
+        # Se llama a la condición **real** del servicio, no a una copia escrita aquí: una copia
+        # en la prueba seguiría en verde con el servicio roto, que es justo el fallo que hay que
+        # evitar.
+        sql = str(
+            condicion_de_terminos(extraer_terminos("100%%")).compile(
+                compile_kwargs={"literal_binds": True}
+            )
+        )
+
+    # El `ESCAPE` declarado, que es lo que le da sentido a la barra invertida del parámetro.
+    assert "ESCAPE '\\'" in sql, sql
+    # El parámetro con los dos comodines escapados. Sin esto, el patrón sería `%100%%`, que
+    # casa con cualquier valor.
+    assert "%100\\%\\%%" in sql, sql
+    # Y no puede quedar ningún comodín sin escapar dentro del patrón.
+    assert "'%100%%'" not in sql, sql
 
 
 # --------------------------------------------------------------------------- #

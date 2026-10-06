@@ -9,17 +9,29 @@
  * funcionaba por casualidad —proxy, mismo origen— y en producción habría apuntado a
  * `panel.` y no a `api.`: una configuración correcta que no conecta, sin error visible.
  *
- * ## Por qué el token se pega y no se elige de una lista
+ * ## Por qué el desplegable **no** puede traer el token
  *
- * Porque el panel **no** puede leer los tokens: la tabla guarda un hash. La única vez que el
- * valor en claro existe en el navegador es en la respuesta del alta, y esa respuesta no se
- * conserva. Un desplegable con los tokens del workspace serviría para que el usuario creyera
- * que puede elegir uno y acabaría con un `<API_TOKEN>` sin sustituir.
+ * Porque el token **no existe** después de crearse. `api_tokens` guarda `token_hash`; el valor
+ * en claro solo aparece en la respuesta del alta y no se persiste en ningún sitio. No es que
+ * el panel no pueda leerlo: es que no hay de dónde.
  *
- * El selector lista los tokens **para identificar cuál pegar** —nombre, prefijo, permisos—,
- * y el campo de al lado es donde se pega el valor. El campo no se persiste y se limpia al
- * salir de la pestaña: un secreto guardado en el estado de un componente sobrevive a la
- * navegación dentro de la sesión.
+ * Y esa regla es correcta y no se toca. Si se guardara el secreto para poder mostrarlo, dejaría
+ * de ser recuperable solo por quien loTiene —que sería quien entre en la base de datos, que es
+ * justo el escenario que un hash protege— y además convertiría «se ha filtrado la base» en
+ * «se han filtrado todas las credenciales de todos los clientes».
+ *
+ * ## Por qué el desplegable se llama de todas formas
+ *
+ * Porque el problema que resuelve no es «ver el token», es **«no saber cuál pegar»**. Antes el
+ * flujo era: abrir otra pestaña, buscar el token por su nombre entre una lista, copiarlo de un
+ * aviso que aparece una vez, cerrar, pegar en un archivo de configuración. El desplegable quita
+ * los tres primeros pasos: se elige el token por su **nombre**, con sus **permisos** y su
+ * **caducidad** a la vista, y se copia la configuración ya montada.
+ *
+ * Y el paso que queda —tener el valor en la mano— es el único que la regla de una sola vez
+ * impone, y por eso el desplegable ofrece **dos salidas honestas**: usar el token si su valor
+ * está a mano, o crear uno nuevo desde aquí con los permisos mínimos ya elegidos. Ambas están
+ * en la interfaz porque las dos son reales, y ninguna finge recuperar un secreto que no existe.
  *
  * ## Por qué avisar de que el archivo descargado lleva el secreto
  *
@@ -61,8 +73,50 @@ const MARCADOR = '<API_TOKEN>'
 
 export function McpTab({ tokens }: McpTabProps) {
   const { t } = useTranslation('apiAccess')
+  const { t: tCommon } = useTranslation('common')
+  const { i18n } = useTranslation()
   const [tokenPegado, setTokenPegado] = useState('')
   const [copiado, setCopiado] = useState<string | null>(null)
+  /**
+   * El token **elegido**, por identificador, no el secreto.
+   *
+   * ## Por qué es un `id` y no el token
+   *
+   * Porque es lo único que el backend puede devolver, y porque usar un identificador evita
+   * por construcción que el secreto llegue al estado de un componente. Un `useState` con el
+   * valor en claro sobrevive a la navegación dentro de la sesión y acaba en cualquier volcado
+   * del estado que se le haga a la página.
+   *
+   * ## Por qué el valor pegado se **descarta** al elegir otro token
+   *
+   * Porque si no, elegir un token distinto del que está pegado deja la configuración montada
+   * con un token que el desplegable dice que no es, y el error no se ve hasta que el cliente
+   * MCP devuelve `401` en un terminal del agente, a horas de distancia de quien lo causó.
+   */
+  const [tokenSeleccionado, setTokenSeleccionado] = useState<string>('')
+  const locale = i18n.language
+
+  const tokensVigentes = useMemo(
+    () => tokens.filter((token) => token.revoked_at === null),
+    [tokens],
+  )
+
+  const tokenElegido = useMemo(
+    () => tokensVigentes.find((token) => token.id === tokenSeleccionado) ?? null,
+    [tokenSeleccionado, tokensVigentes],
+  )
+
+  /**
+   * Los scopes de la etiqueta de cada opción.
+   *
+   * Se cuenta la intersección con `SCOPES_RECOMENDADOS` en lugar de volcar los cinco nombres:
+   * un desplegable con «mcp:connect, mcp:invoke, repositories:read, vulnerabilities:read,
+   * assets:read» en cada opción es ilegible, y lo que hay que comparar de un vistazo es si el
+   * token **alcanza** lo que el agente necesita. La lista completa, si hace falta, sale en el
+   * detalle del token elegido.
+   */
+  const alcanceDe = (scopes: readonly string[]): number =>
+    SCOPES_RECOMENDADOS.filter((scope) => scopes.includes(scope)).length
 
   // El token se borra al desmontar la pestaña. Sin esto, el secreto seguiria en el estado del
   // componente mientras el usuario navega por el panel dentro de la misma sesion.
@@ -239,11 +293,6 @@ export function McpTab({ tokens }: McpTabProps) {
     URL.revokeObjectURL(href)
   }
 
-  const tokensVigentes = useMemo(
-    () => tokens.filter((token) => token.revoked_at === null),
-    [tokens],
-  )
-
   /**
    * Los cuatro clientes, con su texto ya resuelto.
    *
@@ -302,6 +351,106 @@ export function McpTab({ tokens }: McpTabProps) {
           <code className="mcp-command mono">{url}</code>
         </p>
 
+        {/*
+          El desplegable va **antes** del campo de pegar, y no después.
+
+          ## Por qué este orden y no el inverso
+
+          Porque el desplegable es la vía principal y el campo es el suplente. Al revés, el
+          usuario ve un campo de contraseña vacío con un marcador que parece que hay que
+          sustituir, y el selector de abajo queda como un añadido. En este orden la pantalla
+          dice primero «elige un token» y después «si ya lo tienes a mano, pégalo», que es la
+          jerarquía real de las dos opciones.
+
+          Y el campo se **deshabilita** cuando hay un token elegido, porque el valor pegado y el
+          elegido son dos credenciales distintas y la configuración tiene que usar una sola.
+          Con los dos activos, el snippet salía con el token pegado y el detalle hablaba del
+          elegido, que es el peor sitio para que esos dos se contradigan.
+        */}
+        <div className="form-field">
+          <label className="mcp-field-label" htmlFor="mcp-token-select">
+            {t('mcp.selectTokenLabel')}
+          </label>
+          <select
+            id="mcp-token-select"
+            className="select-input"
+            value={tokenSeleccionado}
+            disabled={tokensVigentes.length === 0}
+            onChange={(event) => {
+              setTokenSeleccionado(event.target.value)
+              setTokenPegado('')
+            }}
+          >
+            <option value="">{t('mcp.noTokenSelected')}</option>
+            {tokensVigentes.map((token) => (
+              <option key={token.id} value={token.id}>
+                {t('mcp.tokenOption', {
+                  name: token.name,
+                  prefix: token.token_prefix,
+                  scopes: alcanceDe(token.scopes),
+                  total: SCOPES_RECOMENDADOS.length,
+                })}
+              </option>
+            ))}
+          </select>
+          <span className="form-hint">{t('mcp.selectTokenHint')}</span>
+        </div>
+
+        {tokenElegido ? (
+          <div className="mcp-token-detail">
+            <div className="mcp-token-detail-head">
+              <span className="mcp-token-name">{tokenElegido.name}</span>
+              <code className="mono">{tokenElegido.token_prefix}</code>
+              <span className={`badge badge-token-${tokenElegido.token_type.toLowerCase()}`}>
+                {t(`mcp.tokenType.${tokenElegido.token_type}`)}
+              </span>
+            </div>
+            <dl className="mcp-token-facts">
+              <div>
+                <dt>{t('mcp.tokenExpires')}</dt>
+                <dd className="mono">
+                  {tokenElegido.expires_at
+                    ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(
+                        new Date(tokenElegido.expires_at),
+                      )
+                    : tCommon('values.never')}
+                </dd>
+              </div>
+              <div>
+                <dt>{t('mcp.tokenLastUsed')}</dt>
+                <dd className="mono">
+                  {tokenElegido.last_used_at
+                    ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(
+                        new Date(tokenElegido.last_used_at),
+                      )
+                    : t('mcp.tokenNeverUsed')}
+                </dd>
+              </div>
+            </dl>
+            <p className="mcp-scope-title">{t('mcp.tokenScopesTitle')}</p>
+            <ul className="mcp-scope-list">
+              {tokenElegido.scopes.map((scope) => (
+                <li key={scope} className="mono">
+                  {scope}
+                </li>
+              ))}
+            </ul>
+            {/*
+              El aviso de que el valor no se puede recuperar sale **siempre** que hay un token
+              elegido, y no solo cuando falta el pegado. Es la información que decide el flujo:
+              sin él, el usuario elige un token, copia la configuración con el marcador, la
+              pega en su cliente y no funciona; y no hay ningún mensaje que le diga por qué,
+              porque desde la pantalla la configuración parece completa.
+            */}
+            {tokenPegado.trim() === '' ? (
+              <p className="mcp-warning" role="status">
+                <TriangleAlert size={16} aria-hidden="true" />
+                <span>{t('mcp.valueUnavailable')}</span>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="form-field">
           <label className="mcp-field-label" htmlFor="mcp-token">
             {t('mcp.tokenLabel')}
@@ -311,6 +460,7 @@ export function McpTab({ tokens }: McpTabProps) {
             className="text-input mono"
             type="password"
             value={tokenPegado}
+            disabled={tokenElegido !== null}
             onChange={(event) => setTokenPegado(event.target.value)}
             placeholder={MARCADOR}
             autoComplete="off"
@@ -319,25 +469,27 @@ export function McpTab({ tokens }: McpTabProps) {
           <span className="form-hint">{t('mcp.tokenHint')}</span>
         </div>
 
-        {tokensVigentes.length > 0 ? (
+        {/*
+          La lista completa de tokens **desaparece** y la sustituye el desplegable de arriba.
+
+          Antes era una lista informativa: nombre, prefijo y número de permisos, que es
+          exactamente la información que ahora está en el `<option>` elegido y en su detalle.
+          Mantener las dos era mostrar lo mismo dos veces, con la lista enteriza sin ninguna
+          acción: se podía leer que un token tenía cinco permisos y no se podía hacer nada con
+          esa información. El desplegable la convierte en una elección.
+
+          Y los permisos recomendados pasan a estar **en el texto de la opción**, no debajo de
+          la lista, porque es la pregunta que responde «¿este token sirve para mi agente?».
+        */}
+        {tokensVigentes.length === 0 ? (
+          <p className="mcp-note">{t('mcp.noTokens')}</p>
+        ) : (
           <div className="form-field">
             <span className="mcp-field-label">{t('mcp.availableTokens')}</span>
-            <ul className="mcp-token-list">
-              {tokensVigentes.map((token) => (
-                <li key={token.id} className="mcp-token-item">
-                  <span className="mcp-token-name">{token.name}</span>
-                  <code className="mono">{token.token_prefix}</code>
-                  <span className="form-hint">
-                    {t('mcp.tokenScopes', { count: token.scopes.length })}
-                  </span>
-                </li>
-              ))}
-            </ul>
             <span className="form-hint">{t('mcp.recommendedScopes')}</span>
             <p className="mcp-scope-row mono">{SCOPES_RECOMENDADOS.join('  ')}</p>
+            <p className="mcp-note">{t('mcp.oneTimeRule')}</p>
           </div>
-        ) : (
-          <p className="mcp-note">{t('mcp.noTokens')}</p>
         )}
 
         {hayToken ? (

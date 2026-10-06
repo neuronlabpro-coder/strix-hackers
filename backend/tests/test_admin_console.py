@@ -38,6 +38,7 @@ from backend.apps.organizations.models import (
     RoleEnum,
     User,
 )
+from backend.apps.pentests.models import PentestRun, ScanModeEnum, ScanStatusEnum, TargetTypeEnum
 from backend.core.config import settings
 from backend.core.security import create_access_token, hash_password
 from backend.main import app
@@ -723,6 +724,171 @@ async def test_el_visor_de_auditoria_filtra_por_accion_y_tenant(
     assert propio.status_code == 200
     assert vacio.status_code == 200
     assert vacio.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_tenants_no_trata_los_comodines_como_comodines(
+    integration_session: AsyncSession,
+) -> None:
+    r"""`%` y `_` se buscan literales en `/api/v1/admin/tenants?search=`.
+
+    Este es el peor de los nueve, por una razón concreta: la consola lista **todos** los tenants
+    de la plataforma, y la base de demostración acumula miles de organizaciones de sesiones
+    anteriores. Sin escape, `?search=%` devolvía todas: el operador veía una lista enorme que no
+    había pedido y no tenía forma de saber que su filtro no había filtrado nada.
+
+    ## Por qué el `_` no es una rareza en esta tabla
+
+    Porque los tenants de prueba llevan `_` en el nombre y en el slug —`Stripe E2E _algo_`,
+    `UI _algo_`— y los de integración también. Buscar `web_app` sin escapar devolvería también
+    `webXapp`, y buscar el sufijo exacto de un tenant devolvería los que solo coinciden en una
+    posición.
+
+    ## Por qué el `total` se compara con una lista sembrada y no con la base entera
+
+    Porque el catálogo de tenants tiene filas de sesiones anteriores y su número cambia. La
+    comprobación se apoya en un sufijo único: el término que lleva `%` solo puede casar con las
+    dos filas que esta prueba ha sembrado, así que el número esperado es cerrado y el defecto se
+    ve aunque la base tenga diez mil tenants.
+    """
+
+    session = integration_session
+    assert session is not None
+    _user, headers = await _superuser(session)
+    sufijo = uuid.uuid4().hex[:8]
+
+    def _tenant(nombre: str, slug: str) -> Organization:
+        return Organization(name=nombre, slug=slug)
+
+    # Cada par se diferencia solo en el carácter que se va a buscar: `_` contra `X` y `%` contra
+    # `0`. Y cada término aparece en **una sola** fila, para que un fallo de escape se cuente
+    # como un número y no como dos.
+    session.add_all(
+        [
+            _tenant(f"Cliente web_app {sufijo}", f"web_app-{sufijo}"),
+            _tenant(f"Cliente webXapp {sufijo}", f"webXapp-{sufijo}"),
+            _tenant(f"Descuento 100%off {sufijo}", f"descuento-100off-{sufijo}"),
+            _tenant(f"Descuento 1000off {sufijo}", f"descuento-1000off-{sufijo}"),
+        ]
+    )
+    await session.commit()
+    transporte = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        con_porcentaje = await client.get(
+            "/api/v1/admin/tenants", params={"search": "%", "limit": 100}, headers=headers
+        )
+        con_subrayado = await client.get(
+            "/api/v1/admin/tenants",
+            params={"search": f"web_app {sufijo}", "limit": 100},
+            headers=headers,
+        )
+        con_texto = await client.get(
+            "/api/v1/admin/tenants",
+            params={"search": f"100%off {sufijo}", "limit": 100},
+            headers=headers,
+        )
+
+    assert con_porcentaje.status_code == 200, con_porcentaje.text
+    # `%` a secas devuelve **una** fila —la que lleva el símbolo— y no los miles de tenants de
+    # la plataforma. Sin escape el total sería el número completo de organizaciones.
+    cuerpo = con_porcentaje.json()
+    assert cuerpo["total"] == 1, cuerpo["total"]
+    assert cuerpo["items"][0]["name"] == f"Descuento 100%off {sufijo}"
+    # `_` no es comodín de un carácter.
+    cuerpo_subrayado = con_subrayado.json()
+    assert cuerpo_subrayado["total"] == 1, cuerpo_subrayado["total"]
+    assert cuerpo_subrayado["items"][0]["name"] == f"Cliente web_app {sufijo}"
+    # Y el `%` en medio se busca literal, sin arrastrar al `1000off`.
+    cuerpo_texto = con_texto.json()
+    assert cuerpo_texto["total"] == 1, cuerpo_texto["total"]
+    assert cuerpo_texto["items"][0]["name"] == f"Descuento 100%off {sufijo}"
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_de_escaneos_no_trata_los_comodines_como_comodines(
+    integration_session: AsyncSession,
+) -> None:
+    r"""`%` y `_` se buscan literales en `/api/v1/admin/operations/scans?busqueda=`.
+
+    Sin escapar, `busqueda=%` devuelve **todos los escaneos de la plataforma**: el comodín va
+    también en los dos extremos del patrón, así que `%\%` casa con cualquier objetivo. Aquí el
+    fallo es peor que en un listado de cliente, porque el operador está mirando la consola de
+    toda la instalación y el filtro que ha escrito no ha filtrado nada.
+
+    ## Por qué `_` también aparece en esta pantalla
+
+    Porque los objetivos que se escanean llevan `_` con frecuencia: un objetivo de pruebas se
+    llama `web_app.staging.example.com` y el entorno de preproducción `webXapp.staging.example.com`
+    es otra cosa. Sin escape, buscar el primero devuelve también el segundo.
+
+    Se siembran cuatro escaneos con un sufijo único y se comprueba el `total` de cada respuesta. El
+    `total` esperado vale 1, así que la prueba no depende de cuántas filas hay en la base: con
+    escape, `%` a secas solo encuentra el escaneo que de verdad lleva el símbolo; sin escape,
+    devolvería los miles de escaneos que la base de demostración arrastra de sesiones anteriores.
+    """
+
+    session = integration_session
+    assert session is not None
+    _user, headers = await _superuser(session)
+    sufijo = uuid.uuid4().hex[:8]
+
+    for objetivo in (
+        f"web_app-{sufijo}.example.com",
+        f"webXapp-{sufijo}.example.com",
+        f"descuento-100%off-{sufijo}.example.com",
+        f"descuento-1000off-{sufijo}.example.com",
+    ):
+        session.add(
+            PentestRun(
+                organization_id=uuid.UUID(headers["X-Organization-Id"]),
+                target_type=TargetTypeEnum.DOMAIN,
+                target_identifier=objetivo,
+                scan_mode=ScanModeEnum.STANDARD,
+                status=ScanStatusEnum.COMPLETED,
+            )
+        )
+    await session.commit()
+    transporte = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transporte, base_url="http://test") as client:
+        con_porcentaje = await client.get(
+            "/api/v1/admin/operations/scans",
+            params={"busqueda": "%", "limite": 100},
+            headers=headers,
+        )
+        con_subrayado = await client.get(
+            "/api/v1/admin/operations/scans",
+            params={"busqueda": f"web_app-{sufijo}", "limite": 100},
+            headers=headers,
+        )
+        con_texto = await client.get(
+            "/api/v1/admin/operations/scans",
+            params={"busqueda": f"100%off-{sufijo}", "limite": 100},
+            headers=headers,
+        )
+
+    assert con_porcentaje.status_code == 200, con_porcentaje.text
+    assert con_subrayado.status_code == 200, con_subrayado.text
+    assert con_texto.status_code == 200, con_texto.text
+
+    # `%` a secas devuelve **uno**, y la plataforma tenía ya `sesion_antes` escaneos más los
+    # cuatro recién sembrados. Sin escape, el total sería ese número entero.
+    cuerpo_porcentaje = con_porcentaje.json()
+    assert cuerpo_porcentaje["total"] == 1, cuerpo_porcentaje["total"]
+    assert cuerpo_porcentaje["items"][0]["target_identifier"] == (
+        f"descuento-100%off-{sufijo}.example.com"
+    )
+    # `_` no es comodín de un carácter.
+    cuerpo_subrayado = con_subrayado.json()
+    assert cuerpo_subrayado["total"] == 1, cuerpo_subrayado["total"]
+    assert cuerpo_subrayado["items"][0]["target_identifier"] == f"web_app-{sufijo}.example.com"
+    # Y el `%` en medio se busca literal, sin arrastrar al `1000off`.
+    cuerpo_texto = con_texto.json()
+    assert cuerpo_texto["total"] == 1, cuerpo_texto["total"]
+    assert cuerpo_texto["items"][0]["target_identifier"] == (
+        f"descuento-100%off-{sufijo}.example.com"
+    )
 
 
 @pytest.mark.asyncio

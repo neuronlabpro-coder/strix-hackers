@@ -31,6 +31,7 @@ from backend.workers.runner.exceptions import (
     SandboxExecutionError,
     SandboxOutputError,
     SandboxTimeoutError,
+    SandboxWorkspaceError,
 )
 
 from .egress_fence import exigir_cerco_de_salida, subred_de_la_red
@@ -92,10 +93,20 @@ class StrixSandboxManager:
     def setup_workspace(self) -> Path:
         """Crea un directorio nuevo y privado; nunca reutiliza uno de otro run."""
 
-        self.workspace_root.mkdir(parents=True, exist_ok=True)
-        self.workspace_root.chmod(0o700)
-        run_dir = self.workspace_root / self.run_id
-        run_dir.mkdir(mode=0o700, exist_ok=False)
+        try:
+            self.workspace_root.mkdir(parents=True, exist_ok=True)
+            self.workspace_root.chmod(0o700)
+            run_dir = self.workspace_root / self.run_id
+            run_dir.mkdir(mode=0o700, exist_ok=False)
+        except OSError as error:
+            # El `OSError` se tipa aqui y no mas abajo a proposito: en `run()` los `OSError`
+            # del daemon de Docker se convierten en `ContainerExecutionError`, y un fallo de
+            # permisos preparando el workspace es del host, no de Docker. Sin esta distincion
+            # los dos fallos salen con el mismo motivo y el operador mira el daemon cuando el
+            # problema es un `mkdir` sin permisos.
+            raise SandboxWorkspaceError(
+                f"El host no permite preparar el workspace en {self.workspace_root}: {error}"
+            ) from error
         self.temp_dir = run_dir
         try:
             (run_dir / "workspace").mkdir(mode=0o700)

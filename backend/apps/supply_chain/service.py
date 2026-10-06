@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.supply_chain.manifests import ResultadoDelParseo, parsear_manifiesto
 from backend.apps.supply_chain.models import EcosystemEnum, SupplyChainPackage
+from backend.core.filtros_texto import coincide
 
 
 class RepositoryNotIndexedError(LookupError):
@@ -251,9 +252,12 @@ async def listar_paquetes(
     if solo_desarrollo is not None:
         condiciones.append(SupplyChainPackage.is_dev_dependency.is_(solo_desarrollo))
     if busqueda:
-        patron = f"%{busqueda}%"
+        # `coincide` escapa los comodines de `LIKE`. Sin ese escape, `busqueda="%"` devuelve el
+        # inventario entero del tenant —el comodín va también en los dos extremos del patrón— y
+        # `busqueda="web_app"` también traería `webXapp`. Es el fallo más silencioso de un filtro:
+        # la tabla sale llena y el operador da por bueno un filtro que no ha filtrado nada.
         condiciones.append(
-            SupplyChainPackage.name.ilike(patron) | SupplyChainPackage.license.ilike(patron)
+            coincide([SupplyChainPackage.name, SupplyChainPackage.license], busqueda)
         )
 
     from backend.apps.repositories.models import Repository

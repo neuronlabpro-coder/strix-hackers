@@ -299,13 +299,18 @@ def _tenant_query(
             Organization.deleted_at.is_(None), Organization.is_active.is_(False)
         )
     if search:
-        # `ILIKE` y no `LIKE`: el operador exige el comodín, así que un filtro de búsqueda
-        # con `%%` en la consulta es un fallo esperando. Con SQLAlchemy el comodín va en
-        # el parámetro y PostgreSQL recibe un `ILIKE` plano.
-        patron = f"%{search}%"
-        consulta = consulta.where(
-            Organization.name.ilike(patron) | Organization.slug.ilike(patron)
-        )
+        # `coincide` escapa los comodines de `LIKE` y busca sobre `name` y `slug` a la vez.
+        #
+        # Aquí el fallo era peor que en el resto de buscadores del proyecto, porque la consola
+        # lista **todos** los tenants de la plataforma: sin escape, `?search=%` devolvía los miles
+        # de tenants que se acumulan —incluidos los de prueba de sesiones anteriores— y el
+        # operador veía una lista enorme que él no había pedido. Ni error ni aviso: la pantalla
+        # responde con filas y el filtro parece funcionar.
+        #
+        # Y el `_` importa en esta tabla por una razón concreta: los tenants de prueba se llaman
+        # `victima-<sufijo>` y los de integración `stripe-e2e-<sufijo>`, así que un nombre con `_`
+        # no es una rareza, es la norma.
+        consulta = consulta.where(coincide([Organization.name, Organization.slug], search))
     # La anotacion declara la forma de dos columnas que el consumidor espera, y el
     # coalesce de un subquery devuelve Any en el tipado de SQLAlchemy. El cast dice
     # lo mismo en la firma sin propagar el Any al resto del modulo.

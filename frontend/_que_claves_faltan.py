@@ -72,10 +72,17 @@ def cargar(idioma: str, namespace: str | None) -> dict:
 
 
 #: Los sufijos con los que i18next pluraliza. Una clave que se llama con `{ count }` **no** existe
-#: jamás en singular: lo que existen son `clave_one` y `clave_other`. Sin esta lista, las tres claves
-#: de plural del panel —`tenants.members`, `operations.states.total`, `pricing.history.total`—
-#: saldrían como faltando cuando están perfectamente escritas, y "arreglarlas" crearía tres claves
-#: nuevas que no usa nadie.
+#: jamás en singular: lo que existen son `clave_one` y `clave_other`. Sin esta lista, las claves de
+#: plural del panel saldrían como faltando cuando están perfectamente escritas, y "arreglarlas"
+#: crearía claves nuevas que no usa nadie.
+#:
+#: Y el caso inverso también está: desde el 4 de octubre de 2026 las claves con plural de
+#: `supplyChain.json` están **en plano** —`metrics.repositories_one` cuelga de la raíz del
+#: namespace, no de `metrics`— porque con i18next 26.4.2 la forma anidada devuelve el aviso
+#: «returned an object instead of string» en lugar de la frase. `resolver` acepta tanto la forma
+#: anidada como la plana por eso: un comprobador que solo entendiera una de las dos daría un
+#: falso positivo en el fichero que está bien. Ver `plurales.test.ts`, que es donde vive el
+#: porqué.
 SUFIJOS_PLURAL = ("_one", "_other", "_zero", "_two", "_few", "_many")
 
 
@@ -89,10 +96,29 @@ def resolver(datos: dict, clave: str) -> bool:
 
 
 def existe(datos: dict, clave: str) -> bool:
-    """Si la clave existe, o si es un plural bien escrito de i18next."""
+    """Si la clave existe, o si es un plural bien escrito de i18next.
+
+    ## Por qué dos formas y no una
+
+    Porque i18next acepta las dos y el proyecto usa las dos. La **anidada** —`metrics` con una
+    clave `repositories` que es un objeto `_one`/`_other`— es la que documenta i18next; la
+    **plana** —`metrics.repositories_one` colgando de la raíz del namespace— es la que hace que
+    las frases plurales salgan con i18next 26.4.2, donde la anidada devuelve el aviso «returned
+    an object instead of string». Ver la nota de `SUFIJOS_PLURAL`.
+
+    Se prueban las dos porque este script responde «¿existe esta clave en el fichero?», y la
+    respuesta honesta es que sí, en las dos formas. Un comprobador que solo entendiera una
+    diría que falta una clave que existe, y eso enseña a ignorar su salida.
+    """
+
     if resolver(datos, clave):
         return True
-    return any(resolver(datos, clave + sufijo) for sufijo in SUFIJOS_PLURAL)
+    # La forma plana se busca **antes** de partir por puntos: `metrics.repositories_one`
+    # contiene puntos, y partirlo buscaría `repositories_one` dentro de `metrics`, que no
+    # existe porque la hoja cuelga de la raíz del namespace.
+    return any(clave + sufijo in datos for sufijo in SUFIJOS_PLURAL) or any(
+        resolver(datos, clave + sufijo) for sufijo in SUFIJOS_PLURAL
+    )
 
 
 def principal() -> int:

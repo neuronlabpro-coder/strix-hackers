@@ -44,13 +44,23 @@ que construyera la consulta entera escondería justo el filtro del que no hay qu
 nunca, y además no serviría para un listado donde el aislamiento lo aporta un `JOIN` en vez de
 una columna propia.
 
-## Por qué aquí no se han movido las copias que ya existían
+## Por qué aquí ya no hay copias del escape
 
-Porque `repositories/router.py` y `cve_database/service.py` tienen las suyas desde antes de que
-este módulo existiera, y cada una está documentada con el motivo por el que se decidió no
-moverla entonces. Consolidarlas es un cambio propio —toca dos módulos que funcionan y sus
-pruebas— y no algo que deba arrastrar un cambio de filtros. Se quedan, y quien lo haga puede
-borrar este módulo después. Lo que **no** se hace es escribir una quinta copia aquí.
+Porque hubo **cuatro**, una por módulo, cada una con su docstring defendiendo por qué se quedaba:
+`assets/service.py`, `support/service.py`, `repositories/router.py` y `cve_database/service.py`. Las
+cuatro eran correctas —se comprobó que hacen lo mismo en los mismos términos, 5.104 por copia— y
+eso es lo que lo hacía peor: un filtro de búsqueda es de las pocas cosas donde el fallo no se ve,
+así que cuatro copias correctas son cuatro sitios donde el próximo que las toque se equivoca en
+uno solo y no se entera.
+
+Los cuatro módulos usan ya `escape_like` de aquí. Y `test_escape_like_consolidado.py` es lo que lo
+mantiene así: recorre el árbol y falla si reaparece un `def _escape_like` fuera de este fichero, y
+compara esta función contra el cuerpo exacto de las copias antigas sobre los términos que
+separan un orden de escape correcto de uno equivocado —la barra invertida primero, que es el
+detalle que no se ve en el resultado de la pantalla.
+
+El comentario de aquí y el de los cuatro módulos están escritos con el motivo, no con la excusa:
+la consolidación se hizo **después**, con sus pruebas, y no colgada de un cambio de filtros.
 """
 
 from __future__ import annotations

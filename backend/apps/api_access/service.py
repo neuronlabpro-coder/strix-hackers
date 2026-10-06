@@ -96,12 +96,24 @@ async def list_api_tokens(
     El filtro por `organization_id` va en el `WHERE` y no se aplica después en Python:
     R3 exige que la restricción esté en la consulta, y filtrar en memoria dejaría la
     puerta abierta a que un cambio futuro de la función la olvide.
+
+    ## Por qué el desempate por `id`
+
+    Porque `created_at` **no** es único. Varios tokens dados de alta en la misma transacción
+    —un lote de integraciones, dos altas del mismo script— comparten marca, y en
+    `ORDER BY created_at DESC` el orden de esas filas lo decide el planificador, no la
+    consulta. Esta lista **no** está paginada, así que el daño no es de páginas solapadas:
+    es que al recargar, dos tokens con la misma marca se intercambian de sitio y la pantalla
+    parece haber cambiado sola.
+
+    El desempate va sobre `id`, que es único. No cambia **qué** filas se devuelven, solo el
+    orden entre las que ya se devolvían, y no toca el `WHERE`: R3 sigue intacto.
     """
 
     consulta = select(ApiToken).where(ApiToken.organization_id == organization_id)
     if not include_revoked:
         consulta = consulta.where(ApiToken.revoked_at.is_(None))
-    consulta = consulta.order_by(ApiToken.created_at.desc())
+    consulta = consulta.order_by(ApiToken.created_at.desc(), ApiToken.id.desc())
     return list((await session.execute(consulta)).scalars().all())
 
 

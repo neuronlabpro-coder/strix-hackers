@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, CircleHelp, Package,
 import { useTranslation } from 'react-i18next'
 
 import {
+  getRepositories,
   getSupplyChainPackages,
   getSupplyChainSummary,
   syncSupplyChainRepository,
@@ -11,6 +12,7 @@ import {
 } from '../../lib/api'
 import type {
   Ecosystem,
+  Repository,
   SupplyChainPackage,
   SupplyChainSummary,
   SupplyChainSyncResult,
@@ -51,6 +53,24 @@ const BADGE_DE_ECOSYSTEM: Record<Ecosystem, string> = {
 
 const PAGE_SIZE = 50
 
+/**
+ * Cuántos repositorios se ofrecen como candidatos a sincronizar.
+ *
+ * ## Por qué es una constante y no la página del inventario
+ *
+ * Porque el `limit` de `/repositories/` tiene tope de 100 en el backend, y porque una lista de
+ * candidatos de un desplegable se acota con el buscador del desplegable, no con paginación. Con
+ * cien salen todos los casos reales de un cliente de tamaño mediano, y si un cliente llega a
+ * quinientos, el buscador del desplegable es lo que reduce la lista —que es exactamente lo que
+ * se hace con cualquier desplegable de doscientas opciones.
+ *
+ * No se pone un aviso de «100 de 500» porque la lista no es un inventario que el usuario esté
+ * recorriendo: es el catálogo de qué se puede sincronizar, y el buscador lo cubre. Un contador
+ * de «mostrando 100 de 500» en un desplegable sería ruido que además sugiere que faltan
+ * repositorios sincronizables, cuando lo que faltan son de la **paginación de este selector**.
+ */
+const REPOS_POR_PAGINA = 100
+
 type FiltroVulnerabilidad = 'todos' | 'vulnerable' | 'clean' | 'unchecked'
 
 const FILTRO_A_QUERY: Record<FiltroVulnerabilidad, boolean | null | undefined> = {
@@ -80,6 +100,19 @@ export function SupplyChainPage() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [lastSync, setLastSync] = useState<SupplyChainSyncResult | null>(null)
   const [syncFailed, setSyncFailed] = useState(false)
+  /**
+   * Los repositorios conectados, que son los candidatos a sincronizar.
+   *
+   * ## Por qué se piden aquí y no vienen del resumen
+   *
+   * Porque el resumen cuenta paquetes y no sabe qué repositorios hay. Y porque **este estado no
+   * tenía ninguna fuente**: `repositoryId` solo lo ponía `reiniciar()`, con el valor `null`, de
+   * modo que el botón de sincronizar —que sale cuando hay repositorio seleccionado— no se
+   * llegaba a ver nunca. El inventario salía vacío siempre y la pantalla lo auditaba como
+   * correcto: cero dependencias es una respuesta válida para una organización sin repositorios
+   * y para una que nunca le dio al botón.
+   */
+  const [repositories, setRepositories] = useState<Repository[]>([])
 
   const isAuthenticated = Boolean(token && selectedOrganizationId)
 
@@ -114,6 +147,32 @@ export function SupplyChainPage() {
     // en si haria que cada render del objeto fuera un cambio.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clave, token, selectedOrganizationId, filtro])
+
+  /**
+   * Los repositorios se piden una vez al entrar, y **no** se recargan con `reloadToken`.
+   *
+   * Porque la lista de candidatos cambia cuando alguien conecta un repositorio, que se hace en
+   * otra pantalla, y volver a pedirla después de cada sincronización sería una petición por
+   * cada botón pulsado para obtener exactamente la misma lista. Es un dato del workspace, no
+   * del inventario: el inventario cambia con la sincronización, la lista de repos no.
+   */
+  useEffect(() => {
+    if (!token || !selectedOrganizationId) return
+    let isActive = true
+    void getRepositories(token, selectedOrganizationId, REPOS_POR_PAGINA)
+      .then((pagina) => {
+        if (isActive) setRepositories(pagina.items)
+      })
+      .catch(() => {
+        // Un fallo aquí no se muestra: sin lista de repositorios no hay nada que sincronizar,
+        // y el inventario que ya se ve sigue siendo cierto. Se registra el vacío y el resto de
+        // la pantalla funciona; un error aquí taparía una tabla que sí tiene datos.
+        if (isActive) setRepositories([])
+      })
+    return () => {
+      isActive = false
+    }
+  }, [token, selectedOrganizationId])
 
   useEffect(() => {
     if (!token || !selectedOrganizationId) return
@@ -291,9 +350,43 @@ export function SupplyChainPage() {
             </button>
           )}
 
-          {/* El botón solo aparece con un repositorio seleccionado, porque sincronizar sin
-              saber **qué** se sincroniza sería un botón que dispara cuatro peticiones al
-              proveedor sin decir a cuál. El filtro de repositorio es el que decide. */}
+          {/*
+            El selector de repositorio va en la barra de filtros y **no** dentro de la tabla.
+
+            Antes no había selector: `repositoryId` solo lo ponía `reiniciar()`, con el valor
+            `null`, así que el botón de sincronizar —que sale cuando hay repositorio
+            seleccionado— no se veía nunca y el inventario quedaba vacío para siempre. Es el
+            fallo más caro de una pantalla vacía: no da error, no avisa y su única explicación
+            es un botón que no aparece.
+
+            Y va aquí y no arriba porque es un filtro: filtra la tabla **y** decide a qué
+            repositorio se sincroniza. Con el selector solo arriba, el botón de la barra
+            dispararía cuatro peticiones al proveedor sin decir a cuál, que es justo lo que el
+            comentario original del botón intentaba evitar.
+          */}
+          <div className="filter-field supply-repository-field">
+            <label htmlFor="supply-repository">{t('filters.repositoryLabel')}</label>
+            <select
+              id="supply-repository"
+              value={repositoryId ?? ''}
+              disabled={repositories.length === 0}
+              onChange={(event) => setRepositoryId(event.target.value || null)}
+            >
+              <option value="">{t('filters.allRepositories')}</option>
+              {repositories.map((repositorio) => (
+                <option key={repositorio.id} value={repositorio.id}>
+                  {repositorio.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/*
+            El botón sigue apareciendo solo con un repositorio seleccionado, por el motivo que
+            dice su comentario: sincronizar sin saber **qué** se sincroniza sería disparar
+            cuatro peticiones al proveedor sin decir a cuál. Lo que ha cambiado es que ahora
+            **hay** forma de llegar a esa situación.
+          */}
           {repositoryId !== null && (
             <button
               className="secondary-button"
@@ -365,11 +458,23 @@ export function SupplyChainPage() {
             </span>
             <h3>{hayFiltros ? t('empty.filteredTitle') : t('empty.title')}</h3>
             <p>{hayFiltros ? t('empty.filteredBody') : t('empty.body')}</p>
-            {hayFiltros && (
+            {hayFiltros ? (
               <button className="secondary-button" type="button" onClick={reiniciar}>
                 {t('filters.clear')}
               </button>
-            )}
+            ) : null}
+            {/*
+              El inventario vacío **sin filtros** ofrece la acción que lo llena. Es la mitad que
+              faltaba: el estado vacío decía cómo se construye el inventario —«leyendo los
+              manifiestos»— y no decía quién los lee ni desde dónde. Sin este botón, la pantalla
+              sale vacía, dice que el inventario se construye así y se queda ahí.
+
+              Y sale solo sin filtros: si hay un filtro activo y no sale nada, la respuesta es
+              quitar el filtro, no sincronizar otra vez un repositorio que ya está indexado.
+            */}
+            {!hayFiltros && repositories.length > 0 ? (
+              <p className="empty-card-action">{t('empty.syncHint')}</p>
+            ) : null}
           </div>
         )}
 

@@ -145,3 +145,15 @@ htpasswd
 # en cada rama no aporta nada que el script no resuelva, y su copia en el historial
 # ya no se puede enmendar si hubiera que retirarlo.
 tools/
+
+# --- Volcados de sesion y transcripciones ---------------------------------------
+#
+# Un volcado de sesion de opencode pesa ~82 MB y contiene el historial completo de
+# una conversacion, incluidos tokens de proveedor y secretos con formato de URL.
+# Se isojo de la historia en el amend `6097c19`; la regla queda para que ningun
+# volcado vuelva a entrar. Con el nombre exacto, porque un patron `*.md` dejaria
+# pasar la documentacion del proyecto.
+configuraci-n-fastapi-postgresql-y-redis.md
+sesion-*.json
+opencode-*.json
+*.session.json

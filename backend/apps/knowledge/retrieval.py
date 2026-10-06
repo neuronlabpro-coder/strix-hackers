@@ -35,11 +35,12 @@ import re
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import or_, select
+from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.knowledge.documents import WorkspaceKnowledgeDocument
 from backend.apps.knowledge.okf import OkfDocument, parse_okf
+from backend.core.filtros_texto import patron_contains
 
 #: Cuántos documentos se recuperan por defecto.
 #:
@@ -150,6 +151,56 @@ def extraer_terminos(consulta: str) -> tuple[str, ...]:
     return tuple(vistos)
 
 
+def condicion_de_terminos(terminos: tuple[str, ...]) -> ColumnElement[bool]:
+    """La condición de texto de la recuperación: algún término casa en título o cuerpo.
+
+    ## Por qué vive en su propia función y no dentro de `recuperar_documentos`
+
+    Porque es la **única** parte de la recuperación cuyo SQL se puede inspeccionar desde fuera,
+    y es la parte que decide si los comodines de `LIKE` se escapan o no. Dentro de
+    `recuperar_documentos` el escape no se puede probar: la función devuelve documentos ya
+    puntuados, y como `_puntuar` vuelve a filtrar por subcadena literal, un término con
+    comodines no aparece en ningún documento y sale igual con escape o sin él. Extrayéndola, la
+    prueba puede mirar el patrón que sale —`ESCAPE` declarado y la barra invertida en el
+    parámetro— en vez de confiar en un resultado que no distingue las dos versiones.
+
+    No es una función hecha solo para la prueba: lo que construye es una condición de la base,
+    tiene forma propia y con razón propia, y leerla sin subir hasta el final de una función de
+    treinta líneas ya es más legible.
+
+    ## Por qué el `ILIKE` va sobre título y cuerpo
+
+    Porque es lo que hay sin embeddings, y es exactamente por eso que la puntuación pondera:
+    encontrar la palabra en el título dice más que encontrarla en la última línea de un
+    documento largo.
+
+    ## Por qué los comodines van escapados
+
+    Porque lo que se cuela aquí no es una fila de más en una tabla: es un documento entero en el
+    prompt del chat, y el modelo lo toma como contexto fiable. Sin escape, un `%` escrito en la
+    pregunta —`100% de descuento` es una frase normal de un cliente, no un intento— devuelve el
+    workspace entero.
+
+    ## Por qué el escape se pone también aunque hoy no se pueda demostrar el `_`
+
+    Porque el `_` queda enmascarado por el troceado: `extraer_terminos` parte `web_app` en
+    `web_app`, `web` y `app`, y `web` y `app` ya son subcadena de `webXapp`, así que ese documento
+    entra igual con el `_` escapado o sin él. El escape se pone porque es lo correcto y porque la
+    doble filtración que hoy lo tapa —esta condición y luego `_puntuar`— es una coincidencia de
+    implementación, no una garantía.
+    """
+
+    return or_(
+        *(
+            or_(
+                WorkspaceKnowledgeDocument.title.ilike(patron_contains(termino), escape="\\"),
+                WorkspaceKnowledgeDocument.content.ilike(patron_contains(termino), escape="\\"),
+            )
+            for termino in terminos
+        )
+    )
+
+
 async def recuperar_documentos(
     session: AsyncSession,
     organization_id: uuid.UUID,
@@ -166,6 +217,17 @@ async def recuperar_documentos(
     documento de otro, no vería un identificador raro en una lista: vería **las reglas de
     negocio de su competidor** respondiendo a su pregunta, y no tendría forma de saber que no
     son suyas.
+
+    ## Por qué aquí hay **dos** desempates y no uno
+
+    Porque aquí la ordenación que ve el usuario no es la de SQL: la puntuación se calcula en
+    Python, con `_puntuar`. Poner `id` al final del `ORDER BY` de la consulta **no** arregla
+    nada de lo que el usuario nota, porque ese `ORDER BY` solo decide qué `top_k * 3`
+    documentos entran como candidatos; el orden final lo pone el `sort` de más abajo. Un solo
+    desempate en SQL deja el problema entero donde se ve.
+
+    Los dos hacen falta y ninguno de los dos cambia el filtro de organización, que sigue
+    siendo la primera condición del `WHERE` (R3).
     """
 
     terminos = extraer_terminos(consulta)
@@ -175,25 +237,21 @@ async def recuperar_documentos(
     condicion_organizacion = (
         WorkspaceKnowledgeDocument.organization_id == organization_id
     )
-    # El `ILIKE` va sobre titulo, descripcion **y** cuerpo. Es lo que hay sin embeddings, y es
-    # exactamente por eso que la puntuacion pondera: encontrar la palabra en el titulo dice mas
-    # que encontrarla en la ultima linea de un documento largo.
-    condicion_texto = or_(
-        *(
-            or_(
-                WorkspaceKnowledgeDocument.title.ilike(f"%{termino}%"),
-                WorkspaceKnowledgeDocument.content.ilike(f"%{termino}%"),
-            )
-            for termino in terminos
-        )
-    )
+    condicion_texto = condicion_de_terminos(terminos)
 
     filas = (
         (
             await session.execute(
                 select(WorkspaceKnowledgeDocument)
                 .where(condicion_organizacion, condicion_texto)
+                # El desempate del **corte**. `updated_at` es `now()` de servidor y todos los
+                # documentos que se indexan en la misma transacción comparten marca, así que
+                # sin este segundo criterio el `limit(top_k * 3)` deja fuera un documento
+                # distinto en cada llamada. El síntoma no es una página repetida: es que la
+                # **misma pregunta** recibe un contexto distinto, y el usuario lo lee como que
+                # el modelo ha cambiado de opinión entre un mensaje y el siguiente.
                 .order_by(WorkspaceKnowledgeDocument.updated_at.desc())
+                .order_by(WorkspaceKnowledgeDocument.id.desc())
                 .limit(top_k * 3)
             )
         )
@@ -210,7 +268,15 @@ async def recuperar_documentos(
     # El desempate por titulo hace la consulta **estable**: dos documentos con la misma
     # puntuacion vienen siempre en el mismo orden, y una lista que cambia de orden al recargar
     # hace pensar que ha cambiado algo cuando solo ha cambiado la consulta.
-    puntuados.sort(key=lambda trio: (-trio[1], trio[0].title))
+    #
+    # Y `id` va detrás del título, no delante. `title` se queda como primer criterio porque es
+    # lo que lee una persona —dos documentos con la misma puntuación se ordenan por su nombre,
+    # que es lo esperable—, pero **el título no es único**: nada impide que dos documentos se
+    # llamen igual, y mientras ese caso exista la lista sigue sin estar del todo ordenada. El
+    # `id` cierra el orden porque sí es único, y de paso decide el `[:top_k]` de abajo: sin
+    # él, dos documentos empatados en todo lo anterior entran y salen del contexto según le
+    # toque.
+    puntuados.sort(key=lambda trio: (-trio[1], trio[0].title, trio[0].id))
 
     return [
         _a_recuperado(documento, puntuacion, casados)

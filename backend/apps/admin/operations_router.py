@@ -63,6 +63,7 @@ from backend.apps.pentests.abort import AbortCleanupPendingError, abortar_run
 from backend.apps.pentests.abort_reason import AbortReasonEnum
 from backend.apps.pentests.models import PentestRun, ScanStatusEnum
 from backend.apps.repositories.models import PRReviewStatusEnum, PullRequestReview
+from backend.core.filtros_texto import coincide
 from backend.core.middleware import SessionDependency
 
 router = APIRouter(prefix="/api/v1/admin/operations", tags=["admin-operations"])
@@ -282,6 +283,33 @@ async def listar_scans(
     Y el umbral son los **300 segundos** que el watchdog ya usa para declarar obsoleto un run, no
     un número inventado: si coincide con el del watchdog, lo que se ve en la pantalla es
     exactamente lo que el watchdog va a hacer, y no una lista de runs que él todavía no ha tocado.
+
+    ## Por qué el desempate va sobre `PentestRun.id`
+
+    Porque `started_at` es **anulable** y `NULL` significa «en cola, sin empezar todavía». Con
+    `ORDER BY started_at ASC NULLS FIRST` todos los runs en cola comparten valor de orden —no
+    empatan por casualidad: empatan por definición, porque todos están en `NULL`—, así que sin
+    un segundo criterio su orden relativo lo decide el planificador. Y esta vista **sí** está
+    paginada, así que el reparto de ese empate entre las páginas también lo decide el
+    planificador: la página 2 repite filas de la 1 y se come otras, sin que nada lo indique.
+
+    Conviene ser preciso sobre lo que el desempate arregla y lo que no, porque son cosas
+    distintas y confundirlas lleva a prometer de más:
+
+    - **`NULLS FIRST` se queda.** Es deliberado: un run en cola lleva esperando desde
+      `created_at` y es de lo más urgente que el operador busca, así que va primero. Y no pierde
+      ninguna fila: con `limit`/`offset` la fila sale en la página que le toca. Lo que pasa es
+      que *cuál* página, sin desempate, no está decidido.
+    - **El desempate sí cierra el orden.** `started_at ASC NULLS FIRST, id ASC` es un orden
+      **total**: los nulos van delante por la regla del `NULLS FIRST` y, dentro de ese grupo, los
+      desempata `id`. No hace falta nada más: no hay que cambiar el `NULLS FIRST` ni quitar los
+      nulos de la primera página, porque el problema nunca fue *qué* filas salen, sino que su
+      orden dentro de cada página no dependía solo de los valores de las columnas.
+
+    El desempate es sobre la clave primaria de la tabla que se pagina. El `aliased` de
+    `Organization` se une por su clave primaria, así que es de uno a uno y no multiplica filas.
+    No cambia qué filas se devuelven, solo el orden entre las que ya se devolvían, y no mueve el
+    filtro: cuando el operador manda `organization_id`, sigue yendo al `WHERE` (R3).
     """
 
     organizacion = aliased(Organization)
@@ -297,9 +325,14 @@ async def listar_scans(
         base = base.where(PentestRun.organization_id == organization_id)
         conteo = conteo.where(PentestRun.organization_id == organization_id)
     if busqueda is not None:
-        patron = f"%{busqueda.strip()}%"
-        base = base.where(PentestRun.target_identifier.ilike(patron))
-        conteo = conteo.where(PentestRun.target_identifier.ilike(patron))
+        # `coincide` escapa los comodines de `LIKE`. Sin ese escape, `busqueda=%` devuelve
+        # todos los escaneos de la plataforma —el comodín va también en los dos extremos del
+        # patrón— y `busqueda=web_app` también traería `webXapp`. En la consola es el fallo más
+        # molesto de los tres sitios donde se cuela, porque el filtro que ha escrito el operador
+        # no ha filtrado nada y no hay forma de que lo note: la tabla sale llena y parece correcta.
+        condicion_busqueda = coincide([PentestRun.target_identifier], busqueda)
+        base = base.where(condicion_busqueda)
+        conteo = conteo.where(condicion_busqueda)
     if solo_colgados:
         # Los mismos estados en curso del watchdog, más la limpieza pendiente de un intento
         # anterior, y con el umbral del watchdog.
@@ -321,7 +354,10 @@ async def listar_scans(
     total = (await session.execute(conteo)).scalar_one()
     filas = (
         await session.execute(
-            base.order_by(PentestRun.started_at.asc().nullsfirst())
+            base.order_by(
+                PentestRun.started_at.asc().nullsfirst(),
+                PentestRun.id.asc(),
+            )
             .limit(limite)
             .offset(desplazamiento)
         )
@@ -604,7 +640,23 @@ async def listar_contenedores(
     Porque un contenedor de un run terminado **no debería existir**. Si existe, es que una
     limpieza falló, y ese run tiene `cleanup_pending=True`, que es justo el segundo caso de la
     consulta. Mostrar los contenedores de runs ya cerrados sería mostrar trabajo ya terminado,
-    que es ruido en una pantalla cuyo propósito es encontrar lo que está occupying resources.
+    que es ruido en una pantalla cuyo propósito es encontrar lo que está ocupando recursos.
+
+    ## Por qué el desempate va sobre `PentestRun.id`
+
+    Por lo mismo que en los escaneos, y aquí el caso es todavía más limpio porque **esta lista
+    solo contiene runs en curso**: `QUEUED` y `RUNNING`. Un run `QUEUED` tiene `started_at` a
+    `NULL` por definición —todavía no ha empezado—, así que el grupo de nulos no es una
+    coincidencia de la base de datos: es una propiedad de la lista. Y como `NULLS FIRST` los
+    pone delante, ese grupo es la primera página casi siempre.
+
+    Con el `ORDER BY` solo, el orden dentro del grupo de nulos lo decide el planificador, y como
+    la vista está paginada la página 2 puede repetir filas de la 1 y perder otras. El desempate
+    sobre la clave primaria cierra el orden sin cambiar el `NULLS FIRST` y sin tocar el `WHERE`.
+
+    Esta vista **no** filtra por organización, y es deliberado: un contenedor vivo sin saber de
+    quién es es exactamente el caso que el operador tiene delante, y filtrar por tenant lo
+    escondería detrás de un filtro que no tiene por qué conocer.
     """
 
     from backend.workers.runner.sandbox import StrixSandboxManager
@@ -620,7 +672,10 @@ async def listar_contenedores(
             select(PentestRun, organizacion.name)
             .join(organizacion, PentestRun.organization_id == organizacion.id)
             .where(PentestRun.status.in_([ScanStatusEnum.QUEUED, ScanStatusEnum.RUNNING]))
-            .order_by(PentestRun.started_at.asc().nullsfirst())
+            .order_by(
+                PentestRun.started_at.asc().nullsfirst(),
+                PentestRun.id.asc(),
+            )
             .limit(limite)
             .offset(desplazamiento)
         )
@@ -674,6 +729,22 @@ async def listar_reviews(
     Esa parte está escrita y verificada en `pentests.abort`, porque `_mark_linked_review_error`
     ya existe y `abortar_run` la llama. Lo que falta es el endpoint propio de revisión, que
     resuelve `review → run → abortar` y solo se diferencia en buscar por `review_id`.
+
+    ## Por qué el desempate va sobre `PullRequestReview.id`
+
+    Porque `created_at` no es único, y esta vista **sí** está paginada: dos revisiones
+    recientes pueden compartir marca —`created_at` es `now()` de servidor, y dos revisiones
+    que entran en la misma transacción lo hacen— y entonces la página 2 repite filas de la 1
+    y se come otras. El operador pasa de una a otra y ve duplicados y huecos sin que nada lo
+    indique.
+
+    El desempate es sobre la clave primaria de la tabla que se pagina. El `aliased` de
+    `Organization` se une por su clave primaria, o sea que es de uno a uno y no multiplica
+    filas: `PullRequestReview.id` sigue identificando cada fila de la salida sin ambigüedad.
+
+    El filtro por `organization_id` no se ha movido: cuando el operador lo manda, sigue yendo
+    al `WHERE`; cuando no lo manda, esta vista es deliberadamente global, como las demás de la
+    consola.
     """
 
     organizacion = aliased(Organization)
@@ -692,7 +763,7 @@ async def listar_reviews(
     total = (await session.execute(conteo)).scalar_one()
     filas = (
         await session.execute(
-            base.order_by(PullRequestReview.created_at.desc())
+            base.order_by(PullRequestReview.created_at.desc(), PullRequestReview.id.desc())
             .limit(limite)
             .offset(desplazamiento)
         )
@@ -746,6 +817,18 @@ async def listar_jobs(
     pasado es una sonda que se quedó sin conexión a mitad. El alquiler es lo que permite
     distinguir los dos: `reponer_alquileres` devuelve a la cola los que caducaron, y esa función
     ya existe y es la vía de desatascarlos sin tocar nada más.
+
+    ## Por qué el desempate va sobre `AgentJob.id`
+
+    Por la misma razón que en las revisiones de esta consola, y aquí es todavía más grave:
+    los trabajos **nacen a ráfaga**. Un webhook que llega con cinco eventos encola cinco
+    trabajos, y como `created_at` es `now()` de servidor, esos cinco comparten marca. Con
+    `ORDER BY created_at DESC` y nada más, el reparto entre las páginas lo decide el
+    planificador, y el operador ve la misma cola con filas duplicadas y huecos según por
+    dónde pase.
+
+    El desempate es sobre `AgentJob.id`, la clave primaria de la tabla que se pagina. El
+    `aliased` de `Organization` se une por su clave primaria, así que no multiplica filas.
     """
 
     organizacion = aliased(Organization)
@@ -764,7 +847,9 @@ async def listar_jobs(
     total = (await session.execute(conteo)).scalar_one()
     filas = (
         await session.execute(
-            base.order_by(AgentJob.created_at.desc()).limit(limite).offset(desplazamiento)
+            base.order_by(AgentJob.created_at.desc(), AgentJob.id.desc())
+            .limit(limite)
+            .offset(desplazamiento)
         )
     ).all()
 

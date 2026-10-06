@@ -84,6 +84,67 @@ def _review(
 
 
 @pytest.mark.asyncio
+async def test_el_filtro_de_rama_trata_los_comodines_como_literales(
+    integration_session: AsyncSession,
+) -> None:
+    r"""`%` y `_` se buscan literales en `?source_branch=`.
+
+    Aquí el caso real es `_`, porque los nombres de rama llevan `_` con frecuencia —`fix_web_app`,
+    `feature/api_admin`— así que `?source_branch=fix_web_app` sin escapar devolvería también
+    `fix-webXapp`. Y `%` a secas devolvería **todas** las revisiones del repositorio, que es el
+    fallo más silencioso que puede tener un filtro: la tabla sale llena y el operador da por bueno
+    un filtro que no ha filtrado nada.
+    """
+
+    session = integration_session
+    assert session is not None
+    organization, headers = await _tenant(session)
+    suffix = uuid.uuid4().hex
+    repository = _repository(organization.id, suffix)
+    session.add(repository)
+    await session.flush()
+
+    def _rama(numero: int, rama: str) -> PullRequestReview:
+        revision = _review(organization.id, repository.id, numero, PRReviewStatusEnum.PASSED)
+        revision.source_branch = rama
+        return revision
+
+    session.add_all(
+        [
+            _rama(1, "fix_web_app"),
+            _rama(2, "fix-webXapp"),
+            _rama(3, "release-100%off"),
+            _rama(4, "release-1000off"),
+        ]
+    )
+    await session.commit()
+    transport = ASGITransport(app=app)
+    base = f"/api/v1/repositories/{repository.id}/reviews"
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        con_porcentaje = await client.get(
+            base, params={"source_branch": "%"}, headers=headers
+        )
+        con_subrayado = await client.get(
+            base, params={"source_branch": "fix_web_app"}, headers=headers
+        )
+        con_texto = await client.get(
+            base, params={"source_branch": "100%off"}, headers=headers
+        )
+
+    assert con_porcentaje.status_code == 200, con_porcentaje.text
+    # `%` a secas devuelve **una** revisión —la única que lleva el símbolo— y no las cuatro.
+    assert con_porcentaje.json()["total"] == 1, con_porcentaje.json()
+    assert con_porcentaje.json()["items"][0]["source_branch"] == "release-100%off"
+    # `_` no es comodín de un carácter: `fix-webXapp` no aparece.
+    assert con_subrayado.json()["total"] == 1, con_subrayado.json()
+    assert con_subrayado.json()["items"][0]["source_branch"] == "fix_web_app"
+    # Y el `%` en medio se busca literal, sin arrastrar al `1000off`.
+    assert con_texto.json()["total"] == 1, con_texto.json()
+    assert con_texto.json()["items"][0]["source_branch"] == "release-100%off"
+
+
+@pytest.mark.asyncio
 async def test_repository_reviews_are_paginated_and_filtered(
     integration_session: AsyncSession,
 ) -> None:

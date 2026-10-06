@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.audit.models import AuditActionEnum, AuditLogEntry
@@ -38,6 +38,7 @@ from backend.apps.webhooks.emission import (
     vulnerability_status_payload,
 )
 from backend.core.database import get_db
+from backend.core.filtros_texto import coincide
 from backend.core.middleware import TenantContext, get_current_tenant
 from backend.core.rate_limit import enforce_autofix_rate_limit
 
@@ -96,12 +97,14 @@ async def list_vulnerabilities(
     if target is not None:
         filters.append(Vulnerability.affected_target == target)
     if search:
-        pattern = f"%{search.strip().lower()}%"
+        # `coincide` escapa los comodines de `LIKE`. Sin ese escape, `?search=%` devuelve los
+        # hallazgos enteros y `?search=web_app` también traería `webXapp`: el fallo más silencioso
+        # que puede tener un buscador, porque la pantalla responde con filas y el operador da por
+        # bueno un filtro que no ha filtrado nada.
         filters.append(
-            or_(
-                func.lower(Vulnerability.title).like(pattern),
-                func.lower(Vulnerability.affected_target).like(pattern),
-                func.lower(Vulnerability.cve_id).like(pattern),
+            coincide(
+                [Vulnerability.title, Vulnerability.affected_target, Vulnerability.cve_id],
+                search,
             )
         )
 

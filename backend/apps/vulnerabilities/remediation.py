@@ -279,6 +279,18 @@ async def _review_id_del_hallazgo(
     puede directionar el PR. Se pasa un identificador nulo y la publicación usa la rama por
     defecto del repositorio, que es lo correcto para un hallazgo de escaneo: se propone el
     arreglo contra `main`, no contra una rama que ya no existe.
+
+    ## Por qué el `order_by` lleva un desempate
+
+    No está paginado —es un `limit(1)` para quedarse con una sola revisión—, así que aquí no
+    hay páginas que se solapen ni filas que se pierdan. Lo que hay es una elección que no
+    está decidida: `created_at` es `now()` de servidor, y todas las revisiones que crea un
+    mismo escaneo comparten marca. Con dos revisiones empatadas, la que sale es la que el
+    planificador pone primero, de modo que **la rama base contra la que se publica el arreglo
+    puede cambiar entre dos llamadas idénticas**.
+
+    El desempate es sobre `PullRequestReview.id`, la clave primaria, y no mueve el filtro:
+    `organization_id` sigue siendo la primera condición (R3).
     """
 
 
@@ -289,7 +301,7 @@ async def _review_id_del_hallazgo(
                 PullRequestReview.organization_id == vulnerability.organization_id,
                 PullRequestReview.run_id == vulnerability.run_id,
             )
-            .order_by(PullRequestReview.created_at.desc())
+            .order_by(PullRequestReview.created_at.desc(), PullRequestReview.id.desc())
             .limit(1)
         )
     ).scalar_one_or_none()

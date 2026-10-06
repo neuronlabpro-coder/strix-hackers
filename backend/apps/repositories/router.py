@@ -15,6 +15,7 @@ from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.apps.repositories import reviews
 from backend.apps.repositories.clients.base import BaseGitClient, GitClientError
 from backend.apps.repositories.clients.factory import UnsupportedGitProviderError
 from backend.apps.repositories.inventory import (
@@ -31,6 +32,7 @@ from backend.apps.repositories.models import (
     Repository,
     generate_webhook_secret,
 )
+from backend.apps.repositories.reviews import DispatchDependency as ReviewDispatch
 from backend.apps.repositories.schemas import (
     PRReviewMetrics,
     PRReviewPage,
@@ -53,6 +55,7 @@ from backend.apps.repositories.token_refresh import (
 )
 from backend.core.crypto import CryptoError
 from backend.core.database import get_db
+from backend.core.filtros_texto import coincide, escape_like
 from backend.core.middleware import (
     AdminRequired,
     TenantContext,
@@ -70,6 +73,54 @@ ManagementRateLimit = Depends(enforce_repository_management_rate_limit)
 
 _IN_PROGRESS_REVIEW_STATUSES = (PRReviewStatusEnum.QUEUED, PRReviewStatusEnum.SCANNING)
 _SUPPORTED_MANAGEMENT_PROVIDERS = frozenset({GitProviderEnum.GITHUB, GitProviderEnum.GITLAB})
+
+#: La dependencia de encolado del análisis de una revisión.
+#:
+#: Es una dependencia y no una llamada directa a `run_pr_security_pipeline.delay` porque el
+#: servicio —`reviews.py`— no depende de FastAPI, y porque así la prueba puede sustituirla sin
+#: tocar Redis. Es exactamente el mismo patrón que `DispatchDependency` en `pentests/router.py`.
+#:
+#: Y se llama `get_dispatch_pr_review` en vez de reusar el `dispatch` de pentests a propósito: las
+#: dos tareas se registran con nombres distintos en Celery, con cola y límites de tiempo
+#: distintos, y un mismo parámetro que devuelve `task_id` no las hace intercambiables.
+def get_dispatch_pr_review() -> ReviewDispatch:
+    """Entrega el despachador real de revisiones.
+
+    ## Por qué **no** declara `review_id` como parámetro
+
+    Porque FastAPI resuelve las dependencias como si fueran endpoints, y un parámetro sin
+    `Annotated[..., Query()]` se interpreta como un parámetro de consulta. La primera versión de
+    esta función era `async def get_dispatch_pr_review(review_id: str) -> str`, y el resultado
+    fue que la ruta recibía un `str` —el identificador de la revisión— donde esperaba una
+    función, y `lanzar_analisis_de_review` fallaba al llamar con `'str' object is not callable`.
+
+    ## Por qué es una **fábrica** y no la función de encolado directa
+
+    Porque es lo que hace posible sustituirla en las pruebas con `dependency_overrides` sin tocar
+    Redis, que es lo mismo que hace `get_dispatch_pentest_run` y por el mismo motivo. Si la ruta
+    llamara a `run_pr_security_pipeline.delay(...)` en el cuerpo del manejador, ninguna prueba
+    podría ejercitar el camino sin encolar de verdad, y el `503` de cola caída —que es uno de los
+    modos de fallo que importan— no se podría provocar.
+
+    ## Por qué el import es **dentro** de la fábrica
+
+    Porque `backend.apps.repositories.tasks` importa el `celery_app`, que **no** registra sus
+    tareas hasta que se importa; un import en el nivel superior del router cargaría el broker y
+    las tareas del worker en cada proceso de la API, incluido el del servidor MCP. Es el mismo
+    motivo por el que `pentests/router.py` importa `execute_pentest_run` en el módulo y este lo
+    hace al vuelo: son dos caminos distintos y la decisión se tomó por el coste de arranque, no
+    por estética.
+    """
+
+    def _dispatch(review_id: str) -> str:
+        from backend.apps.repositories.tasks import run_pr_security_pipeline
+
+        return run_pr_security_pipeline.delay(review_id).id  # pyright: ignore[reportFunctionMemberAccess]
+
+    return _dispatch
+
+
+ReviewDispatchDependency = Annotated[ReviewDispatch, Depends(get_dispatch_pr_review)]
 
 
 async def _require_admin(tenant: TenantDependency) -> None:
@@ -715,8 +766,12 @@ async def list_repository_reviews(
     if review_status is not None:
         filters.append(PullRequestReview.status == review_status)
     if source_branch:
-        pattern = f"%{source_branch.strip().lower()}%"
-        filters.append(func.lower(PullRequestReview.source_branch).like(pattern))
+        # `coincide` escapa los comodines de `LIKE`. Aquí el caso real es `_`, porque los
+        # nombres de rama lo llevan con frecuencia: sin escape, `?source_branch=fix_web_app`
+        # también traería `fix-webXapp`, y `?source_branch=%` traería todas las revisiones del
+        # repositorio. Es el fallo más silencioso de un filtro: la tabla sale llena y el
+        # operador da por bueno un filtro que no ha filtrado nada.
+        filters.append(coincide([PullRequestReview.source_branch], source_branch))
 
     total_result = await session.execute(
         select(func.count()).select_from(PullRequestReview).where(*filters)
@@ -740,22 +795,6 @@ async def list_repository_reviews(
     )
 
 
-def _escape_like(termino: str) -> str:
-    """Escapa los comodines de `LIKE` para que el término se busque literal.
-
-    ## Por qué aquí hace falta y en otros buscadores del proyecto no se nota
-
-    Porque en este buscador los comodines son el caso **normal** y no el caso límite: los nombres
-    de repositorio y de rama llevan `_` —`acme/web_app`, `feature/fix_auth`-— así que buscar
-    `web_app` sin escapar devolvería también `webXapp`, que el usuario no pidió. En el catálogo
-    CVE el mismo criterio ya está resuelto en `_escape_like` de `cve_database.service`; aquí se
-    repite en lugar de mover aquél a `core` porque tocar un módulo compartido por cuatro
-    pantallas para ahorrar seis líneas no sale a cuenta en un cambio de esta tamaño.
-    """
-
-    return termino.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def _busqueda_por_texto(termino: str) -> ColumnElement[bool]:
     """Condición de la búsqueda por texto del historial de revisiones.
 
@@ -766,6 +805,15 @@ def _busqueda_por_texto(termino: str) -> ColumnElement[bool]:
     usa para recordar una revisión concreta. Con una sola columna, buscar `auth` devolvería
     página vacía la mitad de las veces y el buscador parecería roto.
 
+    ## Por qué aquí el escape es el caso normal y no el caso límite
+
+    Porque los nombres de repositorio y de rama llevan `_` —`acme/web_app`, `feature/fix_auth`—,
+    así que buscar `web_app` sin escapar devolvería también `webXapp`, que el usuario no pidió.
+
+    El escape viene de `core.filtros_texto` y no de una copia local: había una, se comprobó que
+    las dos hacían lo mismo en los mismos términos y se consolidó. La prueba que cubre este
+    punto es `test_pr_reviews_api.py::test_pr_reviews_search_treats_like_wildcards_as_literals`.
+
     ## Por qué el número de PR se compara con `==` y no con `LIKE`
 
     Porque `%42%` también casa con `142` y con `420`, y el número de un pull request es un
@@ -775,7 +823,7 @@ def _busqueda_por_texto(termino: str) -> ColumnElement[bool]:
     devolver cero filas.
     """
 
-    patron = f"%{_escape_like(termino.lower())}%"
+    patron = f"%{escape_like(termino.lower())}%"
     alternativas: list[ColumnElement[bool]] = [
         func.lower(PullRequestReview.pr_title).like(patron, escape="\\"),
         func.lower(PullRequestReview.pr_author).like(patron, escape="\\"),
@@ -957,6 +1005,73 @@ async def read_pr_review_metrics(
         issues_critical=int(critical),
         issues_high=int(high),
     )
+
+
+@router.post(
+    "/api/v1/pr-reviews/{review_id}/analyze",
+    response_model=PRReviewResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[AdminRequired],
+)
+async def analyze_pull_request_review(
+    review_id: UUID,
+    tenant: TenantDependency,
+    session: SessionDependency,
+    dispatch: ReviewDispatchDependency,
+) -> PRReviewResponse:
+    """Pide el análisis de seguridad de una revisión de pull request.
+
+    ## Por qué es `202` y no `201`
+
+    Porque el recurso que se crea —el trabajo encolado— no es la revisión: la revisión **ya
+    existía** y solo cambia de estado. Un `201` diría «se creó una revisión nueva», que es
+    exactamente lo que no pasó, y un cliente que lo creyera podría insertar la respuesta en su
+    lista como una fila más. `202` dice lo que es: la petición se aceptó y el trabajo está en
+    curso. La revisión devuelta sale ya en `QUEUED`, así que el panel la pinta como en curso sin
+    tener que adivinarlo.
+
+    ## Por qué `AdminRequired` y no un permiso de API token
+
+    Por la misma razón que la sincronización de Supply Chain y que la indexación de manifiestos:
+    el pipeline abre un cliente Git con la **credencial del workspace** y lanza un contenedor
+    que consume tokens de la plataforma. Quien lo dispara no es un integración de terceros, es la
+    persona sentada en el panel. La regla de negocio del cliente no se expone a integraciones.
+
+    ## Por qué devuelve `404` y no `403` cuando no se puede lanzar
+
+    Porque hay dos motivos muy distintos —no existe, está en curso, el repositorio está
+    desconectado— y `403` confirmaría que el `review_id` existe en algún sitio, que es lo
+    contrario de lo que R3 permite. El motivo concreto va en el registro del servidor; el panel
+    recibe «no se puede lanzar» y el usuario ya sabe que tiene que refrescar o esperar.
+    """
+
+    try:
+        review = await reviews.lanzar_analisis_de_review(
+            session,
+            organization_id=tenant.organization.id,
+            review_id=review_id,
+            dispatch=dispatch,
+        )
+    except reviews.ReviewDispatchError as error:
+        # El encolado es infraestructura, no la petición del usuario: la revisión era válida y
+        # lo que no pudo atenderla fue la cola. Es un `503` con `Retry-After`, el mismo trato que
+        # recibe un pentest que no se pudo encolar, para que el panel sepa que reintentar tiene
+        # sentido.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo encolar el análisis de la revisión",
+            headers={"Retry-After": "30"},
+        ) from error
+    except reviews.ReviewNotLaunchableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La revisión no existe o no se puede lanzar ahora mismo",
+        ) from error
+
+    nombre = await session.execute(
+        select(Repository.full_name).where(Repository.id == review.repository_id)
+    )
+    return PRReviewResponse.from_review(review, repository_name=nombre.scalar_one())
 
 
 @router.get("/api/v1/repositories/{repository_id}", response_model=RepositoryResponse)

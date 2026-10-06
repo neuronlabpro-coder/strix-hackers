@@ -24,8 +24,15 @@
     "status": "Estado",
     "issues": "Hallazgos",
     "finishedAt": "Fecha",
+    "actions": "Acciones",
     "noIssues": "Ninguno",
     "inProgress": "En curso"
+  },
+  "analyze": {
+    "label": "Analizar el pull request #{{pr}}",
+    "started": "Análisis encolado. La fila se actualizará sola.",
+    "queueFailed": "No se pudo encolar el análisis: la cola de trabajo no está respondiendo. Vuelve a intentarlo en un momento.",
+    "notLaunchable": "Esta revisión no se puede volver a lanzar ahora. Si sigue en curso, espera a que termine; si el repositorio está desconectado, reconnéctalo desde Repositorios."
   },
   "status": {
     "PASSED": "Superado",

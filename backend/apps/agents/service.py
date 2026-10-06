@@ -862,6 +862,19 @@ async def listar_trabajos(
     El total se cuenta con el **mismo** filtro que la página. Contarlo sin filtro y filtrar
     después daría un número que no corresponde a lo que se ve, y ese número es el que se pinta
     arriba.
+
+    ## Por qué el desempate por `id`
+
+    Porque `created_at` es `now()` de servidor y los trabajos nacen a ráfaga: un webhook con
+    cinco eventos encola cinco trabajos en la misma transacción, y los cinco comparten marca.
+    Con `ORDER BY created_at DESC` y nada más, el reparto de ese empate entre las páginas lo
+    decide el planificador, y esta lista **sí** está paginada: el operador ve la misma cola con
+    filas repetidas y huecos según por dónde pase. Sin que nada lo indique, porque `total` sale
+    bien y los identificadores son correctos.
+
+    El desempate es sobre `AgentJob.id`, la clave primaria de la tabla que se pagina. No hay
+    `JOIN`, así que `id` identifica cada fila de la salida sin ambigüedad, y no cambia qué
+    filas se devuelven: solo el orden entre las que ya se devolvían.
     """
 
     condiciones = [AgentJob.organization_id == organization_id]
@@ -880,7 +893,7 @@ async def listar_trabajos(
             await session.execute(
                 select(AgentJob)
                 .where(*condiciones)
-                .order_by(AgentJob.created_at.desc())
+                .order_by(AgentJob.created_at.desc(), AgentJob.id.desc())
                 .limit(limit)
                 .offset(offset)
             )
@@ -999,6 +1012,14 @@ async def resumen_agente(
     # El filtro de tipo va **en la consulta** cuando la pantalla es de un solo tipo. La cuenta
     # de abajo saltaria los del otro tipo, pero la fila se habria leido igual, y con un
     # inventario de 400 paquetes en la respuesta eso son cientos de kilobytes que nadie pidió.
+    #
+    # El `order_by` lleva desempate por `id` por el mismo motivo que las listas paginadas, y
+    # aquí el daño es un **`LIMIT` sin `OFFSET`**: no hay páginas, pero sí un tope, y sin un
+    # segundo criterio los 200 trabajos que entran en la cuenta son distintos en cada llamada
+    # cuando hay ráfagas. El síntoma no es una página duplicada: es que el KPI de «imágenes» o
+    # de «paquetes» de la cabecera se mueve solo entre una pantalla y la siguiente, sin que
+    # haya cambiado ningún escaneo. Es el peor de los casos porque un número que se corrige
+    # solo es un número que miente.
     tope = 200
     condiciones = [
         AgentJob.organization_id == organization_id,
@@ -1012,7 +1033,7 @@ async def resumen_agente(
         await session.execute(
             select(AgentJob.kind, AgentJob.result, AgentJob.created_at, AgentJob.status)
             .where(*condiciones)
-            .order_by(AgentJob.created_at.desc())
+            .order_by(AgentJob.created_at.desc(), AgentJob.id.desc())
             .limit(tope)
         )
     ).all()

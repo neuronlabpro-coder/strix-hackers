@@ -43,10 +43,13 @@ import type {
   PentestRunPage,
   PRReviewMetrics,
   PRReviewPage,
+  PRReviewSummary,
   PRReviewStatus,
   RegisterPayload,
+  SandboxReadiness,
   RegisterResponse,
   RemoteRepositoryPage,
+  RepositoryPage,
   Repository,
   SupplyChainIndexRequest,
   SupplyChainIndexResult,
@@ -301,34 +304,48 @@ export function getOAuthAuthorizationUrl(
  * estaba justo encima, que es la forma de usar un buscador: no usarlo. Con diez, lo que no
  * coincide con la búsqueda se ve de un vistazo y se pasa a la palabra siguiente.
  *
- * ## Por qué no menos de diez
+ * ## Por qué **no** hay una ventana fija
  *
- * Porque quien no busca —quien acaba de conectar la credencial y quiere ver si hay repos, o
- * quien está mirando qué se ha importado ya— necesita más de tres filas para decidir, y con tres
- * parece una lista de la que no se puede sacar una conclusión.
+ * Porque estaba en diez, y en diez el buscador es inservible para el caso para el que existe.
+ * Con diez filas, un cliente con quinientos repositorios escribe el nombre de uno que está en
+ * la posición trescientos y el buscador no lo encuentra: el servidor filtra bien y devuelve
+ * `total: 1`, pero la ventana de la petición anterior —diez filas sin filtro— no lo contenía, así
+ * que el resultado correcto nunca llega a pintarse. Peor: la pantalla no dice por qué. Es el
+ * mismo fallo que se reportó al buscar `shy`, con un número aún más pequeño.
+ *
+ * ## Por qué quien llama decide el tamaño
+ *
+ * Porque el `limit` es el tope del servidor, no el diseño de la ventana: pedir diez cuando
+ * caben cien es dejar sin usar lo que ya se trajo. Quien llama sabe si está pintando un
+ * desplegable de candidatos o volcando el inventario, y una constante global obliga a los dos
+ * a compartir un número que no es de ninguno.
  *
  * ## Por qué el tope del servidor sigue siendo 100
  *
  * Porque el `le=100` de la ruta no es el tamaño de la ventana, es el techo de lo que se puede
- * pedir en una llamada. Bajarlo a diez sería cambiar una protección por una costumbre, y el día
- * que alguien quiera exportar el inventario entero se encontraría con un límite puesto para
- * tapar un problema de carga.
+ * pedir en una llamada. Y no es arbitrario: esa ruta llama a `list_repositories` del proveedor,
+ * que devuelve **el inventario entero del cliente** en cada petición, así que el límite protege
+ * al navegador de construir objetos que no se van a pintar, no al servidor de una llamada
+ * cara. Bajarlo a diez sería cambiar una protección por una costumbre.
  */
-const VENTANA_INVENTARIO = 10
+const VENTANA_INVENTARIO_POR_DEFECTO = 100
 
 export function getRemoteRepositories(
   token: string,
   organizationId: string,
   provider: GitProvider,
-  opciones: { search?: string; offset?: number } = {},
+  opciones: { search?: string; limit?: number; offset?: number } = {},
 ): Promise<RemoteRepositoryPage> {
-  // La búsqueda va en la consulta porque el inventario no se descarga entero: el `limit` del
-  // servidor es 100 como máximo, así que filtrar en el navegador solo deja ver 100 de 500. Es
-  // el mismo bug que se vio con la búsqueda de `shy`, y por eso aquí no hay opción de filtrar
-  // en el cliente: el `total` que llega es el de lo que coincide.
+  /*
+   * La búsqueda va en la consulta porque el inventario no se descarga entero: el `limit` del
+   * servidor es 100 como máximo, así que filtrar en el navegador deja fuera lo que no cabe en
+   * la ventana. Es el mismo bug que se vio con la búsqueda de `shy`, y por eso aquí no hay
+   * opción de filtrar en el cliente: el `total` que llega es el de lo que coincide **en el
+   * servidor**, y es el único número del que se puede decir «están todos estos y ninguno más».
+   */
   const query = new URLSearchParams({
     provider,
-    limit: String(VENTANA_INVENTARIO),
+    limit: String(opciones.limit ?? VENTANA_INVENTARIO_POR_DEFECTO),
     offset: String(opciones.offset ?? 0),
   })
   const busqueda = opciones.search?.trim()
@@ -476,6 +493,40 @@ export function connectPersonalToken(
   return request<PersonalTokenConnectResponse>(
     '/api/v1/repositories/credentials/token',
     { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+/**
+ * Los repositorios conectados de la organización.
+ *
+ * ## Por qué existe y no estaba
+ *
+ * Porque la pantalla de Supply Chain necesita saber **qué** repositorios hay para ofrecer
+ * sincronizarlos, y no tenía ninguna forma de obtenerlo: el botón de sincronización se
+ *条件的aba a que `repositoryId` estuviera puesto, y ese estado solo lo ponía `reiniciar()`,
+ * con el valor `null`. El botón era inalcanzable y el inventario salía vacío siempre, con la
+ * pantalla diciendo que era correcto.
+ *
+ * ## Por qué pide `limit=100` y no pagina
+ *
+ * Porque es la lista de candidatos de un selector, no una tabla que hay que recorrer. Con cien
+ * repositorios entran todos los casos que existen hoy en un cliente real, y la lista se acota
+ * además por proveedor en el propio backend. Si un cliente llega a quinientos, el desplegable
+ * se acota con el buscador —que es lo que hace un desplegable de doscientas opciones— y no
+ * con una barra de paginación, que en un desplegable no tiene dónde vivir.
+ */
+export function getRepositories(
+  token: string,
+  organizationId: string,
+  limit = 100,
+  offset = 0,
+): Promise<RepositoryPage> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  return request<RepositoryPage>(
+    `/api/v1/repositories/?${params.toString()}`,
+    {},
     token,
     organizationId,
   )
@@ -829,6 +880,35 @@ export function getPRReviewMetrics(
   return request<PRReviewMetrics>('/api/v1/pr-reviews/metrics', {}, token, organizationId)
 }
 
+/**
+ * Pide el análisis de seguridad de una revisión de pull request.
+ *
+ * ## Por qué devuelve la revisión y no un `void`
+ *
+ * Porque el backend responde `202` con la revisión **ya en `QUEUED`**, y esa fila es la que el
+ * panel necesita pintar: si solo devolviera un identificador, la tabla seguiría mostrando el
+ * estado anterior hasta que llegara el siguiente sondeo, y el usuario pulsaría el botón otra vez
+ * pensando que no ha pasado nada. Con la fila de vuelta, la actualización es inmediata.
+ *
+ * ## Por qué el error no se come aquí
+ *
+ * Porque hay dos `503` distintos que el usuario tiene que diferenciar: el de cola caída, que sí
+ * tiene sentido reintentar, y el `404` de «no se puede lanzar ahora», que no. El componente
+ * distingue los dos por el estado de red y pinta un aviso distinto para cada uno.
+ */
+export function analyzePrReview(
+  token: string,
+  organizationId: string,
+  reviewId: string,
+): Promise<PRReviewSummary> {
+  return request<PRReviewSummary>(
+    `/api/v1/pr-reviews/${encodeURIComponent(reviewId)}/analyze`,
+    { method: 'POST' },
+    token,
+    organizationId,
+  )
+}
+
 export interface PentestQuery {
   limit?: number
   offset?: number
@@ -883,6 +963,32 @@ export function getPentestFindings(
 ): Promise<PentestFindingsBreakdown> {
   return request<PentestFindingsBreakdown>(
     `/api/v1/pentests/${runId}/findings`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+/**
+ * Si este despliegue puede ejecutar escaneos, y qué le falta si no.
+ *
+ * ## Por qué se pide una sola vez al entrar y no con el listado
+ *
+ * Porque las comprobaciones hablan con el demonio Docker del host y con `iptables`, y eso es
+ * una llamada al sistema, no una consulta a la base de datos. En un listado que se refresca
+ * cada cinco segundos sería una llamada al sistema cada cinco segundos, para un dato que no
+ * cambia sin que alguien redeploye el worker. La pista es por eso un dato de la pantalla, no
+ * parte del `usePentests`.
+ *
+ * Y no se lanza un escaneo para comprobarlo: el escaneo es lo que cuesta y lo que deja una
+ * fila que no explica nada.
+ */
+export function getPentestReadiness(
+  token: string,
+  organizationId: string,
+): Promise<SandboxReadiness> {
+  return request<SandboxReadiness>(
+    '/api/v1/pentests/readiness',
     {},
     token,
     organizationId,

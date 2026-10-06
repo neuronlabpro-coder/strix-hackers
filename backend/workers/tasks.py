@@ -14,12 +14,12 @@ from uuid import UUID
 
 from billiard.exceptions import SoftTimeLimitExceeded, TimeLimitExceeded
 from celery.signals import worker_ready
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from backend.apps.billing.models import LedgerReasonEnum
+from backend.apps.billing.models import CreditLedger, LedgerReasonEnum
 from backend.apps.billing.pricing import credits_per_usd, scan_credit_cost
-from backend.apps.billing.service import apply_credit_delta
+from backend.apps.billing.service import ZERO, apply_credit_delta
 from backend.apps.llm_router.models import LLMModelConfig, LLMUseCaseEnum
 from backend.apps.llm_router.routing import (
     LLMAllModelsInactiveError,
@@ -43,6 +43,12 @@ from backend.core.config import settings
 from backend.core.database import create_database_engine
 from backend.workers.celery_app import celery_app
 from backend.workers.parser.strix_parser import extract_strix_scan_id, parse_strix_output
+from backend.workers.runner.diagnostico import (
+    CODIGO_DESCONOCIDO,
+    MOTIVOS_DE_DESPLIEGUE,
+    diagnosticar_fallo,
+    es_fallo_de_despliegue,
+)
 from backend.workers.runner.exceptions import SandboxCleanupError, SandboxTimeoutError
 from backend.workers.runner.sandbox import StrixSandboxManager
 from backend.workers.runner.telemetry import (
@@ -54,9 +60,37 @@ from backend.workers.runner.telemetry import (
 logger = logging.getLogger(__name__)
 KillContainer = Callable[[str], None]
 
-# Fallos que un cambio de modelo puede arreglar. Un contenedor que no arrancó o
+# Fallos que un cambio de modelo puede arreglar. Un contenedor que ni arrancó o
 # un error de configuración no cambian por usar otro modelo, así que no se insiste.
-_FALLBACK_ELIGIBLE_ERRORS = frozenset({"STRIX_NONZERO_EXIT", "STRIX_EXECUTION_FAILED"})
+# Los motivos de despliegue llevan ahora código propio (`diagnostico.py`), con lo que
+# salen de este conjunto por construcción: reintentar un host sin cerco con los cinco
+# modelos del catálogo solo gasta la cola y ensucia el registro.
+#
+# ## Por qué `CODIGO_DESCONOCIDO` está aquí aunque hoy no pueda ganar nada
+#
+# Porque **no puede ganar nada**, y esa es la razón de que se quede: `_AttemptOutcome.error_code`
+# solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o `None`, y
+# el código desconocido se escribe al final del camino, en `_mark_failed`, cuando ya no queda otro
+# modelo que probar. La entrada es, por tanto, inalcanzable hoy.
+#
+# Se conserva aun así por tres razones, y las tres son de coste, no de gusto:
+#
+# 1. **Es una guarda, y las guardas se pagan por lo que cuesta cuando faltan.** Si mañana
+#    `_run_attempt` devuelve un cuarto desenlace —un corte suave, por ejemplo— con su propio código
+#    y ese fallo sí mejora cambiando de modelo, la cadena de fallback se quedaría corta **sin
+#    ningún aviso**: el bucle `break` en una sola vuelta y nadie ve por qué. Un conjunto que se
+#    queda corto no da error, deja de hacer su trabajo.
+# 2. **Quitarla no cambiaría nada observable.** Es una entrada de un `frozenset` que se consulta
+#    con `in`; mientras el valor no aparezca en `error_code`, borrarla y dejarla son el mismo
+#    programa. Y R4 no obliga a reescribir el pasado para que el código muerto lo sea de verdad.
+# 3. **La alternativa es peor.** Poner el `else` del bucle a reintentar siempre —o sea, borrar el
+#    conjunto— cambia la política de reintentos de todo el módulo cada vez que se clasifique un
+#    motivo nuevo, y eso sí es un cambio de comportamiento por una decisión que nadie tomó.
+#
+# Lo que sí hay que tener presente al tocarla es que `diagnostico.py` documenta esta entrada con
+# las palabras «código muerto hoy», y eso es exacto: muerto **hoy**, vivo como protección. Quien
+# lea los dos sitios tiene que encontrar la misma frase, y por eso está aquí y no solo allí.
+_FALLBACK_ELIGIBLE_ERRORS = frozenset({"STRIX_NONZERO_EXIT", CODIGO_DESCONOCIDO})
 
 
 class StrixIngestionError(RuntimeError):
@@ -594,8 +628,12 @@ async def _execute_pentest_run(run_id: UUID) -> str:
         )
         await _reopen_run_for_retry(run_id)
 
-    await _mark_failed(organization_id, run_id, last_error or "STRIX_EXECUTION_FAILED")
-    await _refund_reserved_credits(organization_id, run_id, reserved)
+    await _mark_failed(organization_id, run_id, last_error or CODIGO_DESCONOCIDO)
+    await _devolver_lo_retenido(
+        organization_id,
+        run_id,
+        referencia=f"{run_id}:refund",
+    )
     return "FAILED"
 
 
@@ -620,37 +658,255 @@ async def _reopen_run_for_retry(run_id: UUID) -> None:
         await engine.dispose()
 
 
-async def _refund_reserved_credits(
-    organization_id: UUID, run_id: UUID, reserved: Decimal
-) -> None:
-    """Devuelve la reserva cuando el escaneo no llegó a producir consumo.
+async def _saldo_retenido(session: AsyncSession, organization_id: UUID, run_id: UUID) -> Decimal:
+    """Cuánto se ha quedado la plataforma de este run, en créditos.
 
-    El reembolso no puede propagar el fallo: el run ya está marcado como fallido y
-    que el ajuste de créditos no se escriba dejaría al tenant sin sus créditos, así que
-    se registra la excepción y el proceso sigue. El `rollback` va sobre la sesión, no
-    sobre el motor: `AsyncEngine` no tiene ese método, y llamarlo dejaría el error
-    real del reembolso enterrado bajo un `AttributeError`.
+    ## Por qué se lee del ledger y no se vuelve a calcular con `scan_credit_cost`
+
+    Porque lo que hay que devolver es **lo que se cobró**, no lo que la tabla de precios
+    dice hoy. `scan_credit_cost` lee `platform_pricing`, que un administrador puede cambiar
+    entre que se encola el escaneo y que falla: si el precio subió, devolver el precio nuevo
+    haría **regalar** la diferencia, y si bajó, le cobraríamos al tenant la parte que él no
+    pagó. El ledger es el único sitio donde el importe cobrado está sellado.
+
+    Y por eso la suma cubre las tres referencias del run, no solo la reserva: el mismo
+    identificador puede tener el asiento de consumo (`{id}`), una devolución anterior
+    (`{id}:refund`) y el ajuste contra el consumo real (`{id}:usage`). Sumar solo la reserva
+    daría un número que deja de ser verdad en cuanto el worker toca cualquiera de las otras
+    dos, y devolver sobre esa base es devolver de más.
+
+    ## Por qué el filtro por organización va en el `WHERE` y no después
+
+    Es R3 resuelto tarde: traer el asiento de otro tenant a memoria para descartarlo con un
+    `if` es exactamente el patrón que `pentests/service.py` documenta como incorrecto.
+
+    Y sobre el `LIKE`, que merece decirse porque tiene dos comodines: `%` y `_`. Aquí el
+    patrón es el `run_id` ya validado, y un UUID es hexadecimal con guiones, así que **no
+    puede contener ni `%` ni `_`**. No es una suposición: es la razón por la que se puede
+    construir el patrón sin `ESCAPE`, y si algún día esta función recibiera un identificador
+    que no fuera un UUID, dejaría de ser cierto.
+
+    ## Por qué devuelve el valor **con signo de devolución**
+
+    Es decir, positivo cuando la plataforma debe algo y cero cuando ya no debe nada. Quien
+    llama solo necesita restarlo y compararlo con cero, y no tiene que saber si el signo
+    del `SUM` es la dirección de la deuda.
+    """
+
+    total = Decimal("0")
+    for patron in (str(run_id), f"{run_id}:%"):
+        parcial = await session.execute(
+            select(func.coalesce(func.sum(CreditLedger.amount_delta), 0)).where(
+                CreditLedger.organization_id == organization_id,
+                CreditLedger.reason == LedgerReasonEnum.SCAN_CONSUMPTION,
+                CreditLedger.reference_id.like(patron),
+            )
+        )
+        total += Decimal(str(parcial.scalar_one()))
+    return -total
+
+
+async def _devolver_lo_retenido(
+    organization_id: UUID,
+    run_id: UUID,
+    *,
+    referencia: str,
+) -> Decimal:
+    """Asienta la devolución de lo retenido por un run, **como mucho una vez**.
+
+    ## Por qué el importe sale del ledger y no de la tabla de precios
+
+    Porque el precio de un escaneo puede cambiar entre que se encola y que falla, y
+    `scan_credit_cost` lee el precio **de hoy**. Devolver con el precio de hoy haría que un
+    tenant pagase la diferencia si el precio bajó, o que la plataforma regalase la diferencia
+    si subió. El importe que hay que devolver es exactamente el que salió de su cartera, y
+    ese dato solo está en el asiento que se escribió al cobrar.
+
+    ## Por qué el resultado se descuenta, y por qué eso no reembolsa dos veces
+
+    Porque el propio asiento de devolución entra en la suma: la segunda llamada ve un saldo
+    retenido de cero y no escribe nada. La idempotencia sale **de la aritmética del ledger**,
+    no de un flag en memoria ni de un `UPDATE` sobre el asiento anterior, que además R4
+    prohíbe porque la tabla es *append-only*.
+
+    Y es idempotente también entre **procesos distintos**, que es donde importa: dos workers
+    reintentando el mismo run pueden entrar a la vez, pero ambos serializan en el
+    `SELECT ... FOR UPDATE` de la fila del run, y el segundo ve el asiento que el primero
+    acaba de confirmar. Un `asyncio.Lock` no serviría de nada aquí, igual que en
+    `token_refresh.py`: la unidad de ejecución no es el proceso.
+
+    ## Por qué nunca propaga el fallo
+
+    Porque el run ya está en estado terminal y que el ajuste de créditos no se escriba
+    dejaría al tenant sin su dinero sin que nadie lo supiera. Se registra la excepción con
+    su run y se sigue; el siguiente attempt del watchdog, o el siguiente reintento de Celery,
+    vuelven a intentar la misma devolución. Un reembolso perdido es un saldo que no cuadra y
+    que alguien tiene que reconciliar a mano; un reembolso duplicado es un saldo inflado que
+    además es un regalo. El orden de los riesgos no es simétrico, y por eso el segundo caso
+    tiene que ser **imposible por construcción** y el primero solo **probable y registrado**.
+
+    ## Por qué `rollback` va sobre la sesión y no sobre el motor
+
+    Porque `AsyncEngine` no tiene ese método, y llamarlo deja el error real del reembolso
+    enterrado bajo un `AttributeError`. Está escrito en `docs/testing/fase5-bloque-5.2.tdd.md`
+    como un defecto que ya se cometió una vez aquí.
     """
 
     engine, session_factory = _session_factory()
     try:
         async with session_factory() as session:
+            # El bloqueo va **antes** de leer el saldo retenido, no dentro de
+            # `apply_credit_delta`. Es lo que hace que dos procesos concurrentes se vean: el
+            # segundo espera a que el primero confirme y entonces lee el asiento nuevo. Sin
+            # este `FOR UPDATE` los dos leerían el mismo saldo retenido y los dos escribirían
+            # una devolución.
+            bloqueado = await session.execute(
+                select(PentestRun)
+                .where(
+                    PentestRun.id == run_id,
+                    PentestRun.organization_id == organization_id,
+                )
+                .with_for_update()
+            )
+            run = bloqueado.scalar_one_or_none()
+            if run is None:
+                logger.error(
+                    "No se devuelve nada del run %s: no existe para la organización %s",
+                    run_id,
+                    organization_id,
+                )
+                return ZERO
+
+            # La fila bloqueada se lee también por su **estado**, y no solo para serializar. Dos
+            # estados tienen que impedir la devolución, y los dos por un motivo distinto:
+            if run.status == ScanStatusEnum.COMPLETED:
+                # El escaneo entregó hallazgos y su consumo ya se tarificó. Devolver aquí sería
+                # **regalar** el saldo retenido por encima de lo que el cliente ya pagó, y es un
+                # camino real: `_ingest_output` confirma el run y es `_charge_run_usage`, que
+                # viene **después**, la que puede lanzar. Que el run se completara no borra el
+                # fallo de la tarificación.
+                logger.info(
+                    "El run %s se completó; no se devuelve nada aunque la tarificación haya "
+                    "fallado con %s",
+                    run_id,
+                    run.error_message,
+                )
+                return ZERO
+            if run.status == ScanStatusEnum.ABORTED:
+                # Aquí el dinero ya lo decidió otra persona con una regla distinta y mejor
+                # informada: `pentests/abort_reason.py` separa «nosotros lo paramos» de «lo
+                # paró el cliente», y solo lo primero devuelve. Devolver en el worker sería
+                # anular esa decisión: un cliente que cancela y ve como le devuelven los
+                # créditos aprende que cancelar es gratis.
+                logger.info(
+                    "El run %s fue abortado con %s; la devolución la decide el motivo del aborto",
+                    run_id,
+                    run.error_message,
+                )
+                return ZERO
+
+            pendiente = await _saldo_retenido(session, organization_id, run_id)
+            if pendiente <= ZERO:
+                logger.info(
+                    "El run %s no tiene nada retenido que devolver (saldo retenido %s)",
+                    run_id,
+                    pendiente,
+                )
+                return ZERO
+
             try:
                 await apply_credit_delta(
                     session=session,
                     organization_id=organization_id,
-                    amount=reserved,
+                    amount=pendiente,
                     reason=LedgerReasonEnum.SCAN_CONSUMPTION,
-                    reference_id=f"{run_id}:refund",
+                    reference_id=referencia,
                 )
                 await session.commit()
             except Exception:
                 await session.rollback()
                 raise
+            logger.info(
+                "Se devuelven %s créditos del run %s (%s) al tenant %s",
+                pendiente,
+                run_id,
+                run.error_message,
+                organization_id,
+            )
+            return pendiente
     except Exception:
-        logger.exception("No se pudo reembolsar la reserva del run %s", run_id)
+        logger.exception("No se pudo devolver lo retenido por el run %s", run_id)
+        return ZERO
     finally:
         await engine.dispose()
+
+
+async def _devolver_si_el_fallo_fue_de_despliegue(
+    organization_id: UUID | None,
+    run_id: UUID,
+    codigo: str,
+) -> Decimal:
+    """Devuelve lo retenido **solo** si el motivo clasificado es de despliegue.
+
+    ## Por qué esta política sale del `diagnostico` y no de aquí
+
+    Porque `diagnostico.py` es la autoridad sobre qué motivos dependen de la máquina donde
+    corre el worker y cuáles son del análisis o del código, y su `MOTIVOS_DE_DESPLIEGUE` está
+    escrito para eso. Reimplementar aquí una lista de códigos sería tener **dos** verdades que
+    divergen: alguien añade un motivo al diagnóstico, olvida esta función, y un fallo que
+    acaba de clasificarse como «arreglarlo en el host» vuelve a costar créditos al cliente.
+
+    ## Por qué un fallo de código no devuelve
+
+    Porque es un fallo de la plataforma y no del cliente, pero el escaneo **sí llegó a
+    ejecutarse**: el contenedor arrancó y el motor trabajó. Lo que no salió es el resultado. Es
+    exactamente el caso en que `pentests/abort_reason.py` llama `INFRASTRUCTURE_FAILED` y dice
+    que devuelve, y también el caso en que `_execute_pentest_run` ya reembolsa hoy, así que
+    **esto no cambia esa política**: solo la hace explícita en el camino que se la saltaba.
+
+    Lo que sí cambia es lo contrario, y es lo que estaba roto: un motivo **de despliegue** —sin
+    cerco de salida, sin reconocimiento de exposición, sin imagen del sandbox, sin permisos para
+    el workspace, sin demonio de Docker— por el camino de excepción no devolvía nada. El
+    cliente pagaba un escaneo que no empezó. Medido en la base de este turno: tres cobros de
+    `-10`, `-3` y `-3` créditos sin un solo asiento de devolución.
+
+    ## Por qué la organización va por parámetro y no se resuelve aquí
+
+    Porque el llamador ya lo tiene —lo leyó del propio run antes de empezar— y volver a leerlo
+    sería una consulta por el mismo dato. Y si viene `None`, es que ni el run se pudo leer, así
+    que no hay cobro del que responder: se dice en el log y no se toca el saldo de nadie.
+
+    ## Por qué la llamada va **después** de `_mark_failed` y no antes
+
+    Porque `_devolver_lo_retenido` bloquea la fila del run con `FOR UPDATE`, igual que
+    `_mark_failed`. Marcando primero, el estado que el reembolso lee es el estado **final** del
+    run; si el reembolso fuera antes, confirmaría con el run todavía en `RUNNING` y la guarda de
+    `COMPLETED` no podría decidir nada.
+    """
+
+    if organization_id is None:
+        # Sin organización no hay a quién devolverle el dinero, y adivinarlo sería acreditar al
+        # tenant equivocado. Es R3 aplicado al dinero: la duda se registra, no se resuelve
+        # suponiendo.
+        logger.error(
+            "No se pudo resolver la organización del run %s; no se devuelve nada porque no hay a "
+            "quién devolvérselo, y el fallo es anterior a que se cobrara nada",
+            run_id,
+        )
+        return ZERO
+    if codigo not in MOTIVOS_DE_DESPLIEGUE:
+        logger.info(
+            "El run %s no se reembolsa: %s no es un motivo de despliegue, así que el escaneo se "
+            "ejecutó y lo que falló fue el análisis o el código",
+            run_id,
+            codigo,
+        )
+        return ZERO
+    return await _devolver_lo_retenido(
+        organization_id,
+        run_id,
+        referencia=f"{run_id}:refund",
+    )
 
 
 async def _run_attempt(
@@ -981,13 +1237,40 @@ def execute_pentest_run(run_id: str) -> str:
             asyncio.run(_mark_timed_out(organization_id, parsed_run_id))
         except Exception:
             logger.exception("No se pudo marcar el run %s como TIMED_OUT", parsed_run_id)
+        # **No** se devuelve nada aquí, y es deliberado. Un timeout no es un fallo de
+        # despliegue: es el motor que estuvo trabajando hasta que se le acabó el tiempo, y el
+        # trabajo ese le costó tokens a la plataforma. `MOTIVOS_DE_DESPLIEGUE` no incluye
+        # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT`
+        # para que el watchdog lo limpie.
         raise
-    except Exception:
-        logger.exception("Falló la ejecución del run %s", parsed_run_id)
+    except Exception as error:
+        # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué
+        # falló, y hay una diferencia operativa enorme entre los dos. Un despliegue sin el
+        # cerco de salida, sin el reconocimiento de exposición o sin la imagen del sandbox
+        # produce el mismo fallo visible que un bug, y con el código genérico el operador
+        # acaba en el repositorio en vez de en el host. El panel sabe explicar el código
+        # concreto, así que la clasificación es lo que hace posible avisar sin abrir el
+        # registro del worker.
+        diagnostico = diagnosticar_fallo(error)
+        if es_fallo_de_despliegue(error):
+            logger.error(
+                "El run %s falló por configuración del despliegue, no del código: %s (%s). "
+                "Arreglarlo es en el host donde corre el worker.",
+                parsed_run_id,
+                diagnostico.codigo,
+                diagnostico.comprobacion,
+            )
+        else:
+            logger.exception("Falló la ejecución del run %s", parsed_run_id)
         try:
-            asyncio.run(_mark_failed(organization_id, parsed_run_id, "STRIX_EXECUTION_FAILED"))
+            asyncio.run(_mark_failed(organization_id, parsed_run_id, diagnostico.codigo))
         except Exception:
             logger.exception("No se pudo marcar el run %s como FAILED", parsed_run_id)
+        asyncio.run(
+            _devolver_si_el_fallo_fue_de_despliegue(
+                organization_id, parsed_run_id, diagnostico.codigo
+            )
+        )
         raise
 
 

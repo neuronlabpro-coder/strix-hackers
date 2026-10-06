@@ -7,7 +7,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.apps.knowledge.models import KnowledgeCategoryEnum, KnowledgeEntry
+from backend.apps.knowledge.models import (
+    KnowledgeCategoryEnum,
+    KnowledgeEntry,
+    KnowledgeSeverityEnum,
+)
 from backend.apps.organizations.models import Membership, Organization, RoleEnum, User
 from backend.core.security import create_access_token
 from backend.main import app
@@ -127,6 +131,77 @@ async def test_knowledge_catalog_is_searchable_and_filterable(
         item["severity"] == "CRITICAL" for item in by_severity.json()["items"]
     )
     assert miss.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_el_buscador_del_catalogo_trata_los_comodines_como_literales(
+    integration_session: AsyncSession,
+) -> None:
+    r"""`%` y `_` se buscan literales en `?search=`.
+
+    Sin escapar, `?search=%` devuelve **el catálogo entero**: el comodín va también en los dos
+    extremos del patrón, así que `%\%%` casa con cualquier valor. Y `_` casa con cualquier
+    carácter, de modo que `web_app` también traería `webXapp`. Aquí es especialmente grave porque
+    el catálogo es compartido por todos los tenants y son muchos apuntes.
+
+    Este catálogo no lleva `organization_id` —es una referencia técnica de solo lectura, como
+    documenta el modelo—, así que el aislamiento de R3 no aplica a esta búsqueda. Lo que hay que
+    comprobar aquí es el escape, y se comprueba sobre filas que la propia prueba siembra: el
+    catálogo sembrado por migración no lleva `_` ni `%` en ningún título.
+    """
+
+    session = integration_session
+    assert session is not None
+    _organization, headers = await _tenant(session)
+    # El código de referencia lleva un sufijo único porque es único en toda la tabla, y esta
+    # tabla es compartida: dos pruebas que siembren el mismo código chocarían.
+    sufijo = uuid.uuid4().hex[:8]
+
+    def _entrada(codigo: str, titulo: str) -> KnowledgeEntry:
+        return KnowledgeEntry(
+            reference_code=codigo,
+            title=titulo,
+            category=KnowledgeCategoryEnum.INJECTION,
+            severity=KnowledgeSeverityEnum.HIGH,
+            risk_summary="Resumen de riesgo de prueba",
+            vulnerable_example="ejemplo vulnerable",
+            secure_example="ejemplo seguro",
+            mitigation="mitigacion",
+            owasp_category="A03:2021",
+        )
+
+    session.add_all(
+        [
+            _entrada(f"CWE-900-{sufijo}", "Modulo web_app"),
+            _entrada(f"CWE-901-{sufijo}", "Modulo webXapp"),
+            _entrada(f"CWE-902-{sufijo}", "Descuento 100%off"),
+            _entrada(f"CWE-903-{sufijo}", "Descuento 1000off"),
+        ]
+    )
+    await session.commit()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        con_porcentaje = await client.get(
+            "/api/v1/knowledge/", params={"search": "%"}, headers=headers
+        )
+        con_subrayado = await client.get(
+            "/api/v1/knowledge/", params={"search": "web_app"}, headers=headers
+        )
+        con_texto = await client.get(
+            "/api/v1/knowledge/", params={"search": "100%off"}, headers=headers
+        )
+
+    # `%` a secas devuelve **un** apunte —el único que lleva el símbolo— y no el catálogo entero.
+    # Sin escape serían todos los apuntes, que es el fallo que se comprueba.
+    assert con_porcentaje.json()["total"] == 1, con_porcentaje.json()
+    assert con_porcentaje.json()["items"][0]["title"] == "Descuento 100%off"
+    # `_` no es comodín de un carácter: `webXapp` no aparece.
+    assert con_subrayado.json()["total"] == 1, con_subrayado.json()
+    assert con_subrayado.json()["items"][0]["title"] == "Modulo web_app"
+    # Y el `%` en medio se busca literal, sin arrastrar al `1000off`.
+    assert con_texto.json()["total"] == 1, con_texto.json()
+    assert con_texto.json()["items"][0]["title"] == "Descuento 100%off"
 
 
 @pytest.mark.asyncio
