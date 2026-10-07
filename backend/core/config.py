@@ -329,6 +329,84 @@ class Settings(BaseSettings):
         min_length=1,
     )
     strix_workspace_root: str = Field(default="/tmp/fenix_workspaces", min_length=1)  # noqa: S108
+
+    #: Cómo se ejecuta el motor: en un contenedor efímero o como proceso del host.
+    #:
+    #: ## Por qué `"container"` es el valor por defecto y no una preferencia
+    #:
+    #: Porque el modo contenedor es el único que puede sostener dos garantías que R3 exige
+    #: y que el modo host **no puede**, por construcción y no por configuración:
+    #:
+    #: 1. **Aislamiento de ejecución.** Cada escaneo corre con `cap_drop=ALL`,
+    #:    `no-new-privileges`, límites de memoria, CPU y PIDs, y una red bridge dedicada
+    #:    con cerco de salida. Un motor que explota una dependencia se queda dentro de ese
+    #:    namespace. Como proceso del host hereda los permisos del usuario del worker: la
+    #:    red de Tailscale, PostgreSQL y Redis le quedan al alcance.
+    #: 2. **Purgado garantizado.** El contenedor se quita por identificador aunque el
+    #:    proceso muera de forma anormal; en el host el purgado depende de que el árbol de
+    #:    procesos se mate entero.
+    #:
+    #: El modo host existe porque la imagen `strix_sandbox_image` **no lleva el motor**
+    #: dentro —`exec: strix: not found`, exit 127— así que el modo contenedor no puede
+    #: ejecutar un escaneo real en esta máquina. Es un modo de desarrollo y de diagnóstico,
+    #: y por eso hay que pedirlo explícitamente por configuración.
+    strix_execution_mode: Literal["container", "host"] = "container"
+
+    #: Ruta del ejecutable del CLI del motor, usada **solo** en modo `host`.
+    #:
+    #: R1: la ruta no vive en el código. Es del despliegue —una instalación con `uv tool
+    #: install` deja el ejecutable en un sitio distinto según la máquina—, y un despliegue
+    #: tiene que poder cambiarlo sin redesplegar el backend.
+    strix_cli_path: str = Field(default="")
+
+    #: Tope de gasto del proveedor **por escaneo**, en dólares, y el número de turnos por agente.
+    #:
+    #: ## Por qué son topes y no un precio
+    #:
+    #: Porque el precio lo fija el catálogo y lo que paga la plataforma lo fija el proveedor, y
+    #: entre los dos hay un camino que nadie controla: el motor decide cuántas llamadas hace. Un
+    #: QUICK real de este proyecto costó **1,85 USD** en 244 peticiones al modelo sin que nadie
+    #: declarara ningún límite, y un `deep` sobre un objetivo grande puede multiplicarlo por
+    #: diez. `--max-budget` y `--max-turns` son las dos cosas que el motor acepta para frenarse
+    #: solo, y sin ellos el único tope es el muro de tiempo, que para cuando salta ya ha gastado.
+    #:
+    #: ## Por qué un valor por defecto **conservador** y no «sin tope»
+    #:
+    #: Porque «sin tope declarado» no es neutral: es un gasto sin techo en una plataforma que
+    #: cobra por Credits y cuyo coste de proveedor no conoce hasta el final. El suelo es
+    #: deliberadamente holgado para que el QUICK de referencia entre con margen —1,85 contra 3—,
+    #: y ajustado para que un `deep` que se descontrola se pare antes de la factura, no después.
+    strix_max_budget_usd: Decimal = Field(default=Decimal("3.00"), gt=0, le=1000)
+    #: Turnos por agente. El motor trae 500 de fábrica; bajarlo acota el número de iteraciones
+    #: que un agente puede encadenar sin parar, que es el otro multiplicador del gasto.
+    strix_max_turns: int = Field(default=200, gt=0, le=10_000)
+
+    #: Modo **replay**: directorio de un run real del motor (`strix_runs/<run>/`) cuyos
+    #: artefactos se meten por el mismo camino de parseo, persistencia y panel que un escaneo
+    #: de verdad, **sin lanzar el motor y sin llamar al proveedor**.
+    #:
+    #: ## Por qué está vacío por defecto y no hay bandera que lo active
+    #:
+    #: Porque sin ruta no hay modo replay: no existe un interruptor, no hay un valor « Activado »,
+    #: y un despliegue que no lo escribe no lo tiene. Es lo contrario de una bandera en la que
+    #: «activado por defecto» y «activado a propósito» se parezcan.
+    #:
+    #: ## Por qué `Settings` **lanza** fuera de desarrollo
+    #:
+    #: Porque un modo que reproduce los artefactos de un escaneo no puede existir en un despliegue
+    #: real: fabricaría hallazgos que el motor nunca encontró, con los créditos y la trazabilidad
+    #: de un escaneo verdadero. No es un aviso: es un rechazo de arranque, en la misma categoría
+    #: que el secreto de ejemplo o el bcrypt débil, y por el mismo motivo —una propiedad que se
+    #: puede desactivar con una línea de configuración no es una propiedad.
+    strix_replay_source: str = Field(default="")
+
+    #: Esquema con el que se compone la URL de un target `DOMAIN` en modo host.
+    #:
+    #: `PentestCreate` rechaza el esquema en `target_identifier` a propósito —un dominio es
+    #: un dominio, sin ruta ni puerto— y el motor, en cambio, exige una URL con esquema. El
+    #: puente entre las dos cosas va aquí y no en el código del runner, porque el esquema con
+    #: el que se prueba un dominio es una política del despliegue, no del lenguaje.
+    strix_default_target_scheme: Literal["http", "https"] = "https"
     strix_network_prefix: str = Field(default="strix_net", min_length=1)
     strix_network_pool: str = Field(
         default="172.31.0.0/16",
@@ -807,6 +885,23 @@ class Settings(BaseSettings):
             raise ValueError("GitHub OAuth requiere client ID y client secret juntos")
         if bool(self.gitlab_oauth_client_id) != gitlab_secret_configured:
             raise ValueError("GitLab OAuth requiere client ID y client secret juntos")
+
+        if self.strix_replay_source.strip() and self.environment in {"staging", "production"}:
+            # Un refusal de arranque, no un aviso. Ver el docstring de `strix_replay_source`:
+            # un despliegue real no puede fabricar los artefactos de un escaneo, porque el panel
+            # los presentaría como hallazgos del motor y el ledger los cobraría como un escaneo.
+            raise ValueError(
+                "STRIX_REPLAY_SOURCE no puede activarse en staging ni en producción: el replay "
+                "reproduce los artefactos de otro run sin ejecutar el motor"
+            )
+
+        if self.strix_execution_mode == "host" and not self.strix_cli_path.strip():
+            # Sin ruta no hay modo host: arrancar el motor sin saber contra qué binario sería
+            # adivinar, y adivinar la ruta de un ejecutable es exactamente la clase de
+            # hardcoding que R1 prohíbe. El fallo se da al arrancar, no en el primer escaneo.
+            raise ValueError(
+                "STRIX_EXECUTION_MODE=host requiere STRIX_CLI_PATH con la ruta del ejecutable"
+            )
 
         if self.strix_soft_timeout_seconds >= self.strix_hard_timeout_seconds:
             raise ValueError("El timeout suave de Strix debe ser menor que el duro")

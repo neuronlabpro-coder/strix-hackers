@@ -11,8 +11,8 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **1188** funciones (47 con `@parametrize`, que generan mas de un caso cada una)
-- Pruebas de frontend: **187**
+- Pruebas de backend: **1288** funciones (51 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de frontend: **194**
 
 ## Superficie funcional
 
@@ -133,46 +133,48 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 
 ### por revisar: ninguna
 
-### identidad tecnica (247)
+### identidad tecnica (414)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:112` | "STRIX_DOCKER_UNAVAILABLE": "The worker could not reach the Docker daemon on the server... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:113` | "STRIX_EGRESS_FENCE_MISSING": "The egress fence is missing on the worker host, so the s... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:114` | "STRIX_LLM_KEY_ACK_MISSING": "The deployment configuration does not acknowledge exposin... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:115` | "STRIX_IMAGE_UNAVAILABLE": "The analysis container image is not present on the worker h... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:116` | "STRIX_WORKSPACE_UNAVAILABLE": "The worker host does not allow preparing the scan worki... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:117` | "EGRESS_FENCE_DISABLED": "The egress fence check is turned off (STRIX_REQUIRE_EGRESS_FE... | nombre de una variable de entorno de la plataforma |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:118` | "STRIX_OUTPUT_UNUSABLE": "The engine finished but left no readable results file. A diff... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:119` | "STRIX_NONZERO_EXIT": "The engine finished with a non-zero exit code.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:120` | "STRIX_TIMEOUT": "The scan exceeded the configured maximum time.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:121` | "STRIX_EXECUTION_FAILED": "The worker did not record a reason this panel can explain. T... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:144` | "STRIX_WORKSPACE_UNAVAILABLE": "The responding process cannot create the scan working d... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:145` | "STRIX_EGRESS_FENCE_MISSING": "The filtering chain the runner checks is not present on ... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:147` | "STRIX_LLM_KEY_ACK_MISSING": "This process configuration does not acknowledge exposing ... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:148` | "STRIX_EXECUTION_FAILED": "This process could not complete a check and does not know wh... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:149` | "STRIX_DOCKER_UNAVAILABLE": "This process could not talk to the Docker daemon while che... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:150` | "STRIX_IMAGE_UNAVAILABLE": "This process cannot find the analysis container image.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:151` | "STRIX_TIMEOUT": "The check did not finish in time.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/en/pentests.json:152` | "STRIX_OUTPUT_UNUSABLE": "This check does not produce a usable result." | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:112` | "STRIX_DOCKER_UNAVAILABLE": "El worker no pudo conectarse al demonio Docker del servido... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:113` | "STRIX_EGRESS_FENCE_MISSING": "Falta el cerco de salida en el host del worker, así que ... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:114` | "STRIX_LLM_KEY_ACK_MISSING": "Falta el reconocimiento de exposición de la clave del pro... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:115` | "STRIX_IMAGE_UNAVAILABLE": "La imagen del contenedor de análisis no está en el servidor... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:116` | "STRIX_WORKSPACE_UNAVAILABLE": "El host del worker no permite preparar el directorio de... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:117` | "EGRESS_FENCE_DISABLED": "La comprobación del cerco de salida está desactivada en este ... | nombre de una variable de entorno de la plataforma |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:118` | "STRIX_OUTPUT_UNUSABLE": "El motor terminó pero no dejó un archivo de resultados legibl... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:119` | "STRIX_NONZERO_EXIT": "El motor terminó con un código de salida distinto de cero.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:120` | "STRIX_TIMEOUT": "El escaneo superó el tiempo máximo configurado.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:121` | "STRIX_EXECUTION_FAILED": "El worker no registró un motivo que el panel sepa explicar. ... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:144` | "STRIX_WORKSPACE_UNAVAILABLE": "El proceso que responde no puede crear el directorio de... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:145` | "STRIX_EGRESS_FENCE_MISSING": "En el servidor que responde no se encuentra la cadena de... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:147` | "STRIX_LLM_KEY_ACK_MISSING": "La configuracion de este proceso no toma la decision de e... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:148` | "STRIX_EXECUTION_FAILED": "Este proceso no pudo completar una comprobacion y no sabe po... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:149` | "STRIX_DOCKER_UNAVAILABLE": "Este proceso no pudo hablar con el demonio Docker al compr... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:150` | "STRIX_IMAGE_UNAVAILABLE": "Este proceso no encuentra la imagen del contenedor de anali... | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:151` | "STRIX_TIMEOUT": "La comprobacion no termino a tiempo.", | clave de un codigo de error del motor |
-| identidad tecnica | `frontend/src/locales/es/pentests.json:152` | "STRIX_OUTPUT_UNUSABLE": "Esta comprobacion no produce un resultado utilizable." | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:140` | "STRIX_DOCKER_UNAVAILABLE": "The worker could not reach the Docker daemon on the server... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:141` | "STRIX_EGRESS_FENCE_MISSING": "The egress fence is missing on the worker host, so the s... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:142` | "STRIX_LLM_KEY_ACK_MISSING": "The deployment configuration does not acknowledge exposin... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:143` | "STRIX_IMAGE_UNAVAILABLE": "The analysis container image is not present on the worker h... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:144` | "STRIX_WORKSPACE_UNAVAILABLE": "The worker host does not allow preparing the scan worki... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:145` | "EGRESS_FENCE_DISABLED": "The egress fence check is turned off (STRIX_REQUIRE_EGRESS_FE... | nombre de una variable de entorno de la plataforma |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:146` | "STRIX_OUTPUT_UNUSABLE": "The engine finished but left no readable artifact. A differen... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:147` | "STRIX_RUN_INCOMPLETE": "The engine started the scan but did not finish it: its own rec... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:148` | "STRIX_NONZERO_EXIT": "The engine finished with a non-zero exit code.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:149` | "STRIX_TIMEOUT": "The scan exceeded the configured maximum time.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:150` | "STRIX_EXECUTION_FAILED": "The worker did not record a reason this panel can explain. T... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:173` | "STRIX_WORKSPACE_UNAVAILABLE": "The responding process cannot create the scan working d... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:174` | "STRIX_EGRESS_FENCE_MISSING": "The filtering chain the runner checks is not present on ... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:176` | "STRIX_LLM_KEY_ACK_MISSING": "This process configuration does not acknowledge exposing ... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:177` | "STRIX_EXECUTION_FAILED": "This process could not complete a check and does not know wh... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:178` | "STRIX_DOCKER_UNAVAILABLE": "This process could not talk to the Docker daemon while che... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:179` | "STRIX_IMAGE_UNAVAILABLE": "This process cannot find the analysis container image.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:180` | "STRIX_TIMEOUT": "The check did not finish in time.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/en/pentests.json:181` | "STRIX_OUTPUT_UNUSABLE": "This check does not produce a usable result." | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:140` | "STRIX_DOCKER_UNAVAILABLE": "El worker no pudo conectarse al demonio Docker del servido... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:141` | "STRIX_EGRESS_FENCE_MISSING": "Falta el cerco de salida en el host del worker, así que ... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:142` | "STRIX_LLM_KEY_ACK_MISSING": "Falta el reconocimiento de exposición de la clave del pro... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:143` | "STRIX_IMAGE_UNAVAILABLE": "La imagen del contenedor de análisis no está en el servidor... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:144` | "STRIX_WORKSPACE_UNAVAILABLE": "El host del worker no permite preparar el directorio de... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:145` | "EGRESS_FENCE_DISABLED": "La comprobación del cerco de salida está desactivada en este ... | nombre de una variable de entorno de la plataforma |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:146` | "STRIX_OUTPUT_UNUSABLE": "El motor terminó pero no dejó ningún artefacto legible. Puede... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:147` | "STRIX_RUN_INCOMPLETE": "El motor empezó el escaneo pero no lo completó: su registro di... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:148` | "STRIX_NONZERO_EXIT": "El motor terminó con un código de salida distinto de cero.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:149` | "STRIX_TIMEOUT": "El escaneo superó el tiempo máximo configurado.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:150` | "STRIX_EXECUTION_FAILED": "El worker no registró un motivo que el panel sepa explicar. ... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:173` | "STRIX_WORKSPACE_UNAVAILABLE": "El proceso que responde no puede crear el directorio de... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:174` | "STRIX_EGRESS_FENCE_MISSING": "En el servidor que responde no se encuentra la cadena de... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:176` | "STRIX_LLM_KEY_ACK_MISSING": "La configuracion de este proceso no toma la decision de e... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:177` | "STRIX_EXECUTION_FAILED": "Este proceso no pudo completar una comprobacion y no sabe po... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:178` | "STRIX_DOCKER_UNAVAILABLE": "Este proceso no pudo hablar con el demonio Docker al compr... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:179` | "STRIX_IMAGE_UNAVAILABLE": "Este proceso no encuentra la imagen del contenedor de anali... | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:180` | "STRIX_TIMEOUT": "La comprobacion no termino a tiempo.", | clave de un codigo de error del motor |
+| identidad tecnica | `frontend/src/locales/es/pentests.json:181` | "STRIX_OUTPUT_UNUSABLE": "Esta comprobacion no produce un resultado utilizable." | clave de un codigo de error del motor |
 | identidad tecnica | `backend/apps/admin/operations_router.py:39` | (`fenix-strix-{run_id}`) y su referencia vive en `pentest_runs.container_id`. La secció... | identificador: strix |
 | identidad tecnica | `backend/apps/admin/operations_router.py:555` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/admin/operations_router.py:567` | nombre = StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
@@ -190,49 +192,59 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/billing/pricing.py:17` | Porque el precio se lee en sitios donde **no hay sesión**: el worker de Strix ajusta | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:217` | Porque hay cuatro llamadores —el servicio de pentests, el worker de Strix, el | identificador: Strix |
 | identidad tecnica | `backend/apps/cve_database/models.py:6` | el impacto real de un `cve_id` que Strix reporte. | identificador: Strix |
-| identidad tecnica | `backend/apps/pentests/abort.py:65` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/abort.py:143` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/abort.py:146` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/abort.py:147` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:49` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:82` | StrixSandboxManager.kill_container(container_reference) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/router.py:518` | container_reference = run.container_id or StrixSandboxManager.container_name_for_run( | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:66` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:144` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:153` | if settings.strix_execution_mode != "host": | identificador: strix_execution_mode |
+| identidad tecnica | `backend/apps/pentests/abort.py:154` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
+| identidad tecnica | `backend/apps/pentests/abort.py:155` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
 
-_Y 187 mas._
+_Y 354 mas._
 
-### comentario (54)
+### comentario (66)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
-| comentario | `frontend/src/styles/index.css:1228` | * filtrado por `STRIX_EGRESS_FENCE_MISSING` lo busca en la columna `error_message` de l... | explicacion interna |
+| comentario | `frontend/src/styles/index.css:1309` | * filtrado por `STRIX_EGRESS_FENCE_MISSING` lo busca en la columna `error_message` de l... | explicacion interna |
 | comentario | `frontend/src/features/pentests/PentestRunPage.tsx:29` | * de `scripts/audit_strix_parity.py` lo cuenta como fallo con razón —el nombre del motor | explicacion interna |
 | comentario | `frontend/src/features/pentests/PentestRunPage.tsx:36` | const FALLO_DESCONOCIDO = ['run.fallos.', 'STRIX_', 'EXECUTION_FAILED'].join('') | explicacion interna |
-| comentario | `frontend/src/features/pentests/PentestRunPage.tsx:346` | esta tarjeta el usuario ve un `STRIX_EXECUTION_FAILED` en la terminal y un gráfico | explicacion interna |
-| comentario | `frontend/src/features/pentests/PentestRunPage.tsx:347` | vacío, y no hay forma de pasar de ahí a nada accionable: el `STRIX_EXECUTION_FAILED` | explicacion interna |
-| comentario | `backend/apps/pentests/models.py:26` | """Modos de ejecución soportados por Strix.""" | explicacion interna |
+| comentario | `frontend/src/features/pentests/PentestRunPage.tsx:424` | esta tarjeta el usuario ve un `STRIX_EXECUTION_FAILED` en la terminal y un gráfico | explicacion interna |
+| comentario | `frontend/src/features/pentests/PentestRunPage.tsx:425` | vacío, y no hay forma de pasar de ahí a nada accionable: el `STRIX_EXECUTION_FAILED` | explicacion interna |
+| comentario | `backend/apps/pentests/models.py:39` | """Modos de ejecución soportados por Strix.""" | explicacion interna |
+| comentario | `backend/apps/pentests/schemas.py:176` | #: Porque `CoberturaStrix.a_json()` los escribía y este esquema **no los declaraba**. P... | explicacion interna |
+| comentario | `backend/core/config.py:349` | #: El modo host existe porque la imagen `strix_sandbox_image` **no lleva el motor** | explicacion interna |
+| comentario | `backend/core/config.py:350` | #: dentro —`exec: strix: not found`, exit 127— así que el modo contenedor no puede | explicacion interna |
+| comentario | `backend/core/config.py:384` | #: Modo **replay**: directorio de un run real del motor (`strix_runs/<run>/`) cuyos | explicacion interna |
+| comentario | `backend/core/config.py:890` | # Un refusal de arranque, no un aviso. Ver el docstring de `strix_replay_source`: | explicacion interna |
 | comentario | `backend/workers/tasks.py:1` | """Tareas Celery de ejecución e ingesta de Strix.""" | explicacion interna |
-| comentario | `backend/workers/tasks.py:72` | # solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o... | explicacion interna |
-| comentario | `backend/workers/tasks.py:1038` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
-| comentario | `backend/workers/tasks.py:1243` | # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT` | explicacion interna |
-| comentario | `backend/workers/tasks.py:1247` | # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué | explicacion interna |
-| comentario | `backend/workers/tasks.py:1284` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
+| comentario | `backend/workers/tasks.py:80` | # solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o... | explicacion interna |
+| comentario | `backend/workers/tasks.py:1564` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
+| comentario | `backend/workers/tasks.py:1778` | # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT` | explicacion interna |
+| comentario | `backend/workers/tasks.py:1782` | # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué | explicacion interna |
+| comentario | `backend/workers/tasks.py:1819` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
 | comentario | `backend/workers/__init__.py:1` | """Workers y utilidades de ejecución de Strix.""" | explicacion interna |
 | comentario | `backend/workers/parser/normalizer.py:18` | """Convierte severidades de Strix a valores persistidos canónicos.""" | explicacion interna |
 | comentario | `backend/workers/parser/strix_parser.py:1` | """Parser estricto de los reportes JSON generados por Strix.""" | explicacion interna |
 | comentario | `backend/workers/parser/strix_parser.py:18` | """Error controlado para salida Strix inválida o corrupta.""" | explicacion interna |
-| comentario | `backend/workers/parser/strix_parser.py:75` | """Extrae el identificador de provenance de un reporte Strix válido.""" | explicacion interna |
-| comentario | `backend/workers/parser/strix_parser.py:102` | """Convierte un reporte Strix en entidades sin abrir una transacción de persistencia. | explicacion interna |
+| comentario | `backend/workers/parser/strix_parser.py:85` | """Extrae el identificador de provenance de un reporte Strix válido.""" | explicacion interna |
+| comentario | `backend/workers/parser/strix_parser.py:112` | """Convierte un reporte Strix en entidades sin abrir una transacción de persistencia. | explicacion interna |
 | comentario | `backend/workers/parser/__init__.py:1` | """Parser de resultados y normalización de Strix.""" | explicacion interna |
-| comentario | `backend/workers/runner/diagnostico.py:80` | #: solo vale `STRIX_NONZERO_EXIT` o `None`. El código desconocido se escribe al final del | explicacion interna |
+| comentario | `backend/workers/runner/diagnostico.py:81` | #: solo vale `STRIX_NONZERO_EXIT` o `None`. El código desconocido se escribe al final del | explicacion interna |
+| comentario | `backend/workers/runner/diagnostico.py:116` | #: ## Por qué `STRIX_RUN_INCOMPLETE` **no** está en los dos conjuntos de al lado | explicacion interna |
+| comentario | `backend/workers/runner/diagnostico.py:118` | #: `STRIX_RUN_INCOMPLETE` es el `run.json` del motor con un `status` distinto de `compl... | explicacion interna |
 | comentario | `backend/workers/runner/exceptions.py:1` | """Errores tipados del runner Docker de Strix.""" | explicacion interna |
 | comentario | `backend/workers/runner/exceptions.py:17` | """Docker no pudo crear o ejecutar el contenedor de Strix.""" | explicacion interna |
-| comentario | `backend/workers/runner/exceptions.py:35` | """Strix no produjo un artefacto JSON utilizable.""" | explicacion interna |
+| comentario | `backend/workers/runner/exceptions.py:35` | """Strix no produjo un artefacto utilizable. | explicacion interna |
+| comentario | `backend/workers/runner/host.py:570` | # `leer_ejecucion` lanza `StrixRunIncompleteError` si `run.json` no dice | explicacion interna |
 | comentario | `backend/workers/runner/llm_key_exposure.py:58` | #: Texto que hay que escribir en `STRIX_LLM_KEY_EXPOSURE_ACK` para confirmar que la exp... | explicacion interna |
+| comentario | `backend/workers/runner/replay.py:96` | ## Por qué usa el workspace de `StrixHostRunner` en vez del suyo | explicacion interna |
 | comentario | `backend/workers/runner/sandbox.py:1` | """Ciclo de vida efímero del contenedor Strix.""" | explicacion interna |
-| comentario | `backend/workers/runner/sandbox.py:45` | """Resultado normalizado de una ejecución Strix ya purgada.""" | explicacion interna |
-| comentario | `backend/workers/runner/sandbox.py:53` | """Ejecuta Strix en un bridge y workspace exclusivos por run.""" | explicacion interna |
-| comentario | `backend/workers/runner/sandbox.py:78` | # vacío o fallo de resolución), se recurre al `DEFAULT_STRIX_LLM`: es | explicacion interna |
-| comentario | `backend/workers/runner/sandbox.py:241` | """Ejecuta Strix y devuelve el JSON leído antes de purgar el workspace.""" | explicacion interna |
+| comentario | `backend/workers/runner/sandbox.py:44` | """Resultado normalizado de una ejecución Strix ya purgada.""" | explicacion interna |
+| comentario | `backend/workers/runner/sandbox.py:52` | """Ejecuta Strix en un bridge y workspace exclusivos por run.""" | explicacion interna |
+| comentario | `backend/workers/runner/sandbox.py:77` | # vacío o fallo de resolución), se recurre al `DEFAULT_STRIX_LLM`: es | explicacion interna |
+| comentario | `backend/workers/runner/sandbox.py:227` | """Ejecuta Strix y devuelve el JSON leído antes de purgar el workspace.""" | explicacion interna |
+| comentario | `backend/workers/runner/strix_artefactos.py:90` | #: lanza. Ver `strix/core/paths.py` (`RUNS_DIR_NAME`). | explicacion interna |
+| comentario | `backend/workers/runner/strix_artefactos.py:98` | #: Prefijo de las reglas de cobertura. Ver `strix/report/sarif.py` (`_COVERAGE_RULE_PRE... | explicacion interna |
+| comentario | `backend/workers/runner/strix_artefactos.py:112` | #: `properties["security-severity"]` (`strix/report/sarif.py`, `_SEVERITY_TO_SCORE`). | explicacion interna |
 | comentario | `backend/workers/runner/telemetry.py:106` | """Extrae el consumo de tokens del reporte de Strix, si lo publica. | explicacion interna |
 | comentario | `backend/workers/runner/__init__.py:1` | """Ejecución aislada de Strix en contenedores efímeros.""" | explicacion interna |
 | comentario | `scripts/audit_strix_parity.py:2` | """Audita la paridad de la superficie funcional y escribe `STRIX_PARITY_REPORT.md`. | explicacion interna |
@@ -252,12 +264,8 @@ _Y 187 mas._
 | comentario | `scripts/audit_strix_parity.py:367` | return [m.start() for m in re.finditer(r"strix", linea, re.IGNORECASE)] | explicacion interna |
 | comentario | `scripts/audit_strix_parity.py:420` | suave de Strix...")` en el modulo de configuracion tiene un simbolo en la misma linea y | explicacion interna |
 | comentario | `scripts/audit_strix_parity.py:431` | de error —`STRIX_DOCKER_UNAVAILABLE`—, que es el contrato con el worker que escribe ese | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:501` | if "strix" not in linea.lower(): | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:650` | # modulos de Strix—. Se listan aparte para que sean visibles sin marcar el despliegue como | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:718` | "funcional" if "Strix" not in leer(RAIZ / "frontend/index.html") else "FALLA", | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:808` | "Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se leen del " | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:854` | "a proposito. `El timeout suave de Strix debe ser menor que el duro` dice que variable " | explicacion interna |
-| comentario | `scripts/audit_strix_parity.py:910` | help="ruta del informe (por defecto STRIX_PARITY_REPORT.md en la raiz)", | explicacion interna |
+
+_Y 6 mas._
 
 ## Metodo
 

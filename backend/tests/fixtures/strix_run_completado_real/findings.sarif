@@ -1,0 +1,862 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Strix",
+          "informationUri": "https://strix.ai",
+          "rules": [
+            {
+              "id": "strix-coverage/live-service-fingerprinting-hidden-paths-api-auth-surface-discovery",
+              "name": "Live-service fingerprinting, hidden paths, API/auth surface discovery",
+              "shortDescription": {
+                "text": "Coverage: Live-service fingerprinting, hidden paths, API/auth surface discovery"
+              },
+              "fullDescription": {
+                "text": "Coverage of Live-service fingerprinting, hidden paths, API/auth surface discovery across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Live-service fingerprinting, hidden paths, API/auth surface discovery across the assessed attack surface.",
+                "markdown": "Coverage of Live-service fingerprinting, hidden paths, API/auth surface discovery across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/hardcoded-secrets-hidden-api-routes-parameter-names-in-client-js",
+              "name": "Hardcoded secrets, hidden API routes, parameter names in client JS",
+              "shortDescription": {
+                "text": "Coverage: Hardcoded secrets, hidden API routes, parameter names in client JS"
+              },
+              "fullDescription": {
+                "text": "Coverage of Hardcoded secrets, hidden API routes, parameter names in client JS across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Hardcoded secrets, hidden API routes, parameter names in client JS across the assessed attack surface.",
+                "markdown": "Coverage of Hardcoded secrets, hidden API routes, parameter names in client JS across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/php-contact-handler-email-header-injection-spam-relay-rate-limiting",
+              "name": "PHP contact handler — email header injection / spam relay / rate limiting",
+              "shortDescription": {
+                "text": "Coverage: PHP contact handler — email header injection / spam relay / rate limiting"
+              },
+              "fullDescription": {
+                "text": "Coverage of PHP contact handler — email header injection / spam relay / rate limiting across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of PHP contact handler — email header injection / spam relay / rate limiting across the assessed attack surface.",
+                "markdown": "Coverage of PHP contact handler — email header injection / spam relay / rate limiting across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/subdomain-takeover-dangling-dns",
+              "name": "Subdomain takeover (dangling DNS)",
+              "shortDescription": {
+                "text": "Coverage: Subdomain takeover (dangling DNS)"
+              },
+              "fullDescription": {
+                "text": "Coverage of Subdomain takeover (dangling DNS) across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Subdomain takeover (dangling DNS) across the assessed attack surface.",
+                "markdown": "Coverage of Subdomain takeover (dangling DNS) across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/exposed-services-beyond-80-443-wildcard-cert-additional-subdomains",
+              "name": "Exposed services beyond 80/443, wildcard cert, additional subdomains",
+              "shortDescription": {
+                "text": "Coverage: Exposed services beyond 80/443, wildcard cert, additional subdomains"
+              },
+              "fullDescription": {
+                "text": "Coverage of Exposed services beyond 80/443, wildcard cert, additional subdomains across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Exposed services beyond 80/443, wildcard cert, additional subdomains across the assessed attack surface.",
+                "markdown": "Coverage of Exposed services beyond 80/443, wildcard cert, additional subdomains across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/hidden-paths-additional-backends-secrets-in-client-assets",
+              "name": "Hidden paths, additional backends, secrets in client assets",
+              "shortDescription": {
+                "text": "Coverage: Hidden paths, additional backends, secrets in client assets"
+              },
+              "fullDescription": {
+                "text": "Coverage of Hidden paths, additional backends, secrets in client assets across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Hidden paths, additional backends, secrets in client assets across the assessed attack surface.",
+                "markdown": "Coverage of Hidden paths, additional backends, secrets in client assets across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/missing-security-headers-transport-security-misconfiguration",
+              "name": "Missing security headers, transport security misconfiguration",
+              "shortDescription": {
+                "text": "Coverage: Missing security headers, transport security misconfiguration"
+              },
+              "fullDescription": {
+                "text": "Coverage of Missing security headers, transport security misconfiguration across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Missing security headers, transport security misconfiguration across the assessed attack surface.",
+                "markdown": "Coverage of Missing security headers, transport security misconfiguration across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/dom-xss-via-html-injection-sinks-dangerouslysetinnerhtml-innerhtml-eval",
+              "name": "DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval)",
+              "shortDescription": {
+                "text": "Coverage: DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval)"
+              },
+              "fullDescription": {
+                "text": "Coverage of DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval) across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval) across the assessed attack surface.",
+                "markdown": "Coverage of DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval) across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/dom-xss-via-url-parameter-query-string-injection-into-dom",
+              "name": "DOM-XSS via URL parameter (query string) injection into DOM",
+              "shortDescription": {
+                "text": "Coverage: DOM-XSS via URL parameter (query string) injection into DOM"
+              },
+              "fullDescription": {
+                "text": "Coverage of DOM-XSS via URL parameter (query string) injection into DOM across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of DOM-XSS via URL parameter (query string) injection into DOM across the assessed attack surface.",
+                "markdown": "Coverage of DOM-XSS via URL parameter (query string) injection into DOM across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/dom-xss-via-location-hash-postmessage-message-handlers",
+              "name": "DOM-XSS via location.hash / postMessage message handlers",
+              "shortDescription": {
+                "text": "Coverage: DOM-XSS via location.hash / postMessage message handlers"
+              },
+              "fullDescription": {
+                "text": "Coverage of DOM-XSS via location.hash / postMessage message handlers across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of DOM-XSS via location.hash / postMessage message handlers across the assessed attack surface.",
+                "markdown": "Coverage of DOM-XSS via location.hash / postMessage message handlers across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/open-redirect-attacker-influenced-anchor-target",
+              "name": "Open redirect / attacker-influenced anchor target",
+              "shortDescription": {
+                "text": "Coverage: Open redirect / attacker-influenced anchor target"
+              },
+              "fullDescription": {
+                "text": "Coverage of Open redirect / attacker-influenced anchor target across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Open redirect / attacker-influenced anchor target across the assessed attack surface.",
+                "markdown": "Coverage of Open redirect / attacker-influenced anchor target across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/client-side-storage-secrets-persistence-vectors",
+              "name": "Client-side storage secrets / persistence vectors",
+              "shortDescription": {
+                "text": "Coverage: Client-side storage secrets / persistence vectors"
+              },
+              "fullDescription": {
+                "text": "Coverage of Client-side storage secrets / persistence vectors across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Client-side storage secrets / persistence vectors across the assessed attack surface.",
+                "markdown": "Coverage of Client-side storage secrets / persistence vectors across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/service-worker-persistence-script-injection-via-dynamic-src",
+              "name": "Service worker / persistence / script injection via dynamic src",
+              "shortDescription": {
+                "text": "Coverage: Service worker / persistence / script injection via dynamic src"
+              },
+              "fullDescription": {
+                "text": "Coverage of Service worker / persistence / script injection via dynamic src across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Service worker / persistence / script injection via dynamic src across the assessed attack surface.",
+                "markdown": "Coverage of Service worker / persistence / script injection via dynamic src across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/subdomain-takeover-claimable-third-party-targets",
+              "name": "Subdomain takeover / claimable third-party targets",
+              "shortDescription": {
+                "text": "Coverage: Subdomain takeover / claimable third-party targets"
+              },
+              "fullDescription": {
+                "text": "Coverage of Subdomain takeover / claimable third-party targets across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Subdomain takeover / claimable third-party targets across the assessed attack surface.",
+                "markdown": "Coverage of Subdomain takeover / claimable third-party targets across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/security-header-posture-hsts-csp-xfo-xcto-referrer-policy-cookies",
+              "name": "Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies)",
+              "shortDescription": {
+                "text": "Coverage: Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies)"
+              },
+              "fullDescription": {
+                "text": "Coverage of Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies) across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies) across the assessed attack surface.",
+                "markdown": "Coverage of Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies) across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            },
+            {
+              "id": "strix-coverage/tls-protocol-cipher-posture-and-certificate-sans",
+              "name": "TLS protocol/cipher posture and certificate SANs",
+              "shortDescription": {
+                "text": "Coverage: TLS protocol/cipher posture and certificate SANs"
+              },
+              "fullDescription": {
+                "text": "Coverage of TLS protocol/cipher posture and certificate SANs across the assessed attack surface."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "help": {
+                "text": "Coverage of TLS protocol/cipher posture and certificate SANs across the assessed attack surface.",
+                "markdown": "Coverage of TLS protocol/cipher posture and certificate SANs across the assessed attack surface."
+              },
+              "properties": {
+                "tags": [
+                  "coverage"
+                ]
+              }
+            }
+          ],
+          "version": "1.7.0"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "strix-coverage/live-service-fingerprinting-hidden-paths-api-auth-surface-discovery",
+          "ruleIndex": 0,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Live-service fingerprinting, hidden paths, API/auth surface discovery — No issue identified: https://mindguard.site (static SPA root + asset bundle)\n\nFingerprinted via httpx/curl/wafw00f; katana+gospider crawl, dirsearch common-list (~2.7k paths), manual verification of admin/api/.env/.git paths. Site is a static React marketing SPA on Hostinger CDN with no backend, no API, no auth; 403s were CDN anti-bot challenge pages and 502s Hostinger 404 pages, not real access control."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "https://mindguard.site (static SPA root + asset bundle)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Live-service fingerprinting, hidden paths, API/auth surface discovery",
+              "surface": "https://mindguard.site (static SPA root + asset bundle)",
+              "recorded_by": "Recon Agent - mindguard.site",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/hardcoded-secrets-hidden-api-routes-parameter-names-in-client-js",
+          "ruleIndex": 1,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Hardcoded secrets, hidden API routes, parameter names in client JS — No issue identified: mindguard.site JS bundle /assets/index-B22VnECO.js\n\nFull beautified review of 209 KB bundle (grep + js-beautify): no API endpoints, keys, tokens, auth strings, or user roles. Only 3rd-party integrations are Google Fonts and Cal.com embed (calLink shyntai/1hora, public by design)."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "mindguard.site JS bundle /assets/index-B22VnECO.js"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Hardcoded secrets, hidden API routes, parameter names in client JS",
+              "surface": "mindguard.site JS bundle /assets/index-B22VnECO.js",
+              "recorded_by": "Recon Agent - mindguard.site",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/php-contact-handler-email-header-injection-spam-relay-rate-limiting",
+          "ruleIndex": 2,
+          "kind": "open",
+          "level": "none",
+          "message": {
+            "text": "PHP contact handler — email header injection / spam relay / rate limiting — Requires further review: https://mindguardredteam.com/contact.php\n\nConfirmed live unauthenticated PHP backend: POST accepts form fields name/email/company/service/message with honeypot 'website'; GET returns method-not-allowed JSON. Recon-only mandate — no payload testing performed. Injection, relay, and rate-limit posture unverified; this is the only real dynamic attack surface found in scope."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "https://mindguardredteam.com/contact.php"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "needs_follow_up",
+              "risk_area": "PHP contact handler — email header injection / spam relay / rate limiting",
+              "surface": "https://mindguardredteam.com/contact.php",
+              "recorded_by": "Recon Agent - mindguard.site",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/subdomain-takeover-dangling-dns",
+          "ruleIndex": 3,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Subdomain takeover (dangling DNS) — Ruled out: redteam.mindguard.site / www.redteam.mindguard.site DNS records\n\nResolved by follow-up DNS assessment (entries ef9fff/4daaf8): authoritative Hostinger nameservers return NXDOMAIN with zero records (no A/CNAME/NS) for redteam.mindguard.site and www variant, confirmed from 3 public resolvers and direct NS query. A nonexistent DNS label is not claimable — no takeover vulnerability exists; subfinder hits were stale passive-DNS artifacts."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "redteam.mindguard.site / www.redteam.mindguard.site DNS records"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "Subdomain takeover (dangling DNS)",
+              "surface": "redteam.mindguard.site / www.redteam.mindguard.site DNS records",
+              "recorded_by": "Root Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/exposed-services-beyond-80-443-wildcard-cert-additional-subdomains",
+          "ruleIndex": 4,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Exposed services beyond 80/443, wildcard cert, additional subdomains — No issue identified: mindguard.site DNS / ports / TLS\n\nsubfinder + dig (A/CNAME) + openssl SAN read + naabu top-100 ports: only 80/443 open on CDN edges 185.77.97.104 / 91.108.103.230; TLS cert covers only mindguard.site and www; www CNAMEs to Hostinger CDN. Only subdomains found were www and the dangling redteam records (tracked separately)."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "mindguard.site DNS / ports / TLS"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Exposed services beyond 80/443, wildcard cert, additional subdomains",
+              "surface": "mindguard.site DNS / ports / TLS",
+              "recorded_by": "Recon Agent - mindguard.site",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/hidden-paths-additional-backends-secrets-in-client-assets",
+          "ruleIndex": 5,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Hidden paths, additional backends, secrets in client assets — No issue identified: https://mindguardredteam.com (static site + crawl)\n\ndirsearch common-list pass (~6k requests; 403s verified as CDN anti-bot challenge pages, no real hits), gospider crawl, script.js/css review: only live backend is contact.php (tracked separately); no secrets or additional PHP endpoints found (config.php/mail.php/send.php = 404 or challenge)."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "https://mindguardredteam.com (static site + crawl)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Hidden paths, additional backends, secrets in client assets",
+              "surface": "https://mindguardredteam.com (static site + crawl)",
+              "recorded_by": "Recon Agent - mindguard.site",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/missing-security-headers-transport-security-misconfiguration",
+          "ruleIndex": 6,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Missing security headers, transport security misconfiguration — No issue identified: mindguard.site security headers / TLS config\n\nHeaders reviewed: only CSP 'upgrade-insecure-requests'; no HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy. On a pure static brochure site with no cookies/auth this is at most Low/Informational hardening advice, not a reportable vulnerability; http→https 301 redirect is present. Recorded as observation, not filed."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "mindguard.site security headers / TLS config"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Missing security headers, transport security misconfiguration",
+              "surface": "mindguard.site security headers / TLS config",
+              "recorded_by": "Recon Agent - mindguard.site",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/dom-xss-via-html-injection-sinks-dangerouslysetinnerhtml-innerhtml-eval",
+          "ruleIndex": 7,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval) — Ruled out: /assets/index-B22VnECO.js (mindguard.site SPA bundle) — HTML/JS sink audit\n\nStatic: grep of beautified bundle (209KB, 9601 lines) found all 13 dangerouslySetInnerHTML hits are React 18 library internals (prop plumbing at lines 752/1158/1320/4834/4843/5017/5501), zero app-level `__html` usage, zero eval/new Function/document.write/insertAdjacentHTML/`.html()`. Dynamic: payload navigations (`#<img src=x onerror=window.__t1=1>` encoded and raw, `<svg onload>` family) left window markers undefined and payload strings never present in document.body.innerHTML. CSP is only `upgrade-insecure-requests` (no script-src), but no reachable sink exists to exploit."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "/assets/index-B22VnECO.js (mindguard.site SPA bundle) — HTML/JS sink audit"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval)",
+              "surface": "/assets/index-B22VnECO.js (mindguard.site SPA bundle) — HTML/JS sink audit",
+              "recorded_by": "DOM-XSS & Client-Side Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/dom-xss-via-url-parameter-query-string-injection-into-dom",
+          "ruleIndex": 8,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "DOM-XSS via URL parameter (query string) injection into DOM — Ruled out: ?lang= URL parameter handling (mindguard.site Zf/Zf language provider)\n\nStatic: `Zf()` at beautified line 7609 reads `new URLSearchParams(window.location.search).get(\"lang\")` but returns the value only if it === \"es\" or === \"en\", else falls back to the localStorage value under the same allowlist, else \"es\". No other URL parameter is read anywhere in the bundle. Dynamic: GET /?lang=<img src=x onerror=window.__t2=1> (proxy id 7772) returned 200 with identical response length to baseline (1927 B, id 7653); marker window.__t2 stayed undefined; localStorage value stayed null."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "?lang= URL parameter handling (mindguard.site Zf/Zf language provider)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "DOM-XSS via URL parameter (query string) injection into DOM",
+              "surface": "?lang= URL parameter handling (mindguard.site Zf/Zf language provider)",
+              "recorded_by": "DOM-XSS & Client-Side Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/dom-xss-via-location-hash-postmessage-message-handlers",
+          "ruleIndex": 9,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "DOM-XSS via location.hash / postMessage message handlers — Ruled out: URL hash routing & postMessage listener surface (mindguard.site anchors)\n\nStatic: zero `location.hash` reads in the bundle (grep count 0), zero `window.addEventListener(\"message\")` / `onmessage` handlers; the only `postMessage` call (line 582) is the React scheduler MessageChannel internal `port2.postMessage(null)`, not a cross-origin receiver. Dynamic: navigations with encoded and raw `<img src=x onerror>` / `<svg onload>` hashes — window markers stayed undefined, `document.body.innerHTML.includes('<img')` false. All anchor hrefs are hardcoded constants (`#top #platform #method #cases #security #faq #contact` + `https://mindguardredteam.com`); no hash value is ever written into the DOM."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "URL hash routing & postMessage listener surface (mindguard.site anchors)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "DOM-XSS via location.hash / postMessage message handlers",
+              "surface": "URL hash routing & postMessage listener surface (mindguard.site anchors)",
+              "recorded_by": "DOM-XSS & Client-Side Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/open-redirect-attacker-influenced-anchor-target",
+          "ruleIndex": 10,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Open redirect / attacker-influenced anchor target — Ruled out: Outbound link / redirect surface (mindguard.site anchors & Cal.com embed)\n\nStatic + dynamic: all link hrefs are hardcoded constants (grep of `href: \"` in app code shows only `#platform #method #cases #security #faq #contact #top` and `https://mindguardredteam.com`); zero `location.assign` / `location.replace` / `location =` / `window.open` calls in the bundle. Runtime query of all <a> elements returned only the same static list, no dynamic href construction anywhere. No redirect parameter exists to abuse."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "Outbound link / redirect surface (mindguard.site anchors & Cal.com embed)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "Open redirect / attacker-influenced anchor target",
+              "surface": "Outbound link / redirect surface (mindguard.site anchors & Cal.com embed)",
+              "recorded_by": "DOM-XSS & Client-Side Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/client-side-storage-secrets-persistence-vectors",
+          "ruleIndex": 11,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Client-side storage secrets / persistence vectors — No issue identified: localStorage / sessionStorage / indexedDB / cookie usage (mindguard.site client)\n\nRuntime: `Object.keys(localStorage)` = [] and `Object.keys(sessionStorage)` = [] after the app fully loaded (after I removed the single test value I had written via eval); `document.cookie` = empty; `indexedDB` present as a browser API but bundle grep shows zero indexedDB usage. The only localStorage key the code touches is `mindguard-landing-language` with an es/en allowlist on both read (Zf line 7611) and write (Jf line 7623). A poisoned value (`<img src=x onerror=...`) injected via devtools was read on reload but never entered the DOM (allowlist rejected it, fell back to \"es\"). No secrets, tokens, or PII stored client-side; confirms recon note dfa9ef."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "localStorage / sessionStorage / indexedDB / cookie usage (mindguard.site client)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Client-side storage secrets / persistence vectors",
+              "surface": "localStorage / sessionStorage / indexedDB / cookie usage (mindguard.site client)",
+              "recorded_by": "DOM-XSS & Client-Side Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/service-worker-persistence-script-injection-via-dynamic-src",
+          "ruleIndex": 12,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Service worker / persistence / script injection via dynamic src — Ruled out: Cal.com embed loader & dynamic script injection (mindguard.site Vo/Op/Dp functions)\n\nBundle grep for `serviceWorker|register(|Worker(|importScripts|manifest` — zero hits. Only dynamic script injection in the bundle is the Cal.com embed snippet at line 9398 (`i.head.appendChild(i.createElement(\"script\")).src = n`) where `n` derives from the hardcoded constant `https://app.cal.com/embed/embed.js` — not attacker-controllable. Runtime check: document has exactly 2 script elements with those fixed srcs. Cal.com iframe src is a static URL with no user-influenced parameters (`layout/theme/embedType` are fixed values)."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "Cal.com embed loader & dynamic script injection (mindguard.site Vo/Op/Dp functions)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "Service worker / persistence / script injection via dynamic src",
+              "surface": "Cal.com embed loader & dynamic script injection (mindguard.site Vo/Op/Dp functions)",
+              "recorded_by": "DOM-XSS & Client-Side Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/subdomain-takeover-dangling-dns",
+          "ruleIndex": 3,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Subdomain takeover / dangling DNS — Ruled out: redteam.mindguard.site (DNS takeover assessment)\n\nAuthoritative nameservers (aurora/nebula.dns-parking.com, Hostinger) return NXDOMAIN with zero records (no A, no CNAME, no NS delegation) for redteam.mindguard.site, confirmed from 3 public resolvers (1.1.1.1, 8.8.8.8, 9.9.9.9) and directly against NS at 172.64.52.197. A takeover requires a dangling record (CNAME/NS) to a claimable third-party resource; here the DNS record is fully deleted, so there is nothing to claim. CT log (certspotter id 17324447351-range, issued 2026-09-22) shows a cert once existed for redteam.mindguard.site + www.redteam.mindguard.site, but no archived HTTP history (Wayback CDX empty) and no observable prior CNAME target. Named control that makes this safe: the zone simply contains no record for the label, so no attacker-controlled claim can be bound."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "redteam.mindguard.site (DNS takeover assessment)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "Subdomain takeover / dangling DNS",
+              "surface": "redteam.mindguard.site (DNS takeover assessment)",
+              "recorded_by": "DNS Takeover & Posture Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/subdomain-takeover-dangling-dns",
+          "ruleIndex": 3,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Subdomain takeover / dangling DNS — Ruled out: www.redteam.mindguard.site (DNS takeover assessment)\n\nSame authoritative NXDOMAIN-with-no-records state as parent label: no A/CNAME/NS at zone level (Hostinger dns-parking NS queried directly). No dangling record exists, so nothing claimable. Cert once covered this name (CT, 2026-09-22) but DNS record was fully removed."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "www.redteam.mindguard.site (DNS takeover assessment)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "ruled_out",
+              "risk_area": "Subdomain takeover / dangling DNS",
+              "surface": "www.redteam.mindguard.site (DNS takeover assessment)",
+              "recorded_by": "DNS Takeover & Posture Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/subdomain-takeover-claimable-third-party-targets",
+          "ruleIndex": 13,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Subdomain takeover / claimable third-party targets — No issue identified: *.mindguard.site fresh subdomain enumeration (subfinder -all + certspotter CT + rapiddns + urlscan)\n\nEnumerated subdomains: only mindguard.site, www.mindguard.site (CNAME www.mindguard.site.cdn.hstgr.net — Hostinger-owned CDN, not attacker-claimable), redteam.mindguard.site + www.redteam (NXDOMAIN, no records). CT via certspotter shows exactly 4 names across 2 certs. No CNAME to vercel/heroku/github/netlify/s3/cloudfront/fastly/zendesk or any claimable service. crt.sh itself was down (502/404) during the scan; certspotter provided equivalent CT coverage."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "*.mindguard.site fresh subdomain enumeration (subfinder -all + certspotter CT + rapiddns + urlscan)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Subdomain takeover / claimable third-party targets",
+              "surface": "*.mindguard.site fresh subdomain enumeration (subfinder -all + certspotter CT + rapiddns + urlscan)",
+              "recorded_by": "DNS Takeover & Posture Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/security-header-posture-hsts-csp-xfo-xcto-referrer-policy-cookies",
+          "ruleIndex": 14,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies) — No issue identified: mindguard.site + www.mindguard.site HTTP response headers (GET /)\n\nInformational posture: HTTP 301 -> HTTPS redirect works; no Set-Cookie on either host (no cookie-flag risk). Present: CSP 'upgrade-insecure-requests' only (weak but informational), Server: hcdn, alt-svc h3. Missing: HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy. Static SPA with no auth/PII, so these are hardening gaps only — informational, not filed as a vulnerability per task instructions."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "mindguard.site + www.mindguard.site HTTP response headers (GET /)"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies)",
+              "surface": "mindguard.site + www.mindguard.site HTTP response headers (GET /)",
+              "recorded_by": "DNS Takeover & Posture Agent",
+              "source": "agent_reported"
+            }
+          }
+        },
+        {
+          "ruleId": "strix-coverage/tls-protocol-cipher-posture-and-certificate-sans",
+          "ruleIndex": 15,
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "TLS protocol/cipher posture and certificate SANs — No issue identified: mindguard.site:443 TLS configuration\n\nnmap ssl-enum-ciphers: only TLSv1.2 and TLSv1.3 offered (no SSLv3/TLS1.0/1.1); all ciphers grade A (ECDHE/DHE AES-GCM + ChaCha20-Poly1305); least strength A. Cert: ZeroSSL RSA DV, CN=mindguard.site, SANs exactly mindguard.site + www.mindguard.site (matches certspotter CT inventory — no unexplained SANs, no internal names), valid Sep 21 - Dec 20 2026. Informational: minor note — cipher preference is client-controlled, and dh2048 noted weaker than cert key; not exploitable weaknesses."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "mindguard.site:443 TLS configuration"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "strix": {
+              "coverage_outcome": "no_issue_found",
+              "risk_area": "TLS protocol/cipher posture and certificate SANs",
+              "surface": "mindguard.site:443 TLS configuration",
+              "recorded_by": "DNS Takeover & Posture Agent",
+              "source": "agent_reported"
+            }
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "run_id": "mindguard-site_23ee",
+  "run_name": "mindguard-site_23ee",
+  "start_time": "2026-10-07T08:45:05.801086+00:00",
+  "end_time": "2026-10-07T09:07:34.216489+00:00",
+  "status": "completed",
+  "auth_mode": "api_key",
+  "targets_info": [
+    {
+      "type": "web_application",
+      "details": {
+        "target_url": "https://mindguard.site"
+      },
+      "original": "https://mindguard.site"
+    }
+  ],
+  "scan_mode": "quick",
+  "non_interactive": true,
+  "llm_usage": {
+    "input_tokens": 16819076,
+    "input_tokens_details": [
+      {
+        "cache_write_tokens": 0,
+        "cached_tokens": 16443264
+      }
+    ],
+    "output_tokens": 46417,
+    "output_tokens_details": [
+      {
+        "reasoning_tokens": 14156
+      }
+    ],
+    "total_tokens": 16865493,
+    "cost": 1.84830111,
+    "providers": {
+      "InferenceNet": {
+        "requests": 137,
+        "input_tokens": 9528723,
+        "cached_tokens": 9310336,
+        "cost": 0.88592174,
+        "cache_misses": 10,
+        "missed_tokens": 113105
+      },
+      "Mistral": {
+        "requests": 60,
+        "input_tokens": 4073774,
+        "cached_tokens": 4034944,
+        "cost": 0.66923376,
+        "cache_misses": 0,
+        "missed_tokens": 0
+      },
+      "Wafer": {
+        "requests": 47,
+        "input_tokens": 3216579,
+        "cached_tokens": 3097984,
+        "cost": 0.29314561,
+        "cache_misses": 10,
+        "missed_tokens": 78569
+      }
+    }
+  }
+}

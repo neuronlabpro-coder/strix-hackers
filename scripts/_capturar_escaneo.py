@@ -2,10 +2,15 @@
 
 ## Por qué se entra por la lista y no por URL directa
 
-Porque un token de SuperAdmin recibe `403` en los endpoints de tenant —aislamiento multi-tenant, R3—
-así que no se puede fabricar la URL de un run con ese token. Y porque el camino que recorre una
-persona para ver un escaneo es el que hay que verificar: lista, clic en la fila, detalle. Si el
-enlace de la tabla estuviera roto, una captura directa de la URL lo ocultaría.
+Porque el camino que recorre una persona para ver un escaneo es el que hay que verificar: lista,
+clic en la fila, detalle. Si el enlace de la tabla estuviera roto, una captura directa de la URL lo
+ocultaría.
+
+## Por qué la cuenta es de tenant y no de plataforma
+
+Porque los endpoints de tenant **rechazan** a un superusuario con `403` —R3—, así que con una cuenta
+de consola no se puede ni leer un run. La cuenta de tenant es la única desde la que esta pantalla
+es alcanzable, y por eso el recorrido empieza por la lista de pentests y no por la consola.
 """
 
 from __future__ import annotations
@@ -20,8 +25,10 @@ from playwright.async_api import async_playwright
 
 BASE = "http://localhost:5173"
 SALIDA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "capturas")
-CORREO = "demo.admin@acmesecurity.io"
-CLAVE = "DemoFenix2026!Empa"
+#: Cuenta de la base de demostracion, verificada. La anterior no existe en `fenix_team_dev` y el
+#: script se caia en el login, sin dejar ninguna captura que mirar.
+CORREO = "user1@mindguard.tech"
+CLAVE = "UserPass2026!"
 
 #: Los tres pares etiqueta/hora de la cronología, medidos como cajas para ver si se tocan.
 MEDIR_CRONOLOGIA = """

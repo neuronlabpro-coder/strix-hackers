@@ -382,39 +382,92 @@ def _a_texto(valor: object) -> str:
 #: script. La diferencia importa: un `ECONNREFUSED` a PostgreSQL es un problema de red o de
 #: que la base no está levantada, y contarlo como fallo de código haría que alguien
 #: modificara el proyecto para arreglar algo que funciona.
+#:
+#: ## Por qué **ninguna** de estas puede ser una palabra suelta
+#:
+#: Porque cada una describe **un fallo de arranque**: el intérprete no encontró un módulo, el
+#: proceso no encontró el ejecutable, la conexión no llegó al servidor. Un `FileNotFoundError`
+#: *dentro* de una aserción no dice que falte un módulo: dice que el código bajo prueba miró un
+#: fichero que no existe, que es exactamente lo que se quiere que la aserción detecte. Por eso
+#: los tres casos de abajo exigen la forma del mensaje **real** —`ModuleNotFoundError: No module
+#: named 'x'`, `[WinError 2]`, `ECONNREFUSED`— y no una palabra que pueda aparecer en medio de
+#: una frase de un test.
 FALLAS_DE_ENTORNO: tuple[tuple[re.Pattern[str], str], ...] = (
     (
-        re.compile(r"(ConnectionRefusedError|ECONNREFUSED|connection refused)", re.I),
+        # `connection refused` sí se acepta aquí, y se acepta **aunque** pueda aparecer en el
+        # mensaje de una aserción: lo que impide que eso clasifique el gate es la comprobación de
+        # `MARCAS_DE_CODIGO`, que se mira antes. Quitar la frase sería tapar un síntoma y dejaría
+        # sin reconocer el fallo de red más real que hay en este proyecto.
+        re.compile(
+            r"(ConnectionRefusedError|ECONNREFUSED|connection refused|"
+            r"could not connect to server|no se pudo conectar al servidor)",
+            re.I,
+        ),
         "no hay conexion con la base de datos",
     ),
     (
-        re.compile(r"(TimeoutError|timed out)", re.I),
+        re.compile(
+            r"(asyncio\.exceptions\.TimeoutError|TimeoutError:|"
+            r"connection (?:timed out|timeout)|timed out after|"
+            r"La operacion excedio el tiempo)",
+            re.I,
+        ),
         "la operacion excedio el tiempo; la base por Tailscale puede no responder aun",
     ),
     (
-        re.compile(r"(Can't connect to (MySQL|server)|ECONNRESET)", re.I),
+        # El literal de PostgreSQL, con su comilla y su palabra exactas. `no se encontró` no
+        # entra aquí: es una frase que un test puede escribir en su mensaje de aserción.
+        re.compile(r'no se encontr\xf3 la base de datos|not connect to server', re.I),
         "la base de datos no esta accesible",
     ),
     (
-        re.compile(r"(is not recognized|not found)", re.I),
+        # Solo las dos formas en las que el intérprete o el shell dicen que **no existe el
+        # programa**. `is not recognized` es la fórmula de `cmd.exe`, con su coletilla completa:
+        # aislarla por palabras sueltas hacía que una aserción con la frase en el mensaje
+        # clasificara el gate entero como problema del entorno, y eso oculta el rojo.
+        re.compile(
+            r"('[^']+' is not recognized as an internal or external command"
+            r"|command not found"
+            r"|\[WinError 2\]"
+            r"|ModuleNotFoundError: No module named)",
+            re.I,
+        ),
         "falta una herramienta del entorno de desarrollo",
     ),
     (
-        re.compile(r"(ENOENT.*(docker\.sock|/var/run))", re.I),
+        re.compile(r"ENOENT[^\n]*(docker\.sock|/var/run)", re.I),
         "falta el socket de Docker en esta maquina",
     ),
 )
 
 
 def clasificar_fallo(resultado: Resultado) -> Resultado:
-    """Marca como fallo de entorno lo que lo es.
+    """Marca como fallo de entorno **solo** lo que lo es.
 
-    Se decide por la **salida de la herramienta** y solo si no hay nada más en ella. Un gate
-    que además muestra un error de lint no se declara "problema de entorno" porque apareciera
-    una palabra suelta: la clasificación mira que no haya ningún otro indicio de fallo.
+    Se decide por la **salida de la herramienta**, y hay dos condiciones que tienen que cumplirse
+    a la vez:
+
+    1. Aparece una de las firmas de `FALLAS_DE_ENTORNO`.
+    2. **No** aparece ninguna marca de aserción o de error de código.
+
+    ## Por qué la segunda condición es la que arregla el defecto
+
+    Porque una firma suelta no basta. Un gate de `pytest` que falla con
+    `assert 'strix.exe' not found in comando` tiene, literalmente, las palabras de «falta una
+    herramienta», y se declaraba «problema del entorno». Eso es **peor que el fallo**: un rojo
+    etiquetado como `N/A` no cuenta como entrega no apta, así que el gate puede estar roto y el
+    resumen decir que todo va bien. Un clasificador que esconde el rojo es un clasificador que
+    hay que arreglar aunque acierte en el resto.
+
+    Las marcas se leen de la salida de las herramientas que usa este proyecto —pytest, tsc,
+    oxlint, vitest y `alembic`— y no de un formato genérico, porque un formato genérico acabaría
+    marcando como «fallo de código» el mensaje de un problema de entorno, que es el error simétrico
+    y igual de malo.
     """
 
     if resultado.codigo == 0:
+        return resultado
+    if _tiene_marca_de_codigo(resultado.salida):
         return resultado
     for patron, motivo in FALLAS_DE_ENTORNO:
         if patron.search(resultado.salida):
@@ -422,6 +475,40 @@ def clasificar_fallo(resultado: Resultado) -> Resultado:
             resultado.motivo_entorno = motivo
             return resultado
     return resultado
+
+
+#: Marcas que delatan **aserciones rotas o errores de código** en la salida de un gate.
+#:
+#: ## Por qué se buscan en todas partes y no solo en el resumen
+#:
+#: Porque las herramientas no las escriben todas igual: `pytest` pone `E   assert ...` en el
+#: detalle y `FAILED` en el resumen; `tsc` solo da `file.ts(3,5): error TS...`; vitest da
+#: `FAIL` y el bloque de aserción. Buscando en toda la salida se cubren las tres sin tener que
+#: saber de qué gate se trata, y el riesgo de falsos positivos se paga en que el rojo se vea como
+#: rojo, que es el resultado correcto por si acaso.
+#:
+#: `assert` en minúscula a secas **no** se incluye: la palabra aparece en mensajes en español y
+#: en nombres de fichero, y un gate de i18n que falla précisément por eso se clasificaría como
+#: fallo de código cuando lo es... también de código, así que el error sería el mismo. Se deja
+#: fuera para no añadir una coincidencia que no aporta nada.
+MARCAS_DE_CODIGO: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*E\s+assert\b", re.M),
+    re.compile(r"^\s*E\s+\w*Error\b", re.M),
+    re.compile(r"^\s*>+\s+\w+Error\b", re.M),
+    re.compile(r"^\s*FAILED\b", re.M),
+    re.compile(r"^\s*FAIL\b", re.M),
+    re.compile(r"\berror TS\d{4}\b"),
+    re.compile(r"^\s*\d+ (?:test|tests) failed\b", re.M),
+    re.compile(r"^\s*Traceback \(most recent call last\)", re.M),
+    re.compile(r"^\s*AssertionError\b", re.M),
+    re.compile(r"^\s*\S+\.(py|ts|tsx|js|jsx):\d+:\d+: error", re.M),
+)
+
+
+def _tiene_marca_de_codigo(salida: str) -> bool:
+    """¿La salida contiene una marca de aserción rota o de error de código?"""
+
+    return any(patron.search(salida) for patron in MARCAS_DE_CODIGO)
 
 
 # --------------------------------------------------------------------------- #

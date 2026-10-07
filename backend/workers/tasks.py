@@ -50,9 +50,17 @@ from backend.workers.runner.diagnostico import (
     es_fallo_de_despliegue,
 )
 from backend.workers.runner.exceptions import SandboxCleanupError, SandboxTimeoutError
+from backend.workers.runner.host import HostRunResult, StrixHostRunner
+from backend.workers.runner.replay import (
+    StrixReplayRunner,
+    es_replay,
+    referencia_de_replay,
+)
 from backend.workers.runner.sandbox import StrixSandboxManager
+from backend.workers.runner.strix_artefactos import EjecucionStrix
 from backend.workers.runner.telemetry import (
     LlmUsageTelemetry,
+    TokenUsage,
     extract_token_usage,
     select_runtime_models,
 )
@@ -362,7 +370,7 @@ async def _charge_run_usage(
     run_id: UUID,
     model_id: str,
     scan_mode: str,
-    output_json: str,
+    usage: TokenUsage | None,
     reserved_credits: Decimal,
 ) -> None:
     """Tarifica el consumo real del run y ajusta la reserva del tenant.
@@ -371,9 +379,29 @@ async def _charge_run_usage(
     ledger: si el motor gastó de menos se devuelve el excedente y si gastó de más
     se cobra. Un feed sin datos de tokens deja la reserva intacta, que es la
     opción conservadora.
+
+    ## Por qué recibe `TokenUsage` y no el JSON del informe
+
+    Porque hay dos ejecuciones que cobran tokens reales y cada una los publica en un sitio
+    distinto: el modo contenedor los deja en el reporte (`extract_token_usage`) y el modo host
+    en `run.json.llm_usage`. Si esta función recibiera el documento crudo, cada llamada tendría
+    que saber de qué modo vino el run, y ese es exactamente el dato que no debe vivir en la
+    función de cobrar: quien llama lo lee de donde toca y aquí solo se tarifica.
+
+    `None` significa lo mismo que siempre ha significado: **no lo sabemos**, no cero.
+
+    ## Por qué además escribe `pentest_runs.catalogue_cost_usd`
+
+    Porque el desglose que sale de aquí es **la estimación de la plataforma**, y al lado del importe
+    que el proveedor cobró de verdad —`provider_cost_usd`, que escribe la ingesta del modo host—
+    es lo único que permite **medir** si el catálogo se está desviando. Guardar solo uno de los dos
+    deja al otro como una cifra de la que nadie se puede fiar: si el catálogo dice 6,80 USD y el
+    proveedorsays 1,85, sin los dos a la vista cualquiera de los dos parece el bueno.
+
+    Y no ajusta lo que se cobra. El importe está sellado en el ledger (R4) y cambiarlo es una
+    decisión comercial: aquí solo se deja la medida.
     """
 
-    usage = extract_token_usage(output_json)
     model = await _load_model_config(model_id)
     if usage is None or model is None:
         logger.info(
@@ -383,7 +411,7 @@ async def _charge_run_usage(
     engine, session_factory = _session_factory()
     try:
         async with session_factory() as session:
-            await LlmUsageTelemetry(
+            desglose = await LlmUsageTelemetry(
                 model=model,
                 use_case=_use_case_for_scan_mode(scan_mode),
                 prompt_tokens=usage.prompt_tokens,
@@ -395,6 +423,10 @@ async def _charge_run_usage(
                 credits_per_usd=credits_per_usd(),
                 reserved_credits=reserved_credits,
             )
+            if desglose is not None:
+                await _registrar_coste_de_catalogo(
+                    session, organization_id, run_id, desglose.base_cost_usd
+                )
     except Exception:
         # La tarificación es posterior al escaneo: un fallo aquí no debe
         # invalidar un run que ya terminó correctamente. Queda registrado para
@@ -404,6 +436,55 @@ async def _charge_run_usage(
         raise
     finally:
         await engine.dispose()
+
+
+async def _registrar_coste_de_catalogo(
+    session: AsyncSession,
+    organization_id: UUID,
+    run_id: UUID,
+    coste: Decimal,
+) -> None:
+    """Sella en el run lo que el catálogo estimó que costó su consumo.
+
+    ## Por qué se escribe y no se calcula al leer
+
+    Porque el precio de un modelo cambia y el importe que se cobró en su día no. Si se calculara en
+    la consulta, un cambio de `base_cost_input_m` reescribiría la historia: el mismo run mostraría
+    hoy un catálogo distinto del que usó cuando se tarificó, y la comparación con
+    `provider_cost_usd` —que sí está sellado— no significaría nada.
+
+    R3: el `WHERE` lleva `organization_id`. `run_id` es un UUID adivinable, y sin el filtro
+    cualquiera que tenga una sesión podría escribir el coste de catálogo del escaneo de otro
+    tenant, que es un número que aparece en su ficha.
+
+    ## Por qué **no** propaga el fallo
+
+    Porque es un dato de diagnóstico, no el cobro. El cobro ya está escrito y confirmado por
+    `LlmUsageTelemetry.charge` en la misma transacción; si esta escritura falla, el run está
+    correctamente tarificado y lo que se pierde es la medida de la divergencia, que se puede
+    recalcular desde `llm_usage_events`. Perder la medida es mejor que tumbar un run que ya
+    entregó su resultado.
+    """
+
+    try:
+        resultado = await session.execute(
+            select(PentestRun)
+            .where(PentestRun.id == run_id, PentestRun.organization_id == organization_id)
+            .with_for_update()
+        )
+        run = resultado.scalar_one_or_none()
+        if run is None:
+            logger.warning(
+                "El run %s no existe para la organización %s; no se registra su coste de catálogo",
+                run_id,
+                organization_id,
+            )
+            return
+        run.catalogue_cost_usd = coste
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.exception("No se pudo registrar el coste de catálogo del run %s", run_id)
 
 
 def _same_immutable_evidence(
@@ -473,36 +554,12 @@ async def _ingest_output(
                     for finding in findings
                     if finding.source_finding_id is not None
                 }
-                if run.status == ScanStatusEnum.COMPLETED:
-                    stored_result = await session.execute(
-                        select(Vulnerability).where(
-                            Vulnerability.run_id == run_id,
-                            Vulnerability.organization_id == organization_id,
-                        )
-                    )
-                    stored_findings = list(stored_result.scalars().all())
-                    stored_ids = {
-                        finding.source_finding_id
-                        for finding in stored_findings
-                        if finding.source_finding_id is not None
-                    }
-                    if stored_ids != incoming_ids or any(
-                        not _same_immutable_evidence(stored, incoming)
-                        for stored, incoming in zip(
-                            sorted(
-                                stored_findings,
-                                key=lambda finding: finding.source_finding_id or "",
-                            ),
-                            sorted(
-                                findings,
-                                key=lambda finding: finding.source_finding_id or "",
-                            ),
-                            strict=False,
-                        )
-                    ):
-                        raise StrixIngestionError(
-                            "El reporte no coincide con los findings ya ingeridos"
-                        )
+                del incoming_ids
+                # La comprobacion de reingesta vive en `_mismos_hallazgos_ingeridos` y la
+                # comparten los dos caminos de ingesta, el del modo contenedor y el del modo
+                # host. Dos copias de esta comparacion divergirian: una acabaria aceptando un
+                # reingesta con evidencia distinta, que es una violacion de R4 en silencio.
+                if await _mismos_hallazgos_ingeridos(session, run, findings):
                     await session.commit()
                     return len(findings)
                 if run.status not in {ScanStatusEnum.QUEUED, ScanStatusEnum.RUNNING}:
@@ -556,18 +613,224 @@ async def _ingest_output(
         await engine.dispose()
 
 
+async def _persistir_artefactos_del_motor(
+    session: AsyncSession,
+    run: PentestRun,
+    ejecucion: EjecucionStrix,
+    *,
+    exit_code: str | None,
+    referencia: str | None,
+) -> int:
+    """Escribe el estado real del run y sus hallazgos, y devuelve cuántos escribió.
+
+    ## Por qué es una función aparte y no una bandera dentro de `_ingest_output`
+
+    Porque `_ingest_output` recibe **un documento JSON con el contrato antiguo** —`scan_id`,
+    `status`, `findings[]`— que el motor no produce. Meter los artefactos reales en ese camino
+    obligaría a fabricar ese documento para que el parser antiguo siguiera funcionando, y un
+    documento fabricado es un documento que puede mentir. Este camino lee lo que el motor
+    escribió y no inventa la forma intermedia.
+
+    Lo que **sí** es el mismo es la garantía de idempotencia y la de R4, y por eso la lógica de
+    reingesta se apoya en `_mismos_hallazgos_ingeridos` y no en una copia.
+
+    R3: el `WHERE` lleva `organization_id` y el `FOR UPDATE` es sobre la fila del tenant. Sin
+    el filtro, un identificador de run adivinado bastaría para escribir sobre el escaneo de otro
+    cliente.
+    """
+
+    if run.source_scan_id is not None and run.source_scan_id != ejecucion.run_id:
+        raise StrixIngestionError("El identificador del run no coincide con el ya ingerido")
+    run.source_scan_id = ejecucion.run_id[:128]
+    if exit_code is not None:
+        run.exit_code = exit_code
+    if referencia is not None:
+        run.container_id = referencia
+
+    # Las horas del motor, no las del worker. `started_at` ya lo puso `_claim_run_for_execution`
+    # con el reloj del servidor; el motor sabe cuando empezo el escaneo de verdad, y en un run de
+    # veinte minutos la diferencia entre los dos es la que responde a "cuanto tardo en arrancar".
+    if ejecucion.start_time is not None:
+        run.started_at = ejecucion.start_time
+    run.finished_at = ejecucion.end_time or datetime.now(UTC)
+    run.coverage = ejecucion.cobertura.a_json() if ejecucion.cobertura is not None else None
+    run.provider_cost_usd = ejecucion.coste
+    run.provider_tokens = ejecucion.total_tokens
+
+    hallazgos = [
+        hallazgo.a_vulnerabilidad(organization_id=run.organization_id, run_id=run.id)
+        for hallazgo in ejecucion.hallazgos
+    ]
+    if await _mismos_hallazgos_ingeridos(session, run, hallazgos):
+        await session.commit()
+        return len(hallazgos)
+    if run.status not in {ScanStatusEnum.QUEUED, ScanStatusEnum.RUNNING}:
+        raise StrixIngestionError("El run no está en un estado susceptible de ingesta")
+
+    session.add_all(hallazgos)
+    run.status = ScanStatusEnum.COMPLETED
+    await session.commit()
+    # Los eventos van **después** del commit y en este orden, por el mismo motivo que en
+    # `_ingest_output`: un receptor que reaccione a `pentest.completed` buscando las
+    # vulnerabilidades de ese run tiene que encontrarlas ya.
+    await publish_event(
+        session,
+        EventType.VULNERABILITY_CREATED,
+        run.organization_id,
+        vulnerability_created_payload(
+            [
+                {
+                    "id": str(finding.id),
+                    "severity": finding.severity,
+                    "title": finding.title,
+                    "run_id": str(run.id),
+                }
+                for finding in hallazgos
+            ]
+        ),
+    )
+    await publish_event(
+        session,
+        EventType.PENTEST_COMPLETED,
+        run.organization_id,
+        pentest_payload(
+            run_id=run.id,
+            status=ScanStatusEnum.COMPLETED.value,
+            target_type=run.target_type,
+            target_value=run.target_identifier,
+            scan_mode=run.scan_mode,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            findings_count=len(hallazgos),
+        ),
+    )
+    return len(hallazgos)
+
+
+async def _mismos_hallazgos_ingeridos(
+    session: AsyncSession,
+    run: PentestRun,
+    entrantes: list[Vulnerability],
+) -> bool:
+    """¿Este run ya tiene exactamente estos hallazgos, con la misma evidencia?
+
+    ## Por qué esto decide entre idempotencia y error
+
+    ## Porque hay dos razones por las que se vuelve a llamar a la ingesta con el **mismo**
+    contenido, y solo una es un error: un reintento del worker y una doble entrega de la tarea de
+    Celery. En las dos, reescribir las filas de `vulnerabilities` violaría R4 —la evidencia es
+    inmutable— sin aportar nada. Y hay un tercer caso, **un contenido distinto**, que sí es un
+    error de verdad: significaría que dos escaneos distintos claimants sobre el mismo run, o que
+    el artefacto cambió bajo los pies del worker. Ese caso lanza, y es lo correcto: alguien tiene
+    que mirar el registro.
+
+    La comparación es de contenido R4 completo (`_same_immutable_evidence`), no solo de
+    identificadores: dos listas con los mismos ids y distinto CVSS son dos escaneos distintos.
+    """
+
+    if run.status != ScanStatusEnum.COMPLETED:
+        return False
+    resultado = await session.execute(
+        select(Vulnerability).where(
+            Vulnerability.run_id == run.id,
+            Vulnerability.organization_id == run.organization_id,
+        )
+    )
+    guardados = list(resultado.scalars().all())
+    ids_guardados = {
+        finding.source_finding_id for finding in guardados if finding.source_finding_id is not None
+    }
+    ids_entrantes = {
+        finding.source_finding_id
+        for finding in entrantes
+        if finding.source_finding_id is not None
+    }
+    if ids_guardados != ids_entrantes:
+        raise StrixIngestionError("Los hallazgos del artefacto no coinciden con los ya ingeridos")
+    for guardado, entrante in zip(
+        sorted(guardados, key=lambda finding: finding.source_finding_id or ""),
+        sorted(entrantes, key=lambda finding: finding.source_finding_id or ""),
+        strict=False,
+    ):
+        if not _same_immutable_evidence(guardado, entrante):
+            raise StrixIngestionError(
+                "Los hallazgos del artefacto no coinciden con los ya ingeridos"
+            )
+    return True
+
+
 class _AttemptOutcome(NamedTuple):
     """Desenlace de un intento de ejecución con un modelo concreto.
 
-    Es un `NamedTuple` y no un `dict[str, object]` porque los tres campos se leen en
-    cada iteración de la cadena de fallback: con un diccionario habría que asserting
-    el tipo en cada lectura, y un `str` olvidado en un `outcome["output_json"]`
+    Es un `NamedTuple` y no un `dict[str, object]` porque los campos se leen en
+    cada iteración de la cadena de fallback: con un diccionario habría queirmar el
+    tipo en cada lectura, y un `str` olvidado en un `outcome["output_json"]`
     acabaría en un cargo sin salida de informe.
+
+    ## Por qué hay dos campos de salida y no uno
+
+    Porque hay dos modos de ejecución y cada uno produce un documento distinto, y meterlos en el
+    mismo campo obligaría a que cada consumidor comprobara el modo antes de leerlo:
+
+    - `output_json`: el reporte del modo contenedor.
+    - `ejecucion`: los artefactos del modo host, ya reducidos a `EjecucionStrix`.
+
+    Mutuamente excluyentes por construcción: el que devuelve `COMPLETED` en modo contenedor
+    lleva `output_json` y `ejecucion=None`, y al revés en modo host.
+
+    ## Por qué `sin_tarificar` es un campo y no un caso especial del caller
+
+    Porque el replay produce un `EjecucionStrix` **real** —con tokens y con `llm_usage.cost` del
+    run reproducido— y el caller lo lee por `consumo` para ajustar el ledger. Si el replay no dijera
+    que no hay que tarificar, su camino sería indistinguible del modo host y cobraría por un
+    escaneo que no ocurrió. Es un booleano y no un valor de consumo a cero porque «cobró cero» y
+    «no se cobró nada» no son lo mismo: el primero deja asiento y el segundo no lo deja, y el
+    ledger es *append-only* (R4), así que un asiento de cero no se puede borrar después.
     """
 
     result: str  # "COMPLETED" | "FAILED" | "ABORTED"
     output_json: str | None
     error_code: str | None
+    ejecucion: EjecucionStrix | None = None
+    #: `True` cuando este desenlace **no** debe pasar por `_charge_run_usage`. Hoy solo lo pone el
+    #: replay, y el nombre es negativo a propósito: lo que se lee en el caller es «¿cobro?», y la
+    #: pregunta tiene que tener una respuesta por defecto que no haga daño.
+    sin_tarificar: bool = False
+
+    @property
+    def consumo(self) -> TokenUsage | None:
+        """Los tokens del intento, sea cual sea el modo.
+
+        La pregunta «cuánto costó esto» la tiene que poder responder el mismo sitio en los dos
+        modos, porque quien decide si devuelve dinero no debería importar de dónde vino el run.
+        """
+
+        if self.ejecucion is not None:
+            if self.ejecucion.total_tokens is None:
+                return None
+            # El motor solo publica el total en la raiz de `llm_usage`. Repartirlo entre
+            # entrada y salida seria inventar el desglose que la tarificacion necesita, y
+            # `compute_charge` cobra entrada y salida a precios distintos: un reparto inventado
+            # es un cargo inventado. Sin desglose published, no hay cargo.
+            desglose = _desglose_de_consumo(self.ejecucion)
+            return desglose
+        if self.output_json is None:
+            return None
+        return extract_token_usage(self.output_json)
+
+
+def _desglose_de_consumo(ejecucion: EjecucionStrix) -> TokenUsage | None:
+    """Entrada y salida del run, o `None` si el motor no las publica por separado.
+
+    `run.json` trae `llm_usage.total_tokens` y tambien, en `llm_usage.providers`, el
+    `input_tokens` y `output_tokens` por proveedor. Se suman los proveedores, que es donde el
+    desglose existe de verdad, y no se reparte el total.
+    """
+
+    total = ejecucion.consumo_desglosado
+    if total is None:
+        return None
+    return total
 
 
 async def _execute_pentest_run(run_id: UUID) -> str:
@@ -593,13 +856,22 @@ async def _execute_pentest_run(run_id: UUID) -> str:
         if outcome.result == "ABORTED":
             return "ABORTED"
         if outcome.result == "COMPLETED":
-            if outcome.output_json is not None:
+            # El replay persiste como un escaneo pero no se cobra como un escaneo: no hubo
+            # llamada al proveedor, y mover el saldo por artefactos copiados sería tarificar
+            # trabajo que no se ha hecho. La reserva del encolado se queda donde está, que es
+            # exactamente lo que hace un escaneo que se completa gastando lo reservado.
+            if outcome.sin_tarificar:
+                logger.info(
+                    "El run %s se completa sin tarificar: es un replay y no hubo consumo real",
+                    run_id,
+                )
+            else:
                 await _charge_run_usage(
                     organization_id,
                     run_id,
                     model_id,
                     scan_mode,
-                    outcome.output_json,
+                    outcome.consumo,
                     reserved,
                 )
             return "COMPLETED"
@@ -917,7 +1189,261 @@ async def _run_attempt(
     target_type: str,
     model_id: str,
 ) -> _AttemptOutcome:
-    """Ejecuta el sandbox con un modelo concreto y devuelve el desenlace."""
+    """Ejecuta el motor con un modelo concreto y devuelve el desenlace.
+
+    ## Por qué el modo se elige aquí y no dentro del runner
+
+    Porque los dos modos no solo se ejecutan distinto: **persisten distinto**. El modo contenedor
+    produce un reporte con el contrato antiguo y lo ingiere `_ingest_output`; el modo host produce
+    cuatro artefactos y lo ingiere `_persistir_artefactos_del_motor`. Ocultar esa diferencia
+    detrás de una única interfaz obligaría a fabricar un documento intermedio para que los dos
+    caminos convergieran en el mismo punto, y un documento fabricado puede mentir. La
+    bifurcación se ve, y es de dos líneas.
+
+    ## Por qué el replay se comprueba **antes** que el modo de ejecución
+
+    Porque el replay no es un tercer modo de ejecutar el motor: es un modo de **no** ejecutarlo.
+    Si se eligiera por `strix_execution_mode`, un despliegue en modo `container` con el replay
+    puesto intentaría levantar un contenedor, y un despliegue en modo `host` intentaría lanzar el
+    ejecutable. Los dos son justo lo que el replay existe para no hacer. Va primero, y solo se
+    mira `strix_execution_mode` cuando no hay replay.
+    """
+
+    if settings.strix_replay_source.strip():
+        return await _run_attempt_en_replay(run_id, organization_id, target)
+
+    if settings.strix_execution_mode == "host":
+        return await _run_attempt_en_host(
+            run_id,
+            organization_id,
+            target,
+            scan_mode,
+            target_type,
+            model_id,
+        )
+    return await _run_attempt_en_contenedor(
+        run_id,
+        organization_id,
+        target,
+        scan_mode,
+        target_type,
+        model_id,
+    )
+
+
+async def _run_attempt_en_replay(
+    run_id: UUID,
+    organization_id: UUID,
+    target: str,
+) -> _AttemptOutcome:
+    """Reproduce los artefactos de un run real y los persiste por el camino del modo host.
+
+    ## Por qué **no** cobra ni reembolsa
+
+    Porque un replay no es trabajo: no llama al proveedor, no ejecuta el motor y no gasta nada. Y
+    porque la reserva que el panel hizo al encolar **sigue en pie**: el replay termina en
+    `COMPLETED`, que es el estado donde `_charge_run_usage` cobra el ajuste y donde
+    `_devolver_lo_retenido` se niega a devolver. Un replay se declara como escaneo pero no se cobra
+    como escaneo, y esa asimetría es el precio de que el pipeline se pueda probar sin gastar.
+
+    ## Por qué vuelve por `_persistir_artefactos_del_motor` y no por un atajo
+
+    Porque es **la misma función** que usa el modo host, con las mismas reglas de idempotencia, de
+    R3 y de R4. Si el replay tuviera su propia escritura, estaríamos probando el atajo, que es
+    justo el camino que no existe en producción.
+
+    ## Por qué se marca la referencia antes de leer
+
+    Porque el run tiene que ser localizable mientras dura el replay, igual que en cualquier otro
+    modo. Y `replay:` no es un PID: no hay árbol de procesos que matar, y el camino de aborto lo
+    reconoce para no inventarse una ejecución que no existe.
+    """
+
+    runner = StrixReplayRunner(str(run_id), target=target)
+    referencia = referencia_de_replay(runner.source.name if runner.source else "sin-origen")
+    if not await _set_container_reference(organization_id, run_id, referencia):
+        return _AttemptOutcome(result="ABORTED", output_json=None, error_code=None)
+
+    try:
+        ejecucion, referencia = runner.run()
+    except BaseException:
+        if runner.cleanup_pending:
+            await _set_cleanup_pending(organization_id, run_id, True)
+        raise
+
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            try:
+                escrito = await session.execute(
+                    select(PentestRun)
+                    .where(
+                        PentestRun.id == run_id,
+                        PentestRun.organization_id == organization_id,
+                    )
+                    .with_for_update()
+                )
+                run = escrito.scalar_one_or_none()
+                if run is None:
+                    raise StrixIngestionError("El run no existe para la organización indicada")
+                await _persistir_artefactos_del_motor(
+                    session,
+                    run,
+                    ejecucion,
+                    exit_code="0",
+                    referencia=referencia,
+                )
+            except Exception:
+                await session.rollback()
+                raise
+    finally:
+        await engine.dispose()
+    logger.info(
+        "Replay del run %s completado con %d hallazgo(s) y %d registro(s) de cobertura; "
+        "no se ha movido el saldo del tenant",
+        run_id,
+        len(ejecucion.hallazgos),
+        ejecucion.registros_cobertura,
+    )
+    return _AttemptOutcome(
+        result="COMPLETED",
+        output_json=None,
+        error_code=None,
+        ejecucion=ejecucion,
+        # El consumo se devuelve a propósito: el caller lo lee para tarificar, y un replay no
+        # tarifica. Es el único punto donde esta función se separa del modo host.
+        sin_tarificar=True,
+    )
+
+
+async def _run_attempt_en_host(
+    run_id: UUID,
+    organization_id: UUID,
+    target: str,
+    scan_mode: str,
+    target_type: str,
+    model_id: str,
+) -> _AttemptOutcome:
+    """Ejecuta el motor como proceso del host y persiste sus artefactos.
+
+    ## Por qué el subproceso va en `asyncio.to_thread`
+
+    Porque `subprocess.communicate` **bloquea**, y esta corrutina vive en el bucle de eventos del
+    worker de Celery. Bloquearlo aquí congela el worker entero: no responde al latido, no saca
+    otras tareas de la cola y el watchdog deja de vigilar. En modo contenedor el bloqueo lo
+    absorbía la llamada al demonio; en modo host lo absorbe el propio proceso que se lanza, y
+    por eso necesita el `to_thread` explícito.
+
+    ## Por qué el PID se guarda en `container_id`
+
+    Porque es la columna por la que el camino de aborto —que vive en el proceso de la API, en
+    otro distinto— encuentra la ejecución en curso. La referencia va con prefijo
+    `host-pid:` para que quien la lea sepa con qué hay que matarlo; ver `host.py`.
+    """
+
+    runner = StrixHostRunner(
+        str(run_id),
+        target,
+        scan_mode,
+        target_type=target_type,
+        llm_model=model_id,
+    )
+    started_event = threading.Event()
+    started_references: list[str] = []
+
+    def on_started(process_id: str) -> None:
+        started_references.append(f"host-pid:{process_id}")
+        started_event.set()
+
+    runner_task = asyncio.create_task(
+        asyncio.to_thread(
+            runner.run,
+            timeout_seconds=settings.strix_hard_timeout_seconds,
+            soft_timeout_seconds=settings.strix_soft_timeout_seconds,
+            on_started=on_started,
+        )
+    )
+    while not started_event.is_set() and not runner_task.done():
+        await asyncio.sleep(0.05)
+
+    if started_event.is_set():
+        referencia = started_references[0]
+        referencia_puesta = await _set_container_reference(
+            organization_id,
+            run_id,
+            referencia,
+        )
+        if not referencia_puesta:
+            process_id = HostRunResult.parsear_referencia(referencia)
+            if process_id is not None:
+                StrixHostRunner.matar_por_pid(process_id)
+            try:
+                await runner_task
+            except Exception:
+                logger.exception("El escaneo abortado %s terminó con error", run_id)
+            if runner.cleanup_pending:
+                await _set_cleanup_pending(organization_id, run_id, True)
+            return _AttemptOutcome(result="ABORTED", output_json=None, error_code=None)
+
+    try:
+        result = await runner_task
+    except BaseException:
+        if runner.cleanup_pending:
+            await _set_cleanup_pending(organization_id, run_id, True)
+        raise
+
+    engine, session_factory = _session_factory()
+    try:
+        async with session_factory() as session:
+            try:
+                escrito = await session.execute(
+                    select(PentestRun)
+                    .where(
+                        PentestRun.id == run_id,
+                        PentestRun.organization_id == organization_id,
+                    )
+                    .with_for_update()
+                )
+                run = escrito.scalar_one_or_none()
+                if run is None:
+                    raise StrixIngestionError("El run no existe para la organización indicada")
+                count = await _persistir_artefactos_del_motor(
+                    session,
+                    run,
+                    result.ejecucion,
+                    exit_code=str(result.exit_code),
+                    referencia=result.referencia_de_proceso(),
+                )
+            except Exception:
+                await session.rollback()
+                raise
+    finally:
+        await engine.dispose()
+    logger.info(
+        "El run %s terminó en modo host con %d hallazgo(s), %d registro(s) de cobertura y "
+        "%d aviso(s) del motor",
+        run_id,
+        count,
+        result.ejecucion.registros_cobertura,
+        len(result.ejecucion.advertencias),
+    )
+    return _AttemptOutcome(
+        result="COMPLETED",
+        output_json=None,
+        error_code=None,
+        ejecucion=result.ejecucion,
+    )
+
+
+async def _run_attempt_en_contenedor(
+    run_id: UUID,
+    organization_id: UUID,
+    target: str,
+    scan_mode: str,
+    target_type: str,
+    model_id: str,
+) -> _AttemptOutcome:
+    """Ejecuta el motor en su contenedor efímero y persiste su reporte."""
 
     manager = StrixSandboxManager(
         str(run_id),
@@ -1076,8 +1602,16 @@ async def reconcile_orphaned_runs(
         container_reference = run.container_id or StrixSandboxManager.container_name_for_run(
             str(run.id)
         )
+        # Un replay no tiene contenedor, no tiene red y no tiene proceso: su referencia lo dice, y
+        # preguntarle al demonio de Docker por él sería hablar con un servicio que en un despliegue
+        # de desarrollo puede no existir. El fallo se convertiría en `cleanup_pending` permanente
+        # sobre un run que ya no tiene nada que limpiar, que es el peor sitio donde puede aparecer
+        # una marca de limpieza pendiente.
+        es_reproduccion = es_replay(container_reference)
         try:
-            if kill_container is None:
+            if es_reproduccion:
+                logger.info("El run %s es una reproducción; no hay contenedor que detener", run.id)
+            elif kill_container is None:
                 StrixSandboxManager.kill_container(
                     container_reference,
                     expected_run_id=str(run.id),
@@ -1087,11 +1621,12 @@ async def reconcile_orphaned_runs(
         except Exception:
             cleanup_succeeded = False
             logger.exception("No se pudo limpiar el contenedor huérfano %s", run.id)
-        try:
-            StrixSandboxManager.remove_network_for_run(str(run.id))
-        except Exception:
-            cleanup_succeeded = False
-            logger.exception("No se pudo limpiar la red huérfana %s", run.id)
+        if not es_reproduccion:
+            try:
+                StrixSandboxManager.remove_network_for_run(str(run.id))
+            except Exception:
+                cleanup_succeeded = False
+                logger.exception("No se pudo limpiar la red huérfana %s", run.id)
         try:
             StrixSandboxManager.purge_workspace(str(run.id), workspace_root)
         except (OSError, SandboxCleanupError):

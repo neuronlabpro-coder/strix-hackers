@@ -21,7 +21,7 @@ que no era de nadie.
 ## Por qué estas cuatro y no otras
 
 Porque son las cuatro que hacen fallar **todos** los escaneos de golpe, todas por configuración
-del despliegue. Las demás —un `results.json` ilegible, un modelo que no
+del despliegue. Las demás —un artefacto ilegible, un modelo que no
 existe— fallan de a uno y las cuenta el propio `diagnostico.py`.
 
 ## Y por qué una de las cuatro no impide lanzar un escaneo

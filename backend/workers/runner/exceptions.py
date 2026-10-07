@@ -32,7 +32,34 @@ class SandboxWorkspaceError(SandboxError):
 
 
 class SandboxOutputError(SandboxError):
-    """Strix no produjo un artefacto JSON utilizable."""
+    """Strix no produjo un artefacto utilizable.
+
+    ## Por qué el nombre ya no dice "JSON"
+
+    Porque el contrato `results.json` con `scan_id`, `status` y `findings[]` **no existe**: un
+    grep de todo el repositorio del motor no devuelve ni un fichero que lo mencione. Lo que el
+    motor produce son cuatro artefactos —`run.json`, `findings.sarif`, `coverage.json` y
+    `penetration_test_report.md`— y ninguno es un JSON único con la lista de hallazgos. El tipo
+    se conserva, y con el nombre antiguo, para no romper la cadena de diagnostico que lo
+    clasifica como `STRIX_OUTPUT_UNUSABLE`; lo que cambia es lo que afirma.
+    """
+
+
+class StrixRunIncompleteError(SandboxError):
+    """El motor terminó sin completar el run, y su artefacto no describe un escaneo.
+
+    ## Por qué es un tipo propio y no un `SandboxOutputError`
+
+    Porque son dos cosas que el panel tiene que explicar de dos maneras. Un artefacto ilegible
+    es «el motor no dejo nada que yo pueda leer» y a menudo mejora con otro modelo. Un
+    artefacto legible que dice `status: "failed"` o `status: "running"` es «el motor lo intento y
+    no lo termino»: hay un motivo en el registro que hay que mirar, y reintentar con los cinco
+    modelos del catalogo solo gasta cola.
+
+    Y no se convierte en un escaneo limpio con cero hallazgos: eso seria mentir sobre el motor.
+    Un run sin terminar no ha examined nada, y decirlo como si lo hubiera hecho es la clase de
+    mentira que este modulo vino a corregir en la direccion contraria.
+    """
 
 
 class SandboxCleanupError(SandboxError):

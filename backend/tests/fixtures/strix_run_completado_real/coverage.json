@@ -1,0 +1,330 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-07 09:07:43 UTC",
+  "run_id": "mindguard-site_23ee",
+  "run_name": "mindguard-site_23ee",
+  "scope": {
+    "targets": [
+      {
+        "type": "web_application",
+        "details": {
+          "target_url": "https://mindguard.site"
+        },
+        "original": "https://mindguard.site"
+      }
+    ],
+    "scan_mode": "quick",
+    "scope_mode": "auto",
+    "diff_scope": {
+      "active": false,
+      "mode": "auto"
+    },
+    "instruction": ""
+  },
+  "summary": {
+    "surfaces_reviewed": 18,
+    "outcomes": {
+      "no_issue_found": 9,
+      "ruled_out": 8,
+      "needs_follow_up": 1
+    },
+    "findings_filed": 0,
+    "gaps": 1
+  },
+  "machine_observed": {
+    "agents": [
+      {
+        "agent_id": "0cee4858",
+        "agent_name": "DNS Takeover & Posture Agent",
+        "status": "completed",
+        "skills": [
+          "vulnerabilities/subdomain_takeover",
+          "reconnaissance/asset_discovery",
+          "tooling/nmap"
+        ],
+        "task": "[TESTING — mindguard.site subdomain takeover + web posture, black-box] Authorized scan of https://mindguard.site. Read `get_threat_model` for https://mindguard.site and `list_notes` first — recon already produced a full fingerprint (note f5c7f2, 0e449b, dfa9ef).\n\nCONTEXT: `redteam.mindguard.site` and `www.redteam.mindguard.site` appear in passive DNS (subfinder) but return NXDOMAIN with no visible CNAME. Recon flagged possible dangling DNS but could not confirm takeover feasibility. mindguard.site is on Hostinger CDN (www → CNAME www.mindguard.site.cdn.hstgr.net).\n\nYOUR TASKS:\n1. **Subdomain takeover assessment for *.mindguard.site**:\n   - Enumerate fresh subdomains (subfinder, crt.sh certificate transparency: query https://crt.sh/?q=%mindguard.site&output=json, DNS datasets if reachable) — look for ANY subdomain that resolves to a takeoverable service (vercel, heroku, github pages, netlify, aws s3/cloudfront, fastly, zendesk, etc.) or dangles with a CNAME to an unclaimed resource.\n   - For `redteam.mindguard.site`: dig CNAME records, NS records, check whether the DNS label ever existed (historical DNS via web_search if public datasets like SecurityTrails/ViewDNS have pages on this domain). Try `dig redteam.mindguard.site CNAME +trace` from multiple resolver angles.\n   - Determine the actual takeover status per the subdomain_takeover skill: a dangling DNS record with NO CNAME to a claimable third-party service is NOT a takeover vuln — only record one if you can demonstrate a claimable target (e.g. NXDOMAIN on a CNAME'd third-party service, or an unclaimed service responding).\n2. **HTTP header / transport posture on mindguard.site and www.mindguard.site**: enumerate response headers on / (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, referrer policy, cookie flags — no cookies exist, verify). This is informational-grade: do NOT file a report for headers alone; note it for the final report.\n3. **TLS posture**: certificate SANs (should be only mindguard.site/www), protocol versions, cipher quick-check (nmap ssl-enum-ciphers or testssl.sh if installed) — informational.\n4. If you find a REAL claimable takeover (not just NXDOMAIN), build the proof: identify the service, show the claimable state (e.g. response from the service saying the site is unclaimed), and file via `create_vulnerability_report` with severity per the skill. Otherwise record honest coverage: ruled_out (with the named control: e.g. 'no CNAME exists') or needs_follow_up (if you couldn't check historical DNS).\n\nRecord outcomes:\n- `record_coverage` for: DNS takeover assessment of redteam.mindguard.site, www variant, fresh enumeration, headers, TLS.\n- `create_note` for your DNS findings.\n- `agent_finish` at end with findings/coverage/open items.\n\nStay on mindguard.site and its subdomains ONLY — mindguardredteam.com, shyntai.io, app.cal.com are OUT of scope for testing (you may passively LOOK at DNS only if needed to resolve mindguard.site questions).",
+        "is_root": false
+      },
+      {
+        "agent_id": "4dda31af",
+        "agent_name": "DOM-XSS & Client-Side Agent",
+        "status": "completed",
+        "skills": [
+          "vulnerabilities/xss",
+          "vulnerabilities/browser_security",
+          "tooling/agent_browser"
+        ],
+        "task": "[TESTING — mindguard.site ONLY, black-box] You are the DOM-XSS and client-side security testing agent for https://mindguard.site (authorized scan). The full recon picture is in shared notes and the threat model — read `get_threat_model` for https://mindguard.site and `list_notes` first. /workspace/recon/ contains the saved JS bundle.\n\nContext from recon: mindguard.site is a fully static Vite + React 18.3.1 SPA (bundle /assets/index-B22VnECO.js) on Hostinger CDN. No backend, no API, no auth, no forms, no fetch/XHR. Recon saw no URL-param-driven rendering, but the bundle has NOT been exhaustively audited for client-side sinks (dangerouslySetInnerHTML, innerHTML, document.write, eval, hash-based routing into DOM, i18n interpolation).\n\nYOUR TASKS (stay on mindguard.site ONLY — do not test mindguardredteam.com, shyntai.io, or cal.com):\n1. **DOM-XSS sink audit of the bundle**: Beautify/deobfuscate /workspace/recon/ JS (already downloaded there), grep for sinks: dangerouslySetInnerHTML, innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, new Function, setTimeout(string), location.hash/window.location reads feeding sinks, jQuery-style .html(). Trace any sink back to an attacker-controllable source (URL hash/query/referrer/postMessage). The site uses hash anchors (#platform etc.) — check whether the hash value is ever written into the DOM unescaped.\n2. **Live DOM-XSS attempts**: If any sink is reachable, craft hash-based payloads (e.g. https://mindguard.site/#<svg/onload=...> or similar per the actual sink) and verify in a browser via `agent-browser --session domxss-test` (snapshot/eval; check for alert-less markers like window.__xss marker assignment). Payloads must not contain any identifying markers — use generic test markers only.\n3. **postMessage / open-redirect checks**: listen for postMessage handlers in the bundle; check whether any anchor target is attacker-influenced (open redirect requires a param-driven redirect — likely none, but verify).\n4. **Client-side triage of remaining surfaces**: verify recon's claim that there are no other client-side secrets (localStorage, indexedDB usage). If you find anything new, note it.\n\nDo NOT test the CDN infrastructure itself beyond normal page requests. Do NOT attempt DoS, credential attacks, or anything beyond low-volume functional probing.\n\nRecord outcomes:\n- `record_coverage` for every surface/risk you assessed (DOM-XSS sinks, postMessage, redirect, client-side storage) with an honest outcome: no_issue_found / ruled_out (name the control at a location) / needs_follow_up.\n- `create_note` for any confirmed sink→source path or new discovery.\n- If you confirm a real exploitable DOM-XSS (payload executes in a browser context on mindguard.site), file it via `create_vulnerability_report` with full PoC, CVSS from the demonstrated impact, and counterevidence pass. Use http_exchange_ids from `list_requests` for evidence.\n- Finish with `agent_finish` summarizing findings, coverage, and open items.",
+        "is_root": false
+      },
+      {
+        "agent_id": "217a9616",
+        "agent_name": "Recon Agent - mindguard.site",
+        "status": "completed",
+        "skills": [
+          "tooling/httpx",
+          "tooling/katana",
+          "tooling/ffuf",
+          "reconnaissance/asset_discovery"
+        ],
+        "task": "[RECON] Map the full attack surface of https://mindguard.site (black-box, authorized scan).\n\nYour job is RECONNAISSANCE AND MAPPING ONLY — do not attempt exploitation or payload injection. Deliverables:\n\n1. **Live-service fingerprinting**: HTTP(S) probing of https://mindguard.site — status codes, redirects, server/tech headers (use `httpx`, `curl -sI`). Check both http and https, common ports if relevant. Note WAF presence (`wafw00f`) if any.\n2. **Content discovery**: Bounded crawl with `katana` and/or `gospider` (depth ≤3, reasonable duration). Directory discovery with `ffuf`/`dirsearch` using a common wordlist against the web root — keep rate respectful, note anything interesting (admin panels, API dirs, backups, config files). Do NOT do exhaustive bruteforce; a common-list pass is enough.\n3. **JS/asset analysis**: Identify and list JS bundles; extract API endpoints, hidden paths, parameter names, hardcoded keys/tokens from them. Use JS-Snooper / jsniper if helpful.\n4. **Auth & app model mapping**: Identify login/register flows, session mechanisms (cookies, JWTs — decode header/payload only, no tampering), user roles visible in the UI, admin routes, API base paths (e.g. /api, /graphql). If there is a registration flow, register a test account is ALLOWED as recon-enabling activity, and record the credentials for other agents in a shared note.\n5. **Technology stack**: Framework (React/Next/Vue/Laravel/etc.), server header, backend hints from responses and JS.\n\nWrite ALL results to shared scan state:\n- Use `create_note` for: (a) endpoint/parameter inventory, (b) tech stack fingerprint, (c) any test credentials you created, (d) JS-derived secrets or API routes.\n- Use `record_coverage` for every surface you assessed (surface + risk_area + outcome), even clean ones.\n- Call `get_threat_model` on https://mindguard.site at start; if you learn anything that contradicts it, use `amend_threat_model`.\n- End with `agent_finish` summarizing: technology stack, complete endpoint inventory, authentication model, the most promising attack surfaces (ranked), and any open questions (open_items).\n\nImportant operational notes:\n- All HTTP goes through the Caido proxy automatically (env vars). Caido error pages (~9KB Caido HTML under 502/500, no resp in list_requests) mean the host was unreachable — NOT target behavior. Check DNS/connectivity, fix the URL, move on.\n- Use `agent-browser --session recon-main` for any browser work so you don't collide with other agents.\n- This target name suggests a mental-health app — treat all data as real user data; do not access or dump other users' content.\n- Keep raw scan output in /workspace/recon/ and clean up large files once you've extracted the endpoints.",
+        "is_root": false
+      },
+      {
+        "agent_id": "4001314a",
+        "agent_name": "Root Agent",
+        "status": "completed",
+        "skills": [],
+        "task": "\n\nURLs: - https://mindguard.site",
+        "is_root": true
+      }
+    ],
+    "skills_exercised": [
+      "agent_browser",
+      "asset_discovery",
+      "browser_security",
+      "ffuf",
+      "httpx",
+      "katana",
+      "nmap",
+      "subdomain_takeover",
+      "xss"
+    ],
+    "findings_filed": 0,
+    "source": "runtime"
+  },
+  "completeness": {
+    "complete": true,
+    "scan_status": "completed",
+    "exit_reason": "finished_by_tool",
+    "caveats": []
+  },
+  "entries": [
+    {
+      "surface": "https://mindguard.site (static SPA root + asset bundle)",
+      "risk_area": "Live-service fingerprinting, hidden paths, API/auth surface discovery",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "Fingerprinted via httpx/curl/wafw00f; katana+gospider crawl, dirsearch common-list (~2.7k paths), manual verification of admin/api/.env/.git paths. Site is a static React marketing SPA on Hostinger CDN with no backend, no API, no auth; 403s were CDN anti-bot challenge pages and 502s Hostinger 404 pages, not real access control.",
+      "recorded_by": "Recon Agent - mindguard.site",
+      "recorded_at": "2026-10-07 09:00:25 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "mindguard.site JS bundle /assets/index-B22VnECO.js",
+      "risk_area": "Hardcoded secrets, hidden API routes, parameter names in client JS",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "Full beautified review of 209 KB bundle (grep + js-beautify): no API endpoints, keys, tokens, auth strings, or user roles. Only 3rd-party integrations are Google Fonts and Cal.com embed (calLink shyntai/1hora, public by design).",
+      "recorded_by": "Recon Agent - mindguard.site",
+      "recorded_at": "2026-10-07 09:00:28 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "https://mindguardredteam.com/contact.php",
+      "risk_area": "PHP contact handler — email header injection / spam relay / rate limiting",
+      "outcome": "needs_follow_up",
+      "outcome_label": "Requires further review",
+      "evidence": "Confirmed live unauthenticated PHP backend: POST accepts form fields name/email/company/service/message with honeypot 'website'; GET returns method-not-allowed JSON. Recon-only mandate — no payload testing performed. Injection, relay, and rate-limit posture unverified; this is the only real dynamic attack surface found in scope.",
+      "recorded_by": "Recon Agent - mindguard.site",
+      "recorded_at": "2026-10-07 09:00:30 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "redteam.mindguard.site / www.redteam.mindguard.site DNS records",
+      "risk_area": "Subdomain takeover (dangling DNS)",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Resolved by follow-up DNS assessment (entries ef9fff/4daaf8): authoritative Hostinger nameservers return NXDOMAIN with zero records (no A/CNAME/NS) for redteam.mindguard.site and www variant, confirmed from 3 public resolvers and direct NS query. A nonexistent DNS label is not claimable — no takeover vulnerability exists; subfinder hits were stale passive-DNS artifacts.",
+      "recorded_by": "Root Agent",
+      "recorded_at": "2026-10-07 09:00:32 UTC",
+      "updated_at": "2026-10-07 09:07:22 UTC",
+      "previous_outcomes": [
+        "needs_follow_up"
+      ],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "mindguard.site DNS / ports / TLS",
+      "risk_area": "Exposed services beyond 80/443, wildcard cert, additional subdomains",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "subfinder + dig (A/CNAME) + openssl SAN read + naabu top-100 ports: only 80/443 open on CDN edges 185.77.97.104 / 91.108.103.230; TLS cert covers only mindguard.site and www; www CNAMEs to Hostinger CDN. Only subdomains found were www and the dangling redteam records (tracked separately).",
+      "recorded_by": "Recon Agent - mindguard.site",
+      "recorded_at": "2026-10-07 09:00:35 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "https://mindguardredteam.com (static site + crawl)",
+      "risk_area": "Hidden paths, additional backends, secrets in client assets",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "dirsearch common-list pass (~6k requests; 403s verified as CDN anti-bot challenge pages, no real hits), gospider crawl, script.js/css review: only live backend is contact.php (tracked separately); no secrets or additional PHP endpoints found (config.php/mail.php/send.php = 404 or challenge).",
+      "recorded_by": "Recon Agent - mindguard.site",
+      "recorded_at": "2026-10-07 09:00:37 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "mindguard.site security headers / TLS config",
+      "risk_area": "Missing security headers, transport security misconfiguration",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "Headers reviewed: only CSP 'upgrade-insecure-requests'; no HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy. On a pure static brochure site with no cookies/auth this is at most Low/Informational hardening advice, not a reportable vulnerability; http→https 301 redirect is present. Recorded as observation, not filed.",
+      "recorded_by": "Recon Agent - mindguard.site",
+      "recorded_at": "2026-10-07 09:00:39 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "/assets/index-B22VnECO.js (mindguard.site SPA bundle) — HTML/JS sink audit",
+      "risk_area": "DOM-XSS via HTML injection sinks (dangerouslySetInnerHTML/innerHTML/eval)",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Static: grep of beautified bundle (209KB, 9601 lines) found all 13 dangerouslySetInnerHTML hits are React 18 library internals (prop plumbing at lines 752/1158/1320/4834/4843/5017/5501), zero app-level `__html` usage, zero eval/new Function/document.write/insertAdjacentHTML/`.html()`. Dynamic: payload navigations (`#<img src=x onerror=window.__t1=1>` encoded and raw, `<svg onload>` family) left window markers undefined and payload strings never present in document.body.innerHTML. CSP is only `upgrade-insecure-requests` (no script-src), but no reachable sink exists to exploit.",
+      "recorded_by": "DOM-XSS & Client-Side Agent",
+      "recorded_at": "2026-10-07 09:04:33 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "?lang= URL parameter handling (mindguard.site Zf/Zf language provider)",
+      "risk_area": "DOM-XSS via URL parameter (query string) injection into DOM",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Static: `Zf()` at beautified line 7609 reads `new URLSearchParams(window.location.search).get(\"lang\")` but returns the value only if it === \"es\" or === \"en\", else falls back to the localStorage value under the same allowlist, else \"es\". No other URL parameter is read anywhere in the bundle. Dynamic: GET /?lang=<img src=x onerror=window.__t2=1> (proxy id 7772) returned 200 with identical response length to baseline (1927 B, id 7653); marker window.__t2 stayed undefined; localStorage value stayed null.",
+      "recorded_by": "DOM-XSS & Client-Side Agent",
+      "recorded_at": "2026-10-07 09:04:36 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "URL hash routing & postMessage listener surface (mindguard.site anchors)",
+      "risk_area": "DOM-XSS via location.hash / postMessage message handlers",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Static: zero `location.hash` reads in the bundle (grep count 0), zero `window.addEventListener(\"message\")` / `onmessage` handlers; the only `postMessage` call (line 582) is the React scheduler MessageChannel internal `port2.postMessage(null)`, not a cross-origin receiver. Dynamic: navigations with encoded and raw `<img src=x onerror>` / `<svg onload>` hashes — window markers stayed undefined, `document.body.innerHTML.includes('<img')` false. All anchor hrefs are hardcoded constants (`#top #platform #method #cases #security #faq #contact` + `https://mindguardredteam.com`); no hash value is ever written into the DOM.",
+      "recorded_by": "DOM-XSS & Client-Side Agent",
+      "recorded_at": "2026-10-07 09:04:39 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "Outbound link / redirect surface (mindguard.site anchors & Cal.com embed)",
+      "risk_area": "Open redirect / attacker-influenced anchor target",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Static + dynamic: all link hrefs are hardcoded constants (grep of `href: \"` in app code shows only `#platform #method #cases #security #faq #contact #top` and `https://mindguardredteam.com`); zero `location.assign` / `location.replace` / `location =` / `window.open` calls in the bundle. Runtime query of all <a> elements returned only the same static list, no dynamic href construction anywhere. No redirect parameter exists to abuse.",
+      "recorded_by": "DOM-XSS & Client-Side Agent",
+      "recorded_at": "2026-10-07 09:04:43 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "localStorage / sessionStorage / indexedDB / cookie usage (mindguard.site client)",
+      "risk_area": "Client-side storage secrets / persistence vectors",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "Runtime: `Object.keys(localStorage)` = [] and `Object.keys(sessionStorage)` = [] after the app fully loaded (after I removed the single test value I had written via eval); `document.cookie` = empty; `indexedDB` present as a browser API but bundle grep shows zero indexedDB usage. The only localStorage key the code touches is `mindguard-landing-language` with an es/en allowlist on both read (Zf line 7611) and write (Jf line 7623). A poisoned value (`<img src=x onerror=...`) injected via devtools was read on reload but never entered the DOM (allowlist rejected it, fell back to \"es\"). No secrets, tokens, or PII stored client-side; confirms recon note dfa9ef.",
+      "recorded_by": "DOM-XSS & Client-Side Agent",
+      "recorded_at": "2026-10-07 09:04:46 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "Cal.com embed loader & dynamic script injection (mindguard.site Vo/Op/Dp functions)",
+      "risk_area": "Service worker / persistence / script injection via dynamic src",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Bundle grep for `serviceWorker|register(|Worker(|importScripts|manifest` — zero hits. Only dynamic script injection in the bundle is the Cal.com embed snippet at line 9398 (`i.head.appendChild(i.createElement(\"script\")).src = n`) where `n` derives from the hardcoded constant `https://app.cal.com/embed/embed.js` — not attacker-controllable. Runtime check: document has exactly 2 script elements with those fixed srcs. Cal.com iframe src is a static URL with no user-influenced parameters (`layout/theme/embedType` are fixed values).",
+      "recorded_by": "DOM-XSS & Client-Side Agent",
+      "recorded_at": "2026-10-07 09:04:50 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "redteam.mindguard.site (DNS takeover assessment)",
+      "risk_area": "Subdomain takeover / dangling DNS",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Authoritative nameservers (aurora/nebula.dns-parking.com, Hostinger) return NXDOMAIN with zero records (no A, no CNAME, no NS delegation) for redteam.mindguard.site, confirmed from 3 public resolvers (1.1.1.1, 8.8.8.8, 9.9.9.9) and directly against NS at 172.64.52.197. A takeover requires a dangling record (CNAME/NS) to a claimable third-party resource; here the DNS record is fully deleted, so there is nothing to claim. CT log (certspotter id 17324447351-range, issued 2026-09-22) shows a cert once existed for redteam.mindguard.site + www.redteam.mindguard.site, but no archived HTTP history (Wayback CDX empty) and no observable prior CNAME target. Named control that makes this safe: the zone simply contains no record for the label, so no attacker-controlled claim can be bound.",
+      "recorded_by": "DNS Takeover & Posture Agent",
+      "recorded_at": "2026-10-07 09:06:34 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "www.redteam.mindguard.site (DNS takeover assessment)",
+      "risk_area": "Subdomain takeover / dangling DNS",
+      "outcome": "ruled_out",
+      "outcome_label": "Ruled out",
+      "evidence": "Same authoritative NXDOMAIN-with-no-records state as parent label: no A/CNAME/NS at zone level (Hostinger dns-parking NS queried directly). No dangling record exists, so nothing claimable. Cert once covered this name (CT, 2026-09-22) but DNS record was fully removed.",
+      "recorded_by": "DNS Takeover & Posture Agent",
+      "recorded_at": "2026-10-07 09:06:38 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "*.mindguard.site fresh subdomain enumeration (subfinder -all + certspotter CT + rapiddns + urlscan)",
+      "risk_area": "Subdomain takeover / claimable third-party targets",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "Enumerated subdomains: only mindguard.site, www.mindguard.site (CNAME www.mindguard.site.cdn.hstgr.net — Hostinger-owned CDN, not attacker-claimable), redteam.mindguard.site + www.redteam (NXDOMAIN, no records). CT via certspotter shows exactly 4 names across 2 certs. No CNAME to vercel/heroku/github/netlify/s3/cloudfront/fastly/zendesk or any claimable service. crt.sh itself was down (502/404) during the scan; certspotter provided equivalent CT coverage.",
+      "recorded_by": "DNS Takeover & Posture Agent",
+      "recorded_at": "2026-10-07 09:06:41 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "mindguard.site + www.mindguard.site HTTP response headers (GET /)",
+      "risk_area": "Security header posture (HSTS, CSP, XFO, XCTO, referrer-policy, cookies)",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "Informational posture: HTTP 301 -> HTTPS redirect works; no Set-Cookie on either host (no cookie-flag risk). Present: CSP 'upgrade-insecure-requests' only (weak but informational), Server: hcdn, alt-svc h3. Missing: HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy. Static SPA with no auth/PII, so these are hardening gaps only — informational, not filed as a vulnerability per task instructions.",
+      "recorded_by": "DNS Takeover & Posture Agent",
+      "recorded_at": "2026-10-07 09:06:46 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    },
+    {
+      "surface": "mindguard.site:443 TLS configuration",
+      "risk_area": "TLS protocol/cipher posture and certificate SANs",
+      "outcome": "no_issue_found",
+      "outcome_label": "No issue identified",
+      "evidence": "nmap ssl-enum-ciphers: only TLSv1.2 and TLSv1.3 offered (no SSLv3/TLS1.0/1.1); all ciphers grade A (ECDHE/DHE AES-GCM + ChaCha20-Poly1305); least strength A. Cert: ZeroSSL RSA DV, CN=mindguard.site, SANs exactly mindguard.site + www.mindguard.site (matches certspotter CT inventory — no unexplained SANs, no internal names), valid Sep 21 - Dec 20 2026. Informational: minor note — cipher preference is client-controlled, and dh2048 noted weaker than cert key; not exploitable weaknesses.",
+      "recorded_by": "DNS Takeover & Posture Agent",
+      "recorded_at": "2026-10-07 09:06:49 UTC",
+      "updated_at": "",
+      "previous_outcomes": [],
+      "source": "agent_reported"
+    }
+  ],
+  "gaps": [
+    {
+      "kind": "needs_follow_up",
+      "surface": "https://mindguardredteam.com/contact.php",
+      "risk_area": "PHP contact handler — email header injection / spam relay / rate limiting",
+      "detail": "Confirmed live unauthenticated PHP backend: POST accepts form fields name/email/company/service/message with honeypot 'website'; GET returns method-not-allowed JSON. Recon-only mandate — no payload testing performed. Injection, relay, and rate-limit posture unverified; this is the only real dynamic attack surface found in scope."
+    }
+  ]
+}

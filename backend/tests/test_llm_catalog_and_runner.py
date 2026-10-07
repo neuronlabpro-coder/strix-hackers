@@ -30,14 +30,23 @@ pytestmark = pytest.mark.integration
 # `Decimal` para que la comparación sea exacta y no dependa de cómo el driver traiga el
 # `NUMERIC` de la base.
 #
-# ## Por qué el primario es un modelo de coste cero
+# ## Por qué `stealth/space-bunny-alpha` NO está en esta tabla
 #
-# `stealth/space-bunny-alpha` lo entro a peticion del Owner para poder hacer pruebas sin
-# coste, y OpenRouter lo publica a `0` de entrada y `0` de salida. Va declarado como `ALL` y
-# no con un caso concreto porque una fila solo admite un caso de uso y `model_id` es unico;
-# `ALL` es transversal y `resolve_model_chain` lo incluye en cada cadena, asi que el
-# comportamiento pedido —primario en todas, incluida `DEEP_PENTEST`— se cumple sin duplicar
-# la fila ni relajar la restriccion de unicidad.
+# Porque el proveedor NO lo publica, así que no puede ser el primario de nada ni servir de
+# alternativa. La fila sigue existiendo —`llm_usage_events.model_config_id` la referencia con
+# `ON DELETE CASCADE`, y borrarla destruiría el historial de coste de los escaneos de prueba que
+# se hicieron con él—, pero `is_active` es `false` y su prioridad es la última. Su hueco en esta
+# tabla ES la aserción: `assert active == {...}` cae si vuelve a activarse, sin necesitar una
+# prueba aparte para él.
+#
+# ## Por qué el primario es `z-ai/glm-5.3` y el resto es `AUTOFIX`
+#
+# Por la política del Owner: el pentesting ofensivo va a GLM y a nada más. `openai/gpt-6-sol`
+# devuelve `provider_code: cyber_policy` y se niega a hacer análisis ofensivos, así que
+# mientras estuvo declarado como `ALL` —transversal, en todas las cadenas— un escaneo podía
+# acabar llegando a él después de gastar tokens y quedar sin resultado. `gpt-6-astra`,
+# `claude-opus-5.5` y `gpt-6-sol` son modelos de revisión y reparación de CÓDIGO, que es un
+# caso de uso distinto del que dispara un escaneo.
 #
 # ## Por qué esta tabla se lee y no se escribe
 #
@@ -52,16 +61,32 @@ pytestmark = pytest.mark.integration
 # primario vuelve a cambiar, estas pruebas siguen diciendo la verdad sobre el mecanismo.
 EXPECTED_CATALOG = [
     # (model_id, coste entrada, coste salida, recargo, prioridad, caso de uso)
-    ("stealth/space-bunny-alpha", "0", "0", "0", 1, "ALL"),
-    ("z-ai/glm-5.3", "0.40", "1.60", "200.00", 2, "ALL"),
-    ("openai/gpt-6-astra", "4.00", "18.00", "150.00", 3, "DEEP_PENTEST"),
-    ("anthropic/claude-opus-5.5", "5.00", "25.00", "150.00", 4, "DEEP_PENTEST"),
-    ("deepseek/deepseek-v4-pro-0813", "1.20", "4.80", "200.00", 5, "DEEP_PENTEST"),
-    ("anthropic/claude-fable-5.1", "2.00", "8.00", "150.00", 6, "AUTOFIX"),
-    ("openai/gpt-6-sol", "1.50", "6.00", "200.00", 7, "ALL"),
-    ("moonshotai/kimi-k3", "0.80", "3.20", "250.00", 8, "ALL"),
-    ("deepseek/deepseek-v4.1-flash", "0.15", "0.60", "300.00", 9, "QUICK_SCAN"),
+    ("z-ai/glm-5.3", "0.40", "1.60", "200.00", 1, "ALL"),
+    ("openai/gpt-6-astra", "4.00", "18.00", "150.00", 2, "AUTOFIX"),
+    ("anthropic/claude-opus-5.5", "5.00", "25.00", "150.00", 3, "AUTOFIX"),
+    ("deepseek/deepseek-v4-pro-0813", "1.20", "4.80", "200.00", 4, "AUTOFIX"),
+    ("anthropic/claude-fable-5.1", "2.00", "8.00", "150.00", 5, "AUTOFIX"),
+    ("openai/gpt-6-sol", "1.50", "6.00", "200.00", 6, "AUTOFIX"),
+    ("moonshotai/kimi-k3", "0.80", "3.20", "250.00", 7, "AUTOFIX"),
+    ("deepseek/deepseek-v4.1-flash", "0.15", "0.60", "300.00", 8, "AUTOFIX"),
 ]
+
+#: El modelo que el proveedor no publica. La fila no se borra, así que lo que se afirma no es su
+#: ausencia sino sus dos propiedades: que no está activo y que no encabeza ninguna cadena.
+MODELO_INALCANZABLE = "stealth/space-bunny-alpha"
+
+#: El único modelo al que se permite lanzar un escaneo.
+UNICO_MODELO_DE_PENTEST = "z-ai/glm-5.3"
+
+#: Los tres casos de uso que acaban en una cadena de pentest: los dos que disparan un escaneo y el
+#: transversal, que entra en los dos. `ALL` va aquí porque un modelo `ALL` con prioridad menor se
+#: cuela en la cadena de pentest igual que uno `DEEP_PENTEST`, y fue exactamente así como
+#: `openai/gpt-6-sol` acabó ejecutando escaneos que no podía hacer.
+CASOS_DE_ESCANEO = (
+    LLMUseCaseEnum.ALL,
+    LLMUseCaseEnum.DEEP_PENTEST,
+    LLMUseCaseEnum.QUICK_SCAN,
+)
 
 # Modelos del catálogo anterior que el Owner retiró. Ninguno debe quedar activo: un
 # fallback que enrute a un modelo que producto ya no ofrece es un coste sincobrar.
@@ -111,6 +136,82 @@ async def test_official_catalog_is_seeded_in_fallback_order(
     # que la consola seguiría mostrando como si estuvieran disponibles.
     active = {model.model_id for model in models if model.is_active}
     assert active == {model_id for model_id, *_ in EXPECTED_CATALOG}
+
+
+@pytest.mark.asyncio
+async def test_el_modelo_que_no_publica_el_proveedor_no_es_resoluble(
+    integration_session: AsyncSession,
+) -> None:
+    """`stealth/space-bunny-alpha` no puede salir en ninguna cadena, por ninguna puerta.
+
+    ## Por qué se afirma sobre la fila y no sobre su ausencia
+
+    Porque la fila **no se borra**: `llm_usage_events.model_config_id` la referencia con
+    `ON DELETE CASCADE` y borrarla destruiría el registro de lo que costó cada escaneo de prueba
+    que se hizo con ella. Lo que se afirma son sus dos propiedades, y las dos importan por
+    motivos distintos: `is_active` es la que lo saca de la resolución, y la prioridad es la que
+    evita que un despiste al reactivarlo lo vuelva a poner el primero.
+
+    ## Por qué se comprueba **por las tres cadenas** y no solo por la de pentest
+
+    Porque el fallo no fue de una cadena: `use_case = ALL` lo metía en todas. Comprobar solo
+    `DEEP_PENTEST` habría pasado con el modelo como `QUICK_SCAN` o como `CHAT`, que es
+    precisamente la clase de comprobación parcial que deja el defecto puesto.
+    """
+
+    assert integration_session is not None
+    modelos = (await integration_session.execute(select(LLMModelConfig))).scalars().all()
+    fila = next((modelo for modelo in modelos if modelo.model_id == MODELO_INALCANZABLE), None)
+
+    if fila is not None:
+        assert fila.is_active is False, (
+            "un modelo que el proveedor no publica no puede estar activo"
+        )
+        prioridades_de_la_cadena = [
+            modelo.priority_order for modelo in modelos if modelo.is_active
+        ]
+        assert fila.priority_order > max(prioridades_de_la_cadena, default=0), (
+            "no puede encabezar nada: si alguien lo reactiva por un despiste tiene que salir al "
+            "final de la cadena y no el primero"
+        )
+
+    for caso in CASOS_DE_ESCANEO:
+        cadena = await resolve_model_chain(integration_session, caso)
+        assert MODELO_INALCANZABLE not in {modelo.model_id for modelo in cadena}, caso.value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("caso", CASOS_DE_ESCANEO)
+async def test_el_pentest_resuelve_solo_a_glm(
+    integration_session: AsyncSession, caso: LLMUseCaseEnum
+) -> None:
+    """Ninguna cadena de escaneo contiene un modelo que no pueda hacer pentesting.
+
+    ## Por qué se afirma el **conjunto**, no el primero
+
+    Porque el fallo original no era que GLM no encabezara: lo encabezaba. El fallo era que detrás
+    había un segundo modelo que devolvía `provider_code: cyber_policy`, y un escaneo que llegaba
+    hasta ahí había gastado tokens para nada. Afirmar solo `chain[0]` habría dado verde al
+    defecto entero.
+
+    ## Por qué `gpt-6-sol` tiene su propia línea
+
+    Porque es el caso conocido y el que justificó la política: se niega explícitamente. La regla
+    general de arriba ya lo cubre, y esta línea dice **por qué** existe la regla, para que nadie
+    la borre creyéndola una formalidad.
+    """
+
+    assert integration_session is not None
+    cadena = await resolve_model_chain(integration_session, caso)
+    ids = {modelo.model_id for modelo in cadena}
+
+    assert UNICO_MODELO_DE_PENTEST in ids, (
+        f"la cadena de {caso.value} tiene que poder usar el modelo de pentest del Owner"
+    )
+    assert "openai/gpt-6-sol" not in ids, (
+        "gpt-6-sol devuelve provider_code cyber_policy y se niega a hacer analisis ofensivos: "
+        "dejarlo en una cadena de escaneo gasta tokens para obtener un rechazo"
+    )
 
 
 @pytest.mark.asyncio
@@ -174,7 +275,7 @@ async def test_credit_balance_uses_twelve_four_numeric(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "use_case",
-    [LLMUseCaseEnum.ALL, LLMUseCaseEnum.DEEP_PENTEST, LLMUseCaseEnum.QUICK_SCAN],
+    CASOS_DE_ESCANEO,
 )
 async def test_el_de_prioridad_uno_encabeza_cada_cadena(
     integration_session: AsyncSession,
@@ -221,37 +322,65 @@ async def test_el_de_prioridad_uno_encabeza_cada_cadena(
 
 
 @pytest.mark.asyncio
-async def test_deep_pentest_chain_keeps_its_specific_fallbacks(
+async def test_la_cadena_de_pentest_no_sale_del_unico_modelo_autorizado(
     integration_session: AsyncSession,
 ) -> None:
+    """Las dos cadenas de escaneo se quedan con GLM, y el resto vive en la de código.
+
+    ## Por qué esto cambió y no es una degradación
+
+    Porque `gpt-6-sol` se niega a hacer análisis ofensivos con `provider_code: cyber_policy`, y
+    `gpt-6-astra`, `claude-opus-5.5` y `deepseek-v4-pro-0813` estaban declarados como
+    `DEEP_PENTEST`, así que la cadena de pentest tenía cuatro eslabones y **ninguno** de los tres
+    últimos podía hacer el trabajo. Un fallback que no puede hacer el trabajo no es un fallback.
+
+    La contrapartida es real y hay que decirla: si GLM falla, el escaneo falla. Es la consecuencia
+    de la política del Owner, no un olvido, y la alternativa —dejar un modelo que se niega en la
+    cadena— es peor: cobra tokens y devuelve un rechazo.
+    """
+
     assert integration_session is not None
-    chain = await resolve_model_chain(integration_session, LLMUseCaseEnum.DEEP_PENTEST)
-    ids = [model.model_id for model in chain]
-    # Los específicos de DEEP_PENTEST entran detrás del primario `ALL`, por prioridad.
-    for specific in (
-        "openai/gpt-6-astra",
-        "anthropic/claude-opus-5.5",
-        "deepseek/deepseek-v4-pro-0813",
-    ):
-        assert specific in ids, specific
-    # `AUTOFIX` no debe colarse en la cadena de pentest: es un caso de uso distinto.
-    assert "anthropic/claude-fable-5.1" not in ids
+    for caso in (LLMUseCaseEnum.DEEP_PENTEST, LLMUseCaseEnum.QUICK_SCAN):
+        chain = await resolve_model_chain(integration_session, caso)
+        assert [model.model_id for model in chain] == [UNICO_MODELO_DE_PENTEST], caso.value
 
 
 @pytest.mark.asyncio
-async def test_quick_scan_chain_keeps_the_flash_fallback(
+async def test_los_modelos_de_codigo_no_se_colan_en_el_pentest(
     integration_session: AsyncSession,
 ) -> None:
+    """Cada modelo de revisión de código está en la cadena de código y **fuera** de la de pentest.
+
+    ## Por qué se afirma el «fuera» y no solo el «dentro»
+
+    Porque el defecto era de `use_case`, no de lista: con `ALL` el modelo estaba en las dos. Una
+    prueba que solo afirmara «está en la cadena de código» habría pasado con `ALL` puesto, que es
+    exactamente el defecto.
+    """
+
     assert integration_session is not None
-    chain = await resolve_model_chain(integration_session, LLMUseCaseEnum.QUICK_SCAN)
-    ids = [model.model_id for model in chain]
-    # El modelo barato existe como último recurso de la cadena rápida. El primario actual
-    # cuesta cero, así que **no** se puede comparar precios para demostrar que el flash no
-    # es el primario: sobre un coste base de cero cualquier comparacion de precios es
-    # inmediata. Lo que se comprueba es la posicion, que es lo que determina el gasto.
-    assert "deepseek/deepseek-v4.1-flash" in ids
-    assert chain[-1].model_id == "deepseek/deepseek-v4.1-flash"
-    assert chain[0].model_id != "deepseek/deepseek-v4.1-flash"
+    de_codigo = await resolve_model_chain(integration_session, LLMUseCaseEnum.AUTOFIX)
+    ids_codigo = {model.model_id for model in de_codigo}
+
+    for modelo in (
+        "openai/gpt-6-astra",
+        "anthropic/claude-opus-5.5",
+        "deepseek/deepseek-v4-pro-0813",
+        "anthropic/claude-fable-5.1",
+        "openai/gpt-6-sol",
+    ):
+        assert modelo in ids_codigo, f"{modelo} deberia estar en la cadena de revision de codigo"
+
+    for caso in (LLMUseCaseEnum.DEEP_PENTEST, LLMUseCaseEnum.QUICK_SCAN):
+        ids_pentest = {
+            model.model_id
+            for model in await resolve_model_chain(integration_session, caso)
+        }
+        # GLM está en las dos cadenas a propósito: es `ALL`, y por eso encabeza el escaneo. La
+        # intersección que no puede existir es la de **los** modelos de código con la de pentest.
+        assert not (ids_codigo - {UNICO_MODELO_DE_PENTEST}) & ids_pentest, (
+            f"un modelo de codigo se ha colado en la cadena de {caso.value}"
+        )
 
 
 # --------------------------------------------------------------------------- #

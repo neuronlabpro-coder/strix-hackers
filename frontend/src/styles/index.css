@@ -1211,6 +1211,87 @@ code.mono,
 }
 
 /*
+ * La lista de huecos de cobertura de un escaneo.
+ *
+ * ## Por qué bloquea y no es una fila más
+ *
+ * Porque `.inline-notice` reparte con `justify-content: space-between` para dos cosas: un texto y
+ * una acción. Una lista de superficies es **muchas líneas**, y con esa fila el hueco entre el
+ * texto y la acción se abre en cuanto hay dos elementos. Aquí el aviso se convierte en columna y
+ * la lista vive debajo, que es como se lee: primero el titular y después los detalles.
+ *
+ * ## Por qué la superficie va en `mono` y separada
+ *
+ * Porque una URL y un texto de riesgo son dos cosas distintas y en un `li` corrido se leen como
+ * una frase. Con la superficie arriba en monoespaciada, el lector ve **dónde** antes de leer
+ * **qué**, que es el orden en el que se decide si a un hueco hay que prestarle atención.
+ */
+.coverage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coverage-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+
+.coverage-gap-surface {
+  font-size: 0.72rem;
+  color: var(--color-secondary);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Los agentes del motor y su estado.
+ *
+ * ## Por qué es una fila y no otra columna
+ *
+ * Porque un agente con su estado es un par corto —«root_agent» al lado de «terminado»— y en
+ * columna se leería como dos líneas sueltas. En fila se lee como lo que es: una fila de una tabla
+ * con dos datos, que es exactamente lo que es.
+ *
+ * ## Por qué el hueco entre la lista de huecos y la de agentes
+ *
+ * Porque las dos listas responden a preguntas distintas y mezcladas se leerían como una sola: los
+ * huecos dicen **qué** no se pudo verificar y los agentes dicen **quién** lo tenía. El separador
+ * con un borde es lo que dice «aquí cambia la pregunta», y por eso no es un `gap` más.
+ */
+.coverage-agents {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.coverage-agents-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.coverage-agent {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px !important;
+}
+
+.coverage-agent > .badge {
+  flex-shrink: 0;
+}
+
+/*
  * La tarjeta de diagnóstico de un escaneo fallido.
  *
  * ## Por qué no es un `inline-notice` más

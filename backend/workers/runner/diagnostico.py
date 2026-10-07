@@ -65,6 +65,7 @@ from backend.workers.runner.exceptions import (
     SandboxOutputError,
     SandboxTimeoutError,
     SandboxWorkspaceError,
+    StrixRunIncompleteError,
 )
 from backend.workers.runner.llm_key_exposure import LlmKeyExposureNotAcknowledgedError
 
@@ -111,6 +112,17 @@ class DiagnosticoDeFallo:
 #: excepciones del runner heredan unas de otras (`SandboxWorkspaceError` de
 #: `SandboxError`), así que el orden de esta tupla decide cuál gana. Se prueba primero la
 #: más derivada.
+#:
+#: ## Por qué `STRIX_RUN_INCOMPLETE` **no** está en los dos conjuntos de al lado
+#:
+#: `STRIX_RUN_INCOMPLETE` es el `run.json` del motor con un `status` distinto de `completed`.
+#: Aparece aquí, en la lista de motivos, porque el panel tiene que poder explicarlo. **No** está
+#: en `MOTIVOS_DE_DESPLIEGUE` porque no depende de la máquina: es el motor, su presupuesto de
+#: tiempo o el proveedor, y ninguno de los tres se arregla en el host. Y **no** está en
+#: `_FALLBACK_ELIGIBLE_ERRORS` —que vive en `tasks.py`— por una razón de dinero: reintentar un run
+#: que se quedó sin terminar puede lanzar otro escaneo de veinte minutos que también se queda
+#: sin terminar, y cada intento cobra tokens. Un motivo que se sabe que va a fallar otra vez no
+#: es un motivo para reintentar; es un motivo para leer el registro.
 MOTIVOS_CONOCIDOS: tuple[tuple[type[BaseException], str, str], ...] = (
     (
         EgressFenceMissingError,
@@ -133,9 +145,14 @@ MOTIVOS_CONOCIDOS: tuple[tuple[type[BaseException], str, str], ...] = (
         "sandbox.setup_workspace: el host no deja preparar el workspace",
     ),
     (
+        StrixRunIncompleteError,
+        "STRIX_RUN_INCOMPLETE",
+        "artefactos: el motor no completo el run",
+    ),
+    (
         SandboxOutputError,
         "STRIX_OUTPUT_UNUSABLE",
-        "sandbox: Strix no dejo un results.json legible",
+        "artefactos: el motor no dejo un artefacto legible",
     ),
     (
         SandboxTimeoutError,

@@ -22,11 +22,21 @@ class IncompleteFindingError(StrixOutputError):
     """Error controlado para un hallazgo que no contiene evidencia obligatoria."""
 
 
-def _redact_runtime_secrets(value: str) -> str:
-    """Evita persistir la credencial LLM si un agente la incluye en evidencia."""
+def redactar_secretos_de_ejecucion(value: str) -> str:
+    """Evita persistir la credencial LLM si un agente la incluye en evidencia.
+
+    El nombre no lleva el prefijo de privado porque lo consume tambien
+    `workers.runner.strix_artefactos`: la evidencia de los SARIF y del informe llega al mismo
+    tipo de columna que la del reporte antiguo, y por eso pasa por la misma reescritura. Dos
+    copias de esta funcion serian dos listas de secretos que se desincronizan.
+    """
 
     secret = settings.llm_api_key.get_secret_value()
     return value.replace(secret, "[REDACTED]") if secret else value
+
+
+#: Alias privado conservado para no tocar los llamadores internos de este modulo.
+_redact_runtime_secrets = redactar_secretos_de_ejecucion
 
 
 def _required_text(

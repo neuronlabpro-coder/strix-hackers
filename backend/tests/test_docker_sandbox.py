@@ -2,12 +2,13 @@ import json
 import time
 from pathlib import Path
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from docker.client import DockerClient
 from requests.exceptions import ReadTimeout
 
+from backend.core.config import settings
 from backend.workers.runner.sandbox import (
     SandboxCleanupError,
     SandboxExecutionError,
@@ -190,10 +191,43 @@ def test_kill_container_uses_docker_kill_for_id() -> None:
         "11111111-1111-4111-8111-111111111111",
         client=cast(DockerClient, client),
     )
+    # El prefijo de la red es `STRIX_NETWORK_PREFIX`, y en el `.env` de este proyecto de desarrollo
+    # vale `strix_local_net`. Escribir `strix_net` aquí fijaba unaquinterna igual que el número de
+    # Redis: el test caía según lo que hubiera en el fichero de quien lo ejecutaba. Se afirma lo
+    # que el código hace —el nombre sale del prefijo configurado y el del run va detrás— y no un
+    # literal que es de otro despliegue.
     client.networks.get.assert_called_once_with(
-        "strix_net_11111111-1111-4111-8111-111111111111"
+        f"{settings.strix_network_prefix}_11111111-1111-4111-8111-111111111111"
     )
     client.networks.get.return_value.remove.assert_called_once_with()
+
+
+def test_el_nombre_de_la_red_usa_el_prefijo_configurado(tmp_path: Path) -> None:
+    """El prefijo sale de configuración y no de un literal (R1), y se lee de un solo sitio.
+
+    ## Por qué esta prueba y no basta con la anterior
+
+    Porque la anterior compara contra `settings.strix_network_prefix`, que **también** se leería
+    si el código escribiera un literal y la configuración valiera `strix_net` por casualidad. Esta
+    cambia el prefijo y comprueba que el nombre le sigue: con el prefijo movido, un literal en el
+    código daría un nombre que no empieza por el configurado y la prueba caería.
+    """
+
+    cliente = MagicMock()
+    # `Settings` está congelado a propósito, así que la prueba construye una copia con el prefijo
+    # movido en vez de mutar el global. Es la forma que no depende del `.env` de quien ejecuta.
+    otro = settings.model_copy(update={"strix_network_prefix": "otro_prefijo_de_prueba"})
+
+    with patch("backend.workers.runner.sandbox.settings", otro):
+        gestor = StrixSandboxManager(
+            "11111111-1111-4111-8111-111111111111",
+            "app.example.com",
+            "QUICK",
+            client=cast(DockerClient, cliente),
+            workspace_root=tmp_path,
+        )
+
+    assert gestor.network_name == "otro_prefijo_de_prueba_11111111-1111-4111-8111-111111111111"
 
 
 def test_sandbox_soft_timeout_kills_container_and_raises_typed_timeout(tmp_path: Path) -> None:

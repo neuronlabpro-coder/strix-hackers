@@ -198,6 +198,76 @@ export interface RemediationResponse {
 }
 
 
+/**
+ * Una superficie que el motor **no** pudo verificar, y por qué.
+ *
+ * `kind` y `detail` son los valores del motor, sin traducir: el texto lo escribió el motor y
+ * traducirlo sería reescribir su conclusión. Lo que se traduce son los rótulos de la tarjeta.
+ */
+export interface ScanCoverageGap {
+  kind: string
+  surface: string
+  risk_area: string
+  detail: string
+}
+
+/**
+ * Un agente del motor y cómo terminó.
+ *
+ * `agent_name` y `status` son valores del motor, sin traducir: el texto lo escribió el motor y
+ * traducirlo sería reescribir su conclusión. Lo que se traduce son los rótulos de la tarjeta.
+ */
+export interface ScanCoverageAgent {
+  agent_name: string
+  status: string
+}
+
+/**
+ * Lo que el motor revisó y lo que no pudo revisar.
+ *
+ * Es lo que separa «se escaneó y no había nada» de «el motor no pudo mirar esto». Sin esto, los
+ * dos se ven igual en el panel y un escaneo con huecos se lee como un escaneo limpio.
+ *
+ * `caveats` son los avisos que el motor escribió sobre su propia ejecución; `gaps` son
+ * superficies concretas que quedaron fuera. No son la misma cosa y la tarjeta no los mezcla.
+ */
+export interface ScanCoverage {
+  findings_filed: number
+  surfaces_reviewed: number
+  complete: boolean
+  scan_status: string
+  exit_reason: string | null
+  caveats: string[]
+  gaps: ScanCoverageGap[]
+  /**
+   * Los agentes del motor y cómo terminaron.
+   *
+   * No estaba en el tipo y por eso no se veían: el backend los guardaba en la base y Pydantic los
+   * descartaba al serializar. El run de referencia tiene tres agentes `completed`.
+   */
+  agents: ScanCoverageAgent[]
+}
+
+/**
+ * Lo que costó un escaneo, con los **dos** importes.
+ *
+ * `provider_usd` es lo que el proveedor cobró de verdad y `catalogue_usd` lo que la plataforma
+ * cree que costó. No son lo mismo: medido sobre el run real de este proyecto, el proveedor cobró
+ * 1,85 USD y el catálogo estima 6,80 USD para los mismos tokens.
+ *
+ * `diverges` no es un porcentaje sino un sí o un no, porque la pregunta que se responde desde el
+ * panel es «¿esto es el mismo número?» y decidir cuál de los dos es el referencia no le
+ * corresponde a la interfaz. `null` cuando falta alguno de los dos: no se puede afirmar
+ * divergencia sobre un dato que no existe.
+ */
+export interface ScanCost {
+  provider_usd: number | null
+  catalogue_usd: number | null
+  delta_usd: number | null
+  provider_tokens: number | null
+  diverges: boolean | null
+}
+
 export interface PentestRun {
   id: string
   organization_id: string
@@ -208,6 +278,22 @@ export interface PentestRun {
   container_id: string | null
   exit_code: string | null
   error_message: string | null
+  /**
+   * `null` cuando el run no tiene dato de cobertura.
+   *
+   * No es lo mismo que una cobertura con `surfaces_reviewed: 0`, que **sí** afirma que no se
+   * revisó nada: `null` significa que no hay dato, y la tarjeta tiene que pintar las dos cosas
+   * distinto porque una es un límite del escaneo y la otra no.
+   */
+  coverage: ScanCoverage | null
+  /**
+   * Lo que costó el escaneo.
+   *
+   * `null` cuando el run no tiene ninguno de los dos importes: es un run anterior a la columna o
+   * un modo de ejecución que no publica consumo. No es lo mismo que `provider_usd: 0`, que sí
+   * afirmaría que el proveedor no cobró nada.
+   */
+  cost: ScanCost | null
   started_at: string | null
   finished_at: string | null
   created_at: string

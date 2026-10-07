@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
-import stat
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,6 +34,7 @@ from backend.workers.runner.exceptions import (
 
 from .egress_fence import exigir_cerco_de_salida, subred_de_la_red
 from .llm_key_exposure import exigir_reconocimiento_de_exposicion
+from .strix_artefactos import leer_texto_protegido
 
 logger = logging.getLogger(__name__)
 
@@ -190,33 +189,20 @@ class StrixSandboxManager:
 
     @staticmethod
     def _read_output_file(path: Path) -> str:
+        """Lee la salida del sandbox con las mismas defensas que los artefactos del motor.
 
-        try:
-            path_stat = path.lstat()
-            if not stat.S_ISREG(path_stat.st_mode):
-                raise SandboxOutputError("results.json no es un archivo regular")
-            flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
-            descriptor = os.open(path, flags)
-            with os.fdopen(descriptor, "rb") as output_file:
-                opened_stat = os.fstat(output_file.fileno())
-                if not stat.S_ISREG(opened_stat.st_mode):
-                    raise SandboxOutputError("results.json cambió a un tipo no regular")
-                if (path_stat.st_dev, path_stat.st_ino) != (
-                    opened_stat.st_dev,
-                    opened_stat.st_ino,
-                ):
-                    raise SandboxOutputError("results.json cambió durante la lectura")
-                data = output_file.read(settings.strix_max_output_bytes + 1)
-        except SandboxOutputError:
-            raise
-        except OSError as error:
-            raise SandboxOutputError("No se pudo leer results.json") from error
-        if len(data) > settings.strix_max_output_bytes:
-            raise SandboxOutputError("results.json supera el tamaño máximo permitido")
-        try:
-            return data.decode("utf-8")
-        except UnicodeDecodeError as error:
-            raise SandboxOutputError("results.json no está codificado en UTF-8") from error
+        El cuerpo **no** está aquí: delega en `leer_texto_protegido`, que es la función que
+        también usan `run.json`, `findings.sarif` y `coverage.json` en modo host. Que sea una
+        sola implementación es lo que hace imposible que el modo host se quede sin `O_NOFOLLOW`,
+        sin la comparación de `st_dev`/`st_ino` o sin el techo de tamaño el día que alguien
+        escriba un cuarto lector.
+
+        El nombre del parámetro histórico era `results.json`, que **no existe** como contrato:
+        el motor nunca escribe ese fichero. Aquí se lee lo que el modo contenedor haya dejado en
+        su salida, que es lo que ese modo produce; el nombre de la etiqueta lo pone quien llama.
+        """
+
+        return leer_texto_protegido(path, "la salida del sandbox")
 
     @staticmethod
     def _kill_on_soft_timeout(

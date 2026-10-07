@@ -35,11 +35,31 @@ from playwright.async_api import async_playwright
 
 BASE = "http://localhost:5173"
 SALIDA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "capturas")
-ORG_ID = "8aef9544-3fe6-5fd9-890a-4c7e948a25e3"
-CORREO = "demo.admin@acmesecurity.io"
-CLAVE = "DemoFenix2026!Empa"
+ORG_ID = "2ce4e2c2-d900-4eb5-82a5-3d970013667d"
+#: Cuenta de la base de demostracion. Verificada: `user1@mindguard.tech` existe, esta activa y es
+#: ADMIN de la organizacion de arriba.
+#:
+#: ## Por que no la cuenta anterior
+#:
+#: Porque `demo.admin@acmesecurity.io` **no existe** en `fenix_team_dev`. El login fallaba y el
+#: script se caia en el primer paso, lo que hacia que no hubiera ninguna captura que mirar: el
+#: informe "sin errores" de una ejecucion que no llego a abrir el navegador es peor que no tener
+#: informe, porque parece que todo esta bien.
+#:
+#: Y las credenciales se verifican contra la base antes de escribirlas aqui: una cuenta que se
+#: inventa no es un dato, es una suplantacion con nombre de usuario.
+CORREO = "user1@mindguard.tech"
+CLAVE = "UserPass2026!"
 
 #: Las páginas de la consola de SuperAdmin, con el nombre del fichero y si llegan a esperar datos.
+#:
+#: ## Por qué van aparte de las del panel
+#:
+#: Porque la cuenta de demostracion **no es superusuario**, y las rutas `/admin/*` exigen ese
+#: permiso. Se recorren igual: lo que se busca en ellas son errores de consola y respuestas 4xx de
+#: la propia pantalla, y una pantalla a la que se llega sin permiso enseña justo eso —la redirección
+#: y el aviso—, que también es información. Lo que **no** se puede es presentar esas capturas como
+#: la consola funcionando, y por eso el informe dice qué cuenta se usó.
 PAGINAS_CONSOLA: list[tuple[str, str]] = [
     ("cons-operaciones", "/admin/operations"),
     ("cons-precios", "/admin/pricing"),
@@ -103,6 +123,7 @@ def pedir_token() -> str:
 async def principal() -> int:
     token = pedir_token()
     print("  backend responde: token de %d caracteres" % len(token))
+    print("  sesion de %s; las rutas /admin/* requieren superusuario y esta cuenta no lo es" % CORREO)
 
     os.makedirs(SALIDA, exist_ok=True)
     problemas: list[str] = []
