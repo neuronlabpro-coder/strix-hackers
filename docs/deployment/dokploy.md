@@ -56,6 +56,8 @@ sudo install -d -o 10001 -g 10001 -m 0700 /tmp/fenix_workspaces
 
 El worker usa el socket Docker del host para crear los contenedores sandbox. El `:ro` del montaje del socket no limita las operaciones de Docker; protege el filesystem del montaje, no las llamadas al demonio. Restringe acceso al servicio worker y configura el cerco de egreso de Strix en el host antes de permitir escaneos: `sudo bash scripts/harden_runner_egress.sh`, con persistencia de esas reglas tras reinicio. `STRIX_REQUIRE_EGRESS_FENCE=true` hace que los escaneos fallen cerrados si falta el cerco.
 
+La imagen instala `strix-agent==1.7.0` en `/opt/strix`; el Compose fija `STRIX_EXECUTION_MODE=host`, `STRIX_CLI_PATH=/opt/strix/bin/strix` y monta `/tmp/fenix_workspaces` en la misma ruta del host y del worker. El script `start_worker.sh` comprueba `strix --version`, el socket y el workspace antes de iniciar Celery. El CLI corre como proceso del worker y crea sus contenedores sandbox sibling mediante el daemon del host. Comprueba `docker compose exec celery_worker /opt/strix/bin/strix --version` sin lanzar un escaneo ni llamar al LLM. En producción, `container` se rechaza durante la validación de configuración.
+
 ## Por qué un escaneo puede fallar en menos de un segundo
 
 Porque hay cuatro comprobaciones de **despliegue** antes de que el contenedor exista, y ninguna es de código. Todas fallan en el mismo intervalo —sub segundo— y sin dejar contenedor, que es lo que las hace indistinguibles a simple vista.

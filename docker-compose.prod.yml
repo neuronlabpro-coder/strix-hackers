@@ -74,6 +74,9 @@ x-backend-base: &backend-base
     DEBUG: "false"
     # El esquema ya se migró y aprobó antes del despliegue; no ejecutar Alembic aquí.
     RUN_MIGRATIONS: "false"
+    STRIX_EXECUTION_MODE: host
+    STRIX_CLI_PATH: /opt/strix/bin/strix
+    STRIX_WORKSPACE_ROOT: /tmp/fenix_workspaces
     # -------------------------------------------------------------------------
     # Lo que la producción exige y el `.env` de desarrollo no tiene
     # -------------------------------------------------------------------------
@@ -184,10 +187,7 @@ services:
       # Configurar DOCKER_GID con el GID del grupo propietario de /var/run/docker.sock.
       - ${DOCKER_GID:-999}
     command:
-      - celery
-      - -A
-      - backend.workers.celery_app:celery_app
-      - worker
+      - /app/backend/scripts/start_worker.sh
       - --loglevel=${CELERY_LOGLEVEL:-info}
       - --concurrency=${CELERY_CONCURRENCY:-2}
       # 1 y no el valor por defecto de 4. El motor de escaneo lanza un contenedor Docker por
@@ -235,7 +235,7 @@ services:
     # demonio. Es un riesgo aceptado y **documentado**, no un riesgo mitigado.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${STRIX_WORKSPACE_ROOT:-/tmp/fenix_workspaces}:/tmp/fenix_workspaces
+      - /tmp/fenix_workspaces:/tmp/fenix_workspaces
     healthcheck:
       test: ["CMD-SHELL", "celery -A backend.workers.celery_app:celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
       interval: 60s

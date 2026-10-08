@@ -59,6 +59,13 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project
 
+# El worker ejecuta el CLI real y este crea sandboxes sibling por Docker.
+# Su entorno propio se construye antes de copiar el código para conservar la capa entre builds.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/strix \
+    && uv pip install --python /opt/strix/bin/python 'strix-agent==1.7.0' \
+    && /opt/strix/bin/strix --version
+
 # --- Etapa 2: codigo de aplicacion -------------------------------------------
 FROM deps AS build
 
@@ -95,13 +102,15 @@ RUN apt-get update \
 # momento de la copia, así que un usuario que todavía no existe hace fallar el build con un
 # `chown: appuser: no such user` que no dice nada de usuarios.
 RUN groupadd --gid 10001 appuser \
-    && useradd --uid 10001 --gid 10001 --shell /usr/sbin/nologin --no-create-home appuser
+    && useradd --uid 10001 --gid 10001 --shell /usr/sbin/nologin --home-dir /home/appuser appuser \
+    && install -d --owner=appuser --group=appuser /home/appuser
 
 # Celery Beat persiste aquí su schedule. Crear la ruta con el UID de runtime permite que
 # Docker inicialice correctamente un volumen nombrado vacío sin ejecutar Beat como root.
 RUN install -d --owner=appuser --group=appuser /var/lib/celery/beat
 
 COPY --from=build --chown=appuser:appuser /app /app
+COPY --from=build /opt/strix /opt/strix
 
 WORKDIR /app/backend
 
@@ -114,7 +123,8 @@ USER appuser
 # El bloque no lleva comentarios dentro a propósito: un `#` en una línea de continuación es
 # ambiguo entre el constructor clásico y BuildKit, y lo que se gana en comentarios no compensa
 # un fallo de build que solo aparece en un orquestador.
-ENV PATH="/app/backend/.venv/bin:$PATH" \
+ENV PATH="/app/backend/.venv/bin:/opt/strix/bin:$PATH" \
+    HOME=/home/appuser \
     PYTHONPATH="/app" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -140,6 +150,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 # El script conserva el modo `--migrate` para ejecuciones manuales controladas; no se debe
 # activar desde varios workers al mismo tiempo.
 COPY --chown=appuser:appuser backend/scripts/start_prod.sh /app/backend/scripts/start_prod.sh
-RUN chmod 0755 /app/backend/scripts/start_prod.sh
+COPY --chown=appuser:appuser backend/scripts/start_worker.sh /app/backend/scripts/start_worker.sh
+RUN chmod 0755 /app/backend/scripts/start_prod.sh /app/backend/scripts/start_worker.sh
 
 CMD ["/app/backend/scripts/start_prod.sh"]

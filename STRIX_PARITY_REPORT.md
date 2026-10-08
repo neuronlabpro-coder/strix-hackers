@@ -11,7 +11,7 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **1306** funciones (52 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de backend: **1317** funciones (52 con `@parametrize`, que generan mas de un caso cada una)
 - Pruebas de frontend: **195**
 
 ## Superficie funcional
@@ -133,7 +133,7 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 
 ### por revisar: ninguna
 
-### identidad tecnica (420)
+### identidad tecnica (432)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
@@ -198,7 +198,7 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/pentests/abort.py:66` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/abort.py:144` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
 
-_Y 360 mas._
+_Y 372 mas._
 
 ### comentario (66)
 
@@ -216,11 +216,11 @@ _Y 360 mas._
 | comentario | `backend/core/config.py:384` | #: Modo **replay**: directorio de un run real del motor (`strix_runs/<run>/`) cuyos | explicacion interna |
 | comentario | `backend/core/config.py:890` | # Un refusal de arranque, no un aviso. Ver el docstring de `strix_replay_source`: | explicacion interna |
 | comentario | `backend/workers/tasks.py:1` | """Tareas Celery de ejecución e ingesta de Strix.""" | explicacion interna |
-| comentario | `backend/workers/tasks.py:81` | # solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o... | explicacion interna |
-| comentario | `backend/workers/tasks.py:1596` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
-| comentario | `backend/workers/tasks.py:1810` | # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT` | explicacion interna |
-| comentario | `backend/workers/tasks.py:1814` | # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué | explicacion interna |
-| comentario | `backend/workers/tasks.py:1851` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
+| comentario | `backend/workers/tasks.py:85` | # solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o... | explicacion interna |
+| comentario | `backend/workers/tasks.py:1602` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
+| comentario | `backend/workers/tasks.py:1816` | # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT` | explicacion interna |
+| comentario | `backend/workers/tasks.py:1820` | # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué | explicacion interna |
+| comentario | `backend/workers/tasks.py:1857` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
 | comentario | `backend/workers/__init__.py:1` | """Workers y utilidades de ejecución de Strix.""" | explicacion interna |
 | comentario | `backend/workers/parser/normalizer.py:18` | """Convierte severidades de Strix a valores persistidos canónicos.""" | explicacion interna |
 | comentario | `backend/workers/parser/strix_parser.py:1` | """Parser estricto de los reportes JSON generados por Strix.""" | explicacion interna |

@@ -895,6 +895,8 @@ class Settings(BaseSettings):
                 "reproduce los artefactos de otro run sin ejecutar el motor"
             )
 
+        if self.environment == "production" and self.strix_execution_mode != "host":
+            raise ValueError("Producción requiere STRIX_EXECUTION_MODE=host")
         if self.strix_execution_mode == "host" and not self.strix_cli_path.strip():
             # Sin ruta no hay modo host: arrancar el motor sin saber contra qué binario sería
             # adivinar, y adivinar la ruta de un ejecutable es exactamente la clase de

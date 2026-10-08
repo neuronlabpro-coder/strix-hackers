@@ -26,6 +26,8 @@
 # --- Secretos y configuracion local ---
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 *.pem
 *.key
@@ -45,6 +47,7 @@ secrets/
 
 # --- Entornos de ejecucion y editores ---
 .venv
+**/.venv
 venv
 env
 __pycache__
@@ -60,6 +63,7 @@ coverage.xml
 
 # --- Dependencias: las reinstala el Dockerfile ---
 node_modules
+**/node_modules
 .venv
 **/__pycache__
 

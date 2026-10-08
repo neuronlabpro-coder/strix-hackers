@@ -50,7 +50,11 @@ from backend.workers.runner.diagnostico import (
     diagnosticar_fallo,
     es_fallo_de_despliegue,
 )
-from backend.workers.runner.exceptions import SandboxCleanupError, SandboxTimeoutError
+from backend.workers.runner.exceptions import (
+    SandboxCleanupError,
+    SandboxExecutionError,
+    SandboxTimeoutError,
+)
 from backend.workers.runner.host import HostRunResult, StrixHostRunner
 from backend.workers.runner.replay import (
     StrixReplayRunner,
@@ -1237,6 +1241,8 @@ async def _run_attempt(
             target_type,
             model_id,
         )
+    if settings.environment == "production":
+        raise SandboxExecutionError("Producción no permite StrixSandboxRunner")
     return await _run_attempt_en_contenedor(
         run_id,
         organization_id,

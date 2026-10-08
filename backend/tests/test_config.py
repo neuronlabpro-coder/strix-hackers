@@ -105,6 +105,8 @@ def production_values() -> dict[str, ValorDeConfiguracion]:
     values = build_environment_values()
     values["environment"] = "production"
     values["debug"] = False
+    values["strix_execution_mode"] = "host"
+    values["strix_cli_path"] = "/opt/strix/bin/strix"
     values["email_verification_delivery_mode"] = "smtp"
     values["smtp_host"] = "smtp.example.com"
     values["smtp_username"] = "smtp-user"
@@ -228,6 +230,22 @@ def test_settings_accepts_secure_production_smtp_configuration() -> None:
 
     assert settings.environment == "production"
     assert settings.smtp_use_tls is True
+
+
+def test_production_rejects_old_container_runner() -> None:
+    values = production_values()
+    values["strix_execution_mode"] = "container"
+
+    with pytest.raises(ValidationError, match="STRIX_EXECUTION_MODE=host"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+
+
+def test_production_rejects_missing_cli_path() -> None:
+    values = production_values()
+    values["strix_cli_path"] = ""
+
+    with pytest.raises(ValidationError, match="STRIX_CLI_PATH"):
+        Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_rejects_insecure_public_api_base_url_in_production() -> None:
