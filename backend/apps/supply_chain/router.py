@@ -25,6 +25,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from backend.apps.commercial.service import feature_enabled
 from backend.apps.repositories.clients.base import GitClientError
 from backend.apps.repositories.router import (
     _open_client,
@@ -48,7 +49,20 @@ from backend.core.middleware import (
     get_current_tenant,
 )
 
-router = APIRouter(prefix="/api/v1/supply-chain", tags=["supply-chain"])
+
+async def require_supply_chain(
+    tenant: Annotated[TenantContext, Depends(get_current_tenant)],
+    session: SessionDependency,
+) -> None:
+    if not await feature_enabled(session, tenant.organization.id, "supply_chain"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Feature no habilitada")
+
+
+router = APIRouter(
+    prefix="/api/v1/supply-chain",
+    tags=["supply-chain"],
+    dependencies=[Depends(require_supply_chain)],
+)
 
 #: El tenant se resuelve por la cabecera `X-Organization-Id` y **se comprueba** contra la
 #: membresía del usuario. No es una confianza en lo que dice la cabecera: es un selector que el

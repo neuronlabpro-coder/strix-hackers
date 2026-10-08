@@ -386,6 +386,13 @@ buscador masivo.
 - [ ] **11.7 Modelos LLM** (`/admin/llm`) — alta, margen, prioridad y estado de cada modelo, con
       sus métricas de consumo.
 - [ ] **11.8 Tickets y soporte** (`/admin/tickets`) — cola de soporte de todos los tenants.
+- [ ] **11.9 Límites de coste LLM** (`/admin/cost-limits`) — presupuesto y turnos por
+      organización, operación, plan y default global; vigencia y vista previa de la resolución.
+      Las políticas con vigencia futura responden `409` al editar o eliminar hasta que entren en vigor.
+- [ ] **11.10 Catálogo de pentests** (`/admin/pentest-products`) — productos Rightsized,
+      Full Audit y Enterprise configurables con precio mostrado, créditos, topes, features y límites.
+- [ ] **11.11 Acuerdos Enterprise** (`/admin/enterprise-agreements`) — acuerdo por organización
+      con precio, asientos, créditos, vigencia, operaciones y overrides de features.
 
 ### Por qué la consola de precios va aparte y no dentro de «Ventas»
 

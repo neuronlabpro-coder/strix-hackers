@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.apps.billing.models import LedgerReasonEnum
 from backend.apps.billing.service import apply_credit_delta
 from backend.apps.llm_router.models import LLMModelConfig, LLMUsageEvent, LLMUseCaseEnum
-from backend.apps.llm_router.pricing import ChargeBreakdown, compute_charge
+from backend.apps.llm_router.pricing import ChargeBreakdown, compute_charge, compute_provider_cost
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +150,10 @@ class LlmUsageTelemetry:
     use_case: LLMUseCaseEnum
     prompt_tokens: int | None
     completion_tokens: int | None
+    cached_tokens: int | None = None
+    provider_cost_usd: Decimal | None = None
+    duration_seconds: Decimal | None = None
+    budget_max_usd: Decimal | None = None
 
     @property
     def has_usage(self) -> bool:
@@ -178,14 +182,13 @@ class LlmUsageTelemetry:
         credits_per_usd: Decimal,
         reserved_credits: Decimal | None = None,
         reference_suffix: str = "usage",
+        adjust_credits: bool = True,
     ) -> ChargeBreakdown | None:
-        """Cobra el consumo real y registra el evento de uso.
+        """Registra consumo y, si corresponde, ajusta el ledger.
 
-        `reserved_credits` es lo que el tenant ya pagó por adelantado al lanzar el
-        escaneo. El movimiento es la **diferencia**: si lo real supera lo
-        reservado se cobra el exceso, y si es menor se devuelve. Cargar el consumo
-        completo dejaría pagando dos veces al cliente; no cobrar nada, regalar el
-        margen.
+        En un pentest el precio comercial queda fijado al encolarlo. Por eso
+        `adjust_credits=False` conserva la reserva y mide el coste interno.
+        Otros casos de uso pueden solicitar un ajuste explícito.
         """
 
         breakdown = self.breakdown(credits_per_usd=credits_per_usd)
@@ -199,7 +202,7 @@ class LlmUsageTelemetry:
         if reserved_credits is not None:
             delta = delta - reserved_credits
         reference = f"{run_id}:{reference_suffix}" if run_id is not None else None
-        if delta != 0:
+        if adjust_credits and delta != 0:
             # `apply_credit_delta` suma el importe al saldo, así que un cargo entra
             # con signo negativo. Invertir el signo aquí evita que cada llamador
             # tenga que acordarse, que es exactamente el tipo de detalle que acaba
@@ -211,6 +214,22 @@ class LlmUsageTelemetry:
                 reason=LedgerReasonEnum.ADMIN_ADJUSTMENT,
                 reference_id=reference,
             )
+        coste_proveedor = compute_provider_cost(
+            cost_input_m=self.model.base_cost_input_m,
+            cost_cached_input_m=self.model.cached_input_cost_m,
+            cost_output_m=self.model.base_cost_output_m,
+            prompt_tokens=breakdown.prompt_tokens,
+            cached_tokens=self.cached_tokens,
+            completion_tokens=breakdown.completion_tokens,
+        )
+        provider_cost = (
+            self.provider_cost_usd
+            if self.provider_cost_usd is not None
+            else coste_proveedor.cost_usd
+        )
+        net_profit = breakdown.net_profit_usd
+        if not adjust_credits and reserved_credits is not None:
+            net_profit = reserved_credits / credits_per_usd - provider_cost
         session.add(
             LLMUsageEvent(
                 model_config_id=self.model.id,
@@ -220,7 +239,25 @@ class LlmUsageTelemetry:
                 prompt_tokens=breakdown.prompt_tokens,
                 completion_tokens=breakdown.completion_tokens,
                 base_cost_usd=breakdown.base_cost_usd,
-                net_profit_usd=breakdown.net_profit_usd,
+                net_profit_usd=net_profit,
+                cached_tokens=self.cached_tokens,
+                cache_price_published=coste_proveedor.cache_price_published,
+                provider=(
+                    self.model.provider
+                    or (
+                        self.model.model_id.split("/", 1)[0]
+                        if "/" in self.model.model_id
+                        else None
+                    )
+                ),
+                provider_cost_usd=self.provider_cost_usd,
+                estimated_provider_cost_usd=coste_proveedor.cost_usd,
+                input_cost_usd=coste_proveedor.input_cost_usd,
+                cached_input_cost_usd=coste_proveedor.cached_input_cost_usd,
+                output_cost_usd=coste_proveedor.output_cost_usd,
+                duration_seconds=self.duration_seconds,
+                budget_max_usd=self.budget_max_usd,
+                budget_consumed_usd=provider_cost,
             )
         )
         await session.commit()

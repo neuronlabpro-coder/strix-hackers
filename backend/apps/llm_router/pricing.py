@@ -2,10 +2,29 @@
 
 Función pura y sin dependencias de base de datos: el precio que paga el cliente
 y el beneficio neto deben poder auditarse sin levantar el resto del sistema.
+
+## Las dos cuentas, y por qué están separadas
+
+Este módulo tiene **dos** funciones de coste y ninguna es la versión corregida de la otra:
+
+| Función                | Pregunta que responde        | Effecto colateral               |
+| :--------------------- | :--------------------------- | :------------------------------ |
+| `compute_charge`       | ¿Cuánto paga el cliente?     | Escribe en `credit_ledger` (R4) |
+| `compute_provider_cost`| ¿Cuánto le cuesta a la plataforma? | Ninguno: es telemetría  |
+
+La segunda existe porque la primera **no puede** representar el precio real del proveedor: un solo
+`base_cost_input_m` no distingue el token que entra de primero del que el proveedor sirvió de su
+propia caché, y ese segundo tiene otro precio. Un QUICK real de este proyecto,
+`mindguard-site_23ee`, consumió 16.819.076 tokens de entrada de los que **16.443.264** salieron de
+caché: el catálogo lo valoraba en 6,80 USD y el proveedor facturó 1,85 USD.
+
+Añadir la caché **aquí dentro** habría cambiado el precio del cliente. Por eso está en su propia
+función, con su propia salida y sin ningún camino que la conecte al cobro.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 from typing import Final
 
@@ -125,3 +144,167 @@ def compute_charge(
         client_cost_credits=credits,
         credits_per_usd=credits_per_usd,
     )
+
+
+# --------------------------------------------------------------------------- #
+# El coste que el proveedor factura, que no es el precio que se cobra
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCost:
+    """Lo que el proveedor cobra por un consumo, con el precio de caché declarado o no.
+
+    ## Por qué esto **no** es `ChargeBreakdown`
+
+    Porque son dos números distintos con dos preguntas distintas:
+
+    - `ChargeBreakdown` responde «cuánto paga el cliente», y su número está **sellado** en el
+      `credit_ledger` (*append-only*, R4). Cambiar su fórmula es cambiar lo que se cobra, que es
+      una decisión comercial del humano y no un efecto de hacer visible una medición.
+    - `ProviderCost` responde «cuánto le cuesta a la plataforma», y es **telemetría**: no entra en
+      el ledger, no mueve ningún saldo y no se puede arreglar un cobro ya emitido.
+
+    ## Por qué `cache_price_published` es un campo y no se deduce de `cost_cached_input_m`
+
+    Porque son dos afirmaciones distintas sobre lo que el proveedor **dice**, y confundirlas es
+    exactamente el defecto que este módulo viene a arreglar:
+
+    - `cached_input_cost_m IS NULL` significa «el proveedor no publica precio de caché para este
+      modelo», así que la caché se valora al precio de la entrada normal.
+    - `cached_input_cost_m = 0` significa «el proveedor publica precio de caché y es cero».
+
+    Con la primera, la caché se trata como entrada normal **y se deja constancia**; con la segunda
+    se trata como gratis, que es lo que dice el catálogo. Un modelo al que nunca se le pidió caché
+    da el mismo número que uno sin caché publicada, y esa es justo la razón por la que el estado
+    tiene que viajar al lado del importe.
+    """
+
+    prompt_tokens: int
+    cached_tokens: int
+    #: Los tokens de entrada que **no** salieron de la caché del proveedor.
+    billable_input_tokens: int
+    completion_tokens: int
+    #: El precio por millón aplicado a la entrada no cacheada.
+    cost_input_m: Decimal
+    #: El precio por millón aplicado a la entrada cacheada. Con `cache_price_published` en `False`
+    #: es **igual** a `cost_input_m`, y no un valor inventado.
+    cost_cached_input_m: Decimal
+    cost_output_m: Decimal
+    #: ¿El catálogo declara un precio de caché para este modelo?
+    cache_price_published: bool
+    #: El coste estimado del proveedor, en dólares.
+    cost_usd: Decimal
+    input_cost_usd: Decimal
+    cached_input_cost_usd: Decimal
+    output_cost_usd: Decimal
+
+    @property
+    def cache_share(self) -> Decimal:
+        """La fracción de la entrada que salió de la caché del proveedor.
+
+        Se devuelve como fracción de 0 a 1 y no como porcentaje porque quien lo consume necesita
+        multiplicarlo, no rotularlo. Con `None` de entrada la fracción es cero: no se pide caché, y
+        eso no es lo mismo que pedirla y que el proveedor no la sirva.
+        """
+
+        if self.prompt_tokens <= 0:
+            return Decimal(0)
+        return Decimal(self.cached_tokens) / Decimal(self.prompt_tokens)
+
+
+def compute_provider_cost(
+    *,
+    cost_input_m: Decimal,
+    cost_cached_input_m: Decimal | None,
+    cost_output_m: Decimal,
+    prompt_tokens: int,
+    cached_tokens: int | None,
+    completion_tokens: int,
+) -> ProviderCost:
+    """El coste que el proveedor factura, distinguendo la entrada cacheada de la que no.
+
+    La fórmula es la que el proveedor publica, y solo esta:
+
+    ```
+    coste = entrada_no_cacheada * coste_entrada_m
+          + entrada_cacheada    * coste_cache_m
+          + salida              * coste_salida_m
+    ```
+
+    con los tres precios **por millón de tokens** y el resultado en dólares.
+
+    ## Por qué `cached_input_cost_m = None` usa `cost_input_m` y no lanza
+
+    Porque `NULL` significa «el proveedor no publica precio de caché», que es una situación real y
+    frecuente, no un dato corrupto. Un modelo sin caché publicada se valora al precio de la entrada
+    normal y el resultado lo dice con `cache_price_published = False`, de modo que quien lo lee
+    puede distinguirlo de un modelo al que nunca se le pidió caché —que daría el mismo importe—.
+
+    La otra lectura posible —«sin precio de caché no se puede calcular»— convertiría una
+    ausencia de dato en una ausencia de cifra, que es peor: se dejaría de medir el coste de un
+    modelo que sí se está usando.
+
+    ## Por qué la caché se recorta a la entrada total
+
+    Porque un `cached_tokens` mayor que `prompt_tokens` es un reporte inconsistente, y aplicarlo tal
+    cual daría una entrada facturable **negativa**: el total se iría hacia abajo y el coste con él,
+    que es un número sin significado. Se recorta y el resultado expone el `cached_tokens` que se
+    usó de verdad, para que el recorte se vea en lugar de quedar escondido.
+
+    ## Por qué es una **función pura**
+
+    Porque el importe con el que se decide la política de precios tiene que poder auditarse sin
+    levantar la aplicación, sin sesión y sin red. Lo que la hace impura es el precio, y el precio
+    no está aquí: llega en la firma.
+    """
+
+    if cost_input_m < 0 or cost_output_m < 0:
+        raise ValueError("Los costes por millón de tokens no pueden ser negativos")
+    if cost_cached_input_m is not None and cost_cached_input_m < 0:
+        raise ValueError("El coste de la entrada cacheada no puede ser negativo")
+    if prompt_tokens < 0 or completion_tokens < 0:
+        raise ValueError("El número de tokens no puede ser negativo")
+    if cached_tokens is not None and cached_tokens < 0:
+        raise ValueError("El número de tokens cacheados no puede ser negativo")
+
+    publicado = cost_cached_input_m is not None
+    precio_cache = cost_input_m if cost_cached_input_m is None else cost_cached_input_m
+    cacheados = min(cached_tokens or 0, prompt_tokens)
+    entrada_facturable = prompt_tokens - cacheados
+
+    with localcontext() as context:
+        context.prec = 40
+        coste_entrada = (entrada_facturable * cost_input_m / TOKENS_PER_MILLION).quantize(
+            _USD_QUANTUM, rounding=ROUND_HALF_UP
+        )
+        coste_cache = (cacheados * precio_cache / TOKENS_PER_MILLION).quantize(
+            _USD_QUANTUM, rounding=ROUND_HALF_UP
+        )
+        coste_salida = (completion_tokens * cost_output_m / TOKENS_PER_MILLION).quantize(
+            _USD_QUANTUM, rounding=ROUND_HALF_UP
+        )
+
+    return ProviderCost(
+        prompt_tokens=prompt_tokens,
+        cached_tokens=cacheados,
+        billable_input_tokens=entrada_facturable,
+        completion_tokens=completion_tokens,
+        cost_input_m=cost_input_m,
+        cost_cached_input_m=precio_cache,
+        cost_output_m=cost_output_m,
+        cache_price_published=publicado,
+        cost_usd=coste_entrada + coste_cache + coste_salida,
+        input_cost_usd=coste_entrada,
+        cached_input_cost_usd=coste_cache,
+        output_cost_usd=coste_salida,
+    )
+
+
+__all__ = (
+    "TOKENS_PER_MILLION",
+    "ChargeBreakdown",
+    "ProviderCost",
+    "compute_charge",
+    "compute_provider_cost",
+)

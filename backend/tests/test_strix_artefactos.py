@@ -25,6 +25,7 @@ import json
 import os
 import shutil
 import time
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -291,6 +292,15 @@ def test_sin_desglose_no_se_reparte_el_total_entre_entrada_y_salida(tmp_path: Pa
 
     assert ejecucion.total_tokens == 1000
     assert ejecucion.consumo_desglosado is None
+
+
+def test_el_run_real_publica_cache_y_duracion_sin_inventar_el_proveedor(tmp_path: Path) -> None:
+    _workspace_con_run(tmp_path)
+    ejecucion = leer_ejecucion(tmp_path)
+
+    assert ejecucion.cached_tokens == 16_443_264
+    assert ejecucion.duration_seconds is not None
+    assert ejecucion.duration_seconds > Decimal("1300")
 
 
 # --------------------------------------------------------------------------- #

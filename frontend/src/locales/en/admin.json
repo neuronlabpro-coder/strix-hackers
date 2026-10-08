@@ -18,6 +18,9 @@
     "agents": "Scanning agents",
     "pricing": "Platform pricing",
     "llm": "LLM models",
+    "costLimits": "Cost limits",
+    "pentestProducts": "Pentest products",
+    "enterpriseAgreements": "Enterprise agreements",
     "backToApp": "Back to the App",
     "tickets": "Tickets & support"
   },
@@ -407,6 +410,77 @@
     "revokeConfirm": "Revoke",
     "status": {
       "REVOKED": "Revoked"
+    }
+  },
+  "costLimits": {
+    "eyebrow": "Spend controls",
+    "title": "LLM cost limits",
+    "description": "Configure provider budgets and turns by organization, operation, plan or global default.",
+    "scope": "Scope",
+    "organization": "Organization for policy or preview",
+    "operation": "Operation",
+    "plan": "Plan",
+    "budget": "Maximum budget",
+    "turns": "Maximum turns",
+    "from": "Valid from",
+    "until": "Valid until",
+    "save": "Save policy",
+    "update": "Update policy",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel editing",
+    "saving": "Saving",
+    "preview": "Organization preview",
+    "history": "Recorded policies",
+    "error": "Cost limits could not be loaded or saved",
+    "scopes": {
+      "ORGANIZACION": "Organization",
+      "OPERACION": "Operation",
+      "PLAN": "Plan",
+      "GLOBAL": "Global"
+    },
+    "operations": {
+      "PENTEST_QUICK": "Quick pentest",
+      "PENTEST_DEEP": "Deep pentest",
+      "PR_REVIEW": "PR review",
+      "CHAT": "Chat"
+    }
+  },
+  "products": {
+    "eyebrow": "Commercial catalog",
+    "title": "Pentest products",
+    "description": "Manage presentation, credits, budget, turns and capabilities for each product.",
+    "save": "Save product", "saving": "Saving", "error": "Product could not be loaded or saved",
+    "unassigned": "Unassigned",
+    "modes": {"QUICK": "Quick", "STANDARD": "Standard", "DEEP": "Deep"},
+    "fields": {
+      "scan_mode": "Associated scan mode",
+      "name_es": "Name (Spanish)", "name_en": "Name (English)",
+      "description_es": "Description (Spanish)", "description_en": "Description (English)",
+      "price_label_es": "Displayed price (Spanish)", "price_label_en": "Displayed price (English)",
+      "price_min_usd": "Minimum price USD", "price_max_usd": "Maximum price USD",
+      "credits_required": "Required credits", "max_budget_usd": "Maximum budget USD",
+      "max_turns": "Maximum turns", "features": "Features (comma separated)",
+      "limits": "Limits JSON", "is_active": "Active"
+    }
+  },
+  "agreements": {
+    "eyebrow": "Individual agreements", "title": "Enterprise by organization",
+    "description": "Each agreement has its own term and does not change another customer's contract.",
+    "organization": "Organization", "save": "Create agreement", "saving": "Saving",
+    "error": "Agreement could not be loaded or saved", "history": "Agreement history",
+    "custom": "Custom", "inherit": "Inherit from plan", "enabled": "Enabled",
+    "disabled": "Disabled",
+    "fields": {
+      "price": "Monthly price USD", "seats": "Seats", "credits": "Included credits",
+      "discount": "Discount %", "budget": "Maximum budget USD", "turns": "Maximum turns",
+      "operations": "Special operations (commas)", "limits": "Limits JSON",
+      "from": "Valid from", "until": "Valid until"
+    },
+    "features": {
+      "supply_chain": "Supply Chain Security",
+      "container_scanning": "Container scanning",
+      "internal_network_scanning": "Internal network scanning"
     }
   },
   "pricing": {

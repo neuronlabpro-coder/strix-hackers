@@ -285,6 +285,15 @@ async def encolar(
     # decidiendo si recarga o cambia de plan. Es el mismo texto que usa `pentests`, y se escribe
     # dos veces porque los dos routers no comparten capa de errores: un `handler` global para esto
     # sería más arquitectónico y más difícil de leer que el `except` que lo resuelve.
+    from backend.apps.commercial.service import feature_enabled
+
+    feature_key = (
+        "container_scanning"
+        if payload.kind is AgentJobKindEnum.CONTAINER_SCAN
+        else "internal_network_scanning"
+    )
+    if not await feature_enabled(session, tenant.organization.id, feature_key):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Feature no habilitada")
     try:
         trabajo = await service.encolar_trabajo(
             session, tenant.organization.id, tenant.user.id, payload

@@ -11,13 +11,14 @@ import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import type { Organization } from '../types/api'
+import { getMyFeatures } from '../lib/api'
+import { useAuth } from '../features/auth/useAuth'
 import {
   EnterpriseGateModal,
   type EnterpriseFeature,
 } from '../features/enterprise/EnterpriseGateModal'
 import {
   assetNavigation,
-  hasEnterpriseAccess,
   isNavigationItemLocked,
   primaryNavigation,
   type NavigationItem,
@@ -46,6 +47,11 @@ export function Sidebar({
   const { t: tAdmin } = useTranslation('admin')
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<EnterpriseFeature | null>(null)
+  const [featureState, setFeatureState] = useState<{
+    organizationId: string
+    values: Record<string, boolean>
+  } | null>(null)
+  const { token } = useAuth()
   const workspaceSelectorRef = useRef<HTMLDivElement>(null)
   const selectedOrganization = organizations.find(
     (organization) => organization.id === selectedOrganizationId,
@@ -54,10 +60,18 @@ export function Sidebar({
   const displayEmail = user?.email || tCommon('userFallback')
   const initials = (user?.full_name || tCommon('userInitials')).slice(0, 2).toUpperCase()
 
-  const enterpriseAccess = hasEnterpriseAccess(
-    selectedOrganization?.plan_tier,
-    user?.is_superuser === true,
-  )
+  useEffect(() => {
+    if (!token || !selectedOrganizationId) return
+    let active = true
+    void getMyFeatures(token, selectedOrganizationId)
+      .then((values) => {
+        if (active) setFeatureState({ organizationId: selectedOrganizationId, values })
+      })
+      .catch(() => {
+        if (active) setFeatureState({ organizationId: selectedOrganizationId, values: {} })
+      })
+    return () => { active = false }
+  }, [token, selectedOrganizationId])
 
   useEffect(() => {
     if (!isWorkspaceMenuOpen) {
@@ -78,7 +92,10 @@ export function Sidebar({
   }, [isWorkspaceMenuOpen])
 
   const renderItem = (item: NavigationItem) => {
-    if (isNavigationItemLocked(item, selectedOrganization?.plan_tier, enterpriseAccess)) {
+    const features = featureState?.organizationId === selectedOrganizationId
+      ? featureState.values
+      : null
+    if (isNavigationItemLocked(item, user?.is_superuser === true, features)) {
       return (
         <li key={item.path}>
           <button
@@ -221,7 +238,7 @@ export function Sidebar({
         organización que ya tiene acceso. Derivar en render no tiene esa ventana.
       */}
       <EnterpriseGateModal
-        feature={enterpriseAccess ? null : lockedFeature}
+        feature={lockedFeature}
         onClose={() => setLockedFeature(null)}
       />
     </aside>

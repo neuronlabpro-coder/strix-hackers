@@ -136,6 +136,15 @@ const AdminAgentsPage = lazy(() =>
 const LlmModelsPage = lazy(() =>
   import('../features/admin/LlmModelsPage').then((m) => ({ default: m.LlmModelsPage })),
 )
+const CostLimitsPage = lazy(() =>
+  import('../features/admin/CostLimitsPage').then((m) => ({ default: m.CostLimitsPage })),
+)
+const PentestProductsPage = lazy(() =>
+  import('../features/admin/PentestProductsPage').then((m) => ({ default: m.PentestProductsPage })),
+)
+const EnterpriseAgreementsPage = lazy(() =>
+  import('../features/admin/EnterpriseAgreementsPage').then((m) => ({ default: m.EnterpriseAgreementsPage })),
+)
 /**
  * La consola de precios viene diferida como las demas, y no importa nada de `billing`.
  *
@@ -370,6 +379,22 @@ export default function App() {
                 <LlmModelsPage />
               </Suspense>
             }
+          />
+          <Route
+            path="cost-limits"
+            element={
+              <Suspense fallback={<LazySection />}>
+                <CostLimitsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="pentest-products"
+            element={<Suspense fallback={<LazySection />}><PentestProductsPage /></Suspense>}
+          />
+          <Route
+            path="enterprise-agreements"
+            element={<Suspense fallback={<LazySection />}><EnterpriseAgreementsPage /></Suspense>}
           />
           <Route
             path="operations"

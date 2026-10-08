@@ -33,7 +33,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.apps.organizations.models import Membership, Organization, RoleEnum, User
+from backend.apps.organizations.models import Membership, Organization, PlanTierEnum, RoleEnum, User
 from backend.apps.repositories.models import GitProviderEnum, Repository
 from backend.apps.supply_chain import service
 from backend.apps.supply_chain.models import EcosystemEnum, SupplyChainPackage
@@ -64,7 +64,10 @@ class Tenant:
 
 async def _tenant(sesion: AsyncSession, prefijo: str) -> Tenant:
     sufijo = uuid.uuid4().hex
-    organization = Organization(name=f"{prefijo} {sufijo}", slug=f"{prefijo}-{sufijo}")
+    organization = Organization(
+        name=f"{prefijo} {sufijo}", slug=f"{prefijo}-{sufijo}",
+        plan_tier=PlanTierEnum.ENTERPRISE,
+    )
     user = User(
         email=f"{prefijo}-{sufijo}@example.com",
         hashed_password=hash_password("NoSeUsa"),

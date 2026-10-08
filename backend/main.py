@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from backend.apps.admin.cost_limits_router import router as cost_limits_admin_router
 from backend.apps.admin.operations_router import router as operations_router
 from backend.apps.admin.router import router as admin_router
 from backend.apps.agents.router import router as agents_router
@@ -25,6 +26,8 @@ from backend.apps.billing.organization_prices_router import (
 from backend.apps.billing.pricing import cargar_precios
 from backend.apps.billing.router import router as billing_router
 from backend.apps.chat.router import router as chat_router
+from backend.apps.commercial.router import admin_router as commercial_admin_router
+from backend.apps.commercial.router import public_router as commercial_public_router
 from backend.apps.cve_database.router import router as cve_router
 from backend.apps.dashboard.router import router as dashboard_router
 from backend.apps.knowledge.router import router as knowledge_router
@@ -67,6 +70,7 @@ from backend.core.database import AsyncSessionLocal
 #: Y se decide por **entorno**, no por bandera, para que no exista el caso de alguien que
 #: desactive la comprobación en producción creyendo que la tiene activa.
 _EXPONE_DOCUMENTACION: bool = settings.environment == "development"
+
 
 @asynccontextmanager
 async def _arrancar(_: FastAPI) -> AsyncIterator[None]:
@@ -119,9 +123,7 @@ async def _arrancar(_: FastAPI) -> AsyncIterator[None]:
                 cargados.quick_scan_credit_multiplier,
             )
         if cargados_catalogo is None:
-            logger.warning(
-                "El catalogo comercial no esta en la base; se vende con el del codigo"
-            )
+            logger.warning("El catalogo comercial no esta en la base; se vende con el del codigo")
         else:
             logger.info(
                 "Catalogo comercial cargado: %d packs, %d tramos, pro=%s/mes",
@@ -130,6 +132,7 @@ async def _arrancar(_: FastAPI) -> AsyncIterator[None]:
                 cargados_catalogo.suscripcion_mensual_usd,
             )
     yield
+
 
 app = FastAPI(
     lifespan=_arrancar,
@@ -300,6 +303,9 @@ app.include_router(operations_router)
 app.include_router(organization_prices_router)
 app.include_router(billing_admin_router)
 app.include_router(admin_router)
+app.include_router(cost_limits_admin_router)
+app.include_router(commercial_admin_router)
+app.include_router(commercial_public_router)
 app.include_router(support_admin_router)
 app.include_router(support_router)
 app.include_router(audit_router)

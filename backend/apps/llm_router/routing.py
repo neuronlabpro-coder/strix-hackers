@@ -7,7 +7,7 @@ from typing import Final
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.llm_router.models import LLMModelConfig, LLMUseCaseEnum
@@ -77,7 +77,19 @@ async def resolve_model_chain(
             LLMModelConfig.is_active.is_(True),
             LLMModelConfig.use_case.in_([use_case, LLMUseCaseEnum.ALL]),
         )
-        .order_by(LLMModelConfig.priority_order, LLMModelConfig.model_id)
+        .order_by(
+            case(
+                (
+                    (LLMModelConfig.is_default.is_(True))
+                    & (LLMModelConfig.use_case == use_case),
+                    0,
+                ),
+                (LLMModelConfig.is_default.is_(True), 1),
+                else_=2,
+            ),
+            LLMModelConfig.priority_order,
+            LLMModelConfig.model_id,
+        )
     )
     chain = list(result.scalars().all())
     if not chain:

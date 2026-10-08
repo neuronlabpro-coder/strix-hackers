@@ -33,6 +33,14 @@ import type {
   LLMModelCreatePayload,
   LLMModelPage,
   LLMModelUpdatePayload,
+  CostLimitPolicy,
+  CostLimitCreatePayload,
+  CostLimitPreview,
+  CostLimitOperation,
+  PentestProduct,
+  PentestProductUpdate,
+  EnterpriseAgreement,
+  EnterpriseAgreementCreate,
   LoginPayload,
   OAuthAuthorizationResponse,
   OnboardingStatus,
@@ -1078,6 +1086,100 @@ export function updateLLMModel(
     { method: 'PATCH', body: JSON.stringify(payload) },
     token,
     organizationId,
+  )
+}
+
+export function getCostLimitPolicies(token: string, organizationId: string): Promise<CostLimitPolicy[]> {
+  return request<CostLimitPolicy[]>('/api/v1/admin/cost-limits/', {}, token, organizationId)
+}
+
+export function createCostLimitPolicy(
+  token: string,
+  organizationId: string,
+  payload: CostLimitCreatePayload,
+): Promise<CostLimitPolicy> {
+  return request<CostLimitPolicy>(
+    '/api/v1/admin/cost-limits/',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export function updateCostLimitPolicy(
+  token: string,
+  organizationId: string,
+  policyId: string,
+  payload: CostLimitCreatePayload,
+): Promise<CostLimitPolicy> {
+  return request<CostLimitPolicy>(
+    `/api/v1/admin/cost-limits/${policyId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+    organizationId,
+  )
+}
+
+export function deleteCostLimitPolicy(
+  token: string,
+  organizationId: string,
+  policyId: string,
+): Promise<void> {
+  return request<void>(
+    `/api/v1/admin/cost-limits/${policyId}`,
+    { method: 'DELETE' },
+    token,
+    organizationId,
+  )
+}
+
+export function previewCostLimits(
+  token: string,
+  organizationId: string,
+  targetOrganizationId: string,
+  operation: CostLimitOperation,
+): Promise<CostLimitPreview> {
+  const params = new URLSearchParams({ organization_id: targetOrganizationId, operation })
+  return request<CostLimitPreview>(
+    `/api/v1/admin/cost-limits/preview?${params.toString()}`,
+    {},
+    token,
+    organizationId,
+  )
+}
+
+export function getMyFeatures(token: string, organizationId: string): Promise<Record<string, boolean>> {
+  return request<Record<string, boolean>>('/api/v1/features/me', {}, token, organizationId)
+}
+
+export function getAdminPentestProducts(token: string, organizationId: string): Promise<PentestProduct[]> {
+  return request<PentestProduct[]>('/api/v1/admin/pentest-products', {}, token, organizationId)
+}
+
+export function updateAdminPentestProduct(
+  token: string, organizationId: string, slug: string, payload: PentestProductUpdate,
+): Promise<PentestProduct> {
+  return request<PentestProduct>(
+    `/api/v1/admin/pentest-products/${encodeURIComponent(slug)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) }, token, organizationId,
+  )
+}
+
+export function getEnterpriseAgreements(
+  token: string, organizationId: string, targetId: string,
+): Promise<EnterpriseAgreement[]> {
+  return request<EnterpriseAgreement[]>(
+    `/api/v1/admin/organizations/${encodeURIComponent(targetId)}/enterprise-agreements`,
+    {}, token, organizationId,
+  )
+}
+
+export function createEnterpriseAgreement(
+  token: string, organizationId: string, targetId: string, payload: EnterpriseAgreementCreate,
+): Promise<EnterpriseAgreement> {
+  return request<EnterpriseAgreement>(
+    `/api/v1/admin/organizations/${encodeURIComponent(targetId)}/enterprise-agreements`,
+    { method: 'POST', body: JSON.stringify(payload) }, token, organizationId,
   )
 }
 

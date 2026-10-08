@@ -64,9 +64,14 @@ async def create_model(
     display_name: str,
     base_cost_input_m: Decimal,
     base_cost_output_m: Decimal,
+    cached_input_cost_m: Decimal | None = None,
+    provider: str | None = None,
+    context_limit_tokens: int | None = None,
+    output_limit_tokens: int | None = None,
     markup_pct: Decimal,
     priority_order: int,
     is_active: bool,
+    is_default: bool = False,
     use_case: object,
 ) -> LLMModelConfig:
     """Da de alta un modelo, rechazando duplicados con un error de dominio."""
@@ -82,9 +87,14 @@ async def create_model(
         display_name=display_name,
         base_cost_input_m=base_cost_input_m,
         base_cost_output_m=base_cost_output_m,
+        cached_input_cost_m=cached_input_cost_m,
+        provider=provider,
+        context_limit_tokens=context_limit_tokens,
+        output_limit_tokens=output_limit_tokens,
         markup_pct=markup_pct,
         priority_order=priority_order,
         is_active=is_active,
+        is_default=is_default,
         use_case=use_case,  # pyright: ignore[reportArgumentType]
     )
     session.add(model)

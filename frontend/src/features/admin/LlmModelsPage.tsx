@@ -182,6 +182,7 @@ function LlmModelRow({
   onUpdate: (payload: LLMModelUpdatePayload) => void
   labels: RowLabels
 }) {
+  const { t } = useTranslation('llm')
   const [marginDraft, setMarginDraft] = useState(model.markup_pct)
   const marginChanged = marginDraft !== model.markup_pct
 
@@ -194,7 +195,16 @@ function LlmModelRow({
   // era de la pantalla, no de la API.
   const [inputCostDraft, setInputCostDraft] = useState(model.base_cost_input_m)
   const [outputCostDraft, setOutputCostDraft] = useState(model.base_cost_output_m)
-  const costChanged = inputCostDraft !== model.base_cost_input_m || outputCostDraft !== model.base_cost_output_m
+  const [cacheCostDraft, setCacheCostDraft] = useState(model.cached_input_cost_m ?? '')
+  const [providerDraft, setProviderDraft] = useState(model.provider ?? '')
+  const [contextDraft, setContextDraft] = useState(model.context_limit_tokens?.toString() ?? '')
+  const [outputLimitDraft, setOutputLimitDraft] = useState(model.output_limit_tokens?.toString() ?? '')
+  const costChanged = inputCostDraft !== model.base_cost_input_m
+    || outputCostDraft !== model.base_cost_output_m
+    || cacheCostDraft !== (model.cached_input_cost_m ?? '')
+    || providerDraft !== (model.provider ?? '')
+    || contextDraft !== (model.context_limit_tokens?.toString() ?? '')
+    || outputLimitDraft !== (model.output_limit_tokens?.toString() ?? '')
 
   // El margen se recalcula sobre lo que hay **guardado**, no sobre el borrador del coste. Si
   // dependiera del borrador, escribir un precio nuevo cambiaria la columna de precio al mismo
@@ -266,6 +276,47 @@ function LlmModelRow({
           />
           <span className="chart-empty">{labels.output}</span>
         </label>
+        <label className="cost-field">
+          <span className="chart-empty">{t('form.costCache')}</span>
+          <input
+            type="number"
+            min="0"
+            step="0.000001"
+            className="mono"
+            value={cacheCostDraft}
+            disabled={isPending}
+            onChange={(event) => setCacheCostDraft(event.target.value)}
+          />
+        </label>
+        <label className="cost-field">
+          <span className="chart-empty">{t('form.provider')}</span>
+          <input
+            type="text"
+            value={providerDraft}
+            disabled={isPending}
+            onChange={(event) => setProviderDraft(event.target.value)}
+          />
+        </label>
+        <label className="cost-field">
+          <span className="chart-empty">{t('form.contextLimit')}</span>
+          <input
+            type="number"
+            min="1"
+            value={contextDraft}
+            disabled={isPending}
+            onChange={(event) => setContextDraft(event.target.value)}
+          />
+        </label>
+        <label className="cost-field">
+          <span className="chart-empty">{t('form.outputLimit')}</span>
+          <input
+            type="number"
+            min="1"
+            value={outputLimitDraft}
+            disabled={isPending}
+            onChange={(event) => setOutputLimitDraft(event.target.value)}
+          />
+        </label>
         {costChanged ? (
           <button
             className="secondary-button"
@@ -275,6 +326,10 @@ function LlmModelRow({
               onUpdate({
                 base_cost_input_m: inputCostDraft,
                 base_cost_output_m: outputCostDraft,
+                cached_input_cost_m: cacheCostDraft || null,
+                provider: providerDraft || null,
+                context_limit_tokens: contextDraft ? Number(contextDraft) : null,
+                output_limit_tokens: outputLimitDraft ? Number(outputLimitDraft) : null,
               })
             }
           >
@@ -391,6 +446,15 @@ function LlmModelRow({
             {model.is_active ? labels.active : labels.inactive}
           </span>
         </span>
+        <label className="filter-field">
+          <span>{t('actions.default')}</span>
+          <input
+            type="checkbox"
+            checked={model.is_default}
+            disabled={isPending || !model.is_active}
+            onChange={(event) => onUpdate({ is_default: event.target.checked })}
+          />
+        </label>
       </td>
     </tr>
   )

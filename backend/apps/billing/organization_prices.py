@@ -55,7 +55,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.billing.models import OrganizationPriceOverride, PriceOperationEnum
@@ -319,4 +319,37 @@ def precios_de(organization_id: uuid.UUID | None) -> PlatformPrices:
         if campo is not None:
             cambios[campo] = pactado.valor
 
+    return replace(base, **cambios) if cambios else base
+
+
+async def precios_efectivos_de(
+    session: AsyncSession, organization_id: uuid.UUID
+) -> PlatformPrices:
+    """Lee el precio pactado vigente de un tenant antes de sellar un cargo.
+
+    El filtro por organización vive en SQL y evita depender de la caché de otro
+    proceso. La primera fila vigente de cada operación es la más reciente.
+    """
+
+    from backend.apps.billing.pricing import precios_vigentes
+
+    ahora = datetime.now(UTC)
+    filas = await session.execute(
+        select(OrganizationPriceOverride)
+        .where(
+            OrganizationPriceOverride.organization_id == organization_id,
+            OrganizationPriceOverride.valido_desde <= ahora,
+            or_(
+                OrganizationPriceOverride.valido_hasta.is_(None),
+                OrganizationPriceOverride.valido_hasta > ahora,
+            ),
+        )
+        .order_by(OrganizationPriceOverride.valido_desde.desc(), OrganizationPriceOverride.id)
+    )
+    cambios: dict[str, Decimal] = {}
+    for fila in filas.scalars():
+        campo = _CAMPO_DE_OPERACION.get(fila.operacion)
+        if campo is not None and campo not in cambios:
+            cambios[campo] = fila.valor
+    base = precios_vigentes()
     return replace(base, **cambios) if cambios else base

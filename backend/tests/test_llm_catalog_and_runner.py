@@ -215,6 +215,22 @@ async def test_el_pentest_resuelve_solo_a_glm(
 
 
 @pytest.mark.asyncio
+async def test_default_explicito_gana_en_su_caso_sin_cambiar_pentest(
+    integration_session: AsyncSession,
+) -> None:
+    opus = await integration_session.scalar(
+        select(LLMModelConfig).where(LLMModelConfig.model_id == "anthropic/claude-opus-5.5")
+    )
+    assert opus is not None
+    opus.is_default = True
+    await integration_session.flush()
+    autofix = await resolve_model_chain(integration_session, LLMUseCaseEnum.AUTOFIX)
+    pentest = await resolve_model_chain(integration_session, LLMUseCaseEnum.DEEP_PENTEST)
+    assert autofix[0].id == opus.id
+    assert [model.model_id for model in pentest] == [UNICO_MODELO_DE_PENTEST]
+
+
+@pytest.mark.asyncio
 async def test_retired_models_are_not_active(
     integration_session: AsyncSession,
 ) -> None:

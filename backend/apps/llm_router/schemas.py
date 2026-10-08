@@ -25,9 +25,14 @@ class LLMModelCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=128)
     base_cost_input_m: Decimal = Field(ge=0, max_digits=18, decimal_places=8)
     base_cost_output_m: Decimal = Field(ge=0, max_digits=18, decimal_places=8)
+    cached_input_cost_m: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=8)
+    provider: str | None = Field(default=None, min_length=1, max_length=64)
+    context_limit_tokens: int | None = Field(default=None, gt=0)
+    output_limit_tokens: int | None = Field(default=None, gt=0)
     markup_pct: Decimal = Field(ge=0, max_digits=9, decimal_places=4)
     priority_order: int = Field(ge=1, le=100)
     is_active: bool = True
+    is_default: bool = False
     use_case: LLMUseCaseEnum = LLMUseCaseEnum.ALL
 
 
@@ -43,14 +48,22 @@ class LLMModelUpdate(BaseModel):
     base_cost_output_m: Decimal | None = Field(
         default=None, ge=0, max_digits=18, decimal_places=8
     )
+    cached_input_cost_m: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=8)
+    provider: str | None = Field(default=None, min_length=1, max_length=64)
+    context_limit_tokens: int | None = Field(default=None, gt=0)
+    output_limit_tokens: int | None = Field(default=None, gt=0)
     markup_pct: Decimal | None = Field(
         default=None, ge=0, max_digits=9, decimal_places=4
     )
     priority_order: int | None = Field(default=None, ge=1, le=100)
     is_active: bool | None = None
+    is_default: bool | None = None
     use_case: LLMUseCaseEnum | None = None
 
-    @field_validator("is_active", "priority_order", "use_case", "display_name")
+    @field_validator(
+        "is_active", "is_default", "priority_order", "use_case", "display_name",
+        "base_cost_input_m", "base_cost_output_m", "markup_pct",
+    )
     @classmethod
     def reject_explicit_null(cls, value: object) -> object:
         """Un `null` explícito sobre un campo opcional es un error de cliente."""
@@ -80,9 +93,14 @@ class LLMModelResponse(BaseModel):
     display_name: str
     base_cost_input_m: Decimal
     base_cost_output_m: Decimal
+    cached_input_cost_m: Decimal | None
+    provider: str | None
+    context_limit_tokens: int | None
+    output_limit_tokens: int | None
     markup_pct: Decimal
     priority_order: int
     is_active: bool
+    is_default: bool
     use_case: LLMUseCaseEnum
     created_at: datetime
     updated_at: datetime

@@ -195,6 +195,8 @@ async def cargar_precios(session: AsyncSession) -> PlatformPrices | None:
 def scan_credit_cost(
     scan_mode: ScanModeEnum,
     organization_id: uuid.UUID | None = None,
+    *,
+    effective_prices: PlatformPrices | None = None,
 ) -> Decimal:
     """Coste en créditos de un escaneo según su modo.
 
@@ -226,7 +228,7 @@ def scan_credit_cost(
     mantiene sin estado justamente para que ese error no se pueda escribir.
     """
 
-    precios = precios_de(organization_id)
+    precios = effective_prices if effective_prices is not None else precios_de(organization_id)
     base = precios.scan_credit_cost
     if scan_mode == ScanModeEnum.QUICK:
         return (base * precios.quick_scan_credit_multiplier).quantize(_CREDIT_QUANTUM)

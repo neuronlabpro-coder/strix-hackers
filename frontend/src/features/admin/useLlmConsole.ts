@@ -18,6 +18,7 @@ const EMPTY_FORM: LLMModelCreatePayload = {
   markup_pct: '0.00',
   priority_order: 1,
   is_active: true,
+  is_default: false,
   use_case: 'ALL',
 }
 
@@ -124,6 +125,7 @@ export function useLlmConsole(): LlmConsoleState {
         setModels((current) =>
           current.map((model) => (model.id === modelId ? updated : model)),
         )
+        load()
         notify('success', t('actions.save'))
         return true
       } catch {

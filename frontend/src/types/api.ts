@@ -368,9 +368,14 @@ export interface LLMModelConfig {
   display_name: string
   base_cost_input_m: string
   base_cost_output_m: string
+  cached_input_cost_m: string | null
+  provider: string | null
+  context_limit_tokens: number | null
+  output_limit_tokens: number | null
   markup_pct: string
   priority_order: number
   is_active: boolean
+  is_default: boolean
   use_case: LLMUseCase
   created_at: string
   updated_at: string
@@ -389,9 +394,14 @@ export interface LLMModelCreatePayload {
   display_name: string
   base_cost_input_m: string
   base_cost_output_m: string
+  cached_input_cost_m?: string | null
+  provider?: string | null
+  context_limit_tokens?: number | null
+  output_limit_tokens?: number | null
   markup_pct: string
   priority_order: number
   is_active: boolean
+  is_default: boolean
   use_case: LLMUseCase
 }
 
@@ -399,10 +409,85 @@ export interface LLMModelUpdatePayload {
   display_name?: string
   base_cost_input_m?: string
   base_cost_output_m?: string
+  cached_input_cost_m?: string | null
+  provider?: string | null
+  context_limit_tokens?: number | null
+  output_limit_tokens?: number | null
   markup_pct?: string
   priority_order?: number
   is_active?: boolean
+  is_default?: boolean
   use_case?: LLMUseCase
+}
+
+export type CostLimitScope = 'ORGANIZACION' | 'OPERACION' | 'PLAN' | 'GLOBAL'
+export type CostLimitOperation = 'PENTEST_QUICK' | 'PENTEST_DEEP' | 'PR_REVIEW' | 'CHAT'
+
+export interface CostLimitPolicy {
+  id: string
+  scope: CostLimitScope
+  organization_id: string | null
+  operation: CostLimitOperation | null
+  plan_tier: 'FREE' | 'PRO' | 'ENTERPRISE' | null
+  max_budget_usd: string | null
+  max_turns: number | null
+  valid_from: string
+  valid_until: string | null
+  created_at: string
+}
+
+export type CostLimitCreatePayload = Omit<CostLimitPolicy, 'id' | 'created_at' | 'valid_from'> & {
+  valid_from?: string | null
+}
+
+export interface CostLimitPreview {
+  max_budget_usd: string
+  max_turns: number
+  presupuesto_origen: { nivel: CostLimitScope; regla_id: string | null }
+  turnos_origen: { nivel: CostLimitScope; regla_id: string | null }
+}
+
+export interface PentestProduct {
+  id: string
+  slug: string
+  scan_mode: 'QUICK' | 'STANDARD' | 'DEEP' | null
+  name_es: string
+  name_en: string
+  description_es: string
+  description_en: string
+  price_label_es: string
+  price_label_en: string
+  price_min_usd: string | null
+  price_max_usd: string | null
+  credits_required: string | null
+  max_budget_usd: string | null
+  max_turns: number | null
+  features: string[]
+  limits: Record<string, number>
+  is_active: boolean
+}
+
+export type PentestProductUpdate = Partial<Omit<PentestProduct, 'id' | 'slug'>>
+
+export interface EnterpriseAgreement {
+  id: string
+  organization_id: string
+  price_monthly_usd: string | null
+  seats: number | null
+  included_credits: string
+  discount_pct: string
+  max_budget_usd: string | null
+  max_turns: number | null
+  features: Record<string, boolean>
+  limits: Record<string, number>
+  special_operations: string[]
+  valid_from: string
+  valid_until: string | null
+  created_at: string
+}
+
+export type EnterpriseAgreementCreate = Omit<EnterpriseAgreement, 'id' | 'organization_id' | 'created_at' | 'valid_from'> & {
+  valid_from?: string | null
 }
 
 export interface TriageResponse {

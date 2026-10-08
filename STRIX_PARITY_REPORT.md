@@ -11,8 +11,8 @@ Generado por `scripts/audit_strix_parity.py`. Los numeros de este informe se lee
 - Ausentes: **0**
 - Marcas visibles de la marca: **0**
 - Scopes declarados: **49**
-- Pruebas de backend: **1288** funciones (51 con `@parametrize`, que generan mas de un caso cada una)
-- Pruebas de frontend: **194**
+- Pruebas de backend: **1306** funciones (52 con `@parametrize`, que generan mas de un caso cada una)
+- Pruebas de frontend: **195**
 
 ## Superficie funcional
 
@@ -133,7 +133,7 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 
 ### por revisar: ninguna
 
-### identidad tecnica (414)
+### identidad tecnica (420)
 
 | Categoria | Situacion | Linea | Clasificacion |
 | :--- | :--- | :--- | :--- |
@@ -175,6 +175,8 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `frontend/src/locales/es/pentests.json:179` | "STRIX_IMAGE_UNAVAILABLE": "Este proceso no encuentra la imagen del contenedor de anali... | clave de un codigo de error del motor |
 | identidad tecnica | `frontend/src/locales/es/pentests.json:180` | "STRIX_TIMEOUT": "La comprobacion no termino a tiempo.", | clave de un codigo de error del motor |
 | identidad tecnica | `frontend/src/locales/es/pentests.json:181` | "STRIX_OUTPUT_UNUSABLE": "Esta comprobacion no produce un resultado utilizable." | clave de un codigo de error del motor |
+| identidad tecnica | `backend/apps/admin/cost_limits_router.py:62` | default_max_budget_usd=settings.strix_max_budget_usd, | identificador: strix_max_budget_usd |
+| identidad tecnica | `backend/apps/admin/cost_limits_router.py:63` | default_max_turns=settings.strix_max_turns, | identificador: strix_max_turns |
 | identidad tecnica | `backend/apps/admin/operations_router.py:39` | (`fenix-strix-{run_id}`) y su referencia vive en `pentest_runs.container_id`. La secció... | identificador: strix |
 | identidad tecnica | `backend/apps/admin/operations_router.py:555` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/admin/operations_router.py:567` | nombre = StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
@@ -190,15 +192,13 @@ Los mensajes de error que ve un **operador** al desplegar mantienen el nombre de
 | identidad tecnica | `backend/apps/billing/organization_prices.py:31` | Porque el precio se lee en sitios **sin sesión**: el worker de Strix cobra desde una ta... | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:3` | Vive aquí y no en el router de pentests porque el worker de Strix también lo | identificador: Strix |
 | identidad tecnica | `backend/apps/billing/pricing.py:17` | Porque el precio se lee en sitios donde **no hay sesión**: el worker de Strix ajusta | identificador: Strix |
-| identidad tecnica | `backend/apps/billing/pricing.py:217` | Porque hay cuatro llamadores —el servicio de pentests, el worker de Strix, el | identificador: Strix |
+| identidad tecnica | `backend/apps/billing/pricing.py:219` | Porque hay cuatro llamadores —el servicio de pentests, el worker de Strix, el | identificador: Strix |
 | identidad tecnica | `backend/apps/cve_database/models.py:6` | el impacto real de un `cve_id` que Strix reporte. | identificador: Strix |
+| identidad tecnica | `backend/apps/llm_router/cost_limits.py:5` | `STRIX_MAX_BUDGET_USD` y `STRIX_MAX_TURNS` vivían **solo** en el `.env`, y el `.env` es... | identificador: STRIX_MAX_BUDGET_USD, STRIX_MAX_TURNS |
 | identidad tecnica | `backend/apps/pentests/abort.py:66` | from backend.workers.runner.sandbox import StrixSandboxManager | identificador: StrixSandboxManager |
 | identidad tecnica | `backend/apps/pentests/abort.py:144` | referencia = run.container_id or StrixSandboxManager.container_name_for_run(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/abort.py:153` | if settings.strix_execution_mode != "host": | identificador: strix_execution_mode |
-| identidad tecnica | `backend/apps/pentests/abort.py:154` | StrixSandboxManager.remove_network_for_run(str(run.id)) | identificador: StrixSandboxManager |
-| identidad tecnica | `backend/apps/pentests/abort.py:155` | StrixSandboxManager.purge_workspace(str(run.id)) | identificador: StrixSandboxManager |
 
-_Y 354 mas._
+_Y 360 mas._
 
 ### comentario (66)
 
@@ -216,11 +216,11 @@ _Y 354 mas._
 | comentario | `backend/core/config.py:384` | #: Modo **replay**: directorio de un run real del motor (`strix_runs/<run>/`) cuyos | explicacion interna |
 | comentario | `backend/core/config.py:890` | # Un refusal de arranque, no un aviso. Ver el docstring de `strix_replay_source`: | explicacion interna |
 | comentario | `backend/workers/tasks.py:1` | """Tareas Celery de ejecución e ingesta de Strix.""" | explicacion interna |
-| comentario | `backend/workers/tasks.py:80` | # solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o... | explicacion interna |
-| comentario | `backend/workers/tasks.py:1564` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
-| comentario | `backend/workers/tasks.py:1778` | # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT` | explicacion interna |
-| comentario | `backend/workers/tasks.py:1782` | # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué | explicacion interna |
-| comentario | `backend/workers/tasks.py:1819` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
+| comentario | `backend/workers/tasks.py:81` | # solo toma el valor `STRIX_NONZERO_EXIT` —el único desenlace que devuelve un código— o... | explicacion interna |
+| comentario | `backend/workers/tasks.py:1596` | # `finally` no se dispara. El contenedor de Strix se queda vivo con el código | explicacion interna |
+| comentario | `backend/workers/tasks.py:1810` | # `STRIX_TIMEOUT` por eso. Lo que sí hace este camino es dejar el run en `TIMED_OUT` | explicacion interna |
+| comentario | `backend/workers/tasks.py:1814` | # El código que se persiste **no** es `STRIX_EXECUTION_FAILED`: es el que dice qué | explicacion interna |
+| comentario | `backend/workers/tasks.py:1851` | """Persiste atómicamente un reporte Strix y cierra el run como completado.""" | explicacion interna |
 | comentario | `backend/workers/__init__.py:1` | """Workers y utilidades de ejecución de Strix.""" | explicacion interna |
 | comentario | `backend/workers/parser/normalizer.py:18` | """Convierte severidades de Strix a valores persistidos canónicos.""" | explicacion interna |
 | comentario | `backend/workers/parser/strix_parser.py:1` | """Parser estricto de los reportes JSON generados por Strix.""" | explicacion interna |
@@ -234,7 +234,7 @@ _Y 354 mas._
 | comentario | `backend/workers/runner/exceptions.py:1` | """Errores tipados del runner Docker de Strix.""" | explicacion interna |
 | comentario | `backend/workers/runner/exceptions.py:17` | """Docker no pudo crear o ejecutar el contenedor de Strix.""" | explicacion interna |
 | comentario | `backend/workers/runner/exceptions.py:35` | """Strix no produjo un artefacto utilizable. | explicacion interna |
-| comentario | `backend/workers/runner/host.py:570` | # `leer_ejecucion` lanza `StrixRunIncompleteError` si `run.json` no dice | explicacion interna |
+| comentario | `backend/workers/runner/host.py:580` | # `leer_ejecucion` lanza `StrixRunIncompleteError` si `run.json` no dice | explicacion interna |
 | comentario | `backend/workers/runner/llm_key_exposure.py:58` | #: Texto que hay que escribir en `STRIX_LLM_KEY_EXPOSURE_ACK` para confirmar que la exp... | explicacion interna |
 | comentario | `backend/workers/runner/replay.py:96` | ## Por qué usa el workspace de `StrixHostRunner` en vez del suyo | explicacion interna |
 | comentario | `backend/workers/runner/sandbox.py:1` | """Ciclo de vida efímero del contenedor Strix.""" | explicacion interna |

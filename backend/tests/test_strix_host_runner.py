@@ -194,6 +194,14 @@ def test_el_tope_de_presupuesto_se_puede_bajar_sin_tocar_el_codigo(tmp_path: Pat
     assert comando[comando.index("--max-turns") + 1] == "7"
 
 
+def test_el_comando_usa_los_topes_resueltos_para_este_run(tmp_path: Path) -> None:
+    runner = _runner(tmp_path, max_budget_usd=Decimal("4.25"), max_turns=19)
+    comando = runner.command()
+
+    assert comando[comando.index("--max-budget") + 1] == "4.25"
+    assert comando[comando.index("--max-turns") + 1] == "19"
+
+
 def test_el_modo_host_no_pasa_el_tope_al_contenedor_que_no_lo_acepta(tmp_path: Path) -> None:
     """El tope va al **proceso**, y el modo contenedor no lo lleva.
 

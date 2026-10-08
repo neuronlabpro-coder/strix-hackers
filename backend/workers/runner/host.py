@@ -57,6 +57,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
@@ -283,6 +284,8 @@ class StrixHostRunner:
         workspace_root: Path | str | None = None,
         llm_model: str | None = None,
         cli_path: str | None = None,
+        max_budget_usd: Decimal | None = None,
+        max_turns: int | None = None,
     ) -> None:
         self.run_id = str(UUID(str(run_id)))
         self.target = target
@@ -296,6 +299,8 @@ class StrixHostRunner:
         # arranca —`Settings` lo rechaza al validarse—, así que aquí solo hay un valor por
         # defecto para el caso de que alguien construya el runner a mano en una prueba.
         self.cli_path = cli_path if cli_path is not None else settings.strix_cli_path
+        self.max_budget_usd = max_budget_usd
+        self.max_turns = max_turns
         self.workspace_root = Path(workspace_root or settings.strix_workspace_root)
         self.temp_dir: Path | None = None
         self.cleanup_pending = False
@@ -406,6 +411,11 @@ class StrixHostRunner:
             raise SandboxExecutionError(
                 "El modo host necesita la ruta del ejecutable del motor (STRIX_CLI_PATH)"
             )
+        presupuesto = (
+            self.max_budget_usd
+            if self.max_budget_usd is not None
+            else settings.strix_max_budget_usd
+        )
         return [
             self.cli_path,
             "-n",
@@ -418,9 +428,9 @@ class StrixHostRunner:
             # con `f"{...:.2f}"` porque el motor espera un decimal y `Decimal("3.00")` impreso con
             # `str` sale como `3`, que también es válido pero esconde que hay centavos detrás.
             "--max-budget",
-            f"{settings.strix_max_budget_usd:.2f}",
+            f"{presupuesto:.2f}",
             "--max-turns",
-            str(settings.strix_max_turns),
+            str(self.max_turns if self.max_turns is not None else settings.strix_max_turns),
         ]
 
 

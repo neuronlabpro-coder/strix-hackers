@@ -29,8 +29,8 @@ export interface NavigationItem {
   path: string
   icon: Icon
   /**
-   * Cuando está presente, el acceso pasa por el candado Enterprise. Un plan Enterprise
-   * o un superusuario no lo ven y navegan directo a la ruta.
+   * Cuando está presente, el acceso depende de la feature resuelta por el backend.
+   * El superusuario puede entrar en cualquier ruta de administración.
    */
   enterpriseFeature?: EnterpriseFeature
 }
@@ -79,24 +79,17 @@ export const assetNavigation: NavigationItem[] = [
   { labelKey: 'settings', path: '/settings', icon: Settings },
 ]
 
-/**
- * Regla de acceso Enterprise.
- *
- * El superusuario salta el candado porque su trabajo es operar la plataforma en todos
- * sus tenants: un administrador global encerrado en un modal de venta no puede probar
- * la funcionalidad que se está vendiendo.
- */
-export function hasEnterpriseAccess(
-  planTier: string | null | undefined,
-  isSuperuser: boolean,
-): boolean {
-  return planTier === 'ENTERPRISE' || isSuperuser
-}
-
 export function isNavigationItemLocked(
   item: NavigationItem,
-  planTier: string | null | undefined,
   isSuperuser: boolean,
+  features?: Record<string, boolean> | null,
 ): boolean {
-  return item.enterpriseFeature !== undefined && !hasEnterpriseAccess(planTier, isSuperuser)
+  if (item.enterpriseFeature === undefined || isSuperuser) return false
+  const key = {
+    supplyChain: 'supply_chain',
+    containers: 'container_scanning',
+    networks: 'internal_network_scanning',
+  }[item.enterpriseFeature]
+  if (features && key in features) return !features[key]
+  return true
 }

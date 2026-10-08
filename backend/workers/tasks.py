@@ -18,8 +18,9 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from backend.apps.billing.models import CreditLedger, LedgerReasonEnum
-from backend.apps.billing.pricing import credits_per_usd, scan_credit_cost
+from backend.apps.billing.pricing import credits_per_usd
 from backend.apps.billing.service import ZERO, apply_credit_delta
+from backend.apps.llm_router.cost_limits import limites_de, operacion_de_scan_mode
 from backend.apps.llm_router.models import LLMModelConfig, LLMUseCaseEnum
 from backend.apps.llm_router.routing import (
     LLMAllModelsInactiveError,
@@ -371,14 +372,13 @@ async def _charge_run_usage(
     model_id: str,
     scan_mode: str,
     usage: TokenUsage | None,
-    reserved_credits: Decimal,
+    ejecucion: EjecucionStrix | None = None,
+    budget_max_usd: Decimal | None = None,
 ) -> None:
-    """Tarifica el consumo real del run y ajusta la reserva del tenant.
+    """Registra el coste LLM interno del run sin cambiar su precio comercial.
 
-    La diferencia entre lo reservado y lo realmente consumido se ajusta en el
-    ledger: si el motor gastó de menos se devuelve el excedente y si gastó de más
-    se cobra. Un feed sin datos de tokens deja la reserva intacta, que es la
-    opción conservadora.
+    La reserva real se lee del ledger para calcular el margen. El consumo del
+    proveedor no genera cargos ni devoluciones al tenant.
 
     ## Por qué recibe `TokenUsage` y no el JSON del informe
 
@@ -411,17 +411,32 @@ async def _charge_run_usage(
     engine, session_factory = _session_factory()
     try:
         async with session_factory() as session:
+            reserva_real = await session.scalar(
+                select(func.coalesce(func.sum(CreditLedger.amount_delta), 0)).where(
+                    CreditLedger.organization_id == organization_id,
+                    CreditLedger.reason == LedgerReasonEnum.SCAN_CONSUMPTION,
+                    CreditLedger.reference_id == str(run_id),
+                )
+            )
+            reserved_credits = -Decimal(str(reserva_real))
             desglose = await LlmUsageTelemetry(
                 model=model,
                 use_case=_use_case_for_scan_mode(scan_mode),
                 prompt_tokens=usage.prompt_tokens,
                 completion_tokens=usage.completion_tokens,
+                cached_tokens=ejecucion.cached_tokens if ejecucion is not None else None,
+                provider_cost_usd=ejecucion.coste if ejecucion is not None else None,
+                duration_seconds=(
+                    ejecucion.duration_seconds if ejecucion is not None else None
+                ),
+                budget_max_usd=budget_max_usd,
             ).charge(
                 session=session,
                 organization_id=organization_id,
                 run_id=run_id,
                 credits_per_usd=credits_per_usd(),
                 reserved_credits=reserved_credits,
+                adjust_credits=False,
             )
             if desglose is not None:
                 await _registrar_coste_de_catalogo(
@@ -796,6 +811,7 @@ class _AttemptOutcome(NamedTuple):
     #: replay, y el nombre es negativo a propósito: lo que se lee en el caller es «¿cobro?», y la
     #: pregunta tiene que tener una respuesta por defecto que no haga daño.
     sin_tarificar: bool = False
+    budget_max_usd: Decimal | None = None
 
     @property
     def consumo(self) -> TokenUsage | None:
@@ -839,7 +855,6 @@ async def _execute_pentest_run(run_id: UUID) -> str:
         return "SKIPPED"
     organization_id, target, scan_mode, target_type = claimed
     chain = select_runtime_models(await _resolve_model_chain(scan_mode))
-    reserved = scan_credit_cost(ScanModeEnum(scan_mode))
     last_error: str | None = None
 
     # Con el catálogo vacío se recurre al modelo por defecto de configuración: es
@@ -872,7 +887,8 @@ async def _execute_pentest_run(run_id: UUID) -> str:
                     model_id,
                     scan_mode,
                     outcome.consumo,
-                    reserved,
+                    outcome.ejecucion,
+                    outcome.budget_max_usd,
                 )
             return "COMPLETED"
         last_error = outcome.error_code
@@ -1341,12 +1357,27 @@ async def _run_attempt_en_host(
     `host-pid:` para que quien la lea sepa con qué hay que matarlo; ver `host.py`.
     """
 
+    engine_limites, factory_limites = _session_factory()
+    try:
+        async with factory_limites() as session_limites:
+            limites = await limites_de(
+                session_limites,
+                organization_id=organization_id,
+                operation=operacion_de_scan_mode(scan_mode),
+                default_max_budget_usd=settings.strix_max_budget_usd,
+                default_max_turns=settings.strix_max_turns,
+                scan_mode=scan_mode,
+            )
+    finally:
+        await engine_limites.dispose()
     runner = StrixHostRunner(
         str(run_id),
         target,
         scan_mode,
         target_type=target_type,
         llm_model=model_id,
+        max_budget_usd=limites.max_budget_usd,
+        max_turns=limites.max_turns,
     )
     started_event = threading.Event()
     started_references: list[str] = []
@@ -1432,6 +1463,7 @@ async def _run_attempt_en_host(
         output_json=None,
         error_code=None,
         ejecucion=result.ejecucion,
+        budget_max_usd=limites.max_budget_usd,
     )
 
 

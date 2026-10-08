@@ -45,9 +45,14 @@
     "displayName": "Display name",
     "costInput": "Input cost per 1M",
     "costOutput": "Output cost per 1M",
+    "costCache": "Cached input cost per 1M",
+    "provider": "Provider",
+    "contextLimit": "Context limit (tokens)",
+    "outputLimit": "Output limit (tokens)",
     "margin": "Commercial margin",
     "marginHint": "Markup over the base cost. A margin of 150 means the client pays 2.5 times the cost.",
     "priority": "Priority order",
+    "default": "Default for this use case",
     "priorityHint": "1 is the primary; the rest are fallbacks on transient failure.",
     "useCase": "Use case",
     "submit": "Add to catalog",
@@ -57,6 +62,7 @@
     "success": "Model added to the catalog"
   },
   "actions": {
+    "default": "Default",
     "activate": "Activate",
     "deactivate": "Deactivate",
     "save": "Save margin",

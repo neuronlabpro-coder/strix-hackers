@@ -419,6 +419,14 @@ class EjecucionStrix:
     registros_cobertura: int
     cobertura: CoberturaStrix | None
     informe_markdown: str | None
+    cached_tokens: int | None = None
+
+    @property
+    def duration_seconds(self) -> Decimal | None:
+        if self.start_time is None or self.end_time is None:
+            return None
+        segundos = Decimal(str((self.end_time - self.start_time).total_seconds()))
+        return segundos if segundos >= 0 else None
 
     @property
     def advertencias(self) -> tuple[str, ...]:
@@ -982,6 +990,7 @@ def leer_ejecucion(workspace: Path) -> EjecucionStrix:
         registros_cobertura=registros_cobertura,
         cobertura=cobertura,
         informe_markdown=informe,
+        cached_tokens=_tokens_cacheados(uso),
     )
     if ejecucion.advertencias:
         logger.info(
@@ -991,6 +1000,16 @@ def leer_ejecucion(workspace: Path) -> EjecucionStrix:
             " | ".join(ejecucion.advertencias),
         )
     return ejecucion
+
+
+def _tokens_cacheados(uso: Mapping[str, Any]) -> int | None:
+    detalles = uso.get("input_tokens_details")
+    if not isinstance(detalles, list):
+        return None
+    valores = [_entero(_bloque(detalle).get("cached_tokens")) for detalle in detalles]
+    if not valores or any(valor is None or valor < 0 for valor in valores):
+        return None
+    return sum(valor for valor in valores if valor is not None)
 
 
 def _tokens_de_raiz(uso: Mapping[str, Any]) -> tuple[int | None, int | None]:

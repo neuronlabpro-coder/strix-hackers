@@ -52,7 +52,7 @@ async def _workspace(
     organization = Organization(
         name=f"Agentes {sufijo}",
         slug=f"agentes-{sufijo}",
-        plan_tier=PlanTierEnum.PRO,
+        plan_tier=PlanTierEnum.ENTERPRISE,
         credit_balance=Decimal(saldo),
     )
     user = User(

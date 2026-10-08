@@ -19,7 +19,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.apps.admin import queries
@@ -251,6 +251,19 @@ async def create_llm_model(
 
     from backend.apps.llm_router.service import create_model
 
+    if payload.is_default and not payload.is_active:
+        raise HTTPException(status_code=422, detail="Un modelo inactivo no puede ser default")
+    if payload.is_default:
+        await session.execute(
+            update(LLMModelConfig)
+            .where(
+                LLMModelConfig.use_case == payload.use_case,
+                LLMModelConfig.is_default.is_(True),
+            )
+            .values(is_default=False)
+        )
+        await session.flush()
+
     try:
         model = await create_model(
             session,
@@ -258,9 +271,14 @@ async def create_llm_model(
             display_name=payload.display_name,
             base_cost_input_m=payload.base_cost_input_m,
             base_cost_output_m=payload.base_cost_output_m,
+            cached_input_cost_m=payload.cached_input_cost_m,
+            provider=payload.provider,
+            context_limit_tokens=payload.context_limit_tokens,
+            output_limit_tokens=payload.output_limit_tokens,
             markup_pct=payload.markup_pct,
             priority_order=payload.priority_order,
             is_active=payload.is_active,
+            is_default=payload.is_default,
             use_case=payload.use_case,
         )
     except DuplicateLLMModelError as error:
@@ -296,12 +314,30 @@ async def update_llm_model(
             status_code=status.HTTP_404_NOT_FOUND, detail="Modelo no encontrado"
         )
 
-    changes = payload.model_dump(exclude_none=True)
+    changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Envía al menos un campo para modificar",
         )
+    effective_case = changes.get("use_case", model.use_case)
+    effective_active = changes.get("is_active", model.is_active)
+    effective_default = changes.get("is_default", model.is_default)
+    if effective_default and not effective_active:
+        raise HTTPException(status_code=422, detail="Un modelo inactivo no puede ser default")
+    if effective_default and (not model.is_default or effective_case != model.use_case):
+        await session.execute(
+            update(LLMModelConfig)
+            .where(
+                LLMModelConfig.use_case == effective_case,
+                LLMModelConfig.id != model.id,
+                LLMModelConfig.is_default.is_(True),
+            )
+            .values(is_default=False)
+        )
+        await session.flush()
+    if changes.get("is_active") is False and "is_default" not in changes:
+        changes["is_default"] = False
     for field_name, value in changes.items():
         setattr(model, field_name, value)
     await session.commit()

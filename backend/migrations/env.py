@@ -20,6 +20,7 @@ from backend.apps.assets import models as assets_models  # noqa: F401
 from backend.apps.audit import models as audit_models  # noqa: F401
 from backend.apps.billing import models as billing_models  # noqa: F401
 from backend.apps.chat import models as chat_models  # noqa: F401
+from backend.apps.commercial import models as commercial_models  # noqa: F401
 from backend.apps.cve_database import models as cve_database_models  # noqa: F401
 from backend.apps.knowledge import documents as knowledge_documents  # noqa: F401
 from backend.apps.knowledge import models as knowledge_models  # noqa: F401

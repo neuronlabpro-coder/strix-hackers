@@ -25,6 +25,7 @@ import {
   BrainCircuit,
   BadgeDollarSign,
   Activity,
+  Gauge,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -88,5 +89,8 @@ export const adminNavigation: readonly AdminNavigationItem[] = [
   { path: '/admin/audit', labelKey: 'sections.audit', icon: ScrollText },
   { path: '/admin/agents', labelKey: 'sections.agents', icon: RadioTower },
   { path: '/admin/llm', labelKey: 'sections.llm', icon: BrainCircuit },
+  { path: '/admin/cost-limits', labelKey: 'sections.costLimits', icon: Gauge },
+  { path: '/admin/pentest-products', labelKey: 'sections.pentestProducts', icon: BadgeDollarSign },
+  { path: '/admin/enterprise-agreements', labelKey: 'sections.enterpriseAgreements', icon: Building2 },
   { path: '/admin/tickets', labelKey: 'sections.tickets', icon: LifeBuoy },
 ]

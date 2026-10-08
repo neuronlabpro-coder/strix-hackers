@@ -45,9 +45,14 @@
     "displayName": "Nombre visible",
     "costInput": "Coste de entrada por 1M",
     "costOutput": "Coste de salida por 1M",
+    "costCache": "Coste de entrada cacheada por 1M",
+    "provider": "Proveedor",
+    "contextLimit": "Límite de contexto (tokens)",
+    "outputLimit": "Límite de salida (tokens)",
     "margin": "Margen comercial",
     "marginHint": "Recargo sobre el coste base. Un margen de 150 significa que el cliente paga 2,5 veces el coste.",
     "priority": "Orden de prioridad",
+    "default": "Predeterminado para este caso de uso",
     "priorityHint": "1 es el primario; los siguientes son fallbacks en caso de fallo transitorio.",
     "useCase": "Caso de uso",
     "submit": "Añadir al catálogo",
@@ -57,6 +62,7 @@
     "success": "Modelo añadido al catálogo"
   },
   "actions": {
+    "default": "Predeterminado",
     "activate": "Activar",
     "deactivate": "Desactivar",
     "save": "Guardar margen",

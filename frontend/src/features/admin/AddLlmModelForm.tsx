@@ -12,6 +12,10 @@ const FIELD_IDS = {
   display_name: 'llm-display-name',
   base_cost_input_m: 'llm-cost-input',
   base_cost_output_m: 'llm-cost-output',
+  cached_input_cost_m: 'llm-cost-cache',
+  provider: 'llm-provider',
+  context_limit_tokens: 'llm-context-limit',
+  output_limit_tokens: 'llm-output-limit',
   markup_pct: 'llm-margin',
   priority_order: 'llm-priority',
 } as const
@@ -144,6 +148,53 @@ export function AddLlmModelForm({
             </div>
           </div>
 
+          <div className="filter-bar">
+            <div className="filter-field">
+              <label htmlFor={FIELD_IDS.provider}>{t('form.provider')}</label>
+              <input
+                id={FIELD_IDS.provider}
+                type="text"
+                value={form.provider ?? ''}
+                onChange={(event) => setField('provider', event.target.value || null)}
+              />
+            </div>
+            <div className="filter-field">
+              <label htmlFor={FIELD_IDS.cached_input_cost_m}>{t('form.costCache')}</label>
+              <input
+                id={FIELD_IDS.cached_input_cost_m}
+                type="number"
+                min="0"
+                step="0.000001"
+                className="mono"
+                value={form.cached_input_cost_m ?? ''}
+                onChange={(event) => setField('cached_input_cost_m', event.target.value || null)}
+              />
+            </div>
+          </div>
+
+          <div className="filter-bar">
+            <div className="filter-field">
+              <label htmlFor={FIELD_IDS.context_limit_tokens}>{t('form.contextLimit')}</label>
+              <input
+                id={FIELD_IDS.context_limit_tokens}
+                type="number"
+                min="1"
+                value={form.context_limit_tokens ?? ''}
+                onChange={(event) => setField('context_limit_tokens', event.target.value ? Number(event.target.value) : null)}
+              />
+            </div>
+            <div className="filter-field">
+              <label htmlFor={FIELD_IDS.output_limit_tokens}>{t('form.outputLimit')}</label>
+              <input
+                id={FIELD_IDS.output_limit_tokens}
+                type="number"
+                min="1"
+                value={form.output_limit_tokens ?? ''}
+                onChange={(event) => setField('output_limit_tokens', event.target.value ? Number(event.target.value) : null)}
+              />
+            </div>
+          </div>
+
           <div className="filter-field">
             <label htmlFor={FIELD_IDS.markup_pct}>{t('form.margin')}</label>
             <input
@@ -186,6 +237,15 @@ export function AddLlmModelForm({
                 ))}
               </select>
             </div>
+            <label className="filter-field">
+              <span>{t('form.default')}</span>
+              <input
+                type="checkbox"
+                checked={form.is_default}
+                disabled={!form.is_active}
+                onChange={(event) => setField('is_default', event.target.checked)}
+              />
+            </label>
           </div>
 
           {createFailed ? (

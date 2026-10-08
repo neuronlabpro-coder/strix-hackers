@@ -18,6 +18,9 @@
     "agents": "Agentes de escaneo",
     "pricing": "Precios de plataforma",
     "llm": "Modelos LLM",
+    "costLimits": "Límites de coste",
+    "pentestProducts": "Productos de pentest",
+    "enterpriseAgreements": "Acuerdos Enterprise",
     "backToApp": "Volver a la App",
     "tickets": "Tickets y soporte"
   },
@@ -407,6 +410,80 @@
     "revokeConfirm": "Dar de baja",
     "status": {
       "REVOKED": "Dado de baja"
+    }
+  },
+  "costLimits": {
+    "eyebrow": "Control de gasto",
+    "title": "Límites de coste LLM",
+    "description": "Configura presupuesto y turnos del proveedor por organización, operación, plan o valor global.",
+    "scope": "Alcance",
+    "organization": "Organización para política o vista previa",
+    "operation": "Operación",
+    "plan": "Plan",
+    "budget": "Presupuesto máximo",
+    "turns": "Turnos máximos",
+    "from": "Vigente desde",
+    "until": "Vigente hasta",
+    "save": "Guardar política",
+    "update": "Actualizar política",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "cancel": "Cancelar edición",
+    "saving": "Guardando",
+    "preview": "Vista previa para la organización",
+    "history": "Políticas registradas",
+    "error": "No se pudieron cargar o guardar los límites",
+    "scopes": {
+      "ORGANIZACION": "Organización",
+      "OPERACION": "Operación",
+      "PLAN": "Plan",
+      "GLOBAL": "Global"
+    },
+    "operations": {
+      "PENTEST_QUICK": "Pentest rápido",
+      "PENTEST_DEEP": "Pentest profundo",
+      "PR_REVIEW": "Revisión de PR",
+      "CHAT": "Chat"
+    }
+  },
+  "products": {
+    "eyebrow": "Catálogo comercial",
+    "title": "Productos de pentest",
+    "description": "Administra presentación, créditos, presupuesto, turnos y capacidades de cada producto.",
+    "save": "Guardar producto",
+    "saving": "Guardando",
+    "error": "No se pudo cargar o guardar el producto",
+    "unassigned": "Sin asignar",
+    "modes": {"QUICK": "Rápido", "STANDARD": "Estándar", "DEEP": "Profundo"},
+    "fields": {
+      "scan_mode": "Modo de escaneo asociado",
+      "name_es": "Nombre (español)", "name_en": "Nombre (inglés)",
+      "description_es": "Descripción (español)", "description_en": "Descripción (inglés)",
+      "price_label_es": "Precio mostrado (español)", "price_label_en": "Precio mostrado (inglés)",
+      "price_min_usd": "Precio mínimo USD", "price_max_usd": "Precio máximo USD",
+      "credits_required": "Créditos requeridos", "max_budget_usd": "Presupuesto máximo USD",
+      "max_turns": "Turnos máximos", "features": "Features (separadas por comas)",
+      "limits": "Límites JSON", "is_active": "Activo"
+    }
+  },
+  "agreements": {
+    "eyebrow": "Acuerdos individuales",
+    "title": "Enterprise por organización",
+    "description": "Cada acuerdo tiene vigencia propia y no cambia el contrato de otro cliente.",
+    "organization": "Organización", "save": "Crear acuerdo", "saving": "Guardando",
+    "error": "No se pudo cargar o guardar el acuerdo", "history": "Historial de acuerdos",
+    "custom": "Personalizado", "inherit": "Heredar del plan", "enabled": "Habilitada",
+    "disabled": "Deshabilitada",
+    "fields": {
+      "price": "Precio mensual USD", "seats": "Asientos", "credits": "Créditos incluidos",
+      "discount": "Descuento %", "budget": "Presupuesto máximo USD", "turns": "Turnos máximos",
+      "operations": "Operaciones especiales (comas)", "limits": "Límites JSON",
+      "from": "Vigente desde", "until": "Vigente hasta"
+    },
+    "features": {
+      "supply_chain": "Supply Chain Security",
+      "container_scanning": "Escaneo de contenedores",
+      "internal_network_scanning": "Escaneo de red interna"
     }
   },
   "pricing": {
