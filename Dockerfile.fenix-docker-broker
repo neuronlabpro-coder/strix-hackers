@@ -1,0 +1,17 @@
+FROM python:3.12-slim-bookworm
+
+RUN groupadd --gid 10001 broker && useradd --uid 10001 --gid 10001 --no-create-home broker \
+    && install -d --owner=broker --group=broker /run/fenix-docker
+
+WORKDIR /app
+COPY fenix_docker_broker/__init__.py fenix_docker_broker/policy.py \
+     fenix_docker_broker/server.py fenix_docker_broker/healthcheck.py \
+     /app/fenix_docker_broker/
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER 10001:10001
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["python", "-m", "fenix_docker_broker.healthcheck"]
+
+CMD ["python", "-m", "fenix_docker_broker.server"]

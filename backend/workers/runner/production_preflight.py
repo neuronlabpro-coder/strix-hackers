@@ -33,9 +33,17 @@ def verify_production_runner() -> None:
     if (result.stdout + result.stderr).strip() != "strix 1.7.0":
         raise RuntimeError("strix --version debe devolver strix 1.7.0")
 
-    socket_path = Path("/var/run/docker.sock")
-    if not socket_path.is_socket():
-        raise RuntimeError("El worker no tiene /var/run/docker.sock")
+    endpoint = "unix:///run/fenix-docker/docker.sock"
+    if os.environ.get("DOCKER_HOST") != endpoint:
+        raise RuntimeError("DOCKER_HOST debe apuntar al socket privado de Fenix Docker Broker")
+    socket_path = Path("/run/fenix-docker/docker.sock")
+    if socket_path.is_symlink() or not socket_path.is_socket():
+        raise RuntimeError("El socket privado de Fenix Docker Broker no está disponible")
+    if not os.access(socket_path, os.R_OK | os.W_OK):
+        raise RuntimeError("El socket privado de Fenix Docker Broker no es accesible")
+    for direct_path in (Path("/var/run/docker.sock"), Path("/run/docker.sock")):
+        if direct_path.exists() or direct_path.is_symlink():
+            raise RuntimeError("El worker tiene acceso directo a docker.sock")
     client = docker.from_env()
     try:
         if not client.ping():

@@ -1,4 +1,8 @@
-"""La superficie de la API de Docker que el runner usa, fijada como lista blanca.
+"""Inventario histórico del runner contenedor, ajeno a la política del broker.
+
+La política de producción se define en fenix_docker_broker/policy.py a partir del smoke
+Strix 1.7.0. El texto siguiente documenta por qué se inventariaron las llamadas del
+runner antiguo; no concede permisos al broker.
 
 ## Por que este fichero existe
 

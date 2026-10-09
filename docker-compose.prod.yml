@@ -14,8 +14,8 @@
 #
 # Los dos viven en el mismo host Dokploy, en un stack distinto. El backend llega mediante
 # sus alias Docker y puertos internos a través de `fenix-network`; este compose no crea,
-# publica ni administra esos servicios. Tailscale se usa desde desarrollo local. `STRIX_SANDBOX_IMAGE` tampoco se declara aquí: la
-# imagen del sandbox la descarga el runner cuando la necesita.
+# publica ni administra esos servicios. Tailscale se usa desde desarrollo local. La imagen
+# sandbox debe estar precargada y su image ID fijado antes de arrancar el broker.
 #
 # ## Sobre los secretos
 #
@@ -69,7 +69,7 @@ x-backend-base: &backend-base
   restart: unless-stopped
   env_file:
     - .env
-  environment:
+  environment: &backend-base-environment
     ENVIRONMENT: production
     DEBUG: "false"
     # El esquema ya se migró y aprobó antes del despliegue; no ejecutar Alembic aquí.
@@ -137,6 +137,38 @@ x-backend-base: &backend-base
       max-file: "5"
 
 services:
+  fenix-docker-broker:
+    build:
+      context: .
+      dockerfile: Dockerfile.fenix-docker-broker
+    image: mindguard-fenix-team/docker-broker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    user: "10001:10001"
+    group_add:
+      - ${DOCKER_GID:?Define DOCKER_GID del socket Docker del host}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      FENIX_DOCKER_UPSTREAM: /var/run/docker.sock
+      FENIX_DOCKER_SOCKET: /run/fenix-docker/docker.sock
+      FENIX_STRIX_IMAGE: ${FENIX_STRIX_IMAGE:?Define la imagen Strix precargada}
+      FENIX_REQUIRE_IMMUTABLE_IMAGE: "true"
+      FENIX_STRIX_IMAGE_ID: ${FENIX_STRIX_IMAGE_ID:?Define el image ID sha256 autorizado}
+      FENIX_STRIX_NETWORK: ${FENIX_STRIX_NETWORK:?Define la red Fenix dedicada}
+      FENIX_STRIX_SUBNET: ${FENIX_STRIX_SUBNET:?Define la subnet Fenix dedicada}
+      FENIX_WORKSPACE_ROOT: /tmp/fenix_workspaces
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - fenix_docker_broker_socket:/run/fenix-docker
+      - /tmp/fenix_workspaces:/tmp/fenix_workspaces:ro
+
   # -------------------------------------------------------------------------
   # API
   # -------------------------------------------------------------------------
@@ -182,10 +214,14 @@ services:
   # -------------------------------------------------------------------------
   celery_worker:
     <<: *backend-base
-    group_add:
-      # El worker corre como UID 10001 y necesita permiso para usar el socket Docker del host.
-      # Configurar DOCKER_GID con el GID del grupo propietario de /var/run/docker.sock.
-      - ${DOCKER_GID:-999}
+    depends_on:
+      fenix-docker-broker:
+        condition: service_healthy
+    environment:
+      <<: *backend-base-environment
+      DOCKER_HOST: unix:///run/fenix-docker/docker.sock
+      STRIX_IMAGE: ${FENIX_STRIX_IMAGE:?Define la imagen Strix por digest}
+      STRIX_DOCKER_SANDBOX_NETWORK: ${FENIX_STRIX_NETWORK:?Define la red Fenix dedicada}
     command:
       - /app/backend/scripts/start_worker.sh
       - --loglevel=${CELERY_LOGLEVEL:-info}
@@ -197,44 +233,8 @@ services:
       # impone `STRIX_WORKER_CONCURRENCY`, que es el que el motor respeta.
       - --prefetch-multiplier=1
       - --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-20}
-    # El worker necesita hablar con el demonio de Docker para lanzar los sandboxes. Es el
-    # unico punto del despliegue donde se expone un socket, y el backend --que atiende
-    # peticiones de usuarios-- **no** lo monta: no necesita lanzar contenedores y no tiene
-    # por que poder hacerlo.
-    #
-    # ## Por que el `:ro` de este montaje NO es una proteccion
-    #
-    # El `:ro` restringe la escritura en el **sistema de ficheros**, y un socket unix no es un
-    # fichero: es un punto de comunicacion. `connect()` funciona igual con el montaje de solo
-    # lectura, asi que el worker puede seguir enviando peticiones de escritura al demonio --
-    # crear un contenedor privilegiado, ejecutar dentro de otro, montar cualquier ruta del
-    # host-- sin que el `:ro` estorbe en nada. Quien leyera "solo lectura" aqui y se quedara
-    # tranquilo estaria leyendo una garantia que el nucleo no da.
-    #
-    # ## Que es lo que limita de verdad al worker
-    #
-    # Un **proxy delante del socket** que solo deje pasar las siete superficies que el runner
-    # usa. La lista esta fijada y verificada en `backend/tests/test_runner_docker_surface.py`,
-    # que falla si el runner anade una llamada nueva sin que la lista sea revisada a mano:
-    #
-    #   POST   /containers/create                 POST /containers/{id}/start
-    #   POST   /containers/{id}/kill              POST /containers/{id}/wait
-    #   GET    /containers/{id}/json              DELETE /containers/{id}
-    #   POST   /networks/create                   GET|DELETE /networks/{name}
-    #
-    # Fuera de esa lista quedan `exec`, `build`, `images/create` y `volumes/create`, que son
-    # las que convierten al worker en el host.
-    #
-    # El cliente del runner se construye con `docker.from_env()` (`workers/runner/docker_client.py`),
-    # que respeta `DOCKER_HOST`. Por eso poner el proxy es cambiar la variable de entorno del
-    # worker y quitar este montaje, sin tocar el codigo del runner. Esa misma prueba comprueba
-    # que `from_env()` siga ahi: si alguien escribe el socket a mano, el proxy dejaria de
-    # existir sin que ninguna otra prueba se entere.
-    #
-    # Mientras el proxy no este desplegado, el worker tiene, de hecho, los permisos del
-    # demonio. Es un riesgo aceptado y **documentado**, no un riesgo mitigado.
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - fenix_docker_broker_socket:/run/fenix-docker:ro
       - /tmp/fenix_workspaces:/tmp/fenix_workspaces
     healthcheck:
       test: ["CMD-SHELL", "celery -A backend.workers.celery_app:celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
@@ -320,3 +320,4 @@ networks:
 
 volumes:
   celery_beat_state_v2:
+  fenix_docker_broker_socket:

@@ -471,6 +471,7 @@ class StrixHostRunner:
         environment.update(
             {
                 "STRIX_LLM": self.llm_model,
+                "STRIX_RUN_ID": self.run_id,
                 "LLM_API_KEY": exigir_reconocimiento_de_exposicion(),
                 "LLM_API_BASE": settings.llm_api_base,
                 "STRIX_NON_INTERACTIVE": "1",

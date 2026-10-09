@@ -29,7 +29,20 @@ def production_runner(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[
         "run",
         lambda *_args, **_kwargs: SimpleNamespace(stdout="strix 1.7.0", stderr=""),
     )
-    monkeypatch.setattr(Path, "is_socket", lambda self: self.as_posix() == "/var/run/docker.sock")
+    monkeypatch.setenv("DOCKER_HOST", "unix:///run/fenix-docker/docker.sock")
+    monkeypatch.setattr(
+        Path, "is_socket", lambda self: self.as_posix() == "/run/fenix-docker/docker.sock"
+    )
+    monkeypatch.setattr(Path, "exists", lambda _self: False)
+    monkeypatch.setattr(Path, "is_symlink", lambda _self: False)
+    real_access = preflight.os.access
+    monkeypatch.setattr(
+        preflight.os,
+        "access",
+        lambda path, mode: True
+        if str(path) == "/run/fenix-docker/docker.sock"
+        else real_access(path, mode),
+    )
     client = Mock()
     client.ping.return_value = True
     monkeypatch.setattr(preflight.docker, "from_env", lambda: client)
@@ -76,10 +89,64 @@ def test_worker_rejects_wrong_cli_version(
         preflight.verify_production_runner()
 
 
-def test_worker_rejects_missing_docker_socket(
+def test_worker_rejects_missing_broker_socket(
     production_runner: tuple[Path, Mock], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del production_runner
     monkeypatch.setattr(Path, "is_socket", lambda _self: False)
-    with pytest.raises(RuntimeError, match=r"docker\.sock"):
+    with pytest.raises(RuntimeError, match="Broker"):
         preflight.verify_production_runner()
+
+
+def test_worker_rejects_direct_socket(
+    production_runner: tuple[Path, Mock], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del production_runner
+    monkeypatch.setattr(Path, "exists", lambda self: self.as_posix() == "/var/run/docker.sock")
+    with pytest.raises(RuntimeError, match="acceso directo"):
+        preflight.verify_production_runner()
+
+
+def test_worker_rejects_other_docker_host(
+    production_runner: tuple[Path, Mock], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del production_runner
+    monkeypatch.setenv("DOCKER_HOST", "unix:///var/run/docker.sock")
+    with pytest.raises(RuntimeError, match="DOCKER_HOST"):
+        preflight.verify_production_runner()
+
+
+def test_worker_rejects_missing_docker_host(
+    production_runner: tuple[Path, Mock], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del production_runner
+    monkeypatch.delenv("DOCKER_HOST")
+    with pytest.raises(RuntimeError, match="DOCKER_HOST"):
+        preflight.verify_production_runner()
+
+
+def test_worker_rejects_inaccessible_broker_socket(
+    production_runner: tuple[Path, Mock], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del production_runner
+    monkeypatch.setattr(
+        preflight.os,
+        "access",
+        lambda path, _mode: str(path) != "/run/fenix-docker/docker.sock",
+    )
+    with pytest.raises(RuntimeError, match="no es accesible"):
+        preflight.verify_production_runner()
+
+
+@pytest.mark.parametrize("ping_result", [False, RuntimeError("broker unavailable")])
+def test_worker_rejects_broker_ping_failure(
+    production_runner: tuple[Path, Mock], ping_result: bool | Exception
+) -> None:
+    _, client = production_runner
+    if isinstance(ping_result, Exception):
+        client.ping.side_effect = ping_result
+    else:
+        client.ping.return_value = ping_result
+    with pytest.raises(RuntimeError):
+        preflight.verify_production_runner()
+    client.close.assert_called_once()

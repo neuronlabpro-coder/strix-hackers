@@ -229,6 +229,7 @@ def test_el_entorno_lleva_las_cuatro_variables_que_el_motor_necesita(tmp_path: P
     entorno = runner.environment()
 
     assert entorno["STRIX_NON_INTERACTIVE"] == "1"
+    assert entorno["STRIX_RUN_ID"] == RUN_ID
     assert entorno["STRIX_LLM"]
     assert entorno["LLM_API_KEY"]
     assert "LLM_API_BASE" in entorno

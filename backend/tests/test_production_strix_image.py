@@ -27,7 +27,9 @@ def test_production_worker_uses_host_runner_and_preflight() -> None:
     assert "STRIX_CLI_PATH: /opt/strix/bin/strix" in compose
     assert "STRIX_WORKSPACE_ROOT: /tmp/fenix_workspaces" in compose
     assert "/app/backend/scripts/start_worker.sh" in worker
-    assert "/var/run/docker.sock:/var/run/docker.sock:ro" in worker
+    assert "/var/run/docker.sock:/var/run/docker.sock:ro" not in worker
+    assert "unix:///run/fenix-docker/docker.sock" in worker
+    assert "STRIX_DOCKER_SANDBOX_NETWORK:" in worker
     assert "/tmp/fenix_workspaces:/tmp/fenix_workspaces" in worker  # noqa: S108
     assert "${STRIX_WORKSPACE_ROOT" not in worker
 
