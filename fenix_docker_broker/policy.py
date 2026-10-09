@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from fenix_egress_guard.policy import APPROVED_DNS, NETWORK_NAME, NETWORK_SUBNET
+
 
 class PolicyDeniedError(ValueError):
     """La petición no cumple la política."""
@@ -33,6 +35,10 @@ class Config:
     subnet: ipaddress.IPv4Network
     workspace_root: Path
     immutable_image: bool = False
+    dns_resolvers: tuple[str, ...] = tuple(str(value) for value in APPROVED_DNS)
+    require_attestation: bool = False
+    attestation_path: Path = Path("/run/mindguard-fenix/egress-status.json")
+    policy_hash: str = ""
 
     @classmethod
     def from_env(cls) -> Config:
@@ -51,6 +57,23 @@ class Config:
             r"ghcr\.io/usestrix/strix-sandbox@sha256:[0-9a-f]{64}", image
         ):
             raise ValueError("Producción requiere FENIX_STRIX_IMAGE por digest sha256")
+        if os.environ.get("FENIX_REQUIRE_PROD_NETWORK") == "true" and (
+            network != NETWORK_NAME or subnet != NETWORK_SUBNET
+        ):
+            raise ValueError("Broker PROD requiere la red /24 Fenix aprobada")
+        resolvers = _required("FENIX_DNS_RESOLVERS")
+        try:
+            dns_ips = tuple(ipaddress.IPv4Address(value.strip()) for value in resolvers.split(","))
+        except ipaddress.AddressValueError as error:
+            raise ValueError("FENIX_DNS_RESOLVERS debe contener IPv4") from error
+        if dns_ips != APPROVED_DNS:
+            raise ValueError("Solo se permiten los dos resolvedores DNS aprobados")
+        require_attestation = os.environ.get("FENIX_REQUIRE_EGRESS_ATTESTATION") == "true"
+        if os.environ.get("FENIX_REQUIRE_PROD_NETWORK") == "true" and not require_attestation:
+            raise ValueError("Broker PROD requiere atestación de egress")
+        policy_hash = os.environ.get("FENIX_EGRESS_POLICY_HASH", "")
+        if require_attestation and not re.fullmatch(r"[0-9a-f]{64}", policy_hash):
+            raise ValueError("Broker requiere FENIX_EGRESS_POLICY_HASH válido")
         return cls(
             upstream_socket=Path(os.environ.get("FENIX_DOCKER_UPSTREAM", "/var/run/docker.sock")),
             downstream_socket=Path(
@@ -62,6 +85,9 @@ class Config:
             subnet=subnet,
             workspace_root=Path(_required("FENIX_WORKSPACE_ROOT")),
             immutable_image=immutable_image,
+            dns_resolvers=tuple(str(value) for value in dns_ips),
+            require_attestation=require_attestation,
+            policy_hash=policy_hash,
         )
 
 
@@ -183,10 +209,15 @@ def _host_config(host: Any, config: Config, run_id: str, *, inspected: bool = Fa
             "AutoRemove",
             "VolumesFrom",
             "Tmpfs",
+            "Dns",
         },
     )
     if host.get("NetworkMode") != config.network:
         raise PolicyDeniedError("NetworkMode fuera de la red Fenix")
+    if host.get("Dns") not in (None, [], list(config.dns_resolvers)):
+        raise PolicyDeniedError("Resolvedor DNS no autorizado")
+    if inspected and host.get("Dns") != list(config.dns_resolvers):
+        raise PolicyDeniedError("Resolvedor DNS real diferente")
     if host.get("Privileged") not in (None, False):
         raise PolicyDeniedError("Privileged prohibido")
     if any(host.get(name) for name in ("PidMode", "UTSMode", "Devices", "SecurityOpt")) or host.get(
@@ -271,6 +302,7 @@ def validate_create(body: dict[str, Any], config: Config) -> tuple[dict[str, Any
         if entries[config.network] not in ({}, None):
             raise PolicyDeniedError("Opciones de endpoint no autorizadas")
     _host_config(body.get("HostConfig"), config, run_id)
+    body["HostConfig"]["Dns"] = list(config.dns_resolvers)
     env = body.get("Env", [])
     if not isinstance(env, list) or not all(isinstance(item, str) and "=" in item for item in env):
         raise PolicyDeniedError("Env inválido")
@@ -342,6 +374,7 @@ def validate_start(
             "AutoRemove",
             "VolumesFrom",
             "Tmpfs",
+            "Dns",
         )
         if host.get(key) not in (None, [], {}, "")
     }
@@ -387,6 +420,9 @@ def validate_network(info: dict[str, Any], config: Config) -> str:
         info.get("Name") != config.network
         or info.get("Driver") != "bridge"
         or info.get("EnableIPv6")
+        or info.get("Internal") is not False
+        or (info.get("Labels") or {}).get("com.mindguard.fenix") != "true"
+        or (info.get("Options") or {}).get("com.docker.network.bridge.enable_icc") != "false"
     ):
         raise PolicyDeniedError("Red Fenix no coincide")
     cidrs = info.get("IPAM", {}).get("Config", [])

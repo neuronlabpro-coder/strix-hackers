@@ -6,9 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from docker.client import DockerClient
+from docker.errors import APIError, NotFound
 from requests.exceptions import ReadTimeout
 
 from backend.core.config import settings
+from backend.workers.runner.exceptions import ContainerExecutionError
 from backend.workers.runner.sandbox import (
     SandboxCleanupError,
     SandboxExecutionError,
@@ -37,7 +39,8 @@ def configure_completed_container(
     client.networks.create.return_value = network
     container = MagicMock()
     container.id = "container-123"
-    client.containers.run.return_value = container
+    client.containers.create.return_value = container
+    client.containers.get.side_effect = NotFound("gone")
 
     def wait(**_kwargs: object) -> dict[str, int]:
         assert manager.temp_dir is not None
@@ -66,13 +69,12 @@ def test_sandbox_uses_bridge_network_cgroups_and_no_docker_socket(tmp_path: Path
     assert network_call["driver"] == "bridge"
     assert "11111111-1111-4111-8111-111111111111" in network_call["name"]
 
-    run_call = client.containers.run.call_args.kwargs
+    run_call = client.containers.create.call_args.kwargs
     assert run_call["mem_limit"] == "4g"
     assert run_call["memswap_limit"] == "4g"
     assert run_call["nano_cpus"] == 2_000_000_000
     assert run_call["pids_limit"] == 256
-    assert run_call["detach"] is True
-    assert run_call["remove"] is False
+    container.start.assert_called_once_with()
     assert run_call["privileged"] is False
     assert run_call["network"] == network_call["name"]
     assert run_call["command"][:2] == ["strix", "-n"]
@@ -97,7 +99,7 @@ def test_sandbox_can_run_with_a_prepared_workspace_and_incremental_scope(
     result = manager.run(timeout_seconds=5, workspace_prepared=True)
 
     assert result.exit_code == 0
-    environment = client.containers.run.call_args.kwargs["environment"]
+    environment = client.containers.create.call_args.kwargs["environment"]
     assert environment["STRIX_INCREMENTAL_FILES"] == '["a.py","z.py"]'
     assert manager.temp_dir is None
 
@@ -115,6 +117,101 @@ def test_sandbox_cleans_workspace_and_container_when_execution_raises(tmp_path: 
     assert not (tmp_path / manager.run_id).exists()
     container.remove.assert_called_once_with(force=True)
     client.networks.create.return_value.remove.assert_called_once_with()
+
+
+def test_partial_create_start_deny_removes_container_before_network(tmp_path: Path) -> None:
+    client = MagicMock()
+    manager = make_manager(tmp_path, client)
+    container = configure_completed_container(manager, client)
+    container.start.side_effect = APIError("start DENY")
+    events: list[str] = []
+    container.remove.side_effect = lambda **_kwargs: events.append("container")
+    manager_network = client.networks.create.return_value
+    manager_network.remove.side_effect = lambda: events.append("network")
+
+    with pytest.raises(ContainerExecutionError):
+        manager.run(timeout_seconds=5)
+
+    assert events == ["container", "network"]
+    assert manager.container is None
+    assert manager.network is None
+    assert manager.cleanup_pending is False
+
+
+def test_create_api_fails_after_daemon_created_container(tmp_path: Path) -> None:
+    client = MagicMock()
+    manager = make_manager(tmp_path, client)
+    container = configure_completed_container(manager, client)
+    container.labels = {"fenix.run_id": manager.run_id}
+    client.containers.create.side_effect = APIError("GET/parsing after create failed")
+    removed = False
+
+    def remove(**_kwargs: object) -> None:
+        nonlocal removed
+        removed = True
+
+    def get(_name: str) -> MagicMock:
+        if removed:
+            raise NotFound("gone")
+        return container
+
+    container.remove.side_effect = remove
+    client.containers.get.side_effect = get
+
+    with pytest.raises(ContainerExecutionError):
+        manager.run(timeout_seconds=5)
+
+    assert removed is True
+    client.networks.create.return_value.remove.assert_called_once_with()
+    assert manager.cleanup_pending is False
+
+
+def test_post_start_failure_cleans_in_order(tmp_path: Path) -> None:
+    client = MagicMock()
+    manager = make_manager(tmp_path, client)
+    container = configure_completed_container(manager, client)
+    container.wait.side_effect = RuntimeError("test posterior FAIL")
+    events: list[str] = []
+    container.remove.side_effect = lambda **_kwargs: events.append("container")
+    client.networks.create.return_value.remove.side_effect = lambda: events.append("network")
+
+    with pytest.raises(SandboxExecutionError):
+        manager.run(timeout_seconds=5)
+
+    container.start.assert_called_once_with()
+    assert events == ["container", "network"]
+    assert manager.cleanup_pending is False
+
+
+def test_transient_container_cleanup_retries_and_verifies(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = MagicMock()
+    manager = make_manager(tmp_path, client)
+    container = configure_completed_container(manager, client)
+    attempts = 0
+    removed = False
+
+    def remove(**_kwargs: object) -> None:
+        nonlocal attempts, removed
+        attempts += 1
+        if attempts == 1:
+            raise OSError("Docker busy")
+        removed = True
+
+    def get(_name: str) -> MagicMock:
+        if removed:
+            raise NotFound("gone")
+        return container
+
+    container.remove.side_effect = remove
+    client.containers.get.side_effect = get
+    manager.run(timeout_seconds=5)
+
+    assert attempts == 2
+    assert manager.cleanup_pending is False
+    client.networks.create.return_value.remove.assert_called_once_with()
+    assert "Docker busy" in caplog.text
 
 
 def test_sandbox_kills_container_and_raises_typed_timeout(tmp_path: Path) -> None:

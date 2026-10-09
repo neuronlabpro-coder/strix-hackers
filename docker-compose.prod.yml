@@ -160,14 +160,19 @@ services:
       FENIX_DOCKER_SOCKET: /run/fenix-docker/docker.sock
       FENIX_STRIX_IMAGE: ${FENIX_STRIX_IMAGE:?Define la imagen Strix precargada}
       FENIX_REQUIRE_IMMUTABLE_IMAGE: "true"
+      FENIX_REQUIRE_PROD_NETWORK: "true"
+      FENIX_REQUIRE_EGRESS_ATTESTATION: "true"
       FENIX_STRIX_IMAGE_ID: ${FENIX_STRIX_IMAGE_ID:?Define el image ID sha256 autorizado}
       FENIX_STRIX_NETWORK: ${FENIX_STRIX_NETWORK:?Define la red Fenix dedicada}
       FENIX_STRIX_SUBNET: ${FENIX_STRIX_SUBNET:?Define la subnet Fenix dedicada}
+      FENIX_DNS_RESOLVERS: ${FENIX_DNS_RESOLVERS:?Define los dos DNS aprobados}
+      FENIX_EGRESS_POLICY_HASH: ${FENIX_EGRESS_POLICY_HASH:?Define el hash del guard instalado}
       FENIX_WORKSPACE_ROOT: /tmp/fenix_workspaces
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - fenix_docker_broker_socket:/run/fenix-docker
       - /tmp/fenix_workspaces:/tmp/fenix_workspaces:ro
+      - /run/mindguard-fenix:/run/mindguard-fenix:ro
 
   # -------------------------------------------------------------------------
   # API
@@ -222,6 +227,11 @@ services:
       DOCKER_HOST: unix:///run/fenix-docker/docker.sock
       STRIX_IMAGE: ${FENIX_STRIX_IMAGE:?Define la imagen Strix por digest}
       STRIX_DOCKER_SANDBOX_NETWORK: ${FENIX_STRIX_NETWORK:?Define la red Fenix dedicada}
+      STRIX_NETWORK_POOL: ${FENIX_STRIX_SUBNET:?Define el /24 Strix Fenix}
+      FENIX_STRIX_NETWORK: ${FENIX_STRIX_NETWORK:?Define la red Fenix dedicada}
+      FENIX_STRIX_SUBNET: ${FENIX_STRIX_SUBNET:?Define el /24 Strix Fenix}
+      FENIX_EGRESS_POLICY_HASH: ${FENIX_EGRESS_POLICY_HASH:?Define el hash del guard instalado}
+      STRIX_REQUIRE_EGRESS_FENCE: "true"
     command:
       - /app/backend/scripts/start_worker.sh
       - --loglevel=${CELERY_LOGLEVEL:-info}
@@ -235,6 +245,7 @@ services:
       - --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-20}
     volumes:
       - fenix_docker_broker_socket:/run/fenix-docker:ro
+      - /run/mindguard-fenix:/run/mindguard-fenix:ro
       - /tmp/fenix_workspaces:/tmp/fenix_workspaces
     healthcheck:
       test: ["CMD-SHELL", "celery -A backend.workers.celery_app:celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]

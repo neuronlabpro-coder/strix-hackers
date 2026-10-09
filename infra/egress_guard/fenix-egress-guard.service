@@ -1,0 +1,19 @@
+[Unit]
+Description=MindGuard Fenix Team Strix egress guard
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/mindguard-fenix/egress-guard.env
+WorkingDirectory=/opt/mindguard-fenix
+RuntimeDirectory=mindguard-fenix
+RuntimeDirectoryMode=0755
+ExecStart=/usr/bin/python3 -m fenix_egress_guard.guard serve
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

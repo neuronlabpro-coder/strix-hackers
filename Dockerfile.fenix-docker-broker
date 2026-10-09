@@ -7,6 +7,8 @@ WORKDIR /app
 COPY fenix_docker_broker/__init__.py fenix_docker_broker/policy.py \
      fenix_docker_broker/server.py fenix_docker_broker/healthcheck.py \
      /app/fenix_docker_broker/
+COPY fenix_egress_guard/__init__.py fenix_egress_guard/policy.py \
+     fenix_egress_guard/attestation.py /app/fenix_egress_guard/
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 USER 10001:10001

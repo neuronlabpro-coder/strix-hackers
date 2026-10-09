@@ -46,6 +46,7 @@ def production_runner(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[
     client = Mock()
     client.ping.return_value = True
     monkeypatch.setattr(preflight.docker, "from_env", lambda: client)
+    monkeypatch.setattr(preflight, "verify_attestation", Mock())
     return cli, client
 
 
@@ -150,3 +151,16 @@ def test_worker_rejects_broker_ping_failure(
     with pytest.raises(RuntimeError):
         preflight.verify_production_runner()
     client.close.assert_called_once()
+
+
+def test_worker_rejects_missing_guard_attestation(
+    production_runner: tuple[Path, Mock], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del production_runner
+    monkeypatch.setattr(
+        preflight,
+        "verify_attestation",
+        Mock(side_effect=RuntimeError("egress guard missing")),
+    )
+    with pytest.raises(RuntimeError, match="egress guard missing"):
+        preflight.verify_production_runner()

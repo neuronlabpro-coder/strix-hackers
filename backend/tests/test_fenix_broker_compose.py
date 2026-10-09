@@ -27,12 +27,17 @@ def test_worker_solo_monta_socket_privado() -> None:
     assert "/var/run/docker.sock" not in worker
     assert "unix:///run/fenix-docker/docker.sock" in worker
     assert "fenix_docker_broker_socket:/run/fenix-docker:ro" in worker
+    assert "/run/mindguard-fenix:/run/mindguard-fenix:ro" in worker
+    assert "FENIX_EGRESS_POLICY_HASH:" in worker
+    assert "STRIX_NETWORK_POOL: ${FENIX_STRIX_SUBNET:?" in worker
     assert "group_add:" not in worker
     assert "STRIX_IMAGE: ${FENIX_STRIX_IMAGE:?" in worker
     for name in ("backend", "frontend", "celery_beat"):
         service = _service(name)
         assert "fenix_docker_broker_socket" not in service
         assert "/var/run/docker.sock" not in service
+        assert "/run/mindguard-fenix" not in service
+        assert "fenix-team-strix-prod" not in service
 
 
 def test_solo_broker_monta_socket_host() -> None:
@@ -50,5 +55,10 @@ def test_solo_broker_monta_socket_host() -> None:
     assert "pids_limit: 64" in broker
     assert "env_file:" not in broker
     assert 'FENIX_REQUIRE_IMMUTABLE_IMAGE: "true"' in broker
+    assert 'FENIX_REQUIRE_PROD_NETWORK: "true"' in broker
+    assert 'FENIX_REQUIRE_EGRESS_ATTESTATION: "true"' in broker
+    assert "FENIX_DNS_RESOLVERS:" in broker
+    assert "FENIX_EGRESS_POLICY_HASH:" in broker
+    assert "/run/mindguard-fenix:/run/mindguard-fenix:ro" in broker
     assert "FENIX_STRIX_IMAGE_ID:" in broker
     assert "FENIX_STRIX_SUBNET:" in broker

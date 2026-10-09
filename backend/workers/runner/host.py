@@ -64,6 +64,7 @@ from uuid import UUID
 
 from backend.apps.llm_router.attribution import attribution_environment
 from backend.core.config import settings
+from backend.workers.runner.egress_attestation import verify_attestation
 from backend.workers.runner.exceptions import (
     SandboxCleanupError,
     SandboxError,
@@ -517,6 +518,8 @@ class StrixHostRunner:
         soft_timeout_triggered = threading.Event()
         primary_error: BaseException | None = None
         try:
+            if settings.environment == "production":
+                verify_attestation()
             if workspace_prepared:
                 if self.temp_dir is None or not self.temp_dir.is_dir():
                     raise SandboxError("El workspace preparado no existe")

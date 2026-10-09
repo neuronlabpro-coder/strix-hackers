@@ -318,6 +318,19 @@ def _ejecucion_minima() -> Any:
 # --------------------------------------------------------------------------- #
 
 
+def test_produccion_sin_atestacion_no_lanza_cli(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    production = settings.model_copy(update={"environment": "production"})
+    with (
+        patch.object(host_module, "settings", production),
+        patch.object(host_module, "verify_attestation", side_effect=RuntimeError("sin guard")),
+        patch.object(host_module.subprocess, "Popen") as popen,
+        pytest.raises(SandboxExecutionError),
+    ):
+        runner.run(timeout_seconds=1, soft_timeout_seconds=0)
+    popen.assert_not_called()
+
+
 def test_el_modo_host_lee_los_artefactos_y_purga_el_workspace(tmp_path: Path) -> None:
     """El ciclo entero: workspace, subproceso, artefactos leídos y workspace purgado (R5).
 

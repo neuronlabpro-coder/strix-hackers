@@ -15,6 +15,8 @@ from unittest.mock import patch
 
 from fenix_docker_broker.policy import Config, PolicyDeniedError, parse_json
 from fenix_docker_broker.server import Broker, secure_socket
+from fenix_egress_guard.guard import attest
+from fenix_egress_guard.policy import APPROVED_DNS, Policy
 
 RUN_ID = "11111111-1111-4111-8111-111111111111"
 CONTAINER_ID = "c" * 64
@@ -32,6 +34,7 @@ class FakeUpstream:
         self.inspect = owner.inspect()
         self.image_id = IMAGE_ID
         self.drift_after_start = None
+        self.delete_failures = 0
 
     def json(self, method: str, path: str) -> dict:
         self.calls.append((method, path, None))
@@ -43,6 +46,9 @@ class FakeUpstream:
                 "Name": NETWORK,
                 "Driver": "bridge",
                 "EnableIPv6": False,
+                "Internal": False,
+                "Labels": {"com.mindguard.fenix": "true"},
+                "Options": {"com.docker.network.bridge.enable_icc": "false"},
                 "IPAM": {"Config": [{"Subnet": SUBNET}]},
             }
         if "/containers/" in path and path.endswith("/json"):
@@ -66,6 +72,9 @@ class FakeUpstream:
         if path.endswith("/kill"):
             return 204, {}, b""
         if method == "DELETE":
+            if self.delete_failures:
+                self.delete_failures -= 1
+                return 503, {}, b"busy"
             return 204, {}, b""
         raise AssertionError(path)
 
@@ -85,6 +94,7 @@ class PolicyTests(unittest.TestCase):
             network=NETWORK,
             subnet=ipaddress.ip_network(SUBNET),
             workspace_root=root,
+            dns_resolvers=("1.1.1.1", "1.0.0.1"),
         )
         self.upstream = FakeUpstream(self)
         self.broker = Broker(self.config, self.upstream)
@@ -115,6 +125,7 @@ class PolicyTests(unittest.TestCase):
                 "NetworkMode": NETWORK,
                 "CapAdd": ["NET_ADMIN", "NET_RAW"],
                 "Privileged": False,
+                "Dns": ["1.1.1.1", "1.0.0.1"],
             },
             "NetworkSettings": {
                 "Networks": {NETWORK: {"NetworkID": NETWORK_ID, "IPAddress": "172.31.240.3"}}
@@ -140,6 +151,14 @@ class PolicyTests(unittest.TestCase):
             204,
         )
         self.assertEqual(self.upstream.inspect["Config"]["Labels"]["com.mindguard.fenix"], "true")
+        create = next(
+            body
+            for method, path, body in self.upstream.calls
+            if method == "POST" and path.endswith("/containers/create")
+        )
+        self.assertEqual(
+            json.loads(create or b"{}")["HostConfig"]["Dns"], ["1.1.1.1", "1.0.0.1"]
+        )
 
     def test_create_rechaza_variantes_peligrosas(self) -> None:
         cases = {
@@ -278,6 +297,17 @@ class PolicyTests(unittest.TestCase):
                 self.assertIn(("POST", f"/containers/{CONTAINER_ID}/kill"), calls)
                 self.assertIn(("DELETE", f"/containers/{CONTAINER_ID}?force=True"), calls)
 
+    def test_start_deny_elimina_created_y_reintenta_delete(self) -> None:
+        self.upstream.delete_failures = 1
+        with patch.object(self.broker, "_attestation", side_effect=PolicyDeniedError("DENY")):
+            with self.assertRaises(PolicyDeniedError):
+                self.route("POST", f"/containers/{CONTAINER_ID}/start")
+        calls = [(method, path) for method, path, _ in self.upstream.calls]
+        self.assertEqual(
+            calls.count(("DELETE", f"/containers/{CONTAINER_ID}?force=True")), 2
+        )
+        self.assertNotIn(("POST", f"/containers/{CONTAINER_ID}/start"), calls)
+
     def test_production_rechaza_tag_mutable(self) -> None:
         values = {
             "FENIX_STRIX_IMAGE_ID": IMAGE_ID,
@@ -286,8 +316,23 @@ class PolicyTests(unittest.TestCase):
             "FENIX_STRIX_NETWORK": NETWORK,
             "FENIX_STRIX_SUBNET": SUBNET,
             "FENIX_WORKSPACE_ROOT": str(self.config.workspace_root),
+            "FENIX_DNS_RESOLVERS": "1.1.1.1,1.0.0.1",
         }
-        with patch.dict(os.environ, values), self.assertRaises(ValueError):
+        with patch.dict(os.environ, values, clear=True), self.assertRaises(ValueError):
+            Config.from_env()
+
+    def test_production_rechaza_red_fuera_del_24(self) -> None:
+        values = {
+            "FENIX_STRIX_IMAGE_ID": IMAGE_ID,
+            "FENIX_STRIX_IMAGE": "ghcr.io/usestrix/strix-sandbox@sha256:" + "a" * 64,
+            "FENIX_REQUIRE_IMMUTABLE_IMAGE": "true",
+            "FENIX_REQUIRE_PROD_NETWORK": "true",
+            "FENIX_STRIX_NETWORK": NETWORK,
+            "FENIX_STRIX_SUBNET": SUBNET,
+            "FENIX_WORKSPACE_ROOT": str(self.config.workspace_root),
+            "FENIX_DNS_RESOLVERS": "1.1.1.1,1.0.0.1",
+        }
+        with patch.dict(os.environ, values, clear=True), self.assertRaises(ValueError):
             Config.from_env()
 
     def test_immutable_image_requires_digest_present(self) -> None:
@@ -308,6 +353,34 @@ class PolicyTests(unittest.TestCase):
             }
         ]
         self.assertEqual(self.route("POST", "/containers/create", body)[0], 201)
+
+    @unittest.skipUnless(Path("/proc/sys/kernel/random/boot_id").is_file(), "Requiere Linux")
+    def test_create_y_start_exigen_atestacion_fresca(self) -> None:
+        path = Path(self.temp.name) / "egress-status.json"
+        policy = Policy(NETWORK, ipaddress.IPv4Network(SUBNET), APPROVED_DNS, path)
+        self.broker.config = self.config.__class__(
+            **{
+                **self.config.__dict__,
+                "require_attestation": True,
+                "attestation_path": path,
+                "policy_hash": policy.policy_hash(),
+            }
+        )
+        with self.assertRaises(PolicyDeniedError):
+            self.route("POST", "/containers/create", self.create_body())
+        self.assertFalse(
+            any(call[1].endswith("/containers/create") for call in self.upstream.calls)
+        )
+        attest(policy)
+        self.assertEqual(self.route("POST", "/containers/create", self.create_body())[0], 201)
+        self.assertEqual(self.route("POST", f"/containers/{CONTAINER_ID}/start")[0], 204)
+        path.unlink()
+        self.upstream.inspect["State"] = {"Running": False}
+        with self.assertRaises(PolicyDeniedError):
+            self.route("POST", f"/containers/{CONTAINER_ID}/start")
+        self.assertEqual(
+            len([call for call in self.upstream.calls if call[1].endswith("/start")]), 1
+        )
 
     @unittest.skipUnless(hasattr(os, "getuid"), "Socket Unix solo en Linux")
     def test_socket_privado_tiene_owner_y_modo_0600(self) -> None:

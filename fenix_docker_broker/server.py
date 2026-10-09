@@ -9,6 +9,7 @@ import os
 import re
 import socket
 import socketserver
+import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from fenix_docker_broker.policy import (
     validate_network,
     validate_start,
 )
+from fenix_egress_guard.attestation import AttestationError, verify
 
 LOG = logging.getLogger("fenix_docker_broker")
 MAX_REQUEST = 1024 * 1024
@@ -88,6 +90,19 @@ class Broker:
             raise PolicyDeniedError("El digest Strix no está presente en la imagen local")
         return info
 
+    def _attestation(self) -> None:
+        if not self.config.require_attestation:
+            return
+        try:
+            verify(
+                self.config.attestation_path,
+                network=self.config.network,
+                subnet=str(self.config.subnet),
+                policy_hash=self.config.policy_hash,
+            )
+        except AttestationError as error:
+            raise PolicyDeniedError(str(error)) from error
+
     def _network_id(self, prefix: str) -> str:
         path = f"{prefix}/networks/{quote(self.config.network, safe='')}"
         return validate_network(self.upstream.json("GET", path), self.config)
@@ -98,6 +113,27 @@ class Broker:
             raise PolicyDeniedError("Container ID incoherente")
         validate_identity(info, self.config)
         return info
+
+    def _remove_created(self, prefix: str, container_id: str, *, started: bool = False) -> None:
+        """Retira un ID creado por este broker; nunca deja una limpieza fallida en silencio."""
+        if started:
+            try:
+                self.upstream.request("POST", f"{prefix}/containers/{container_id}/kill")
+            except (OSError, http.client.HTTPException) as error:
+                LOG.warning("Kill previo a cleanup falló: %s", error)
+        for attempt in range(1, 4):
+            try:
+                status, _, _ = self.upstream.request(
+                    "DELETE", f"{prefix}/containers/{container_id}?force=True"
+                )
+                if status in (204, 404):
+                    return
+                LOG.error("Cleanup Docker intento %s devolvió %s", attempt, status)
+            except (OSError, http.client.HTTPException) as error:
+                LOG.error("Cleanup Docker intento %s falló: %s", attempt, error)
+            if attempt < 3:
+                time.sleep(0.2)
+        raise PolicyDeniedError("Limpieza del contenedor creado no confirmada")
 
     def route(self, method: str, raw_path: str, body: bytes) -> tuple[int, dict[str, str], bytes]:
         split = urlsplit(raw_path)
@@ -127,6 +163,7 @@ class Broker:
             self._image(prefix)
             self._network_id(prefix)
             payload = json.dumps(data, separators=(",", ":")).encode()
+            self._attestation()
             status, headers, response = self.upstream.request(method, raw_path, payload)
             if status != 201:
                 return status, headers, response
@@ -135,8 +172,8 @@ class Broker:
                 raise PolicyDeniedError("Docker devolvió un ID inválido")
             try:
                 self._container(prefix, created)
-            except PolicyDeniedError:
-                self.upstream.request("DELETE", f"{prefix}/containers/{created}?force=True")
+            except (PolicyDeniedError, OSError, http.client.HTTPException):
+                self._remove_created(prefix, created)
                 raise
             return status, headers, response
         container_match = CONTAINER_PATH.fullmatch(path)
@@ -147,32 +184,26 @@ class Broker:
                 return 200, {"content-type": "application/json"}, json.dumps(info).encode()
             if method == "POST" and suffix == "start" and not split.query and not body:
                 info = self._container(prefix, container_id)
-                self._image(prefix)
-                validate_start(info, self.config, self._network_id(prefix))
-                result = self.upstream.request(method, raw_path)
-                if result[0] != 204:
-                    return result
+                started = False
+                cleanup_attempted = False
                 try:
-                    started = self._container(prefix, container_id)
                     self._image(prefix)
-                    validate_start(started, self.config, self._network_id(prefix), started=True)
+                    validate_start(info, self.config, self._network_id(prefix))
+                    self._attestation()
+                    result = self.upstream.request(method, raw_path)
+                    if result[0] != 204:
+                        cleanup_attempted = True
+                        self._remove_created(prefix, container_id)
+                        return result
+                    started = True
+                    started_info = self._container(prefix, container_id)
+                    self._image(prefix)
+                    validate_start(
+                        started_info, self.config, self._network_id(prefix), started=True
+                    )
                 except (PolicyDeniedError, OSError, http.client.HTTPException):
-                    for cleanup_method, cleanup_path in (
-                        ("POST", f"{prefix}/containers/{container_id}/kill"),
-                        ("DELETE", f"{prefix}/containers/{container_id}?force=True"),
-                    ):
-                        try:
-                            cleanup_status, _, _ = self.upstream.request(
-                                cleanup_method, cleanup_path
-                            )
-                            if cleanup_status >= 400:
-                                LOG.error(
-                                    "Limpieza Docker %s devolvió %s",
-                                    cleanup_method,
-                                    cleanup_status,
-                                )
-                        except (OSError, http.client.HTTPException) as error:
-                            LOG.error("Limpieza Docker %s falló: %s", cleanup_method, error)
+                    if not cleanup_attempted:
+                        self._remove_created(prefix, container_id, started=started)
                     raise
                 return result
             if method == "DELETE" and suffix is None and not body:

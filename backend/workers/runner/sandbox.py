@@ -6,6 +6,7 @@ import json
 import logging
 import shutil
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,7 @@ from .llm_key_exposure import exigir_reconocimiento_de_exposicion
 from .strix_artefactos import leer_texto_protegido
 
 logger = logging.getLogger(__name__)
+REMOVE_ATTEMPTS = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +86,7 @@ class StrixSandboxManager:
         self.temp_dir: Path | None = None
         self.cleanup_pending = False
         self.container: Container | None = None
+        self._container_create_attempted = False
         self.network: Network | None = None
         self.network_name = f"{settings.strix_network_prefix}_{self.run_id}"
         self.container_name = f"fenix-strix-{self.run_id}"
@@ -281,7 +284,10 @@ class StrixSandboxManager:
                 "--output",
                 "/workspace/output/results.json",
             ]
-            self.container = self.client.containers.run(
+            # `containers.run()` agrupa create+start y pierde el objeto si start falla.
+            # Registrar el create antes de llamar a start permite purgar Created en finally.
+            self._container_create_attempted = True
+            self.container = self.client.containers.create(
                 image=self.image,
                 command=command,
                 environment=self.container_environment(),
@@ -293,13 +299,12 @@ class StrixSandboxManager:
                 network=self.network_name,
                 name=self.container_name,
                 labels={"fenix.run_id": self.run_id},
-                detach=True,
-                remove=False,
                 privileged=False,
                 cap_drop=["ALL"],
                 security_opt=["no-new-privileges:true"],
                 working_dir="/workspace",
             )
+            self.container.start()
             if on_started is not None:
                 on_started(str(self.container.id))
             if soft_timeout > 0:
@@ -355,17 +360,41 @@ class StrixSandboxManager:
         """Purga contenedor, red y workspace aunque alguna parte haya fallado."""
 
         cleanup_errors: list[str] = []
-        if self.container is not None:
+        if self.container is None and self._container_create_attempted:
+            # docker-py crea por API y después hace GET; ese GET puede fallar aunque
+            # Docker ya haya creado el recurso. El nombre determinista lo recupera.
             try:
-                self.container.remove(force=True)
+                candidate = self.client.containers.get(self.container_name)
+                if (candidate.labels or {}).get("fenix.run_id") != self.run_id:
+                    cleanup_errors.append("container: identidad del run no verificable")
+                else:
+                    self.container = candidate
             except NotFound:
-                pass
+                self._container_create_attempted = False
             except (APIError, OSError, RequestException) as error:
-                cleanup_errors.append(f"container: {error}")
-            finally:
-                self.container = None
+                cleanup_errors.append(f"container: no se pudo recuperar: {error}")
+        if self.container is not None:
+            for attempt in range(1, REMOVE_ATTEMPTS + 1):
+                try:
+                    self.container.remove(force=True)
+                except NotFound:
+                    pass
+                except (APIError, OSError, RequestException) as error:
+                    logger.warning("Cleanup container intento %s falló: %s", attempt, error)
+                try:
+                    self.client.containers.get(self.container_name)
+                except NotFound:
+                    self.container = None
+                    self._container_create_attempted = False
+                    break
+                except (APIError, OSError, RequestException) as error:
+                    logger.warning("Verificación cleanup intento %s falló: %s", attempt, error)
+                if attempt < REMOVE_ATTEMPTS:
+                    time.sleep(0.2)
+            if self.container is not None:
+                cleanup_errors.append("container: sigue presente o no verificable")
 
-        if self.network is not None:
+        if self.network is not None and not cleanup_errors:
             try:
                 self.network.remove()
             except NotFound:

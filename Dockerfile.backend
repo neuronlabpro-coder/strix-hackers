@@ -74,6 +74,8 @@ WORKDIR /app
 # Conserva el paquete `backend`: los procesos importan `backend.main` y `backend.workers`.
 # Aplanar esta carpeta en `/app` provoca que todos los servicios fallen al importar.
 COPY backend/ ./backend/
+COPY fenix_egress_guard/__init__.py fenix_egress_guard/policy.py \
+     fenix_egress_guard/attestation.py ./fenix_egress_guard/
 
 WORKDIR /app/backend
 

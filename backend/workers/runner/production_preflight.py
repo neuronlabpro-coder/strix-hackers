@@ -9,6 +9,7 @@ from pathlib import Path
 import docker
 
 from backend.core.config import settings
+from backend.workers.runner.egress_attestation import verify_attestation
 
 
 def verify_production_runner() -> None:
@@ -56,6 +57,7 @@ def verify_production_runner() -> None:
         raise RuntimeError("STRIX_WORKSPACE_ROOT debe ser un directorio absoluto montado")
     if not os.access(workspace, os.W_OK | os.X_OK):
         raise RuntimeError("El worker no puede escribir en el workspace compartido")
+    verify_attestation()
 
 
 if __name__ == "__main__":
